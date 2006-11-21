@@ -1,0 +1,99 @@
+Welcome to the Timber compiler sources!
+=======================================
+
+
+Requirements
+============
+
+To compile the Timber compiler, you'll need
+
+   ghc (haskell.org/ghc) or hugs (haskell.org/hugs)
+   gcc (gcc.gnu.org)
+
+Furthermore, to compile the grammar (Parser.y into Parser.hs) you'll need
+
+   happy (haskell.org/happy)
+
+Version numbers known to work are ghc 6.2.2, hugs Nov 2002, happy 1.13, and gcc 3.3.
+
+
+Configuration
+=============
+
+If you want to develop timberc, make sure happy and either ghc or hugs
+is in the path. Run ./configure --prefix=`pwd` and the compiler will be 
+configured for your current directory.
+
+Making
+======
+
+Compiling the souces is easy, just type 
+
+   make
+
+Running
+=======
+
+For info on how to run the ghc generated compiler, type
+
+   ./timberc --help
+
+If you're running the compiler interactively under hugs, type
+
+   main2 ["--help"]
+
+
+
+Caveats
+=======
+
+Plenty!  Be aware that the sources are in pre-alpha shape!!
+
+
+To to
+=====
+
+(Immediate)
+
+   - Implement local let and case for statements (Core2Kindle.hs)
+   - Fix bug that precludes single actions as object interfaces (Core2Kindle.hs)
+   - Add term translation for record and case expressions with proper subtyping (Type.hs)
+   - Implement unique renaming of all non-global names.
+   - Thoroughly test the type-checker!
+   - Integrate the copying inceremental garbage collector.
+   - Construct a more interesting standard environment (rts.c).
+   - Generate special type constructors for polymorphic data types instantiated with
+     primitive types.
+
+(Coming up)
+
+   - Preserve template, action and request syntax in Core.
+   - Complete the M16C port.
+   - Turn subtyping coercions into casts for first listed parent type in each declaration.
+
+(Long term)
+
+   - Everything else!
+
+
+Contributors
+============
+
+Johan Nordlander
+Bjorn von Sydow
+Andy Gill
+Mark P. Jones
+Magnus Carlsson
+...
+
+
+Reporting bugs
+==============
+
+Contact nordland@csee.ltu.se, but please be gentle!
+
+
+License
+=======
+
+See the accompanying file LICENCE.
