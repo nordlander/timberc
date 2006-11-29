@@ -80,7 +80,7 @@ A |- do@x:s c --> (x) c' : (t)t'
 
 |- s --> T     A|x:T |- c --> c' : t
 ----------------------------------------------------
-A |- template@x:s c --> (_) x:T = new T; c' : (?)t
+A |- template@x:s c --> (_) x:T = new T {}; c' : (?)t
 
 
 A(x) = T    A|x:T |- c --> c' : t
@@ -89,8 +89,8 @@ A |- request@x c --> (_) lock(x); UNLOCK(x,c',t) : (?)t
 
 
 A(x) = T    A|x:T |- c --> c' : t    y new
---------------------------------------------------------------------------------------------------------------------
-A |- action@x c --> (a,b) Msg y = new Msg { aft = a; bef = b; to = x; code = (x) c'; return post(y) : (Time,Time)Msg
+---------------------------------------------------------------------------------------------------------------------
+A |- action@x c --> (a,b) Msg y = new Msg { aft = a; bef = b; to = x; code = (x) c'}; return post(y) : (Time,Time)Msg
 
 
 

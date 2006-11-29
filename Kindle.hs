@@ -9,14 +9,14 @@ data Module     = Module  Name Decls Funs Vals
 
 type Decls      = Map Name Decl
 
-data Decl       = Struct TEnv
+data Decl       = Struct FEnv TEnv
                 | Enum   [Name]
                 deriving (Eq,Show)
 
 
 type Funs       = Map Name Fun
 
-data Fun        = Fun    Type TEnv Cmd
+data Fun        = Fun    FType Cmd
                 deriving (Eq,Show)
 
 
@@ -28,20 +28,18 @@ data Val        = Val    Type Exp
 
 type TEnv       = Map Name Type
 
-data Type       = TFun   [Type] Type
-                | TId    Name
+tyep FEnv       = Map Name FType
+
+data FType      = FType  [Type] Type
+
+data Type       = TId    Name
                 | TPoly
                 deriving (Eq,Show)
 
-
-data Bind       = BFun    Funs
-                | BVal    Name Val
-                | BAss    Exp Exp
-                deriving (Eq,Show)
-
-
 data Cmd        = CRet    Name
-                | CBind   Bind Cmd
+                | CVal    Name Val Cmd
+                | CFuns   Funs Cmd
+                | CAssign Exp Name Exp
                 | CCase   Name [Alt] Cmd
                 | CCaseL  Name [AltL] Cmd
                 | CSeq    Cmd Cmd
@@ -57,8 +55,9 @@ data AltL       = AltL    Lit Cmd
 data Exp        = EVar    Name
                 | ELit    Lit
                 | ESel    Exp Name
-                | ENew    Name
-                | ECall   Exp [Exp]
+                | ENew    Name [Eqn]
+                | EFCall  Name [Exp]
+                | EMCall  Exp Name [Exp]
                 | ECast   Type Exp
                 deriving (Eq,Show)
 
