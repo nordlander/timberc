@@ -3,290 +3,160 @@ module Kindle where
 import Common
 import PP
 
+-- Kindle is the main back-end intermediate language.  It is a typed imerative language with dynamic 
+-- memory allocation and garbage-collection, that can be described as a slightly extended version of
+-- the common subset of C, Java and C++.  The purpose of Kindle is to function as a high-level back-
+-- end program format that can be translated into standard imperative languages as well as assembly
+-- code without too much difficulty.  None of C's pointer arithmetic features are present, neither
+-- are the class hieracrhies of Java and C++.  Unsafe type-casts are supported, and there is an
+-- explicit wildcard (word-sized) type written ?.  The main extension compared to Java is nested
+-- recursive functions.  Heap-allocated struct objects may contain function-valued components which
+-- are invoked using self-application.  This provides a form of basic OO capability that may serve
+-- as a target for a closure conversion pass.  For more details on the relation between Kindle and
+-- the primary intermediate language Core, see module Core2Kindle.
 
-data Module     = Module  Name Decls Funs Vals
+
+-- A Kindle module consists of type declarations, value definitions and function definitions.  The
+-- values are immutable and the corresponding RH sides are supposed to be run at initialization time.
+-- Types and functions are visible everywhere in the module, while a value definition only scopes over
+-- any definitions that appear later.  It is a static error if the value RH sides cannot be evaluated
+-- at compile time without encountering a value that hasn't been initialized.
+data Module     = Module  Name Decls Vals Funs
                 deriving (Eq,Show)
 
 type Decls      = Map Name Decl
 
-data Decl       = Struct FEnv TEnv
+-- A type declaration either introduces a struct type that defines the layout of heap-allocated objects,
+-- or an enum type that defines a set of (parameterless) constructor names.  A struct may contain both
+-- value and function definitions.  Each struct declaration introduces its own namespace for the defined
+-- value and function fields.  The constructor names of an enum declaration belong to the top-level
+-- value namespace.  All type names belong to a common space that is separate from all other namespaces.
+data Decl       = Struct VEnv FEnv
                 | Enum   [Name]
+                deriving (Eq,Show)
+
+
+type VEnv       = Map Name Type
+
+type FEnv       = Map Name FType
+
+
+type Vals       = Map Name Val
+
+-- A value is defined by an expression and the corresponding type.
+data Val        = Val    Type Exp
                 deriving (Eq,Show)
 
 
 type Funs       = Map Name Fun
 
-data Fun        = Fun    FType Cmd
+-- A function is defined by function type (parameter types, result type), a list of parameter names and
+-- a function body in the shape of a command.  The number of parameter types and parameter names must be 
+-- equal.
+data Fun        = Fun    FType [Name] Cmd
                 deriving (Eq,Show)
 
 
-type Vals       = Map Name Val
+-- A function type is just a pair of a parameter type list and a result type.
+type FType      = ([Type], Type)
 
-data Val        = Val    Type Exp
-                deriving (Eq,Show)
-
-
-type TEnv       = Map Name Type
-
-tyep FEnv       = Map Name FType
-
-data FType      = FType  [Type] Type
-
+-- A type is either a name, which can be primitive or introduced in a type declaration, or the wildcard
+-- type.
 data Type       = TId    Name
-                | TPoly
-                deriving (Eq,Show)
-
-data Cmd        = CRet    Name
-                | CVal    Name Val Cmd
-                | CFuns   Funs Cmd
-                | CAssign Exp Name Exp
-                | CCase   Name [Alt] Cmd
-                | CCaseL  Name [AltL] Cmd
-                | CSeq    Cmd Cmd
-                | CBreak
-                deriving (Eq,Show)
-
-data Alt        = Alt     Name Cmd
-                deriving (Eq,Show)
-
-data AltL       = AltL    Lit Cmd
-                deriving (Eq,Show)
-
-data Exp        = EVar    Name
-                | ELit    Lit
-                | ESel    Exp Name
-                | ENew    Name [Eqn]
-                | EFCall  Name [Exp]
-                | EMCall  Exp Name [Exp]
-                | ECast   Type Exp
+                | TWild
                 deriving (Eq,Show)
 
 
+-- A function body is a command that computes the desired result, possibly while performing imperative
+-- side-effects.  The current type system does not distinguish pure functions from side-effecting ones,
+-- although that separation will indeed be maintained by the translation from type-checked Core programs.
+data Cmd        = CRet    Exp                 -- simply return $1
+                | CVals   Vals Cmd            -- define local values $1 in sequence, then execute $2
+                | CFuns   Funs Cmd            -- define local recursive functions $1, execute tail $2
+                | CAssign Exp Name Exp Cmd    -- overwrite value field $2 of struct $1 with value $3, execute tail $4
+                | CSwitch Exp [Alt] Cmd       -- depending on the value of $1, choose tails from $2, default to $3
+                | CSeq    Cmd Cmd             -- execute $1; if fall-through, continue with $2
+                | CBreak                      -- break out of a surrounding switch
+                deriving (Eq,Show)
 
-findStructByName [] x                   = error ("findStructByName " ++ show x)
-findStructByName ((y,s@(Struct te)):ds) x
-  | x == y                              = s
-findStructByName (_:ds) x               = findStructByName ds x
+-- Note 1: sequential function calls will be expressed as function calls on the RH sides of the value
+-- definitions in a CVal command.
+-- Note 2: the Cmd alternatives CSeq and CBreak are intended to implement the Fatbar and Fail primitives 
+-- of the pattern-matching datatype PMC used in Core.
 
+data Alt        = ACon    Name Cmd            -- execute tail $2 if switch value matches constructor name $1
+                | ALit    Lit Cmd             -- execute tail $2 if switch value matches literal $1
+                deriving (Eq,Show)
 
-findStructByLabel [] x                  = error ("findStructByLabel " ++ show x)
-findStructByLabel ((y,s@(Struct te)):ds) x
-  | x `elem` dom te                     = s
-findStructByLabel (_:ds) x              = findStructByLabel ds x
+-- Simple expressions that can be RH sides of value definitions as well as function arguments.
+data Exp        = EVar    Name                -- local or global value variable or function parameter
+                | EThis                       -- the implicit first parameter of a function-valued struct field
+                | ELit    Lit                 -- literal
+                | ESel    Exp Name            -- selection of value field $2 from struct $1
+                | ENew    Name Vals Funs      -- a new struct of type $1 filled with values $2 and functions $3.
+                | ECall   Name [Exp]          -- calling local or global function $1 with arguments $2
+                | EEnter  Exp Name [Exp]      -- calling function field $2 of struct $1 with arguments ($1++$3)
+                | ECast   Type Exp            -- unchecked cast of value $2 to type $1
+                deriving (Eq,Show)
 
-
-findEnumByName [] x                     = error ("findEnumByName " ++ show x)
-findEnumByName ((y,e@(Enum xs)):ds) x
-  | x == y                              = e
-findEnumByName (_:ds) x                 = findEnumByName ds x
-
-
-findEnumByTag [] x                      = error ("findEnumByTag " ++ show x)
-findEnumByTag ((y,e@(Enum xs)):ds) x
-  | x `elem` xs                         = e
-findEnumByTag (_:ds) x                  = findEnumByTag ds x
-
-
-
-conOfAlt (Alt c b)         = c
-
-litOfAlt (AltL l b)        = l
-
-
-instance Ids Exp where
-    idents (EVar x)                     = [x]
-    idents (ELit l)                     = []
-    idents (ECall e es)                 = idents e ++ idents es
-    idents (ESel e l)                   = idents e
-    idents (ENew c)                     = []
-    idents (ECast t e)                  = idents e
+-- Note: Kindle allows free variables to occur inside local functions and function-valued struct fields.  A
+-- Kindle implementation must either handle this correctly at run-time, or such variable occurrences must be 
+-- transformed away at compile-time.  The latter can be done using lambda-lifting for local functions and
+-- explicitly closing the struct functions via extra value fields accessed through "this".
 
 
-instance Ids Cmd where
-    idents (CRet x)                     = [x]
-    idents (CBind b c)                  = idents b ++ (idents c \\ bvars b)
-    idents (CCase x alts d)             = x : idents alts ++ idents d
-    idents (CCaseL x alts d)            = x : idents alts ++ idents d
-    idents (CSeq c1 c2)                 = idents c1 ++ idents c2
-    idents (CBreak)                     = []
-
-instance Ids Bind where
-    idents (BFun fs)                    = idents fs \\ dom fs
-    idents (BVal x v)                   = idents v
-    idents (BAss e e')                  = idents e ++ idents e'
-
-instance Ids Fun where
-    idents (Fun t te c)                 = idents c \\ dom te
-
-instance Ids Val where
-    idents (Val t e)                    = idents e
-
-instance Ids Alt where
-    idents (Alt x c)                    = idents c
-
-instance Ids AltL where
-    idents (AltL l c)                   = idents c
-
-
-instance BVars Bind where
-    bvars (BFun fs)                     = dom fs
-    bvars (BVal x v)                    = [x]
-    bvars (BAss e e')                   = []
-
-
--- Note! This substitution algorithm does not alpha convert!
--- Only use when variables are known not to clash
-
-instance Subst Fun Name Name where
-    subst s (Fun t te c)                = Fun t te (subst s c)
-
-instance Subst Val Name Name where
-    subst s (Val t e)                   = Val t (subst s e)
-
-instance Subst Cmd Name Name where
-    subst [] b                          = b
-    subst s (CRet x)                    = CRet (substVar s x)
-    subst s (CBind b c)                 = CBind (subst s b) (subst s c)
-    subst s (CCase x alts d)            = CCase (substVar s x) (subst s alts) (subst s d)
-    subst s (CCaseL x alts d)           = CCaseL (substVar s x) (subst s alts) (subst s d)
-    subst s (CSeq c1 c2)                = CSeq (subst s c1) (subst s c2)
-    subst s (CBreak)                    = CBreak
-
-instance Subst Bind Name Name where
-    subst s (BFun fs)                   = BFun (subst s fs)
-    subst s (BVal x v)                  = BVal x (subst s v)
-    subst s (BAss e e')                 = BAss (subst s e) (subst s e')
-
-instance Subst Alt Name Name where
-    subst s (Alt x c)                   = Alt x (subst s c)
-
-instance Subst AltL Name Name where
-    subst s (AltL l c)                  = AltL l (subst s c)
-
-instance Subst Exp Name Name where
-    subst [] e                          = e
-    subst s (EVar x)                    = case lookup x s of
-                                            Just x' -> EVar x'
-                                            Nothing -> EVar x
-    subst s (ELit l)                    = ELit l
-    subst s (ESel e l)                  = ESel (subst s e) l
-    subst s (ECall e es)                = ECall (subst s e) (subst s es)
-    subst s (ENew x)                    = ENew x
-
-    subst s (ECast t e)                 = ECast t (subst s e)
-
-
-
-
-
-instance Subst Exp Name Exp where
-    subst [] e                          = e
-    subst s (EVar x)                    = case lookup x s of
-                                            Just e  -> e
-                                            Nothing -> EVar x
-    subst s (ELit l)                    = ELit l
-    subst s (ESel e l)                  = ESel (subst s e) l
-    subst s (ECall e es)                = ECall (subst s e) (subst s es)
-    subst s (ENew x)                    = ENew x
-
-    subst s (ECast t e)                 = ECast t (subst s e)
-
-instance Subst Val Name Exp where
-    subst [] v                          = v
-    subst s (Val t e)                   = Val t (subst s e)
-
-{-
-
-add (x,y) = x+y
-
-map (f,xs) = case xs of
-               Nil  -> Nil
-               Cons -> Cons ( f (xs.head), map (f, xs.tail) )
-
-g(x,as) = map (add(x), as)
-
-
-g(x,as) = map (\y -> add(x,y), as)
-
-g(x,as) = let c(y) = add(x,y) in map (c,as)
-
-c(x,y) = add(x,y)
-g(x,as) = map (c(x),as)
-
--------------
-
-h1 :: List ((A,B)->C->Int) -> Bool
-h2 :: List ((A,B,C)->Int) -> Bool
-
-g(xs) = h1(xs) && h2(xs)
-  
-
--}
-
-
+-- Tentative concrete syntax
 
 instance Pr Module where
-    pr (Module m cs fs vs)              = text "module" <+> prId m <+> text "where" $$
-                                          vpr cs $$
-                                          vpr fs $$
-                                          vpr vs
+    pr (Module m ds vs fs)              = text "module" <+> prId m <+> text "where" $$
+                                          vpr ds $$ 
+                                          vpr vs $$
+                                          vpr fs
 
 
 instance Pr (Name, Decl) where
-    pr (c, Struct te)                   = text "struct" <+> prId c <+> text "{" $$
-                                          nest 4 (pr te) $$
+    pr (c, Struct ve fe)                = text "struct" <+> prId c <+> text "{" $$
+                                          nest 4 (vpr ve) $$
+                                          nest 4 (vpr fe) $$
                                           text "}"
-    pr (c, Enum ce)                     = text "enum" <+> prId c <+> text "{" $$
-                                          nest 4 (vpr ce) $$
-                                          text "}"
+    pr (c, Enum xs)                     = text "enum" <+> prId c <+> text "{" <> commasep pr xs <> text "}"
 
-instance Pr TEnv where
-    pr te                               = vcat (map prSig te)
-      where prSig (x,t)                 = pr t <+> prId x <> text ";"
-
-
-instance Pr (Name, Fun) where
-    pr (x, Fun t te c)                  = pr t <+> prId x <+> parens (commasep pr te) <+> text "{" $$
-                                          nest 4 (pr c) $$
-                                          text "}"
 
 instance Pr (Name, Type) where
     pr (x, t)                           = pr t <+> prId x
 
+instance Pr (Name, FType) where
+    pr (x, (ts,t))                      = pr t <+> prId x <> parens (commasep pr ts) <> text ";"
+
 
 instance Pr Type where
-    prn 0 (TFun ts t)                   = parens (commasep pr ts) <> prn 1 t
-    prn 0 t                             = prn 1 t
-    prn 1 (TId c)                       = prId c
-    prn 1 (TPoly)                       = text "?"
-    prn 1 t                             = parens (pr t)
+    pr (TId c)                          = prId c
+    pr (TWild)                          = text "?"
 
 
 instance Pr (Name, Val) where
     pr (x, Val t e)                     = pr t <+> prId x <+> text "=" <+> pr e
 
 
-instance Pr Cmd where
-    pr (CRet x)                         = text "return" <+> prId x <> text ";"
-    pr (CBind b c)                      = pr b $$ 
-                                          pr c
-    pr (CCase x alts d)                 = text "switch" <+> parens (prId x) <+> text "{" $$
-                                          nest 2 (vpr alts $$ prDefault d) $$
+instance Pr (Name, Fun) where
+    pr (x, Fun (ts,t) xs c)             = pr t <+> prId x <+> parens (commasep pr (xs `zip` ts)) <+> text "{" $$
+                                          nest 4 (pr c) $$
                                           text "}"
-    pr (CCaseL x alts d)                = text "switch" <+> parens (prId x) <+> text "{" $$
+
+instance Pr Cmd where
+    pr (CRet e)                         = text "return" <+> pr e <> text ";"
+    pr (CVals vs c)                     = vpr vs $$
+                                          pr c
+    pr (CFuns fs c)                     = vpr fs $$
+                                          pr c
+    pr (CAssign e x e' c)               = pr e <> text "." <> prId x <+> text ":=" <+> pr e' <> text ";" $$
+                                          pr c
+    pr (CSwitch e alts d)               = text "switch" <+> parens (pr e) <+> text "{" $$
                                           nest 2 (vpr alts $$ prDefault d) $$
                                           text "}"
     pr (CSeq c1 c2)                     = pr c1 $$
                                           pr c2
     pr (CBreak)                         = text "break;"
-
-
-instance Pr Bind where
-    pr (BFun fs)                        = text "let {" $$
-                                          nest 4 (vpr fs) $$
-                                          text "}"
-    pr (BVal x (Val t e))               = pr t <+> prId x <+> text "=" <+> pr e <> text ";"
-    pr (BAss e e')                      = pr e <+> text ":=" <+> pr e' <> text ";"
 
 
 
@@ -296,24 +166,23 @@ prScope c                               = text "{" <+> pr c $$
                                           text "}"
 
 instance Pr Alt where
-    pr (Alt x c)                        = prId x <> text ":" <+> prScope c
-
-
-instance Pr AltL where
-    pr (AltL l c)                       = pr l <> text ": " <+> prScope c
+    pr (ACon x c)                       = prId x <> text ":" <+> prScope c
+    pr (ALit l c)                       = pr l <> text ":" <+> prScope c
 
 
 prDefault c                             = text "default: " <+> prScope c
 
 
 instance Pr Exp where
-    pr (ECall (EVar x) es)              = prId x <+> parens (commasep pr es)
-    pr (ECall e es)                     = parens (pr e) <> parens (commasep pr es)
-    pr (ESel (EVar x) l)                = prId x <> text "." <> pr l
-    pr (ESel e l)                       = parens (pr e) <> text "." <> pr l
     pr (EVar x)                         = prId x
     pr (ELit l)                         = pr l
+    pr (ESel e l)                       = pr e <> text "." <> pr l
+    pr (ENew x vs [])                   = text "new" <+> prId x <+> text "{" <> commasep pr vs <> text "}"
+    pr (ENew x vs fs)                   = text "new" <+> prId x <+> text "{" $$
+                                          nest 4 (vpr vs $$ vpr fs) $$
+                                          text "}"
+    pr (ECall x es)                     = prId x <+> parens (commasep pr es)
+    pr (EEnter e x es)                  = pr e <> text "." <> prId x <> parens (commasep pr es)
     pr (ECast t e)                      = parens (pr t) <> pr e
 
-    pr (ENew x)                         = text "new" <+> prId x
 
