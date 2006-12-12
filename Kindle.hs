@@ -16,53 +16,50 @@ import PP
 -- the primary intermediate language Core, see module Core2Kindle.
 
 
--- A Kindle module consists of type declarations, value definitions and function definitions.  The
--- values are immutable and the corresponding RH sides are supposed to be run at initialization time.
--- Types and functions are visible everywhere in the module, while a value definition only scopes over
--- any definitions that appear later.  It is a static error if the value RH sides cannot be evaluated
--- at compile time without encountering a value that hasn't been initialized.
-data Module     = Module  Name Decls Vals Funs
+-- A Kindle module consists of type declarations and term bindings.  A type declaration introduces
+-- either a struct type or an enumeration type.  A binding either defines either a named function or 
+-- a named value of atomic type.  Both binding forms are immutable.  All type declarations are 
+-- mutually recursive, whereas term-level recursion is only supported within groups of adjacent 
+-- function bindings.  Otherwise bindings scope over subsequent definitions.
+data Module     = Module  Name Decls Binds
                 deriving (Eq,Show)
 
+-- A type declaration either introduces a struct type that defines the layout of heap-allocated 
+-- objects, or an enumeration type that defines a set of (parameterless) constructor names.  A 
+-- struct may contain both value and function bindings.  The field names of a struct as well as the 
+-- constructor names of an enum belong to the top-level term namespace, and must therefore be
+-- globnally unique.  All type names belong to a common namespace that is disjoint from the term
+-- namespace.
 type Decls      = Map Name Decl
 
--- A type declaration either introduces a struct type that defines the layout of heap-allocated objects,
--- or an enum type that defines a set of (parameterless) constructor names.  A struct may contain both
--- value and function definitions.  Each struct declaration introduces its own namespace for the defined
--- value and function fields.  The constructor names of an enum declaration belong to the top-level
--- value namespace.  All type names belong to a common space that is separate from all other namespaces.
-data Decl       = Struct VEnv FEnv
+data Decl       = Struct TEnv
                 | Enum   [Name]
                 deriving (Eq,Show)
 
 
-type VEnv       = Map Name Type
+-- A term binding is either a named value of atomic type or a named function.  The result and parameter
+-- types of a function must all be atomic.
+type Binds      = Map Name Bind
 
-type FEnv       = Map Name FType
-
-
-type Vals       = Map Name Val
-
--- A value is defined by an expression and the corresponding type.
-data Val        = Val    Type Exp
+data Bind       = Val    AType Exp
+                | Fun    AType ATEnv Cmd
                 deriving (Eq,Show)
 
 
-type Funs       = Map Name Fun
+-- The type of a binding is either just an atomic type in case of a value binding, or a pair of
+-- result and parameter types in the function binding case.
+type TEnv       = Map Name Type
 
--- A function is defined by function type (parameter types, result type), a list of parameter names and
--- a function body in the shape of a command.  The number of parameter types and parameter names must be 
--- equal.
-data Fun        = Fun    FType [Name] Cmd
+data Type       = TVal   AType
+                | TFun   [AType] AType
                 deriving (Eq,Show)
 
 
--- A function type is just a pair of a parameter type list and a result type.
-type FType      = ([Type], Type)
+-- An atomic type is either a name, which can be primitive or introduced in a type declaration, or 
+-- the wildcard type that stands for any atomic type.
+type ATEnv      = Map Name AType
 
--- A type is either a name, which can be primitive or introduced in a type declaration, or the wildcard
--- type.
-data Type       = TId    Name
+data AType      = TId    Name
                 | TWild
                 deriving (Eq,Show)
 
@@ -71,17 +68,18 @@ data Type       = TId    Name
 -- side-effects.  The current type system does not distinguish pure functions from side-effecting ones,
 -- although that separation will indeed be maintained by the translation from type-checked Core programs.
 data Cmd        = CRet    Exp                 -- simply return $1
-                | CVals   Vals Cmd            -- define local values $1 in sequence, then execute $2
-                | CFuns   Funs Cmd            -- define local recursive functions $1, execute tail $2
+                | CBind   Binds Cmd           -- introduce local value or function bindings $1, then execute tail $2
                 | CAssign Exp Name Exp Cmd    -- overwrite value field $2 of struct $1 with value $3, execute tail $4
                 | CSwitch Exp [Alt] Cmd       -- depending on the value of $1, choose tails from $2, default to $3
                 | CSeq    Cmd Cmd             -- execute $1; if fall-through, continue with $2
                 | CBreak                      -- break out of a surrounding switch
                 deriving (Eq,Show)
 
--- Note 1: sequential function calls will be expressed as function calls on the RH sides of the value
--- definitions in a CVal command.
--- Note 2: the Cmd alternatives CSeq and CBreak are intended to implement the Fatbar and Fail primitives 
+-- Note 1: sequential function calls are expressed as function calls on the RH sides of value bindings
+-- in a CBind command.
+-- Note 2: scoping rules for the bindings in a CBind command are the same as for binding sequences on the
+-- module top level.
+-- Note 3: the Cmd alternatives CSeq and CBreak are intended to implement the Fatbar and Fail primitives 
 -- of the pattern-matching datatype PMC used in Core.
 
 data Alt        = ACon    Name Cmd            -- execute tail $2 if switch value matches constructor name $1
@@ -89,14 +87,14 @@ data Alt        = ACon    Name Cmd            -- execute tail $2 if switch value
                 deriving (Eq,Show)
 
 -- Simple expressions that can be RH sides of value definitions as well as function arguments.
-data Exp        = EVar    Name                -- local or global value variable or function parameter
+data Exp        = EVar    Name                -- local or global value name, enum constructor or function parameter
                 | EThis                       -- the implicit first parameter of a function-valued struct field
                 | ELit    Lit                 -- literal
                 | ESel    Exp Name            -- selection of value field $2 from struct $1
-                | ENew    Name Vals Funs      -- a new struct of type $1 filled with values $2 and functions $3.
+                | ENew    Name Binds          -- a new struct of type $1 filled with values and functions from $2
                 | ECall   Name [Exp]          -- calling local or global function $1 with arguments $2
                 | EEnter  Exp Name [Exp]      -- calling function field $2 of struct $1 with arguments ($1++$3)
-                | ECast   Type Exp            -- unchecked cast of value $2 to type $1
+                | ECast   AType Exp           -- unchecked cast of value $2 to type $1
                 deriving (Eq,Show)
 
 -- Note: Kindle allows free variables to occur inside local functions and function-valued struct fields.  A
@@ -105,49 +103,52 @@ data Exp        = EVar    Name                -- local or global value variable 
 -- explicitly closing the struct functions via extra value fields accessed through "this".
 
 
+isVal (_, Val _ _)                      = True
+isVal (_, Fun _ _ _)                    = False
+
+extractEnvs vs fs                       = (mapSnd extractVType vs, mapSnd extractFType fs)
+  where extractVType (Val t e)          = e
+        extractFType (Fun t xs c)       = t 
+
+
+
 -- Tentative concrete syntax
 
 instance Pr Module where
-    pr (Module m ds vs fs)              = text "module" <+> prId m <+> text "where" $$
+    pr (Module m ds bs)                 = text "module" <+> prId m <+> text "where" $$
                                           vpr ds $$ 
-                                          vpr vs $$
-                                          vpr fs
+                                          vpr bs
 
 
 instance Pr (Name, Decl) where
-    pr (c, Struct ve fe)                = text "struct" <+> prId c <+> text "{" $$
-                                          nest 4 (vpr ve) $$
-                                          nest 4 (vpr fe) $$
+    pr (c, Struct te)                   = text "struct" <+> prId c <+> text "{" $$
+                                          nest 4 (vpr te) $$
                                           text "}"
     pr (c, Enum xs)                     = text "enum" <+> prId c <+> text "{" <> commasep pr xs <> text "}"
 
 
 instance Pr (Name, Type) where
-    pr (x, t)                           = pr t <+> prId x
-
-instance Pr (Name, FType) where
-    pr (x, (ts,t))                      = pr t <+> prId x <> parens (commasep pr ts) <> text ";"
+    pr (x, TVal t)                      = pr t <+> prId x
+    pr (x, TFun ts t)                   = pr t <+> prId x <> parens (commasep pr ts) <> text ";"
 
 
-instance Pr Type where
+instance Pr AType where
     pr (TId c)                          = prId c
     pr (TWild)                          = text "?"
 
+instance Pr (Name, AType) where
+    pr (x, t)                           = pr t <+> prId x
 
-instance Pr (Name, Val) where
+
+instance Pr (Name, Bind) where
     pr (x, Val t e)                     = pr t <+> prId x <+> text "=" <+> pr e
-
-
-instance Pr (Name, Fun) where
-    pr (x, Fun (ts,t) xs c)             = pr t <+> prId x <+> parens (commasep pr (xs `zip` ts)) <+> text "{" $$
+    pr (x, Fun t te c)                  = pr t <+> prId x <+> parens (commasep pr te) <+> text "{" $$
                                           nest 4 (pr c) $$
                                           text "}"
 
 instance Pr Cmd where
     pr (CRet e)                         = text "return" <+> pr e <> text ";"
-    pr (CVals vs c)                     = vpr vs $$
-                                          pr c
-    pr (CFuns fs c)                     = vpr fs $$
+    pr (CBind bs c)                     = vpr bs $$
                                           pr c
     pr (CAssign e x e' c)               = pr e <> text "." <> prId x <+> text ":=" <+> pr e' <> text ";" $$
                                           pr c
@@ -175,11 +176,13 @@ prDefault c                             = text "default: " <+> prScope c
 
 instance Pr Exp where
     pr (EVar x)                         = prId x
+    pr (EThis)                          = text "this"
     pr (ELit l)                         = pr l
     pr (ESel e l)                       = pr e <> text "." <> pr l
-    pr (ENew x vs [])                   = text "new" <+> prId x <+> text "{" <> commasep pr vs <> text "}"
-    pr (ENew x vs fs)                   = text "new" <+> prId x <+> text "{" $$
-                                          nest 4 (vpr vs $$ vpr fs) $$
+    pr (ENew x bs)
+      | all isVal bs                    = text "new" <+> prId x <+> text "{" <> commasep pr bs <> text "}"
+    pr (ENew x bs)                      = text "new" <+> prId x <+> text "{" $$
+                                          nest 4 (vpr bs) $$
                                           text "}"
     pr (ECall x es)                     = prId x <+> parens (commasep pr es)
     pr (EEnter e x es)                  = pr e <> text "." <> prId x <> parens (commasep pr es)
