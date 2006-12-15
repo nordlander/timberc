@@ -5,6 +5,9 @@ import Core
 import qualified Kindle
 import qualified Char
 
+
+core2kindle = undefined
+{-
 {-
 
 Core
@@ -347,14 +350,14 @@ convScheme (Scheme rh ps ke)        = undefined
 
 
 convBinds env (Binds r te eqs)      = do (fss,vss) <- fmap unzip (mapM convBind eqs)
-                                         
+	      	       	  	         undefined                                         
   where env1                        = addTypes te1 env
         te1                         = convTEnv te
         convBind (x,ELam te' e)     = convEqn t x (dom te' `zip` ts) e
           where Kindle.TFun ts t    = lookup x te1
         convBind (x,e)              = convEqn t x [] e
           where t                   = lookup x te1
-        convEqn t x te (ETempl y te' (Just t) c)
+--        convEqn t x te (ETempl y te' (Just t) c)
 
 
 {-
@@ -457,10 +460,11 @@ c2kBind env te0 (v, e)              = c2kBind' env v [] (lookup' te0 v) e
 
 
 c2kBind' env v te t (EAct x c)      = c2kCmd env x c
-c2kbind' env v te t (EReq x c)      = c2kCmd env x c
+c2kBind' env v te t (EReq x c)      = c2kCmd env x c
 -- c2kBind' env v te (EDo c)        = c2kCmd env c
 c2kBind' env v te t (ETempl x te c) = do b <- c2kCmd env x c
-                                         return ([(v, Kindle.Fun (te++[(x,Kindle.TWild)]) t
+	       	    	      	         undefined
+--                                         return ([(v, Kindle.Fun (te++[(x,Kindle.TWild)])], t
 c2kBind' env v [] t e               = do (fs,vs,e) <- c2kExp env e
                                          return (fs, vs++[(v,Kindle.Val (c2kVScheme t) e)])
 c2kBind' env v te t e               = do b <- c2kBody env e
@@ -754,3 +758,4 @@ mkRTS x
   | x == Prim.aft                   = Prim.rtsAft
   | x == Prim.bef                   = Prim.rtsBef
   | otherwise                       = x
+-}

@@ -35,7 +35,7 @@ s2cDecls env [] ke ts pe bs     = do (te,bs2) <- s2cBinds (addSigs pe env) te es
   where (te,es)                 = splitBinds (reverse bs)
         (es1,es2)               = partition ((`elem` ws) . fst) es
         impl_ke                 = dom ts \\ dom ke
-        ws                      = doms2cSigpe
+        ws                      = undefined -- doms2cSigpe
 
 
 s2cDecls env (DKSig c k : ds) ke ts pe bs

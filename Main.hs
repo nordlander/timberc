@@ -23,10 +23,10 @@ import Type
 import Termred
 import Kindle
 import Core2Kindle
-import Clos
-import Lambdalift
-import Collect
-import Eliminate
+--import Clos
+--import Lambdalift
+--import Collect
+--import Eliminate
 import Kindle2C
 
 {-
@@ -193,13 +193,15 @@ compileTimber clo f = do putStrLn $ "[loading module " ++ show f ++ "]"
                          tc  <- pass typecheck      TCheck              kc
                          rd  <- pass termred        Termred             tc
                          ki  <- pass core2kindle    C2K                 rd
+{-
                          cl  <- pass clos           Clos                ki
                          ll  <- pass lambdalift     LLift               cl
                          ct  <- pass collect        Coll                ll
                          el  <- pass eliminate      Elim                ct
                          c   <- pass kindle2c       K2C                 el
                          return c
-
+-}
+			 return ki
 
         pass        :: (Pr b) => (a -> M b) -> Pass -> a -> M b
         pass m p a  = do -- tr ("Pass " ++ show p ++ "...")

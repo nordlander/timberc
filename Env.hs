@@ -346,7 +346,7 @@ rank info (env,t)                       = RClass (tId (tHead t))
 -- s = [n a/m, b/x]
 -- n a c < T t
 -- m x < n a b, m x < T t
-
+{-
 instance Show ([TVar],[TVar],[TVar],[TVar],[TVar],[TVar],([TVar],[TVar])) where
     show (emb,vs,lb,ub,lb',ub',pols)    = "emb = "  ++ show emb ++ "\n" ++
                                           "vs = "   ++ show vs   ++ "\n" ++
@@ -356,6 +356,7 @@ instance Show ([TVar],[TVar],[TVar],[TVar],[TVar],[TVar],([TVar],[TVar])) where
                                           "ub' = "  ++ show ub'  ++ "\n" ++
                                           "pols = (" ++ show (fst pols)   ++ "," ++ show (snd pols) ++ ")\n"
 
+-}
 varInfo gs                              = (emb,vs,lb,ub,lb',ub',polvs)
   where (subs,cls)                      = partition isSub (map snd gs)
         tts                             = map ((\[t1,t2] -> (tFlat t1, tFlat t2)) . snd . tFlat) subs
@@ -370,9 +371,6 @@ varInfo gs                              = (emb,vs,lb,ub,lb',ub',polvs)
         (pvs,nvs)                       = pols env
         polvs                           = (nub (vs'++pvs), nub (vs'++nvs))
                                         
-
-
-
 -- Instantiation & generalization ----------------------------------------------------
 
 inst (Scheme t ps ke)           = do ts <- mapM newTVar ks

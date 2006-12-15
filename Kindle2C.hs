@@ -5,6 +5,8 @@ import Common
 import Kindle
 import PP
 
+kindle2c m                      = undefined
+{-
 
 kindle2c m                      = return ((render (k2cHeader m)), (render (k2cModule m)))
 
@@ -325,3 +327,4 @@ k2cMain env ds fs vs            = text "int" <+> text "main" <+> parens (text "i
 lookup'' s [] = []
 lookup'' s ((c, Class te):xs) = if c == s then te else lookup'' s xs
 
+-}

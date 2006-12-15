@@ -25,8 +25,10 @@ instance Pr Int where
   pr = int
 
 -- XXX Is this correct?
--- instance Pr (String, String) where
---    pr (a, b) = text a <> text b
+-- AJG It is needed by Main, but it looks wrong.
+
+instance Pr (String, String) where
+    pr (a, b) = text a <> text b
 
 infixl 4 $$$
 a $$$ b       = a $$ text " " $$ b
