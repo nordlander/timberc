@@ -1,0 +1,34 @@
+prefix=@prefix@
+sysconfdir=@sysconfdir@
+HCOMPILER=@HCOMPILER@
+HFLAGS=@HFLAGS@
+HAPPY=@HAPPY@
+INSTALL=@INSTALL@
+DESTDIR=
+
+SRC = @SRC@
+
+DEST = @DEST@
+
+all: $(DEST)
+
+${DEST}: Parser.hs
+	$(HCOMPILER) $(HFLAGS) $(SRC) $(DEST) 
+
+Parser.hs: Parser.y
+	$(HAPPY) Parser.y
+
+install: ${DEST} etc/timberc-default.cfg
+	$(INSTALL) -d $(DESTDIR)$(prefix)/bin
+	$(INSTALL) -d $(DESTDIR)$(prefix)/rts
+	$(INSTALL) -d $(DESTDIR)$(sysconfdir)
+	$(INSTALL) timberc $(DESTDIR)$(prefix)/bin
+	$(INSTALL) etc/timberc-default.cfg $(DESTDIR)$(sysconfdir)
+	$(INSTALL) rts/rts.c $(DESTDIR)$(prefix)/rts
+	$(INSTALL) rts/rts.h $(DESTDIR)$(prefix)/rts
+
+clean:
+	rm -f *.o *.hi $(DEST) 
+
+distclean: clean
+	rm -f Makefile etc/timberc-default.cfg config.h	
