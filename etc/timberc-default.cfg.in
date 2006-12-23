@@ -1,0 +1,6 @@
+CfgOpts
+      { defaultCompiler = "@CC@ -DPOSIX"
+      , compilerFlags = " @CFLAGS@ "
+      , includePath = " -I@prefix@/rts -I. "
+      , rootDir = "@prefix@"
+      }
