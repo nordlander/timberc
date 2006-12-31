@@ -26,10 +26,10 @@ data Module     = Module  Name Decls Binds
 
 -- A type declaration either introduces a struct type that defines the layout of heap-allocated 
 -- objects, or an enumeration type that defines a set of (parameterless) constructor names.  A 
--- struct may contain both value and function bindings.  The field names of a struct as well as the 
--- constructor names of an enum belong to the top-level term namespace, and must therefore be
--- globnally unique.  All type names belong to a common namespace that is disjoint from the term
--- namespace.
+-- struct may contain both value and function fieldn.  Each struct type introduces a private 
+-- namespace for its field names.  The constructor names of an enum belong to the top-level term 
+-- namespace, and must therefore be globnally unique.  All type names belong to a common namespace 
+-- that is disjoint from every other namespace.
 type Decls      = Map Name Decl
 
 data Decl       = Struct TEnv
@@ -50,8 +50,8 @@ data Bind       = Val    AType Exp
 -- result and parameter types in the function binding case.
 type TEnv       = Map Name Type
 
-data Type       = TVal   AType
-                | TFun   [AType] AType
+data Type       = ValT   AType
+                | FunT   [AType] AType
                 deriving (Eq,Show)
 
 
@@ -93,7 +93,7 @@ data Exp        = EVar    Name                -- local or global value name, enu
                 | ESel    Exp Name            -- selection of value field $2 from struct $1
                 | ENew    Name Binds          -- a new struct of type $1 filled with values and functions from $2
                 | ECall   Name [Exp]          -- calling local or global function $1 with arguments $2
-                | EEnter  Exp Name [Exp]      -- calling function field $2 of struct $1 with arguments ($1++$3)
+                | EEnter  Exp Name [Exp]      -- calling function field $2 of struct $1 with arguments ($1,$3)
                 | ECast   AType Exp           -- unchecked cast of value $2 to type $1
                 deriving (Eq,Show)
 
@@ -106,10 +106,12 @@ data Exp        = EVar    Name                -- local or global value name, enu
 isVal (_, Val _ _)                      = True
 isVal (_, Fun _ _ _)                    = False
 
-extractEnvs vs fs                       = (mapSnd extractVType vs, mapSnd extractFType fs)
-  where extractVType (Val t e)          = e
-        extractFType (Fun t xs c)       = t 
+isFunT (_, ValT _)                      = False
+isFunT (_, FunT _ _)                    = True
 
+mkTEnv bs                               = mapSnd f bs
+  where f (Val t e)                     = ValT t
+        f (Fun t te c)                  = FunT (rng te) t
 
 
 -- Tentative concrete syntax
@@ -128,8 +130,8 @@ instance Pr (Name, Decl) where
 
 
 instance Pr (Name, Type) where
-    pr (x, TVal t)                      = pr t <+> prId x
-    pr (x, TFun ts t)                   = pr t <+> prId x <> parens (commasep pr ts) <> text ";"
+    pr (x, ValT t)                      = pr t <+> prId x
+    pr (x, FunT ts t)                   = pr t <+> prId x <> parens (commasep pr ts) <> text ";"
 
 
 instance Pr AType where
