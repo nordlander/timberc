@@ -39,10 +39,10 @@ redExp env e                    = redApp env e []
 
 
 redApp env (ERec eqs) []        = ERec (mapSnd (redExp env) eqs)
-redApp env (ETempl x te t c) [] = ETempl x te t (redCmd env c)
-redApp env (EAct x c) []        = EAct x (redCmd env c)
-redApp env (EReq x c) []        = EReq x (redCmd env c)
-redApp env (EDo c) []           = EDo (redCmd env c)
+redApp env (ETempl x t te c) [] = ETempl x t te (redCmd env c)
+redApp env (EAct e e') []       = EAct (redExp env e) (redExp env e')
+redApp env (EReq e e') []       = EReq (redExp env e) (redExp env e')
+redApp env (EDo x t c) []       = EDo x t (redCmd env c)
 redApp env (EAp f es) es'       = redApp env f (map (redExp env) es ++ es')
 redApp env (ELam te e) es       = redBeta env te e es
 redApp env (ESel s) (e:es)      = redSel env e s es
@@ -139,7 +139,6 @@ redInt IntGT a b                = eBool (a > b)
 redInt p _ _                    = error ("Internal: redInt " ++ show p)
 
 
-redRat FloatPlus a b            = ELit (LRat (a + b))
 redRat FloatPlus a b            = ELit (LRat (a + b))
 redRat FloatMinus a b           = ELit (LRat (a - b))
 redRat FloatTimes a b           = ELit (LRat (a * b))

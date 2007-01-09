@@ -20,31 +20,50 @@ predOf                                  = snd
 labelOf                                 = fst
 witOf                                   = snd
 
-data Env                                = Env { kindEnv       :: KEnv,
-                                                typeEnv0      :: TEnv,
-                                                typeEnv       :: TEnv,
-                                                predEnv       :: PEnv,
-                                                aboveEnv      :: Map Name WGraph,
-                                                belowEnv      :: Map Name WGraph,
-                                                classEnv      :: Map Name WGraph,
+data Env = Env { kindEnv       :: KEnv,            -- Kind for each global tycon AND each local skolemized tyvar
+                 typeEnv0      :: TEnv,            -- Type scheme for each top-level def (no free tyvars)
+                 typeEnv       :: TEnv,            -- Type scheme for each additional def
+                 predEnv       :: PEnv,            -- Predicate scheme for each local witness abstraction
 
-                                                history       :: [Pred],
-                                                skolEnv       :: Map Name [TVar],
-                                                tevars        :: [TVar],
-                                                pevars        :: [TVar],
-                                                pols          :: ([TVar],[TVar]),
+                 tevars        :: [TVar],          -- The tvars free in typeEnv (cached)
+                 pevars        :: [TVar],          -- The tvars free in predEnv (cached)
+                 selfType      :: Maybe Type,      -- Type of "self" of current state scope
 
-                                                ticked        :: Bool,  -- Root constraint is a coercion
-                                                forced        :: Bool,  -- Non-conservative reduction turned on
-                                                frozen        :: Bool   -- Treat TVars as constants (during env closure)
-                                              }
+                 aboveEnv      :: Map Name WGraph, -- Overlap graph of all S > T for each T (closed under reflexivity & transitivity)
+                 belowEnv      :: Map Name WGraph, -- Overlap graph of all S < T for each T (closed under reflexivity & transitivity)
+                 classEnv      :: Map Name WGraph, -- Overlap graph of all instances for each type class (closed under subclassing)
+
+                 -- The following fields are only used during constraint reduction:
+                 history       :: [Pred],          -- Stack of predicates currently being reduced
+                 skolEnv       :: Map Name [TVar], -- For each skolemized tyvar T: a list of free tvars not unifiable with T
+                 pols          :: ([TVar],[TVar]), -- Pair of tvars occurring in (positive,negative) position in reduction target
+
+                 ticked        :: Bool,            -- Root constraint is an automatically generated coercion (must be removed!)
+                 forced        :: Bool,            -- Non-conservative reduction turned on
+                 frozen        :: Bool             -- Treat tvars as constants (during env closure)
+               }
 
 instance Show Env where
-    show env                            = "<env>"
+    show env = "<env>"
 
 
-
-nullEnv                                 = Env [] [] [] [] [] [] [] [] [] [] [] ([],[]) False False False
+nullEnv                                 = Env { kindEnv  = [],
+                                                typeEnv0 = [],
+                                                typeEnv  = [],
+                                                predEnv  = [],
+                                                tevars   = [],
+                                                pevars   = [],
+                                                selfType = Nothing,
+                                                aboveEnv = [],
+                                                belowEnv = [],
+                                                classEnv = [],
+                                                history  = [],
+                                                skolEnv  = [],
+                                                pols     = ([],[]),
+                                                ticked   = False,
+                                                forced   = False,
+                                                frozen   = False
+                                          }
 
 
 addTEnv0 te env                         = env { typeEnv0   = te ++ typeEnv0 env }
@@ -72,6 +91,8 @@ insertClass c wg env                    = env { classEnv   = insert c wg (classE
 
 noClasses env                           = env { classEnv = [] }
 
+setSelf x t env                         = env' { selfType = Just t }
+  where env'                            = addTEnv [(x,scheme t)] env
 
 addSkolEnv se env                       = env { skolEnv  = se ++ skolEnv env }
 
@@ -157,6 +178,7 @@ instance Subst Env TVar Type where
                                                  predEnv  = subst s (predEnv env),
                                                  pevars   = substT s (pevars env) }
       where env'                        = env { {- typeEnv  = subst s (typeEnv env), -- redundant -}
+                                                 selfType = subst s (selfType env),
                                                  tevars  = substT s (tevars env),
                                                  pols = substP env s (pols env),
                                                  skolEnv = mapSnd (substT s) (skolEnv env) }
@@ -212,9 +234,6 @@ upperIs t (l,wit)                       = uppersym (predOf wit) == t     -- unde
 
 hasCoercion env a b                     = findCoercion env a b /= Nothing
 
-
-newEnv x ts                             = do vs <- mapM (const (newName x)) ts
-                                             return (vs `zip` ts)
 
 
 
@@ -355,7 +374,6 @@ instance Show ([TVar],[TVar],[TVar],[TVar],[TVar],[TVar],([TVar],[TVar])) where
                                           "lb' = "  ++ show lb'  ++ "\n" ++
                                           "ub' = "  ++ show ub'  ++ "\n" ++
                                           "pols = (" ++ show (fst pols)   ++ "," ++ show (snd pols) ++ ")\n"
-
 -}
 varInfo gs                              = (emb,vs,lb,ub,lb',ub',polvs)
   where (subs,cls)                      = partition isSub (map snd gs)
@@ -371,6 +389,9 @@ varInfo gs                              = (emb,vs,lb,ub,lb',ub',polvs)
         (pvs,nvs)                       = pols env
         polvs                           = (nub (vs'++pvs), nub (vs'++nvs))
                                         
+
+
+
 -- Instantiation & generalization ----------------------------------------------------
 
 inst (Scheme t ps ke)           = do ts <- mapM newTVar ks
@@ -507,10 +528,9 @@ initEnv                 = nullEnv { kindEnv  = primKindEnv,
 primKindEnv             = [ (prim Action,       Star),
                             (prim Request,      KFun Star Star),
                             (prim Template,     KFun Star Star),
-                            (prim Cmd,          KFun Star Star),
-                            (prim O,            KFun Star (KFun Star Star)),
+                            (prim Cmd,          KFun Star (KFun Star Star)),
                                     
-                            (prim Message,      Star),
+                            (prim Msg,          Star),
                             (prim Ref,          KFun Star Star),
                             (prim PID,          KFun Star Star),
                             (prim PMC,          Star),
@@ -532,13 +552,9 @@ primTypeEnv             = [ (prim NIL,          scheme1 (tList a)),
 
                             (prim Refl,         scheme1 (TFun [a] a)),
 
-                            (prim ActToCmd,     scheme0 (TFun [tAction] (tCmd tMessage))),
-                            (prim ActToO,       scheme1 (TFun [tAction] (tO a tMessage))),
-                            (prim ReqToCmd,     scheme1 (TFun [tRequest a] (tCmd a))),
-                            (prim ReqToO,       scheme2 (TFun [tRequest a] (tO b a))),
-                            (prim TemplToCmd,   scheme1 (TFun [tTemplate a] (tCmd a))),
-                            (prim TemplToO,     scheme2 (TFun [tTemplate a] (tO b a))),
-                            (prim CmdToO,       scheme2 (TFun [tCmd a] (tO b a))),
+                            (prim ActToCmd,     scheme1 (TFun [tAction] (tCmd a tMsg))),
+                            (prim ReqToCmd,     scheme2 (TFun [tRequest a] (tCmd b a))),
+                            (prim TemplToCmd,   scheme2 (TFun [tTemplate a] (tCmd b a))),
                             (prim RefToPID,     scheme1 (TFun [tRef a] tPID)),
 
                             (prim IntPlus,      scheme0 (TFun [tInt,tInt] tInt)),
@@ -571,8 +587,8 @@ primTypeEnv             = [ (prim NIL,          scheme1 (tList a)),
                             (prim CharToInt,    scheme0 (TFun [tChar] tInt)),
                             (prim IntToChar,    scheme0 (TFun [tInt] tChar)),
 
-                            (prim MsgEQ,        scheme0 (TFun [tMessage,tMessage] tBool)),
-                            (prim MsgNE,        scheme0 (TFun [tMessage,tMessage] tBool)),
+                            (prim MsgEQ,        scheme0 (TFun [tMsg,tMsg] tBool)),
+                            (prim MsgNE,        scheme0 (TFun [tMsg,tMsg] tBool)),
 
                             (prim PidEQ,        scheme0 (TFun [tPID,tPID] tBool)),
                             (prim PidNE,        scheme0 (TFun [tPID,tPID] tBool)),
@@ -583,17 +599,20 @@ primTypeEnv             = [ (prim NIL,          scheme1 (tList a)),
                             (prim Fatbar,       scheme1 (TFun [tPMC a, tPMC a] (tPMC a))),
 
                             (prim After,        scheme0 tUnit),
-                            (prim Before,       scheme0 tUnit) ]
+                            (prim Before,       scheme0 tUnit),
 
-primCurrentEnv          = [ (prim Current,      scheme0 tMessage) ]
+                            (prim Baseline,     scheme0 (TFun [tMsg] tTime)),
+                            (prim Deadline,     scheme1 (TFun [tMsg] tTime)) ]
+
+primCurrentEnv          = [ (prim Current,      scheme0 tMsg) ]
 
 
 tAction                 = TId (prim Action)
 tRequest a              = TAp (TId (prim Request)) a
 tTemplate a             = TAp (TId (prim Template)) a
-tCmd a                  = TAp (TId (prim Cmd)) a
-tO a b                  = TAp (TAp (TId (prim O)) a) b
-tMessage                = TId (prim Message)
+tCmd a b                = TAp (TAp (TId (prim Cmd)) a) b
+tTime                   = TId (prim Time)
+tMsg                    = TId (prim Msg)
 tRef a                  = TAp (TId (prim Ref)) a
 tPID                    = TId (prim PID)
 tPMC a                  = TAp (TId (prim PMC)) a
@@ -613,7 +632,7 @@ scheme2 t               = Scheme (R t) [] [(name0 "a",Star),(name0 "b",Star)]
 
 
 
-commonWGs       = [ (prim Message,  WG [(0,reflMsg)]    []),
+commonWGs       = [ (prim Msg,      WG [(0,reflMsg)]    []),
                     (prim PMC,      WG [(0,reflPMC)]    []),
 
                     (prim Int,      WG [(0,reflInt)]    []),
@@ -625,26 +644,22 @@ commonWGs       = [ (prim Message,  WG [(0,reflMsg)]    []),
                     (prim UNIT,     WG [(0,reflUnit)]   [])
                   ]
 
-aboveWGs        = [ (prim Action,   WG [(0,reflAct), (1,subActCmd), (2, subActO)]       [(0,1),(0,2),(1,2)]),
-                    (prim Request,  WG [(0,reflReq), (1,subReqCmd), (2, subReqO)]       [(0,1),(0,2),(1,2)]),
-                    (prim Template, WG [(0,reflTempl), (1,subTemplCmd), (2, subTemplO)] [(0,1),(0,2),(1,2)]),
-                    (prim Cmd,      WG [(0,reflCmd), (1,subCmdO)]                       [(0,1)]),
-                    (prim O,        WG [(0,reflO)]                                      []),
+aboveWGs        = [ (prim Action,   WG [(0,reflAct), (1, subActCmd)]     [(0,1)]),
+                    (prim Request,  WG [(0,reflReq), (1, subReqCmd)]     [(0,1)]),
+                    (prim Template, WG [(0,reflTempl), (1, subTemplCmd)] [(0,1)]),
+                    (prim Cmd,      WG [(0,reflCmd)]                     []),
 
-                    (prim Ref,      WG [(0,reflRef), (1,subRefPID)]                     [(0,1)]),
-                    (prim PID,      WG [(0,reflPID)]                                    [])
+                    (prim Ref,      WG [(0,reflRef), (1,subRefPID)]      [(0,1)]),
+                    (prim PID,      WG [(0,reflPID)]                     [])
                   ]
 
-belowWGs        = [ (prim Action,   WG [(0,reflAct)]                                    []),
-                    (prim Request,  WG [(0,reflReq)]                                    []),
-                    (prim Template, WG [(0,reflTempl)]                                  []),
-                    (prim Cmd,      WG [(0,reflCmd),(1,subActCmd),(2,subReqCmd),(3,subTemplCmd)]
-                                                                                        [(0,1),(0,2),(0,3)]),
-                    (prim O,        WG [(0,reflO),(1,subCmdO),(2,subActO),(3,subReqO),(4,subTemplO)] 
-                                                                                        [(0,1),(0,2),(0,3),(0,4),
-                                                                                         (1,2),(1,3),(1,4)]),
-                    (prim Ref,      WG [(0,reflRef)]                                    []),
-                    (prim PID,      WG [(0,reflPID),(1,subRefPID)]                      [(0,1)])
+belowWGs        = [ (prim Action,   WG [(0,reflAct)]                     []),
+                    (prim Request,  WG [(0,reflReq)]                     []),
+                    (prim Template, WG [(0,reflTempl)]                   []),
+                    (prim Cmd,      WG [(0,reflCmd),(1,subActCmd),(2,subReqCmd),(3,subTemplCmd)] 
+                                                                         [(0,1),(0,2),(0,3)]),
+                    (prim Ref,      WG [(0,reflRef)]                     []),
+                    (prim PID,      WG [(0,reflPID),(1,subRefPID)]       [(0,1)])
                   ]
 
 
@@ -652,11 +667,10 @@ reflAll         = (ePrim Refl,  scheme1 (a `sub` a))
 
 reflAct         = (ePrim Refl,  scheme0 (tAction `sub` tAction))
 reflReq         = (ePrim Refl,  scheme1 (tRequest a `sub` tRequest a))
-reflCmd         = (ePrim Refl,  scheme1 (tCmd a `sub` tCmd a))
 reflTempl       = (ePrim Refl,  scheme1 (tTemplate a `sub` tTemplate a))
-reflO           = (ePrim Refl,  scheme2 (tO b a `sub` tO b a))
+reflCmd         = (ePrim Refl,  scheme2 (tCmd b a `sub` tCmd b a))
 
-reflMsg         = (ePrim Refl,  scheme0 (tMessage `sub` tMessage))
+reflMsg         = (ePrim Refl,  scheme0 (tMsg `sub` tMsg))
 reflRef         = (ePrim Refl,  scheme1 (tRef a `sub` tRef a))
 reflPID         = (ePrim Refl,  scheme0 (tPID `sub` tPID))
 reflPMC         = (ePrim Refl,  scheme1 (tPMC a `sub` tPMC a))
@@ -670,16 +684,11 @@ reflList        = (ePrim Refl,  scheme1 (tList a `sub` tList a))
 reflUnit        = (ePrim Refl,  scheme0 (tUnit `sub` tUnit))
 
 
-subActCmd       = (ePrim ActToCmd,   scheme0 (tAction `sub` tCmd tMessage))
-subActO         = (ePrim ActToO,     scheme1 (tAction `sub` tO a tMessage))
+subActCmd       = (ePrim ActToCmd,   scheme1 (tAction `sub` tCmd a tMsg))
 
-subReqCmd       = (ePrim ReqToCmd,   scheme1 (tRequest a `sub` tCmd a))
-subReqO         = (ePrim ReqToO,     scheme2 (tRequest a `sub` tO b a))
+subReqCmd       = (ePrim ReqToCmd,   scheme2 (tRequest a `sub` tCmd b a))
 
-subTemplCmd     = (ePrim TemplToCmd, scheme1 (tTemplate a `sub` tCmd a))
-subTemplO       = (ePrim TemplToO,   scheme2 (tTemplate a `sub` tO b a))
-
-subCmdO         = (ePrim CmdToO,     scheme2 (tCmd a `sub` tO b a))
+subTemplCmd     = (ePrim TemplToCmd, scheme2 (tTemplate a `sub` tCmd b a))
 
 subRefPID       = (ePrim RefToPID,   scheme1 (tRef a `sub` tPID))
 

@@ -23,42 +23,61 @@ expandM m                          = expand initEnv m
 
 -- Syntax traversal environment --------------------------------------------------
 
-type ExpandEnv                     = (Map Name Name, Map Name Name, Map Name Name)
+data Env                           = Env { rE :: Map Name Name, 
+                                           rT :: Map Name Name, 
+                                          rS :: Map Name Name,
+                                           self :: [Name],
+                                           void :: [Name]
+                                         }
 
-initEnv                            = (primTerms, primTypes, [])
+initEnv                            = Env { rE = primTerms, rT = primTypes, rS = [], self = [], void = [] }
 
 
-stateVars (_,_,rS)                 = dom rS
+stateVars env                      = dom (rS env)
 
-tscope (_,rT,_)                    = dom rT
+tscope env                         = dom (rT env)
 
 
-renE _ n@(Tuple _ _)               = n
-renE (rE,_,_) v                    = case lookup v rE of
+renE env n@(Tuple _ _)             = n
+renE env v                         = case lookup v (rE env) of
                                        Just n  -> n { annot = annot v }
                                        Nothing -> error ("Undefined identifier: " ++ show v)
 
-renT _ n@(Tuple _ _)               = n
-renT (_,rT,_) v                    = case lookup v rT of
+renS env n@(Tuple _ _)             = n
+renS env v                         = case lookup v (rS env) of
+                                       Just n  -> n { annot = a { stateVar = True} }
+                                       Nothing -> error ("Undefined identifier: " ++ show v)
+  where a                          = annot v
+
+renT env n@(Tuple _ _)             = n
+renT env v                         = case lookup v (rT env) of
                                        Just n  -> n { annot = annot v }
                                        Nothing -> error ("Undefined type identifier: " ++ show v)
 
-renaming vs                        = do ns <- mapM (const newNum) vs
-                                        return (zipWith f vs ns)
-  where f v n                      = (v, v { tag = n })
+extRenE env vs
+  | not (null shadowed)            = fail ("Illegal shadowing of state variable: " ++ showids shadowed)
+  | not (null shadowed')           = fail ("Illegal shadowing of state reference: " ++ showids shadowed')
+  | otherwise                      = do rE' <- renaming (noDups vs)
+                                        return (env { rE = rE' ++ rE env })
+  where shadowed                   = intersect vs (stateVars env)
+        shadowed'                  = intersect vs (self env)
 
-extRenE (rE,rT,rS) vs              = do rE' <- renaming (noDups vs)
-                                        return (rE'++rE,rT,rS)
 
-extRenS (rE,rT,rS) vs              = do rS' <- renaming (noDups vs)
-                                        return (rS'++rE, rT, rS')
+setRenS env vs
+  | not (null shadowed)            = fail ("Illegal shadowing of state reference: " ++ showids shadowed)
+  | otherwise                      = do rS' <- renaming (noDups vs)
+                                        return (env { rS = rS', void = vs })
+  where shadowed                   = intersect vs (self env)
 
-extRenT (rE,rT,rS) vs              = do rT' <- renaming (noDups vs)
-                                        return (rE,rT'++rT,rS)
+unvoid vs env                      = env { void = void env \\ vs }
 
-extCurrent (rE,rT,rS)              = (primCurrent++rE,rT,rS)
+unvoidAll env                      = env { void = [] }
 
-reopenState (rE,rT,rS)             = (rS++rE,rT,rS)
+extRenT env vs                     = do rT' <- renaming (noDups vs)
+                                        return (env { rT = rT' ++ rT env })
+
+extRenSelf env s                   = do rE' <- renaming [s]
+                                        return (env { rE = rE' ++ rE env, self = [s] })
 
 noDups vs
   | not (null dups)                = error ("Duplicate variables: " ++ showids dups)
@@ -79,7 +98,7 @@ oloadBinds xs ds                   = concat [ binds c vs sels | DRec True c vs _
 -- Renaming -----------------------------------------------------------------------------------------
 
 class Expand a where
-  expand :: ExpandEnv -> a -> M a
+  expand :: Env -> a -> M a
 
 instance Expand a => Expand [a] where
   expand env as                    = mapM (expand env) as
@@ -193,7 +212,10 @@ instance Expand Lhs where
   expand env (LPat p)              = liftM LPat (expand env p)
 
 instance Expand Exp where
-  expand env (EVar v)              = return (EVar (renE env v))
+  expand env (EVar v)
+    | v `elem` void env            = fail "Uninitialized state variable"
+    | v `elem` stateVars env       = return (EVar (renS env v))
+    | otherwise                    = return (EVar (renE env v))
   expand env (ECon c)              = return (ECon (renE env c))
   expand env (ESel l)              = return (ESel (renE env l))
   expand env (EAp e1 e2)           = liftM2 EAp (expand env e1) (expand env e2)
@@ -215,17 +237,16 @@ instance Expand Exp where
   expand env (ESectR e op)         = liftM (flip ESectR op) (expand env e) 
   expand env (ESectL op e)         = liftM (ESectL op) (expand env e)
   expand env (ESelect e l)         = liftM (flip ESelect (renE env l)) (expand env e) 
-  expand env (EDo ss)              = liftM EDo (expS (reopenState (extCurrent env)) (shuffleS ss))
-  expand env (EAct v ss)           = liftM (EAct (renE env v)) (expS (reopenState (extCurrent env)) (shuffleS ss))
-  expand env (EReq v ss)           = liftM (EReq (renE env v)) (expS (reopenState (extCurrent env)) (shuffleS ss))
-  expand env (ETempl v ss)
-    | not (null shadowed)          = error ("Illegal shadowing of state variable: " ++ showids shadowed)
-    | otherwise                    = do env1 <- extRenS env st
-                                        env2 <- extRenE env1 vs
-                                        liftM (ETempl (renE env2 v)) (expand env2 (shuffleS ss))
+  expand env (EAct v ss)           = liftM (EAct (fmap (renE env) v)) (expS (unvoidAll env) (shuffleS ss))
+  expand env (EReq v ss)           = liftM (EReq (fmap (renE env) v)) (expS (unvoidAll env) (shuffleS ss))
+  expand env (EDo (Just v) Nothing ss)
+                                   = do env1 <- extRenSelf env v
+                                        liftM (EDo (Just (renE env1 v)) Nothing) (expS (unvoidAll env1) (shuffleS ss))
+  expand env (ETempl (Just v) Nothing ss)
+                                   = do env1 <- extRenSelf env v
+                                        env2 <- setRenS env1 st
+                                        liftM (ETempl (Just (renE env2 v)) Nothing) (expS env2 (shuffleS ss))
     where st                       = svars ss
-          vs                       = v : bvars ss
-          shadowed                 = intersect st vs
   expand env (EAfter e1 e2)        = liftM2 EAfter (expand env e1) (expand env e2)
   expand env (EBefore e1 e2)       = liftM2 EBefore (expand env e1) (expand env e2)
 
@@ -239,25 +260,21 @@ instance Expand (Rhs Exp) where
   expand env (RWhere e bs)         = do env' <- extRenE env (bvars bs)
                                         liftM2 RWhere (expand env' e) (expand env' (shuffleB bs))
 
-instance Expand (Rhs [Stmt]) where
-  expand env (RExp ss)             = liftM RExp (expand env (shuffleS ss))
-  expand env (RGrd gs)             = liftM RGrd (expand env gs)
-  expand env (RWhere e bs)         = do env' <- extRenE env (bvars bs)
-                                        liftM2 RWhere (expand env' e) (expand env' (shuffleB bs))
-
 
 instance Expand (GExp Exp) where
   expand env (GExp qs e)           = liftM2 GExp (expQ env qs) (expand env e)
 
-instance Expand (GExp [Stmt]) where
-  expand env (GExp qs ss)          = liftM2 GExp (expQ env qs) (expS env (shuffleS ss))
+
+expQ env []                        = return []
+expQ env (q@(QExp _) : qs)         = liftM2 (:) (expand env q) (expQ env qs)
+expQ env (q@(QGen p _) : qs)       = do env' <- extRenE env (pvars p)
+                                        liftM2 (:) (expand env' q) (expQ env' qs)
+expQ env (q@(QLet bs) : qs)        = do env' <- extRenE env (bvars bs)
+                                        liftM2 (:) (expand env' q) (expQ env' qs)
+
 
 instance Expand (Alt Exp) where
   expand env (Alt  p rh)           = do env' <- extRenE env (pvars p)
-                                        liftM2 Alt (expand env' p) (expand env' rh) 
-
-instance Expand (Alt [Stmt]) where
-  expand env (Alt p rh)            = do env' <- extRenE env (pvars p)
                                         liftM2 Alt (expand env' p) (expand env' rh) 
 
 instance Expand Qual where
@@ -275,38 +292,17 @@ instance Expand Stmt where
     | not (null illegal)           = fail ("Unknown state variable: " ++ showids illegal)
     | otherwise                    = liftM2 SAss (expand env p) (expand env e)
     where illegal                  = pvars p \\ stateVars env
-  expand env (SForall qs ss)       = liftM2 SForall (expQ env qs) (expS env (shuffleS ss))
-  expand env (SWhile e ss)         = liftM2 SWhile (expand env e) (expS env (shuffleS ss))
-  expand env (SIf e ss)            = liftM2 SIf (expand env e) (expS env (shuffleS ss))
-  expand env (SElsif e ss)         = liftM2 SElsif (expand env e) (expS env (shuffleS ss))
-  expand env (SElse ss)            = liftM SElse (expS env (shuffleS ss))
-  expand env (SCase e as)          = liftM2 SCase (expand env e) (expand env as)
 
 
 expS env []                        = return []
-expS env (SGen p e : ss)         
-  | not (null shadowed)            = fail ("Illegal shadowing of state variable: " ++ showids shadowed)
-  | otherwise                      = do env' <- extRenE env vs
-                                        stmt <- liftM2 SGen (expand env' p) (expand env e)
-                                        liftM (stmt:) (expS env' ss)
-  where vs                         = pvars p
-        shadowed                   = intersect vs (stateVars env)
-expS env ss@(SBind _ : _)
-  | not (null shadowed)            = fail ("Illegal shadowing of state variable: " ++ showids shadowed)
-  | otherwise                      = do env' <- extRenE env vs
+expS env (s@(SGen p e) : ss)       = do env' <- extRenE env (pvars p)
+                                        liftM2 (:) (expand env s) (expS env' ss)
+expS env ss@(SBind _ : _)          = do env' <- extRenE env (bvars ss1)
                                         liftM2 (++) (expand env' ss1) (expS env' ss2)
   where (ss1,ss2)                  = span isSBind ss
-        vs                         = bvars ss1
-        shadowed                   = intersect vs (stateVars env)
-expS env (stmt : ss)               = liftM2 (:) (expand env stmt) (expS env ss)
+expS env (s@(SAss p e) : ss)       = liftM2 (:) (expand env s) (expS (unvoid (pvars p) env) ss)
+expS env (s:ss)                    = liftM2 (:) (expand env s) (expS env ss)
 
-
-expQ env []                        = return []
-expQ env (q@(QExp _) : qs)         = liftM2 (:) (expand env q) (expQ env qs)
-expQ env (q@(QGen p _) : qs)       = do env' <- extRenE env (pvars p)
-                                        liftM2 (:) (expand env' q) (expQ env' qs)
-expQ env (q@(QLet bs) : qs)        = do env' <- extRenE env (bvars bs)
-                                        liftM2 (:) (expand env' q) (expQ env' qs)
 
 
 -- Signature shuffling -------------------------------------------------------------------------

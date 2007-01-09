@@ -310,10 +310,10 @@ exp10a  :: { Exp }
         | exp10as                               { $1 }
 
 exp10as :: { Exp }
-        : 'do' stmtlist                         { EDo $2  }
-        | loc 'action' stmtlist                 { EAct (name $1 "self") $3 }
-        | loc 'request' stmtlist                { EReq (name $1 "self") $3 }
-        | loc 'template' stmtlist               { ETempl (name $1 "self") $3 }
+        : loc 'do' stmtlist                     { EDo Nothing Nothing $3  }
+        | loc 'template' stmtlist               { ETempl Nothing Nothing $3 }
+        | loc 'action' stmtlist                 { EAct Nothing $3 }
+        | loc 'request' stmtlist                { EReq Nothing $3 }
         | '{'  layout_off recbinds '}'          { ERec Nothing (reverse $3) } 
         | con '{'  layout_off recbinds '}'      { ERec (Just ($1,True)) (reverse $4) } 
         | con '{'  layout_off recbinds '..' '}' { ERec (Just ($1,False)) (reverse $4) } 

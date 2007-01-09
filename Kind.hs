@@ -54,6 +54,9 @@ kiRho env (F scs t)                     = do css <- mapM (kiScheme env) scs
 kiType env t                            = do (cs,k) <- kiTExp env t
                                              return ((k,Star) : cs)
 
+kiType' env t                           = do cs <- kiType env t
+                                             s <- kunify cs
+                                             return (subst s t)
 
 kiTExp env (TFun ts t)                  = do css <- mapM (kiType env) ts
                                              cs  <- kiType env t
@@ -144,17 +147,19 @@ kiExp env (ECase e as d)                = do e <- kiExp env e
                                              as <- mapM (kiAlt env) as
                                              d <- kiExp env d
                                              return (ECase e as d)
-kiExp env (EAct x c)                    = do c <- kiCmd env c
-                                             return (EAct x c)
-kiExp env (EReq x c)                    = do c <- kiCmd env c
-                                             return (EReq x c)
-kiExp env (ETempl x te t c)             = do te <- kiTEnv env te
-                                             cs <- kiMaybeScheme env t
-                                             s <- kindUnify cs
+kiExp env (EAct e e')                   = do e <- kiExp env e
+                                             e' <- kiExp env e'
+                                             return (EAct e e')
+kiExp env (EReq e e')                   = do e <- kiExp env e
+                                             e' <- kiExp env e'
+                                             return (EReq e e')
+kiExp env (ETempl x t te c)             = do t <- kiType' env t
+                                             te <- kiTEnv env te
                                              c <- kiCmd env c
-                                             return (ETempl x te (subst s t) c)
-kiExp env (EDo c)                       = do c <- kiCmd env c
-                                             return (EDo c)
+                                             return (ETempl x t te c)
+kiExp env (EDo x t c)                   = do t <- kiType' env t
+                                             c <- kiCmd env c
+                                             return (EDo x t c)
 kiExp env e                             = return e
 
 
@@ -172,11 +177,14 @@ kiEqn env (v,e)                         = do e <- kiExp env e
 kiCmd env (CAss x e c)                  = do e <- kiExp env e
                                              c <- kiCmd env c
                                              return (CAss x e c)
-kiCmd env (CGen x t e c)                = do cs <- kiScheme env t
+kiCmd env (CGen x t e c)                = do cs <- kiType env t
                                              s <- kindUnify cs
                                              e <- kiExp env e
                                              c <- kiCmd env c
                                              return (CGen x (subst s t) e c)
+kiCmd env (CLet bs c)                   = do bs <- kiBinds env bs
+                                             c <- kiCmd env c
+                                             return (CLet bs c)
 kiCmd env (CRet e)                      = do e <- kiExp env e
                                              return (CRet e)
 kiCmd env (CExp e)                      = do e <- kiExp env e

@@ -394,21 +394,19 @@ cType t                             = cType' [] t
 
 
 
-cType' ts (TId (Prim Action _))            = return ([], ts++[t,t], Kindle.TId (prim Msg))
-  where t                                  = Kindle.TId (prim Time)
-cType' ts (TAp (TId (Prim Request _)) t)   = do (ds,t) <- cAType t
-                                                return (ds, ts++[Kindle.TWild], t)
-cType' ts (TAp (TId (Prim Template _)) t)  = do (ds,t) <- cAType t
-                                                return (ds, ts++[Kindle.TWild], t)
-cType' ts (TAp (TId (Prim Cmd _)) t)       = do (ds, t) <- cAType t
-                                                return (ds, ts++[Kindle.TWild], t)
-cType' ts (TAp (TAp (TId (Prim O _)) s) t) = do (ds1, s) <- cAType s
-                                                (ds2, t) <- cAType t
-                                                return (ds1++ds2, ts++[s], t)
-cType' ts (TAp t t')                       = cType' ts t
-cType' ts (TId n)                          = return ([], ts, Kindle.TId n)
-cType' ts (TVar _)                         = return ([], ts, Kindle.TWild)
-cType' ts (TWild)                          = return ([], ts, Kindle.TWild)
+cType' ts (TId (Prim Action _))              = return ([], ts++[t,t], Kindle.TId (prim Msg))
+  where t                                    = Kindle.TId (prim Time)
+cType' ts (TAp (TId (Prim Request _)) t)     = do (ds,t) <- cAType t
+                                                  return (ds, ts++[Kindle.TWild], t)
+cType' ts (TAp (TId (Prim Template _)) t)    = do (ds,t) <- cAType t
+                                                  return (ds, ts++[Kindle.TWild], t)
+cType' ts (TAp (TAp (TId (Prim Cmd _)) s) t) = do (ds1, s) <- cAType s
+                                                  (ds2, t) <- cAType t
+                                                  return (ds1++ds2, ts++[s], t)
+cType' ts (TAp t t')                         = cType' ts t
+cType' ts (TId n)                            = return ([], ts, Kindle.TId n)
+cType' ts (TVar _)                           = return ([], ts, Kindle.TWild)
+cType' ts (TWild)                            = return ([], ts, Kindle.TWild)
 
 
 cAType t                              = do (ds, ts, t) <- cType t
@@ -466,11 +464,11 @@ cFun env e                            = cFun' env e
 -}
 
 
-cFun' env (EReq x e)                  = do (ds,c,t) <- cCmd (pushSelf x env) c
+cFun' env (EReq x c)                  = do (ds,c,t) <- cCmd (pushSelf x env) c
                                            y <- newName "_"
                                            return (ds, [(y, Kindle.TWild)], protect x c, t)
                                           
-cFun' env (EAct x e)                  = do (ds,c,t) <- cCmd env (CExp (EReq x c))
+cFun' env (EAct x c)                  = do (ds,c,t) <- cCmd env (CExp (EReq x c))
                                            y  <- newName "_"
                                            a  <- newName "a"
                                            b  <- newName "b"
@@ -494,10 +492,10 @@ cFun' env (ETempl x t te c)           = do (ds,c,t) <- cCmd (pushSelf x env') c
                                            y <- newName "_"
                                            let c' = Kindle.CBind [(x,Kindle.Val t0 (Kindle.ENew n []))] c
                                            return (ds, [(y,Kindle.TWild)], c', t)
-  where n                             = tId (tHead (deQualify s))
-        Kindle.Struct se'             = lookup' (decls env) n
+  where n                             = tId (tHead t)
+        Kindle.Struct te'             = lookup' (decls env) n
         t0                            = Kindle.TId n
-        env'                          = addDict (dom se `zip` dom se')
+        env'                          = addDict (dom te `zip` dom te')
 
 --cFun' env (EDo c)                     = do (ds,c,t) <- cCmd (pushSelf x env) c
 --                                           return (ds, [(x,t0)], c, t)

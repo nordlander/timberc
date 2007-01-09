@@ -11,7 +11,7 @@ data Name                       = Name  { str :: String, tag :: Int, annot :: An
                                 | Tuple { width :: Int, annot :: Annot }
 
 
-data Annot                      = Annot { location :: Maybe (Int,Int), explicit :: Bool }
+data Annot                      = Annot { location :: Maybe (Int,Int), explicit :: Bool, stateVar :: Bool }
 
 
 -- The built-in primitives ----------------------------------------------------------------
@@ -24,12 +24,12 @@ data Prim                       =
                                 | Request
                                 | Template
                                 | Cmd
-                                | O
 
-                                | Message
+                                | Msg
                                 | Ref
                                 | PID
                                 | PMC
+                                | Time
 
                                 | Int
                                 | Float
@@ -105,7 +105,14 @@ data Prim                       =
                                 | After
                                 | Before
 
+                                | Baseline              -- special syntax (selectors)
+                                | Deadline
+
                                 | Current               -- special syntax, not global
+
+                                | ASYNC                 -- invisible
+                                | LOCK
+                                | UNLOCK
                                 deriving (Eq,Ord,Enum,Bounded,Show)
 
 isConPrim p                     = p < Refl
@@ -116,7 +123,7 @@ primSyms                        = [LIST .. CONS]
 
 primTypes                       = map primKeyValue [Action .. UNIT]
 
-primTerms                       = map primKeyValue [UNIT .. Before]
+primTerms                       = map primKeyValue [UNIT .. Deadline]
 
 primCurrent                     = [primKeyValue Current]
 
@@ -129,6 +136,8 @@ strRep NIL                      = "[]"
 strRep CONS                     = ":"
 strRep TRUE                     = "True"
 strRep FALSE                    = "False"
+strRep Baseline                 = ".baseline"
+strRep Deadline                 = ".deadline"
 strRep Current                  = "current"
 strRep p | isConPrim p          = show p
          | otherwise            = "prim" ++ show p
@@ -137,7 +146,7 @@ strRep p | isConPrim p          = show p
 
 -- Name construction ------------------------------------------------------------
 
-noAnnot                         = Annot { location = Nothing, explicit = False }
+noAnnot                         = Annot { location = Nothing, explicit = False, stateVar = False }
 
 loc l                           = noAnnot { location = Just l }
 
@@ -152,6 +161,9 @@ tuple n                         = Tuple n noAnnot
 
 
 annotExplicit n                 = n { annot = a { explicit = True } }
+  where a                       = annot n
+
+annotState n                    = n { annot = a { stateVar = True } }
   where a                       = annot n
 
 

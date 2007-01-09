@@ -5,7 +5,7 @@ import Common
 import Syntax
 
 
-dostuff (Module c ds)           = Module c (stuff (selEnv ds) ds)
+dostuff (Module c ds)           = Module c (stuff (mkEnv ds) ds)
 
 {-
     This module implements Record Stuffing; i.e. replacing ".." in record patterns and expressions 
@@ -15,9 +15,9 @@ dostuff (Module c ds)           = Module c (stuff (selEnv ds) ds)
 
 -- The selector environment --------------------------------------------------------------------------------------
 
-type SelEnv                     = Map Name [Name]
+data Env                        = Env { sels :: Map Name [Name], self :: Maybe Name }
 
-selEnv ds                       = map transClose recEnv
+mkEnv ds                        = Env { sels = map transClose recEnv, self = Nothing }
   where recEnv                  = [ (c,(map type2head ts, sort (concat (map sels ss)))) | DRec _ c _ ts ss <- ds ]
         sels (Sig vs _)         = vs
         transClose (c,(cs,ss))  = (c, ss ++ concat (map (selectors recEnv [c]) cs))
@@ -28,105 +28,136 @@ selEnv ds                       = map transClose recEnv
                                     Nothing      -> error ("Unknown record constructor: " ++ show c)
 
 
-selsFromType se c               = case lookup c se of
+selsFromType env c              = case lookup c (sels env) of
                                     Just ss -> ss
                                     Nothing -> error ("Unknown record constructor: " ++ show c)
 
 
-typeFromSels [] ss              = error ("No record type with selectors " ++ showids (map chopSel ss))
-typeFromSels  ((c,ss'):se) ss
-  | ss == ss'                   = c
-  | otherwise                   = typeFromSels se ss
+typeFromSels env ss             = f (sels env) ss
+  where f [] ss                 = error ("No record type with selectors " ++ showids (map chopSel ss))
+        f  ((c,ss'):se) ss
+          | ss == ss'           = c
+          | otherwise           = f se ss
 
+
+haveSelf env                    = self env /= Nothing
 
 
 -- Stuffing -------------------------------------------------------------------------------------------
 
 class Stuff a where
-    stuff :: SelEnv -> a -> a
+    stuff :: Env -> a -> a
 
 instance Stuff a => Stuff [a] where
-    stuff se                    = map (stuff se)
+    stuff env                     = map (stuff env)
 
 instance Stuff Decl where
-    stuff se (DBind b)          = DBind (stuff se b)
-    stuff se d                  = d
+    stuff env (DBind b)           = DBind (stuff env b)
+    stuff env d                   = d
 
 instance Stuff Bind where
-    stuff se (BEqn lh rh)       = BEqn (stuff se lh) (stuff se rh)
-    stuff se b                  = b
+    stuff env (BEqn lh rh)        = BEqn (stuff env lh) (stuff env rh)
+    stuff env b                   = b
 
 instance Stuff Lhs where
-    stuff se (LFun v ps)        = LFun v (stuff se ps)
-    stuff se (LPat p)           = LPat (stuff se p)
+    stuff env (LFun v ps)         = LFun v (stuff env ps)
+    stuff env (LPat p)            = LPat (stuff env p)
 
-instance Stuff a => Stuff (Rhs a) where
-    stuff se (RExp e)           = RExp (stuff se e)
-    stuff se (RGrd gs)          = RGrd (stuff se gs)
-    stuff se (RWhere e bs)      = RWhere (stuff se e) (stuff se bs)
+instance Stuff (Rhs Exp) where
+    stuff env (RExp e)            = RExp (stuff env e)
+    stuff env (RGrd gs)           = RGrd (stuff env gs)
+    stuff env (RWhere e bs)       = RWhere (stuff env e) (stuff env bs)
 
-instance Stuff a => Stuff (GExp a) where
-    stuff se (GExp qs e)        = GExp (stuff se qs) (stuff se e)
+instance Stuff (GExp Exp) where
+    stuff env (GExp qs e)         = GExp (stuff env qs) (stuff env e)
 
 instance Stuff Qual where
-    stuff se (QExp e)           = QExp (stuff se e)
-    stuff se (QGen p e)         = QGen (stuff se p) (stuff se e)
-    stuff se (QLet bs)          = QLet (stuff se bs)
+    stuff env (QExp e)            = QExp (stuff env e)
+    stuff env (QGen p e)          = QGen (stuff env p) (stuff env e)
+    stuff env (QLet bs)           = QLet (stuff env bs)
 
 instance Stuff Exp where
-    stuff se (ERec Nothing fs)  = ERec (Just (c,True)) (stuff se fs)
-      where c                   = typeFromSels se (sort (bvars fs))
-    stuff se (ERec (Just (c,all)) fs)
-      | all && not (null miss)  = error ("Missing selectors in record: " ++ showids (map chopSel miss))
-      | otherwise               = ERec (Just (c,True)) (fs' ++ stuff se fs)
-      where miss                = selsFromType se c \\ bvars fs
-            fs'                 = map (\s -> Field s (EVar (chopSel s))) miss
+    stuff env (ERec Nothing fs)      = ERec (Just (c,True)) (stuff env fs)
+      where c                        = typeFromSels env (sort (bvars fs))
+    stuff env (ERec (Just (c,all)) fs)
+      | all && not (null miss)       = error ("Missing selectors in record: " ++ showids (map chopSel miss))
+      | otherwise                    = ERec (Just (c,True)) (fs' ++ stuff env fs)
+      where miss                     = selsFromType env c \\ bvars fs
+            fs'                      = map (\s -> Field s (EVar (chopSel s))) miss
+ 
+    stuff env (EAp e1 e2)            = EAp (stuff env e1) (stuff env e2)
+    stuff env (ETup es)              = ETup (stuff env es)
+    stuff env (EList es)             = EList (stuff env es)
+    stuff env (ESig e t)             = ESig (stuff env e) t
+    stuff env (ELam ps e)            = ELam (stuff env ps) (stuff env e)
+    stuff env (ECase e as)           = ECase (stuff env e) (stuff env as)
+    stuff env (EIf e1 e2 e3)         = EIf (stuff env e1) (stuff env e2) (stuff env e3)
+    stuff env (ENeg e)               = ENeg (stuff env e)
+    stuff env (ESeq e1 e2 e3)        = ESeq (stuff env e1) (stuff env e2) (stuff env e3)
+    stuff env (EComp e qs)           = EComp (stuff env e) (stuff env qs)
+    stuff env (ESectR e op)          = ESectR (stuff env e) op
+    stuff env (ESectL op e)          = ESectL op (stuff env e)
+    stuff env (ESelect e s)          = ESelect (stuff env e) s
 
-    stuff se (EAp e1 e2)        = EAp (stuff se e1) (stuff se e2)
-    stuff se (ETup es)          = ETup (stuff se es)
-    stuff se (EList es)         = EList (stuff se es)
-    stuff se (ESig e t)         = ESig (stuff se e) t
-    stuff se (ELam ps e)        = ELam (stuff se ps) (stuff se e)
-    stuff se (ECase e as)       = ECase (stuff se e) (stuff se as)
-    stuff se (EIf e1 e2 e3)     = EIf (stuff se e1) (stuff se e2) (stuff se e3)
-    stuff se (ENeg e)           = ENeg (stuff se e)
-    stuff se (ESeq e1 e2 e3)    = ESeq (stuff se e1) (stuff se e2) (stuff se e3)
-    stuff se (EComp e qs)       = EComp (stuff se e) (stuff se qs)
-    stuff se (ESectR e op)      = ESectR (stuff se e) op
-    stuff se (ESectL op e)      = ESectL op (stuff se e)
-    stuff se (ESelect e s)      = ESelect (stuff se e) s
-    stuff se (EDo ss)           = EDo (stuff se ss)
-    stuff se (EAct v ss)        = EAct v (stuff se ss)
-    stuff se (EReq v ss)        = EReq v (stuff se ss)
-    stuff se (ETempl v ss)      = ETempl v (stuff se ss)
-    stuff se (EAfter e1 e2)     = EAfter (stuff se e1) (stuff se e2)
-    stuff se (EBefore e1 e2)    = EBefore (stuff se e1) (stuff se e2)
+    stuff env (ETempl Nothing t ss)  = stuff env (ETempl (Just (name0 "self")) t ss)
+    stuff env (EDo Nothing t ss)
+      | haveSelf env                 = stuff env (EDo (self env) t ss)
+      | otherwise                    = stuff env (EDo (Just (name0 "self")) t ss)
+    stuff env (EAct Nothing ss)
+      | haveSelf env                 = stuff env (EAct (self env) ss)
+      | otherwise                    = error "Illegal action"
+    stuff env (EReq Nothing ss)
+      | haveSelf env                 = stuff env (EReq (self env) ss)
+      | otherwise                    = error "Illegal request"
 
-    stuff se e                  = e
+    stuff env (ETempl v t ss)        = ETempl v t (stuffT (env{self=v}) ss)
+    stuff env (EDo v t ss)           = EDo v t (stuffS (env{self=v}) ss)
+    stuff env (EAct v ss)            = EAct v [SExp (EDo v Nothing (stuffS env ss))]
+    stuff env (EReq v ss)            = EReq v [SExp (EDo v Nothing (stuffS env ss))]
+
+    stuff env (EAfter e1 e2)         = EAfter (stuff env e1) (stuff env e2)
+    stuff env (EBefore e1 e2)        = EBefore (stuff env e1) (stuff env e2) 
+
+    stuff env e                      = e
+
+instance Stuff (Alt Exp) where
+    stuff env (Alt p rh)          = Alt (stuff env p) (stuff env rh)
 
 instance Stuff Field where
-    stuff s (Field l e)         = Field l (stuff s e)
+    stuff env (Field l e)         = Field l (stuff env e)
 
 instance Stuff (Maybe Exp) where
-    stuff se Nothing            = Nothing
-    stuff se (Just e)           = Just (stuff se e)
-
-instance Stuff Stmt where
-    stuff se (SExp e)           = SExp (stuff se e)
-    stuff se (SRet e)           = SRet (stuff se e)
-    stuff se (SGen p e)         = SGen (stuff se p) (stuff se e)
-    stuff se (SBind b)          = SBind (stuff se b)
-    stuff se (SAss p e)         = SAss (stuff se p) (stuff se e)
-    stuff se (SForall qs ss)    = SForall (stuff se qs) (stuff se ss)
-    stuff se (SWhile e ss)      = SWhile (stuff se e) (stuff se ss)
-    stuff se (SIf e ss)         = SIf (stuff se e) (stuff se ss)
-    stuff se (SElsif e ss)      = SElsif (stuff se e) (stuff se ss)
-    stuff se (SElse ss)         = SElse (stuff se ss)
-    stuff se (SCase e as)       = SCase (stuff se e) (stuff se as)
+    stuff env Nothing             = Nothing
+    stuff env (Just e)            = Just (stuff env e)
 
 
-instance Stuff a => Stuff (Alt a) where
-    stuff se (Alt p e)          = Alt (stuff se p) (stuff se e)
+stuffS env []                     = []
+stuffS env [SExp e]               = [SExp (stuff env e)]
+stuffS env (SExp e : ss)          = SGen EWild (stuff env e) : stuffS env ss
+stuffS env [SRet e]               = [SRet (stuff env e)]
+stuffS env (SRet e : ss)          = error "Illegal return"
+stuffS env (SGen p e : ss)        = SGen (stuff env p) (stuff env e) : stuffS env ss
+stuffS env (SBind b : ss)         = SBind (stuff env b) : stuffS env ss
+stuffS env (SAss p e : ss)        = SAss (stuff env p) (stuff env e) : stuffS env ss
+stuffS env (SCase e as : ss)      = stuffS env (SExp (ECase e (map doAlt as)) : ss)
+  where doAlt (Alt p r)           = Alt p (doRhs r)
+        doRhs (RExp ss)           = RExp (EDo (self env) Nothing ss)
+        doRhs (RGrd gs)           = RGrd (map doGrd gs)
+        doRhs (RWhere r bs)       = RWhere (doRhs r) bs
+        doGrd (GExp qs ss)        = GExp qs (EDo (self env) Nothing ss)
+stuffS env (SIf e ss' : ss)       = doIf (EIf e (EDo (self env) Nothing ss')) ss
+  where doIf f (SElsif e ss':ss)  = doIf (f . EIf e (EDo (self env) Nothing ss')) ss
+        doIf f (SElse ss':ss)     = stuffS env (SExp (f (EDo (self env) Nothing ss')) : ss)
+        doIf f ss                 = stuffS env (SExp (f (EDo (self env) Nothing [])) : ss)
+stuffS env (SElsif e ss : _)      = error "Illegal elsif"
+stuffS env (SElse ss : _)         = error "Illegal else"
+stuffS env (SForall q ss' : ss)   = error "forall stmt not yet implemented"
+stuffS env (SWhile e ss' : ss)    = error "while stmt not yet implemented"
 
 
-
+stuffT env [SExp e]               = [SExp (stuff env e)]
+stuffT env [SRet e]               = [SRet (stuff env e)]
+stuffT env (SGen p e : ss)        = SGen (stuff env p) (stuff env e) : stuffT env ss
+stuffT env (SBind b : ss)         = SBind (stuff env b) : stuffT env ss
+stuffT env (SAss p e : ss)        = SAss (stuff env p) (stuff env e) : stuffT env ss
+stuffT env _                      = error "Illegal statement in template"

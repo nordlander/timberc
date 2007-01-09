@@ -212,8 +212,8 @@ dsExp (ENeg (ELit (LRat r)))    = return (ELit (LRat (-r)))
 dsExp (ELit l)                  = return (ELit l)
 dsExp (ERec m fs)               = liftM (ERec m) (mapM dsF fs)
   where dsF (Field s e)         = liftM (Field s) (dsExp e)
-dsExp (EDo ss)                  = liftM EDo (dsStmts ss)
-dsExp (ETempl v ss)             = liftM (ETempl v) (dsStmts ss)
+dsExp (EDo v t ss)              = liftM (EDo v (fmap dsWildType t)) (dsStmts ss)
+dsExp (ETempl v t ss)           = liftM (ETempl v (fmap dsWildType t)) (dsStmts ss)
 dsExp (EAct v ss)               = liftM (EAct v) (dsStmts ss)
 dsExp (EReq v ss)               = liftM (EReq v) (dsStmts ss)
 dsExp (EAfter e e')             = dsExp (EAp (EAp (EVar (prim After)) e) e')
@@ -250,7 +250,7 @@ dsStmts (SBind b : ss)          = do bs' <- dsBinds bs
   where (ss1,ss2)               = span isSBind ss
         bs                      = b : [ b' | SBind b' <- ss1 ]
 dsStmts (SAss p e : ss)
-  | isESigVar p                 = do e <- dsExp e
+  | isEVar p                    = do e <- dsExp e
                                      ss <- dsStmts ss
                                      return (SAss p e : ss)
   | otherwise                   = do v0 <- newName tempSym
@@ -261,31 +261,16 @@ dsStmts (SAss p e : ss)
                                      return (SAss (EVar v) (selectFrom e0 (vs `zip` map EVar vs') p v))
 dsStmts [SRet e]                = do e <- dsExp e
                                      return [SRet e]
-dsStmts (SRet e : ss)           = fail "Illegal return"
 dsStmts [SExp e]                = do e <- dsExp e
                                      return [SExp e]
-dsStmts (SExp e : ss)           = dsStmts (SGen EWild e : ss)
 dsStmts (SGen p e : ss)
-  | isESigVar p                 = do e <- dsExp e
+  | isESigVar p                 = do p <- dsInnerPat p
+                                     e <- dsExp e
                                      ss <- dsStmts ss
                                      return (SGen p e : ss)
   | otherwise                   = do v <- newEVar tempSym
                                      dsStmts (SGen v e : SBind (BEqn (LPat p) (RExp v)) : ss)
-dsStmts (SCase e as : ss)       = dsStmts (SExp (ECase e (map doAlt as)) : ss)
-  where doAlt (Alt p r)         = Alt p (doRhs r)
-        doRhs (RExp ss)         = RExp (EDo ss)
-        doRhs (RGrd gs)         = RGrd (map doGrd gs)
-        doRhs (RWhere r bs)     = RWhere (doRhs r) bs
-        doGrd (GExp qs ss)      = GExp qs (EDo ss)
-dsStmts (SIf e ss' : ss)        = dsIf (EIf e (EDo ss')) ss
-dsStmts (SElsif _ _ : ss)       = fail "Illegal elsif"
-dsStmts (SElse _ : ss)          = fail "Illegal else"
-dsStmts _                       = fail "Statement not yet implememted"
-
-
-dsIf f (SElsif e ss' : ss)      = dsIf (f . EIf e (EDo ss')) ss
-dsIf f (SElse ss' : ss)         = dsStmts (SExp (f (EDo ss')) : ss)
-dsIf f ss                       = dsStmts (SExp (f done) : ss)
+dsStmts _                       = error "Chaos in dsStmts"
 
 
 -- Alternatives -----------------------------------------------------------------------
@@ -314,9 +299,12 @@ dsPat (ETup ps)                 = dsPat (foldl EAp (ECon (tuple (length ps))) ps
 dsPat (EList ps)                = dsPat (foldr cons nil ps)
 dsPat p                         = dsConPat p
 
-dsConPat (EAp p p')             = liftM2 EAp (dsConPat p) (dsPat p')
+dsConPat (EAp p p')             = liftM2 EAp (dsConPat p) (dsInnerPat p')
 dsConPat (ECon c)               = return (ECon c)
 dsConPat p                      = fail "Illegal pattern"
+
+dsInnerPat (ESig (EVar v) t)    = return (ESig (EVar v) (dsWildType t))
+dsInnerPat p                    = dsPat p
 
 
 -- Primitives ----------------------------------------------------------------
@@ -325,7 +313,6 @@ cons x xs                       = EAp (EAp (ECon (prim CONS)) x) xs
 nil                             = ECon (prim NIL)
 true                            = ECon (prim TRUE)
 false                           = ECon (prim FALSE)
-done                            = EDo []
 
 
 

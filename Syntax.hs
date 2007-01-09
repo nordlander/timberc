@@ -71,10 +71,10 @@ data Exp    = EVar    Name
             | ESectR  Exp Name
             | ESectL  Name Exp
             | ESelect Exp Name
-            | EDo     [Stmt] 
-            | EAct    Name [Stmt] 
-            | EReq    Name [Stmt] 
-            | ETempl  Name [Stmt]
+            | EDo     (Maybe Name) (Maybe Type) [Stmt] 
+            | ETempl  (Maybe Name) (Maybe Type) [Stmt]
+            | EAct    (Maybe Name) [Stmt] 
+            | EReq    (Maybe Name) [Stmt] 
             | EAfter  Exp Exp
             | EBefore Exp Exp
             deriving  (Eq,Show)
@@ -245,10 +245,10 @@ instance Subst Exp Name Exp where
     subst s (ESectL op e)       = ESectL op (subst s e)
     subst s (ESelect e l)       = ESelect (subst s e) l
     subst s (ESel l)            = ESel l
-    subst s (EDo st)            = EDo (subst s st)
+    subst s (EDo v t st)        = EDo v t (subst s st)
+    subst s (ETempl v t st)     = ETempl v t (subst s st) 
     subst s (EAct v st)         = EAct v (subst s st)
     subst s (EReq v st)         = EReq v (subst s st)
-    subst s (ETempl v st)       = ETempl v (subst s st) 
     subst s (EAfter e e')       = EAfter (subst s e) (subst s e')
     subst s (EBefore e e')      = EBefore (subst s e) (subst s e')
 
@@ -425,10 +425,10 @@ instance Pr Exp where
     prn 0 (EIf e e1 e2)         = sep [text "if" <+> pr e, text "then" <+> pr e1, 
                                        text "else" <+> pr e2]
     prn 0 (ECase e alts)        = text "case" <+> pr e <+> text "of" $$ nest 2 (vpr alts)
-    prn 0 (EDo ss)              = text "do" <+> vpr ss 
-    prn 0 (EAct v ss)           = text "action" <+> prId v $$ nest 4 (vpr ss) 
-    prn 0 (EReq v ss)           = text "request" <+> prId v $$ nest 4 (vpr ss) 
-    prn 0 (ETempl v ss)         = text "template" <+> prId v $$ nest 4 (vpr ss)
+    prn 0 (EDo v t ss)          = text "do" <+> vpr ss 
+    prn 0 (ETempl v t ss)       = text "template" $$ nest 4 (vpr ss)
+    prn 0 (EAct v ss)           = text "action" $$ nest 4 (vpr ss) 
+    prn 0 (EReq v ss)           = text "request" $$ nest 4 (vpr ss) 
     prn 0 (EAfter e e')         = text "after" <+> prn 12 e <+> pr e'
     prn 0 (EBefore e e')        = text "before" <+> prn 12 e <+> pr e'
     prn 0 e                     = prn 1 e

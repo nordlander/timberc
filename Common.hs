@@ -137,6 +137,11 @@ newName s                       = do n <- newNum
 newNames s n                    = mapM (const (newName s)) [1..n]
 
 
+renaming vs                     = do ns <- mapM (const newNum) vs
+                                     return (zipWith f vs ns)
+  where f v n                   = (v, v { tag = n })
+
+
 assert e msg
   | e                           = return ()
   | otherwise                   = fail msg
@@ -320,6 +325,11 @@ instance Subst a i e => Subst (Name,a) i e where
 instance Subst a i e => Subst (Maybe a) i e where
     subst s Nothing             = Nothing
     subst s (Just a)            = Just (subst s a)
+
+
+newEnv x ts                     = do vs <- mapM (const (newName x)) ts
+                                     return (vs `zip` ts)
+
 
 
 -- Kinds ---------------------------------------------------------------------------------

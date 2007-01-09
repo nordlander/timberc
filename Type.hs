@@ -56,13 +56,13 @@ let f = \w0 v x -> e w0 (f w0 v 7)                                            ::
 -}
 
 
-tiModule (Module v ds is bs)    = do (env1,ds1) <- typeDecls env0 ds
+tiModule (Module v ds is bs)    = do (env1,ds') <- typeDecls env0 ds
                                      env2 <- classPreds env1 is
-                                     (ss1,pe1,bs2) <- tiBindsList (addTEnv0 (tsigsOf is) env2) (groupBinds bs)
-                                     (ss2,pe2,is1) <- tiBinds (addTEnv0 (tsigsOf bs2) env2) is
+                                     (ss1,pe1,bs') <- tiBindsList (addTEnv0 (tsigsOf is) env2) (groupBinds bs)
+                                     (ss2,pe2,is') <- tiBinds (addTEnv0 (tsigsOf bs') env2) is
                                      assert (null (pe1++pe2)) "Internal: top-level type inference"
                                      s <- unify env2 (ss1++ss2)
-                                     return (Module v ds1 nullBinds (subst s is1 `catBinds` subst s bs2))
+                                     return (Module v ds' nullBinds (subst s is' `catBinds` subst s bs'))
   where env0                    = initEnv
 
 
@@ -164,6 +164,7 @@ tiExp env (EAp e es)            = do (s,pe,t,e) <- tiExp env e
 tiExp env (ELet bs e)           = do (s,pe,bs) <- tiBindsList env (groupBinds bs)
                                      (s',pe',t,e) <- tiExp (addTEnv (tsigsOf bs) env) e
                                      return (s++s',pe++pe', t, ELet bs e)
+
 tiExp env e@(ECon k)            = do (pe,t,e) <- instantiate (findType env k) e
                                      te       <- newEnv paramSym (fst (splitC t))
                                      return ([], pe, t, eLam te (eAp e (map EVar (dom te))))
@@ -189,7 +190,57 @@ tiExp env (ECase e alts d)      = do (t,ts,_)    <- tiLhs env tiX pats
                                      te <- newEnv paramSym (fst (splitC t))
                                      tiExp env (eLam te (e (dom te)))
           where e vs            = EAp (EVar x) [EAp (ECon k) (map EVar vs)]
-                                     
+tiExp env (EReq e e')           = do alpha <- newTVar Star
+                                     beta <- newTVar Star
+                                     (s,pe,e) <- tiExpT env (False, scheme (tRef alpha), e)
+                                     (s',pe',e') <- tiExpT env (False, scheme (tCmd alpha beta), e')
+                                     return (s++s', pe++pe', R (tRequest beta), EReq e e')
+tiExp env (EAct e e')           = do alpha <- newTVar Star
+                                     beta <- newTVar Star
+                                     (s,pe,e) <- tiExpT env (False, scheme (tRef alpha), e)
+                                     (s',pe',e') <- tiExpT env (False, scheme (tCmd alpha beta), e')
+                                     return (s++s', pe++pe', R tAction, EAct e e')
+tiExp env (EDo x tx c)          = do (s,pe,t,c) <- tiCmd env' c
+                                     alpha <- newTVar Star
+                                     beta <- newTVar Star
+                                     return ((tRef alpha,tx):(tCmd alpha beta,t):s'++s, pe, R (tCmd alpha beta), EDo x tx c)
+  where env'                    = setSelf x tx env
+        s'                      = case selfType env of
+                                     Nothing -> []
+                                     Just t  -> [(tx,t)]
+tiExp env (ETempl x tx te c)    = do (s,pe,t,c) <- tiCmd env' c
+                                     alpha <- newTVar Star
+                                     n <- newName paramSym
+                                     w <- newName coercionSym
+                                     let p = Scheme (F [scheme tx] (R (tRef (TId n)))) [] [(n,Star)]
+                                     return ((t,(tTemplate alpha)):s, (w,p):pe, R (tTemplate alpha), ETempl x tx te c)
+  where env'                    = setSelf x tx (addTEnv te env)
+
+
+
+tiCmd env (CRet e)              = do (s,pe,t,e) <- tiExp env e
+                                     m <- newTVar (KFun Star Star)
+                                     alpha <- newTVar Star
+                                     w <- newName coercionSym
+                                     return (s, (w,Scheme (F [scheme' t] (R alpha)) [] []):pe, TAp m alpha, CRet (EAp (EVar w) [e]))
+tiCmd env (CExp e)              = do (s,pe,t,e) <- tiExp env e
+                                     alpha <- newTVar Star
+                                     w <- newName coercionSym
+                                     return (s, (w,Scheme (F [scheme' t] (R alpha)) [] []):pe, alpha, CExp (EAp (EVar w) [e]))
+tiCmd env (CGen x tx e c)       = do (s,pe,t,e) <- tiExp env e
+                                     (s',pe',t',c) <- tiCmd (addTEnv [(x,scheme tx)] env) c
+                                     m <- newTVar (KFun Star Star)
+                                     alpha <- newTVar Star
+                                     w <- newName coercionSym
+                                     let p = Scheme (F [scheme' t] (R (TAp m tx))) [] []
+                                     return (s++s', (w,p):pe++pe', t', CGen x tx (EAp (EVar w) [e]) c)
+tiCmd env (CAss x e c)          = do (s,pe,e) <- tiExpT env (False, findType env x, e)
+                                     (s',pe',t,c) <- tiCmd env c
+                                     return (s++s', pe++pe', t, CAss x e c)
+tiCmd env (CLet bs c)           = do (s,pe,bs) <- tiBindsList env (groupBinds bs)
+                                     (s',pe',t,c) <- tiCmd (addTEnv (tsigsOf bs) env) c
+                                     return (s++s', pe++pe', t, CLet bs c)
+
 
 tiLhs env tiX xs                = do alpha <- newTVar Star
                                      x <- newName tempSym

@@ -64,13 +64,13 @@ data Exp        = ECon    Name
                 | ERec    Eqns
                 | ELit    Lit
 
-                | EAct    Name Cmd
-                | EReq    Name Cmd
-                | ETempl  Name TEnv (Maybe Scheme) Cmd
-                | EDo     Cmd
+                | EAct    Exp Exp
+                | EReq    Exp Exp
+                | ETempl  Name Type TEnv Cmd
+                | EDo     Name Type Cmd
                 deriving (Eq,Show)
 
-data Cmd        = CGen    Name Scheme Exp Cmd
+data Cmd        = CGen    Name Type Exp Cmd
                 | CAss    Name Exp Cmd
                 | CLet    Binds Cmd
                 | CRet    Exp
@@ -264,10 +264,10 @@ instance Ids Exp where
     idents (ELet bs e)          = idents bs ++ (idents e \\ bvars bs)
     idents (ECase e alts def)   = idents e ++ idents alts ++ idents def
     idents (ERec eqs)           = idents eqs
-    idents (EAct x c)           = x : idents c
-    idents (EReq x c)           = x : idents c
-    idents (ETempl x te t c)    = idents c \\ (x : dom te)
-    idents (EDo c)              = idents c
+    idents (EAct e e')          = idents e ++ idents e'
+    idents (EReq e e')          = idents e ++ idents e'
+    idents (ETempl x t te c)    = idents c \\ (x : dom te)
+    idents (EDo x t c)          = filter (not . stateVar . annot) (idents c \\ [x])
     idents _                    = []
 
 instance Ids Alt where
@@ -300,10 +300,10 @@ instance Subst Exp Name Name where
     subst s (ELet bs e)         = ELet (subst s bs) (subst s e)
     subst s (ECase e alts def)  = ECase (subst s e) (subst s alts) (subst s def)
     subst s (ERec eqs)          = ERec (subst s eqs)
-    subst s (EAct x c)          = EAct x (subst s c)
-    subst s (EReq x c)          = EReq x (subst s c)
-    subst s (ETempl x te t c)   = ETempl x te t (subst s c)
-    subst s (EDo c)             = EDo (subst s c)
+    subst s (EAct e e')         = EAct (subst s e) (subst s e')
+    subst s (EReq e e')         = EReq (subst s e) (subst s e')
+    subst s (ETempl x t te c)   = ETempl x t te (subst s c)
+    subst s (EDo x t c)         = EDo x t (subst s c)
     subst s e                   = e
 
 instance Subst Cmd Name Name where
@@ -328,10 +328,10 @@ instance Subst Exp TVar Type where
     subst s (ELet bs e)         = ELet (subst s bs) (subst s e)
     subst s (ECase e alts def)  = ECase (subst s e) (subst s alts) (subst s def)
     subst s (ERec eqs)          = ERec (subst s eqs)
-    subst s (EAct x c)          = EAct x (subst s c)
-    subst s (EReq x c)          = EReq x (subst s c)
-    subst s (ETempl x te t c)   = ETempl x (subst s te) (subst s t) (subst s c)
-    subst s (EDo c)             = EDo (subst s c)
+    subst s (EAct e e')         = EAct (subst s e) (subst s e')
+    subst s (EReq e e')         = EReq (subst s e) (subst s e')
+    subst s (ETempl x t te c)   = ETempl x (subst s t) (subst s te) (subst s c)
+    subst s (EDo x t c)         = EDo x (subst s t) (subst s c)
     subst s e                   = e
 
 instance Subst Cmd TVar Type where
@@ -353,10 +353,10 @@ instance Subst Exp Name Type where
     subst s (ELet bs e)         = ELet (subst s bs) (subst s e)
     subst s (ECase e alts def)  = ECase (subst s e) (subst s alts) (subst s def)
     subst s (ERec eqs)          = ERec (subst s eqs)
-    subst s (EAct x c)          = EAct x (subst s c)
-    subst s (EReq x c)          = EReq x (subst s c)
-    subst s (ETempl x te t c)   = ETempl x (subst s te) (subst s t) (subst s c)
-    subst s (EDo c)             = EDo (subst s c)
+    subst s (EAct e e')         = EAct (subst s e) (subst s e')
+    subst s (EReq e e')         = EReq (subst s e) (subst s e')
+    subst s (ETempl x t te c)   = ETempl x (subst s t) (subst s te) (subst s c)
+    subst s (EDo x t c)         = EDo x (subst s t) (subst s c)
     subst s e                   = e
 
 instance Subst Cmd Name Type where
@@ -605,13 +605,14 @@ instance Pr Exp where
     prn 0 (ELet bs e)           = text "let" $$ nest 4 (pr bs) $$ text "in" <+> pr e
     prn 0 (ECase e alts def)    = text "case" <+> pr e <+> text "of" $$ 
                                        nest 2 (vpr alts $$ text "_ ->" <+> pr def)
-    prn 0 (EAct x c)            = text "action@" <> prId x $$
+    prn 0 (EAct e e')           = text "action@" <> prn 2 e $$
+                                       nest 4 (pr e')
+    prn 0 (EReq e e')           = text "request@" <> prn 2 e $$
+                                       nest 4 (pr e')
+    prn 0 (ETempl x t te c)     = text "template@" <> prId x $$
                                        nest 4 (pr c)
-    prn 0 (EReq x c)            = text "request@" <> prId x $$
+    prn 0 (EDo x t c)           = text "do@" <> prId x $$
                                        nest 4 (pr c)
-    prn 0 (ETempl x te t c)     = text "template@" <> prId x <> prMaybeScheme t $$
-                                       nest 4 (pr c)
-    prn 0 (EDo c)               = text "do"  <+> pr c
     prn 0 e                     = prn 1 e
 
     prn 1 (EAp e es)            = hang (prn 1 e) 2 (sep (map (prn 2) es))

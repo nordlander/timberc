@@ -35,7 +35,7 @@ s2cDecls env [] ke ts pe bs     = do (te,bs2) <- s2cBinds (addSigs pe env) te es
   where (te,es)                 = splitBinds (reverse bs)
         (es1,es2)               = partition ((`elem` ws) . fst) es
         impl_ke                 = dom ts \\ dom ke
-        ws                      = undefined -- doms2cSigpe
+        ws                      = dom pe
 
 
 s2cDecls env (DKSig c k : ds) ke ts pe bs
@@ -221,15 +221,17 @@ s2cEc env _ e                   = s2cE env e
 -- (i.e., no point inheriting nor synthesizing signatures)
 s2cE env (ERec _ fs)                    = do eqs <- mapM (s2cF env) fs
                                              return (Core.ERec eqs)
-s2cE env (EAct x ss)                    = do c <- s2cS env ss
-                                             return (Core.EAct x c)
-s2cE env (EReq x ss)                    = do c <- s2cS env ss
-                                             return (Core.EReq x c)
-s2cE env (EDo ss)                       = do c <- s2cS env ss
-                                             return (Core.EDo c)
-s2cE env (ETempl x ss)                  = do c <- s2cS (addSigs te env) (map unsig ss)
+s2cE env (EAct (Just x) [SExp e])       = do (_,e) <- s2cEi env e
+                                             return (Core.EAct (Core.EVar x) e)
+s2cE env (EReq (Just x) [SExp e])       = do (_,e) <- s2cEi env e
+                                             return (Core.EReq (Core.EVar x) e)
+s2cE env (EDo (Just x) Nothing ss)      = do c <- s2cS env ss
+                                             t <- s2cType TWild
+                                             return (Core.EDo x t c)
+s2cE env (ETempl (Just x) Nothing ss)   = do c <- s2cS (addSigs te env) (map unsig ss)
+                                             t <- s2cType TWild
                                              te2 <- s2cTE te1
-                                             return (Core.ETempl x te2 Nothing c)
+                                             return (Core.ETempl x t te2 c)
   where 
     vs                                  = svars ss
     te                                  = sigs ss
@@ -255,15 +257,15 @@ s2cS env [SRet e]                       = do (t,e') <- s2cEi env e
                                              return (Core.CRet e')
 s2cS env [SExp e]                       = do (t,e') <- s2cEi env e
                                              return (Core.CExp e')
-s2cS env (SGen (ESig (EVar v) t) e :ss) = do t' <- s2cQualType t
+s2cS env (SGen (ESig (EVar v) t) e :ss) = do t' <- s2cType t
                                              e' <- s2cEc env TWild e
                                              c <- s2cS (addSigs [(v,t)] env) ss
                                              return (Core.CGen v t' e' c)
-s2cS env (SGen (EVar v) e : ss)         = do (t,e') <- s2cEi env e
-                                             t' <- s2cQualType t
+s2cS env (SGen (EVar v) e : ss)         = do (_,e') <- s2cEi env e
+                                             t <- s2cType TWild
                                              c <- s2cS env ss
-                                             return (Core.CGen v t' e' c)
-s2cS env (SAss (ESig (EVar v) t) e :ss) = fail ("Illegal state variable signature: " ++ show v)
+                                             return (Core.CGen v t e' c)
+--s2cS env (SAss (ESig (EVar v) t) e :ss) = fail ("Illegal state variable signature: " ++ show v)
 s2cS env (SAss (EVar v) e : ss)         = do e' <- s2cEc env (lookupT v env) e
                                              c <- s2cS env ss
                                              return (Core.CAss v e' c)
