@@ -201,7 +201,7 @@ compileTimber clo f = do putStrLn $ "[loading module " ++ show f ++ "]"
                          c   <- pass kindle2c       K2C                 el
                          return c
 -}
-			 return ki
+			 return undefined
 
         pass        :: (Pr b) => (a -> M b) -> Pass -> a -> M b
         pass m p a  = do -- tr ("Pass " ++ show p ++ "...")
