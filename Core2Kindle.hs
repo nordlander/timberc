@@ -7,9 +7,6 @@ import Depend
 import qualified Kindle
 import qualified Char
 
-
-core2kindle = undefined
-{-
 {-
 
 Core
@@ -348,29 +345,7 @@ conDict (Types ke ds)               = do d <- renaming cons
   where cons                        = concat [ c : dom cs | (c,DData _ _ cs) <- ds ]
 
 
-
-convBinds env (Binds r te eqs)      = do (fss,vss) <- fmap unzip (mapM convBind eqs)
-                                         
-  where env1                        = addTypes te1 env
-        te1                         = convTEnv te
-        convBind (x,ELam te' e)     = convEqn t x (dom te' `zip` ts) e
-          where Kindle.TFun ts t    = lookup x te1
-        convBind (x,e)              = convEqn t x [] e
-          where t                   = lookup x te1
-        convEqn t x te (ETempl y te' (Just t) c)
-
-
-{-
-
-
-c2kModule (Module m ds [] bs)       = do cs <- c2kDecls ds
-                                         (fs,vs) <- c2kBinds (addDecls cs env0) bs
-                                         return (Kindle.Module m cs fs vs)
-  where env0                        = Env { decls = Kindle.primDS,
-                                            state = [] }
-
-
-c2kDecls (Types ke ds)              = do dss <- mapM c2kDecl ds
+cDecls env (Types ke ds)            = do dss <- mapM cDecl ds
                                          return (concat dss)
   where cDecl (c,DRec _ vs [] ss)   = do (ds,te) <- cTEnv ss
                                          return ((c, Kindle.Struct te) : ds)
@@ -469,19 +444,8 @@ matchVal env t e                      = do (ds,bs,e,t') <- cExp env e
                                             else
                                                return (ds, bs, e)
 
-c2kBind env te0 (v, ELam te e)      = c2kBind' env v te (lookup' te0 v) e
-c2kBind env te0 (v, e)              = c2kBind' env v [] (lookup' te0 v) e
-
-
-c2kBind' env v te t (EAct x c)      = c2kCmd env x c
-c2kbind' env v te t (EReq x c)      = c2kCmd env x c
--- c2kBind' env v te (EDo c)        = c2kCmd env c
-c2kBind' env v te t (ETempl x te c) = do b <- c2kCmd env x c
-                                         return ([(v, Kindle.Fun (te++[(x,Kindle.TWild)]) t
-c2kBind' env v [] t e               = do (fs,vs,e) <- c2kExp env e
-                                         return (fs, vs++[(v,Kindle.Val (c2kVScheme t) e)])
-c2kBind' env v te t e               = do b <- c2kBody env e
-                                         return ([(v, Kindle.Fun te t b)], [])
+matchFun env ts t e                   = do (ds,te,c,t') <- cFun env e
+                                           undefined
                                          
 
 
@@ -548,12 +512,6 @@ protect = undefined
 
 pushSelf = undefined
 
-mkRTS x
-  | x == Prim.act                   = Prim.rtsAct
-  | x == Prim.req                   = Prim.rtsReq
-  | x == Prim.new                   = Prim.rtsNew
-  | x == Prim.aft                   = Prim.rtsAft
-  | x == Prim.bef                   = Prim.rtsBef
-  | otherwise                       = x
+cExp = undefined
 
 cCmd = undefined
