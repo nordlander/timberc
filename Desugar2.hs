@@ -1,4 +1,4 @@
-module Desugar(desugar) where
+module Desugar2(desugar2) where
 
 import Monad
 import Common
@@ -7,8 +7,8 @@ import Match
 import Maybe
 import Fixity
 
-desugar :: Module -> M Module
-desugar m = dsModule m
+desugar2 :: Module -> M Module
+desugar2 m = dsModule m
 
 
 -- Modules ------------------------------------------------------------------

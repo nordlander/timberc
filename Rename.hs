@@ -1,4 +1,4 @@
-module Expand where
+module Rename where
 
 {-
 
@@ -18,14 +18,14 @@ import Common
 import Syntax
 import List(sort)
 
-expandM m                          = expand initEnv m
+renameM m                          = rename initEnv m
 
 
 -- Syntax traversal environment --------------------------------------------------
 
 data Env                           = Env { rE :: Map Name Name, 
                                            rT :: Map Name Name, 
-                                          rS :: Map Name Name,
+                                           rS :: Map Name Name,
                                            self :: [Name],
                                            void :: [Name]
                                          }
@@ -97,72 +97,72 @@ oloadBinds xs ds                   = concat [ binds c vs sels | DRec True c vs _
 
 -- Renaming -----------------------------------------------------------------------------------------
 
-class Expand a where
-  expand :: Env -> a -> M a
+class Rename a where
+  rename :: Env -> a -> M a
 
-instance Expand a => Expand [a] where
-  expand env as                    = mapM (expand env) as
+instance Rename a => Rename [a] where
+  rename env as                    = mapM (rename env) as
 
-instance Expand a => Expand (Maybe a) where
-  expand env (Just e)              = liftM Just (expand env e)
-  expand env Nothing               = return Nothing
+instance Rename a => Rename (Maybe a) where
+  rename env (Just e)              = liftM Just (rename env e)
+  rename env Nothing               = return Nothing
 
 
-instance Expand Module where
-  expand env (Module c ds)         = do env1 <- extRenT env ts
+instance Rename Module where
+  rename env (Module c ds)         = do env1 <- extRenT env ts
                                         env2 <- extRenE env1 (ss++cs++vs)
-                                        liftM (Module c) (expand env2 ds')
-    where (ts,ss,cs,bs)            = expD [] [] [] [] [] [] ds
+                                        liftM (Module c) (rename env2 ds')
+    where (ts,ss,cs,bs)            = renameD [] [] [] [] [] [] ds
           ds'                      = filter (not . isDBind) ds ++ map DBind (bs' ++ bs)
           vs                       = bvars bs
           bs'                      = oloadBinds vs ds
 
 
-expD ks ts ss cs ws bs (DKSig c k : ds)
+renameD ks ts ss cs ws bs (DKSig c k : ds)
   | c `elem` ks                    = error ("Duplicated kind signature: " ++ show c)
-  | otherwise                      = expD (c:ks) ts ss cs ws bs ds
-expD ks ts ss cs ws bs (DRec _ c _ _ sigs : ds)
+  | otherwise                      = renameD (c:ks) ts ss cs ws bs ds
+renameD ks ts ss cs ws bs (DRec _ c _ _ sigs : ds)
   | c `elem` ts                    = error ("Duplicated type constructor definition: " ++ show c)
   | not (null dups)                = error ("Duplicated selectors: " ++ showids dups)
-  | otherwise                      = expD (ks\\[c]) (c:ts) (sels++ss) cs ws bs ds
+  | otherwise                      = renameD (ks\\[c]) (c:ts) (sels++ss) cs ws bs ds
   where sels                       = concat [ vs | Sig vs t <- sigs ]
         dups                       = duplicates sels ++ (ss `intersect` sels)
-expD ks ts ss cs ws bs (DData c _ _ cdefs : ds)
+renameD ks ts ss cs ws bs (DData c _ _ cdefs : ds)
   | c `elem` ts                    = error ("Duplicated type constructor definition: " ++ show c)
   | not (null dups)                = error ("Duplicated constructors: " ++ showids dups)
-  | otherwise                      = expD (ks\\[c]) (c:ts) ss (cons++cs) ws bs ds
+  | otherwise                      = renameD (ks\\[c]) (c:ts) ss (cons++cs) ws bs ds
   where cons                       = [ c | Constr c _ _ <- cdefs ]
         dups                       = duplicates cons ++ (cs `intersect` cons)
-expD ks ts ss cs ws bs (DInst _ _ : ds)
-                                   = expD ks ts ss cs ws bs ds
-expD ks ts ss cs ws bs (DType c _ _ : ds)
+renameD ks ts ss cs ws bs (DInst _ _ : ds)
+                                   = renameD ks ts ss cs ws bs ds
+renameD ks ts ss cs ws bs (DType c _ _ : ds)
   | c `elem` ts                    = error ("Duplicated type constructor definition: " ++ show c)
-  | otherwise                      = expD (ks\\[c]) (c:ts) ss cs ws bs ds
-expD ks ts ss cs ws bs (DPSig v t : ds)
+  | otherwise                      = renameD (ks\\[c]) (c:ts) ss cs ws bs ds
+renameD ks ts ss cs ws bs (DPSig v t : ds)
   | v `elem` ws                    = error ("Duplicated instance signature: " ++ show v)
-  | otherwise                      = expD ks ts ss cs (v:ws) bs ds
-expD ks ts ss cs ws bs (DBind b : ds)
-                                   = expD ks ts ss cs ws (b:bs) ds
-expD ks ts ss cs ws bs []
+  | otherwise                      = renameD ks ts ss cs (v:ws) bs ds
+renameD ks ts ss cs ws bs (DBind b : ds)
+                                   = renameD ks ts ss cs ws (b:bs) ds
+renameD ks ts ss cs ws bs []
   | not (null ks)                  = error ("Dangling kind signatures: " ++ showids ks)
   | otherwise                      = (ts, ss, cs, shuffleD ws (reverse bs))
 
 
-instance Expand Decl where
-  expand env d@(DKSig _ _)         = return d
-  expand env (DData c vs ts cs)    = do env' <- extRenT env vs
-                                        liftM2 (DData (renT env c) (map (renT env') vs)) (expandQTs env' ts) (expand env' cs)
-  expand env (DRec isC c vs ts ss) = do env' <- extRenT env vs
-                                        liftM2 (DRec isC (renT env c) (map (renT env') vs)) (expandQTs env' ts) (expand env' ss)
-  expand env (DType c vs t)        = do env' <- extRenT env vs
-                                        liftM (DType (renT env c) (map (renT env') vs)) (expand env' t)
-  expand env (DInst t bs)          = liftM2 DInst (expandQT env t) (expand env bs)
-  expand env (DPSig v t)           = liftM (DPSig (renE env v)) (expandQT env t)
-  expand env (DBind b)             = liftM DBind (expand env b)
+instance Rename Decl where
+  rename env d@(DKSig _ _)         = return d
+  rename env (DData c vs ts cs)    = do env' <- extRenT env vs
+                                        liftM2 (DData (renT env c) (map (renT env') vs)) (renameQTs env' ts) (rename env' cs)
+  rename env (DRec isC c vs ts ss) = do env' <- extRenT env vs
+                                        liftM2 (DRec isC (renT env c) (map (renT env') vs)) (renameQTs env' ts) (rename env' ss)
+  rename env (DType c vs t)        = do env' <- extRenT env vs
+                                        liftM (DType (renT env c) (map (renT env') vs)) (rename env' t)
+  rename env (DInst t bs)          = liftM2 DInst (renameQT env t) (rename env bs)
+  rename env (DPSig v t)           = liftM (DPSig (renE env v)) (renameQT env t)
+  rename env (DBind b)             = liftM DBind (rename env b)
 
-instance Expand Constr where
-  expand env (Constr c ts ps)      = do env' <- extRenT env (bvars ps')
-                                        liftM2 (Constr (renE env c)) (expand env' ts) (expand env' ps')
+instance Rename Constr where
+  rename env (Constr c ts ps)      = do env' <- extRenT env (bvars ps')
+                                        liftM2 (Constr (renE env c)) (rename env' ts) (rename env' ps')
    where ps'                       = completeP env ts ps
 
 completeP env t ps
@@ -176,132 +176,132 @@ completeP env t ps
         implicit                   = nub vs \\ (tscope env ++ bvs)
 
 
-expandQT env (TQual t ps)          = expand env (TQual t (completeP env t ps))
-expandQT env t                     = expandQT env (TQual t [])
+renameQT env (TQual t ps)          = rename env (TQual t (completeP env t ps))
+renameQT env t                     = renameQT env (TQual t [])
 
 
-expandQTs env ts                   = mapM (expandQT env) ts
+renameQTs env ts                   = mapM (renameQT env) ts
 
 
-instance Expand Sig where
-  expand env (Sig vs t)            = liftM (Sig (map (renE env) vs)) (expandQT env t)
+instance Rename Sig where
+  rename env (Sig vs t)            = liftM (Sig (map (renE env) vs)) (renameQT env t)
 
-instance Expand Pred where
-  expand env (PType p)             = liftM PType (expand env p)
-  expand env (PKind v k)           = return (PKind (renT env v) k)
+instance Rename Pred where
+  rename env (PType p)             = liftM PType (rename env p)
+  rename env (PKind v k)           = return (PKind (renT env v) k)
 
-instance Expand Type where
-  expand env (TQual t ps)          = do env' <- extRenT env (bvars ps)
-                                        liftM2 TQual (expand env' t) (expand env' ps)
-  expand env (TCon c)              = return (TCon (renT env c))
-  expand env (TVar v)              = return (TVar (renT env v))
-  expand env (TAp t1 t2)           = liftM2 TAp (expand env t1) (expand env t2)
-  expand env (TSub t1 t2)          = liftM2 TSub (expand env t1) (expand env t2)
-  expand env TWild                 = return TWild
-  expand env (TList ts)            = liftM TList (expand env ts)
-  expand env (TTup ts)             = liftM TTup (expand env ts)
-  expand env (TFun t1 t2)          = liftM2 TFun (expand env t1) (expand env t2)
+instance Rename Type where
+  rename env (TQual t ps)          = do env' <- extRenT env (bvars ps)
+                                        liftM2 TQual (rename env' t) (rename env' ps)
+  rename env (TCon c)              = return (TCon (renT env c))
+  rename env (TVar v)              = return (TVar (renT env v))
+  rename env (TAp t1 t2)           = liftM2 TAp (rename env t1) (rename env t2)
+  rename env (TSub t1 t2)          = liftM2 TSub (rename env t1) (rename env t2)
+  rename env TWild                 = return TWild
+  rename env (TList ts)            = liftM TList (rename env ts)
+  rename env (TTup ts)             = liftM TTup (rename env ts)
+  rename env (TFun t1 t2)          = liftM2 TFun (rename env t1) (rename env t2)
 
-instance Expand Bind where
-  expand env (BEqn lh rh)          = do env' <- extRenE env (bvars lh)
-                                        liftM2 BEqn (expand env' lh) (expand env' rh)
-  expand env (BSig vs t)           = return (BSig (map (renE env) vs) t)
+instance Rename Bind where
+  rename env (BEqn lh rh)          = do env' <- extRenE env (bvars lh)
+                                        liftM2 BEqn (rename env' lh) (rename env' rh)
+  rename env (BSig vs t)           = return (BSig (map (renE env) vs) t)
 
-instance Expand Lhs where
-  expand env (LFun v ps)           = liftM (LFun (renE env v)) (expand env ps)
-  expand env (LPat p)              = liftM LPat (expand env p)
+instance Rename Lhs where
+  rename env (LFun v ps)           = liftM (LFun (renE env v)) (rename env ps)
+  rename env (LPat p)              = liftM LPat (rename env p)
 
-instance Expand Exp where
-  expand env (EVar v)
+instance Rename Exp where
+  rename env (EVar v)
     | v `elem` void env            = fail "Uninitialized state variable"
     | v `elem` stateVars env       = return (EVar (renS env v))
     | otherwise                    = return (EVar (renE env v))
-  expand env (ECon c)              = return (ECon (renE env c))
-  expand env (ESel l)              = return (ESel (renE env l))
-  expand env (EAp e1 e2)           = liftM2 EAp (expand env e1) (expand env e2)
-  expand env (ELit l)              = return (ELit l)
-  expand env (ETup ps)             = liftM ETup (expand env ps)
-  expand env (EList es)            = liftM EList (expand env es)
-  expand env EWild                 = return EWild
-  expand env (ESig e t)            = liftM2 ESig (expand env e) (expandQT env t)
-  expand env (ERec m fs)           = liftM (ERec m) (expand env fs)
-  expand env (ELam ps e)           = do env' <- extRenE env (pvars ps)
-                                        liftM2 ELam (expand env' ps) (expand env' e)
-  expand env (ELet bs e)           = do env' <- extRenE env (bvars bs)
-                                        liftM2 ELet (expand env' (shuffleB bs)) (expand env' e)
-  expand env (ECase e as)          = liftM2 ECase (expand env e) (expand env as)
-  expand env (EIf e1 e2 e3)        = liftM3 EIf (expand env e1) (expand env e2) (expand env e3)
-  expand env (ENeg e)              = liftM ENeg (expand env e)
-  expand env (ESeq e1 e2 e3)       = liftM3 ESeq (expand env e1) (expand env e2) (expand env e3)
-  expand env (EComp e qs)          = liftM2 EComp (expand env e) (expQ env qs)
-  expand env (ESectR e op)         = liftM (flip ESectR op) (expand env e) 
-  expand env (ESectL op e)         = liftM (ESectL op) (expand env e)
-  expand env (ESelect e l)         = liftM (flip ESelect (renE env l)) (expand env e) 
-  expand env (EAct v ss)           = liftM (EAct (fmap (renE env) v)) (expS (unvoidAll env) (shuffleS ss))
-  expand env (EReq v ss)           = liftM (EReq (fmap (renE env) v)) (expS (unvoidAll env) (shuffleS ss))
-  expand env (EDo (Just v) Nothing ss)
+  rename env (ECon c)              = return (ECon (renE env c))
+  rename env (ESel l)              = return (ESel (renE env l))
+  rename env (EAp e1 e2)           = liftM2 EAp (rename env e1) (rename env e2)
+  rename env (ELit l)              = return (ELit l)
+  rename env (ETup ps)             = liftM ETup (rename env ps)
+  rename env (EList es)            = liftM EList (rename env es)
+  rename env EWild                 = return EWild
+  rename env (ESig e t)            = liftM2 ESig (rename env e) (renameQT env t)
+  rename env (ERec m fs)           = liftM (ERec m) (rename env fs)
+  rename env (ELam ps e)           = do env' <- extRenE env (pvars ps)
+                                        liftM2 ELam (rename env' ps) (rename env' e)
+  rename env (ELet bs e)           = do env' <- extRenE env (bvars bs)
+                                        liftM2 ELet (rename env' (shuffleB bs)) (rename env' e)
+  rename env (ECase e as)          = liftM2 ECase (rename env e) (rename env as)
+  rename env (EIf e1 e2 e3)        = liftM3 EIf (rename env e1) (rename env e2) (rename env e3)
+  rename env (ENeg e)              = liftM ENeg (rename env e)
+  rename env (ESeq e1 e2 e3)       = liftM3 ESeq (rename env e1) (rename env e2) (rename env e3)
+  rename env (EComp e qs)          = liftM2 EComp (rename env e) (renameQ env qs)
+  rename env (ESectR e op)         = liftM (flip ESectR op) (rename env e) 
+  rename env (ESectL op e)         = liftM (ESectL op) (rename env e)
+  rename env (ESelect e l)         = liftM (flip ESelect (renE env l)) (rename env e) 
+  rename env (EAct v ss)           = liftM (EAct (fmap (renE env) v)) (renameS (unvoidAll env) (shuffleS ss))
+  rename env (EReq v ss)           = liftM (EReq (fmap (renE env) v)) (renameS (unvoidAll env) (shuffleS ss))
+  rename env (EDo (Just v) Nothing ss)
                                    = do env1 <- extRenSelf env v
-                                        liftM (EDo (Just (renE env1 v)) Nothing) (expS (unvoidAll env1) (shuffleS ss))
-  expand env (ETempl (Just v) Nothing ss)
+                                        liftM (EDo (Just (renE env1 v)) Nothing) (renameS (unvoidAll env1) (shuffleS ss))
+  rename env (ETempl (Just v) Nothing ss)
                                    = do env1 <- extRenSelf env v
                                         env2 <- setRenS env1 st
-                                        liftM (ETempl (Just (renE env2 v)) Nothing) (expS env2 (shuffleS ss))
+                                        liftM (ETempl (Just (renE env2 v)) Nothing) (renameS env2 (shuffleS ss))
     where st                       = svars ss
-  expand env (EAfter e1 e2)        = liftM2 EAfter (expand env e1) (expand env e2)
-  expand env (EBefore e1 e2)       = liftM2 EBefore (expand env e1) (expand env e2)
+  rename env (EAfter e1 e2)        = liftM2 EAfter (rename env e1) (rename env e2)
+  rename env (EBefore e1 e2)       = liftM2 EBefore (rename env e1) (rename env e2)
 
 
-instance Expand Field where
-  expand env (Field l e)           = liftM (Field (renE env l)) (expand env e)
+instance Rename Field where
+  rename env (Field l e)           = liftM (Field (renE env l)) (rename env e)
 
-instance Expand (Rhs Exp) where
-  expand env (RExp e)              = liftM RExp (expand env e)
-  expand env (RGrd gs)             = liftM RGrd (expand env gs)
-  expand env (RWhere e bs)         = do env' <- extRenE env (bvars bs)
-                                        liftM2 RWhere (expand env' e) (expand env' (shuffleB bs))
-
-
-instance Expand (GExp Exp) where
-  expand env (GExp qs e)           = liftM2 GExp (expQ env qs) (expand env e)
+instance Rename (Rhs Exp) where
+  rename env (RExp e)              = liftM RExp (rename env e)
+  rename env (RGrd gs)             = liftM RGrd (rename env gs)
+  rename env (RWhere e bs)         = do env' <- extRenE env (bvars bs)
+                                        liftM2 RWhere (rename env' e) (rename env' (shuffleB bs))
 
 
-expQ env []                        = return []
-expQ env (q@(QExp _) : qs)         = liftM2 (:) (expand env q) (expQ env qs)
-expQ env (q@(QGen p _) : qs)       = do env' <- extRenE env (pvars p)
-                                        liftM2 (:) (expand env' q) (expQ env' qs)
-expQ env (q@(QLet bs) : qs)        = do env' <- extRenE env (bvars bs)
-                                        liftM2 (:) (expand env' q) (expQ env' qs)
+instance Rename (GExp Exp) where
+  rename env (GExp qs e)           = liftM2 GExp (renameQ env qs) (rename env e)
 
 
-instance Expand (Alt Exp) where
-  expand env (Alt  p rh)           = do env' <- extRenE env (pvars p)
-                                        liftM2 Alt (expand env' p) (expand env' rh) 
-
-instance Expand Qual where
-  expand env (QExp e)              = liftM QExp (expand env e)
-  expand env (QGen p e)            = liftM2 QGen (expand env p) (expand env e)
-  expand env (QLet bs)             = liftM QLet (expand env (shuffleB bs))
+renameQ env []                     = return []
+renameQ env (q@(QExp _) : qs)      = liftM2 (:) (rename env q) (renameQ env qs)
+renameQ env (q@(QGen p _) : qs)    = do env' <- extRenE env (pvars p)
+                                        liftM2 (:) (rename env' q) (renameQ env' qs)
+renameQ env (q@(QLet bs) : qs)     = do env' <- extRenE env (bvars bs)
+                                        liftM2 (:) (rename env' q) (renameQ env' qs)
 
 
-instance Expand Stmt where
-  expand env (SExp e)              = liftM SExp (expand env e)
-  expand env (SRet e)              = liftM SRet (expand env e)
-  expand env (SGen p e)            = liftM2 SGen (expand env p) (expand env e)
-  expand env (SBind b)             = liftM SBind (expand env b)
-  expand env (SAss p e)
+instance Rename (Alt Exp) where
+  rename env (Alt  p rh)           = do env' <- extRenE env (pvars p)
+                                        liftM2 Alt (rename env' p) (rename env' rh) 
+
+instance Rename Qual where
+  rename env (QExp e)              = liftM QExp (rename env e)
+  rename env (QGen p e)            = liftM2 QGen (rename env p) (rename env e)
+  rename env (QLet bs)             = liftM QLet (rename env (shuffleB bs))
+
+
+instance Rename Stmt where
+  rename env (SExp e)              = liftM SExp (rename env e)
+  rename env (SRet e)              = liftM SRet (rename env e)
+  rename env (SGen p e)            = liftM2 SGen (rename env p) (rename env e)
+  rename env (SBind b)             = liftM SBind (rename env b)
+  rename env (SAss p e)
     | not (null illegal)           = fail ("Unknown state variable: " ++ showids illegal)
-    | otherwise                    = liftM2 SAss (expand env p) (expand env e)
+    | otherwise                    = liftM2 SAss (rename env p) (rename env e)
     where illegal                  = pvars p \\ stateVars env
 
 
-expS env []                        = return []
-expS env (s@(SGen p e) : ss)       = do env' <- extRenE env (pvars p)
-                                        liftM2 (:) (expand env s) (expS env' ss)
-expS env ss@(SBind _ : _)          = do env' <- extRenE env (bvars ss1)
-                                        liftM2 (++) (expand env' ss1) (expS env' ss2)
+renameS env []                     = return []
+renameS env (s@(SGen p e) : ss)    = do env' <- extRenE env (pvars p)
+                                        liftM2 (:) (rename env s) (renameS env' ss)
+renameS env ss@(SBind _ : _)       = do env' <- extRenE env (bvars ss1)
+                                        liftM2 (++) (rename env' ss1) (renameS env' ss2)
   where (ss1,ss2)                  = span isSBind ss
-expS env (s@(SAss p e) : ss)       = liftM2 (:) (expand env s) (expS (unvoid (pvars p) env) ss)
-expS env (s:ss)                    = liftM2 (:) (expand env s) (expS env ss)
+renameS env (s@(SAss p e) : ss)    = liftM2 (:) (rename env s) (renameS (unvoid (pvars p) env) ss)
+renameS env (s:ss)                 = liftM2 (:) (rename env s) (renameS env ss)
 
 
 

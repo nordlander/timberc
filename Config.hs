@@ -208,8 +208,9 @@ parseCfg file
 -- | The different compiler passes.
 -- XXX Should not be in this file.
 data Pass            = Parser
-                     | Expand
-                     | Desugar
+                     | Desugar1
+                     | Rename
+                     | Desugar2
                      | S2C
                      | KCheck
                      | TCheck

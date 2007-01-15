@@ -15,8 +15,9 @@ import Execution
 import PP
 import Common
 import Parser
-import Desugar
-import Expand
+import Desugar1
+import Rename
+import Desugar2
 import Syntax2Core
 import Kind
 import Type
@@ -42,11 +43,17 @@ Parser:
 - Converts record labels to proper selectors (with prefix .)
 - Replaces prefix tuple constructors with primitive names
 
-Stuff:
+Desugar1:
 - Checks record type acyclicity and selector consistence
 - Completes dotdot record patterns and expressions with missing fields
+- Checks and resolves if/elsif/else statements
+- Makes the "self" variable explicit.
+- Checks validity of return statement
+- Replaces prefix expression statement with dummy generator statement
+- Replaces if/case statements with corresponding expressions forms
+- Checks the restricted command syntax of template bodies
 
-Expand:
+Rename:
 - Checks for duplicate declarations and kind signatures
 - Checks for duplicate selectors and constructors, and overlaps with class members
 - Checks for duplicate equations and type signatures
@@ -60,7 +67,7 @@ Expand:
 - Renames local variables using unique names
 - Renames local (explicitly quantified) type variables using unique names
 
-Desugar:
+Desugar2:
 - Translates instance declarations into instance signatures and named record terms
 
 - Checks validity of type and type scheme syntax in signatures and declarations
@@ -74,11 +81,7 @@ Desugar:
 - Collects functions defined with multiple equations while checking arities
 - Flattens pattern bindings
 - Removes non-trivial patterns in lambdas, assignments and generators
-- Checks validity of return statement
 - Translates list expressions/patterns and list comprehensions
-- Checks and resolves if/elsif/else statements
-- Replaces prefix expression statement with dummy generator statement
-- Replaces if/case statements with corresponding expressions forms
 
 - Applies pattern-matching compiler to case expressions
 
@@ -186,9 +189,10 @@ compileTimber clo f = do putStrLn $ "[loading module " ++ show f ++ "]"
                          writeFile "defs.h" htxt
 
   where passes txt  = do par <- pass parser         Parser              txt
-                         ex  <- pass expandM        Expand              par
-                         ds  <- pass desugar        Desugar             ex
-                         co  <- pass syntax2core    S2C                 ds
+                         d1  <- pass desugar1       Desugar1            par
+                         rn  <- pass renameM        Rename              d1
+                         d2  <- pass desugar2       Desugar2            rn
+                         co  <- pass syntax2core    S2C                 d2
                          kc  <- pass kindcheck      KCheck              co
                          tc  <- pass typecheck      TCheck              kc
                          rd  <- pass termred        Termred             tc
