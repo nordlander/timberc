@@ -403,6 +403,8 @@ cType' ts (TAp (TId (Prim Template _)) t)    = do (ds,t) <- cAType t
 cType' ts (TAp (TAp (TId (Prim Cmd _)) s) t) = do (ds1, s) <- cAType s
                                                   (ds2, t) <- cAType t
                                                   return (ds1++ds2, ts++[s], t)
+cType' ts (TAp (TId (Prim Ref _)) t)         = do (ds,t) <- cAType t
+                                                  return (ds, ts, t)
 cType' ts (TAp t t')                         = cType' ts t
 cType' ts (TId n)                            = return ([], ts, Kindle.TId n)
 cType' ts (TVar _)                           = return ([], ts, Kindle.TWild)

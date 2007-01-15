@@ -174,6 +174,7 @@ paramSym                        = "a"
 skolemSym                       = "S"
 coercionSym                     = "c"
 constrSym                       = "C"
+typeSym                         = "T"
 selfSym                         = "self"
 
 isCoercion n                    = isGenerated n && str n == coercionSym

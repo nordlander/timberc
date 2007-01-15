@@ -27,7 +27,7 @@ data Env = Env { kindEnv       :: KEnv,            -- Kind for each global tycon
 
                  tevars        :: [TVar],          -- The tvars free in typeEnv (cached)
                  pevars        :: [TVar],          -- The tvars free in predEnv (cached)
-                 selfType      :: Maybe Type,      -- Type of "self" of current state scope
+                 stateT        :: Maybe Type,      -- Type of current state scope (invariant: included in typeEnv as well)
 
                  aboveEnv      :: Map Name WGraph, -- Overlap graph of all S > T for each T (closed under reflexivity & transitivity)
                  belowEnv      :: Map Name WGraph, -- Overlap graph of all S < T for each T (closed under reflexivity & transitivity)
@@ -53,7 +53,7 @@ nullEnv                                 = Env { kindEnv  = [],
                                                 predEnv  = [],
                                                 tevars   = [],
                                                 pevars   = [],
-                                                selfType = Nothing,
+                                                stateT   = Nothing,
                                                 aboveEnv = [],
                                                 belowEnv = [],
                                                 classEnv = [],
@@ -91,8 +91,8 @@ insertClass c wg env                    = env { classEnv   = insert c wg (classE
 
 noClasses env                           = env { classEnv = [] }
 
-setSelf x t env                         = env' { selfType = Just t }
-  where env'                            = addTEnv [(x,scheme t)] env
+setSelf x t env                         = env' { stateT = Just t }
+  where env'                            = addTEnv [(x,scheme (tRef t))] env
 
 addSkolEnv se env                       = env { skolEnv  = se ++ skolEnv env }
 
@@ -178,7 +178,7 @@ instance Subst Env TVar Type where
                                                  predEnv  = subst s (predEnv env),
                                                  pevars   = substT s (pevars env) }
       where env'                        = env { {- typeEnv  = subst s (typeEnv env), -- redundant -}
-                                                 selfType = subst s (selfType env),
+                                                 stateT = subst s (stateT env),
                                                  tevars  = substT s (tevars env),
                                                  pols = substP env s (pols env),
                                                  skolEnv = mapSnd (substT s) (skolEnv env) }
@@ -198,7 +198,25 @@ conservative (env,c)                    = not (forced env)
 
 findKind env c                          = case lookup c (kindEnv env) of
                                             Just k  -> k
-                                            Nothing -> error ("Internal: Unknown type constructor: " ++ show c)
+                                            Nothing -> Star  -- Hack!  This alternative is intended for the fresh type
+                                                             -- constants introduced when type-checking templates with 
+                                                             -- no explicit state type annotations.  The proper handling 
+                                                             -- of these names would be to thread an accumulating list 
+                                                             -- of generated type declarations through the type-checker
+                                                             -- instead, but (1) that would further complicate an already
+                                                             -- complex piece of software, and (2) these declarations 
+                                                             -- still cannot be made sufficiently polymorphic until the
+                                                             -- final substitution has been computed (i.e., after type-
+                                                             -- checking).  A more advanced alternative would be to in-
+                                                             -- troduce local type declarations to the language, although
+                                                             -- issue (2) above would still need to be handled separately.
+                                                             -- Considering that the Core2Kindle pass can generate correct
+                                                             -- Kindle types given only the generated type name and the 
+                                                             -- state variable annotations already present in template
+                                                             -- expressions, there is much merit to the shortcut implemented
+                                                             -- here.  Note also that unknown type constructor names have
+                                                             -- already been trapped and reported during renaming.
+                                                    -- error ("Internal: Unknown type constructor: " ++ show c)
 
 
 findType env v                          = case lookup v (typeEnv env ++ typeEnv0 env) of

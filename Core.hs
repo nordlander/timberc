@@ -147,9 +147,10 @@ tHead t                         = t
 
 tId (TId i)                     = i
 
+isTVar t                        = case tHead t of
+                                    TVar _ -> True
+                                    _      -> False
 
-isProperTCon (TId c)            = not (isVar c)                                                 
-isProperTCon _                  = False
 
 a `sub` b                       = TFun [a] b
 
@@ -176,6 +177,7 @@ pbody (Scheme (R c) _ _)        = c
 
 pctxt (Scheme _ ps _)           = ps
 
+pquant (Scheme _ _ ke)          = ke
 
 scheme t                        = Scheme (R t) [] []
 scheme' t                       = Scheme t [] []

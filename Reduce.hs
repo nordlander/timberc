@@ -202,7 +202,7 @@ red gs []                               = do (s,q,e:es) <- solve r g (gs1++gs2)
         i                               = length (takeWhile (/=r) rs)
         (gs1, g:gs2)                    = splitAt i gs
         info                            = varInfo gs
-red gs ((env, Scheme (F [sc1] t2) ps2 ke2):ps)
+red gs ((env, p@(Scheme (F [sc1] t2) ps2 ke2)):ps)
                                         = do (t1,ps1) <- inst sc1
                                              pe <- newEnv assumptionSym ps2
                                              v  <- newName assumptionSym
@@ -211,6 +211,8 @@ red gs ((env, Scheme (F [sc1] t2) ps2 ke2):ps)
                                              (s,q,es,e,es') <- redf gs env' t1 t2 (ps'++ps)
                                              let (es1,es2) = splitAt (length ps') es'
                                                  g = ELam (pe++[(v,sc1)]) (EAp e [eAp (EVar v) es1])
+--                                               ptvs = tvars (subst s (p : map snd ps))
+-- Captured anyway...                        assert (null (pquant sc1) || null (tvars q \\ ptvs)) "Ambiguous coercion"
                                              return (s, q, es, g : es2)
 red gs ((env, Scheme (R t) ps' ke):ps)  = do pe <- newEnv assumptionSym ps'
                                              (env',_) <- closeEnv env (tvars t ++ tvars ps') pe ke
