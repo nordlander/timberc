@@ -113,6 +113,10 @@ data Prim                       =
                                 | ASYNC                 -- invisible
                                 | LOCK
                                 | UNLOCK
+                                
+                                | LISTtags
+                                | NILtag
+                                | CONStag
                                 deriving (Eq,Ord,Enum,Bounded,Show)
 
 isConPrim p                     = p < Refl
@@ -191,7 +195,7 @@ isGenerated _                   = False
 mkSel (Name s n a)              = Name ('.':s) n noAnnot
 mkSel n                         = n
 
-chopSel (Name ('.':l) n a)      = Name l n noAnnot
+chopSel (Name ('.':l) n a)      = Name l n a
 chopSel n                       = n
 
 

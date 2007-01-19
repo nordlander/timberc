@@ -166,21 +166,23 @@ tiExp env (EAp e es)            = do (s,pe,t,e) <- tiExp env e
 tiExp env (ELet bs e)           = do (s,pe,bs) <- tiBindsList env (groupBinds bs)
                                      (s',pe',t,e) <- tiExp (addTEnv (tsigsOf bs) env) e
                                      return (s++s',pe++pe', t, ELet bs e)
-
 tiExp env e@(ECon k)            = do (pe,t,e) <- instantiate (findType env k) e
                                      te       <- newEnv paramSym (fst (splitC t))
                                      return ([], pe, t, eLam te (eAp e (map EVar (dom te))))
 tiExp env e@(ESel l)            = do x        <- newName tempSym
                                      (pe,t,e) <- instantiate (findType env l) (EAp e [EVar x])
                                      return ([], pe, t, ELam [(x, fst (splitS t))] e)
-
-tiExp env (ERec eqs)            = do (t,ts,_)   <- tiLhs env tiX sels
+tiExp env (ESig e t)            = do (s,pe,e) <- tiExpT env t e
+                                     (pe',t',e') <- instantiate t e
+                                     return (s, pe++pe', t', ESig e' (scheme' t'))
+tiExp env (ERec c eqs)          = do alphas <- mapM newTVar (kArgs (findKind env c))
+                                     (t,ts,_)   <- tiLhs env (foldl TAp (TId c) alphas) tiX sels
                                      (s,pe,es') <- tiRhs env ts es
-                                     return (s, pe, R t, ERec (sels `zip` es'))
+                                     return (s, pe, R t, ERec c (sels `zip` es'))
   where (sels,es)               = unzip eqs
         tiX env x l             = tiExp env (EAp (ESel l) [EVar x])
-
-tiExp env (ECase e alts d)      = do (t,ts,_)    <- tiLhs env tiX pats
+tiExp env (ECase e alts d)      = do alpha <- newTVar Star
+                                     (t,ts,_)    <- tiLhs env alpha tiX pats
                                      (s,pe,es')  <- tiRhs env ts es
                                      let (t0,t1)  = splitF t
                                      (s1,pe1,e') <- tiExpT env (scheme t0) e
@@ -234,8 +236,7 @@ tiCmd env (CLet bs c)           = do (s,pe,bs) <- tiBindsList env (groupBinds bs
 
 
 
-tiLhs env tiX xs                = do alpha <- newTVar Star
-                                     x <- newName tempSym
+tiLhs env alpha tiX xs          = do x <- newName tempSym
                                      let env' = addTEnv [(x,scheme alpha)] env
                                      (_,pes,ts,es) <- fmap unzip4 (mapM (tiX env' x) xs)
                                      let env'' = target alpha env'
@@ -252,7 +253,7 @@ tiLhs env tiX xs                = do alpha <- newTVar Star
 litType (LInt i)                = TId (prim Int)
 litType (LRat r)                = TId (prim Float)
 litType (LChr c)                = TId (prim Char)
-litType (LStr s)                = TAp (TId (prim LIST)) (TId (prim Char))
+litType (LStr s)                = error "Internal chaos: Type.litType LStr"
 
 
 

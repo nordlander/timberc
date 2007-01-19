@@ -141,8 +141,8 @@ kiExp env (EAp e es)                    = do e  <- kiExp env e
 kiExp env (ELet bs e)                   = do bs <- kiBinds env bs
                                              e <- kiExp env e
                                              return (ELet bs e)
-kiExp env (ERec es)                     = do es <- mapM (kiEqn env) es
-                                             return (ERec es)
+kiExp env (ERec c es)                   = do es <- mapM (kiEqn env) es
+                                             return (ERec c es)
 kiExp env (ECase e as d)                = do e <- kiExp env e
                                              as <- mapM (kiAlt env) as
                                              d <- kiExp env d
@@ -160,6 +160,10 @@ kiExp env (ETempl x t te c)             = do t <- kiType' env t
 kiExp env (EDo x t c)                   = do t <- kiType' env t
                                              c <- kiCmd env c
                                              return (EDo x t c)
+kiExp env (ESig e t)                    = do e <- kiExp env e
+                                             cs <- kiScheme env t
+                                             s <- kindUnify cs
+                                             return (ESig e (subst s t))
 kiExp env e                             = return e
 
 

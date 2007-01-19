@@ -183,8 +183,7 @@ selectFrom e0 s p v             = ECase e0 [Alt (subst s p) (RExp (subst s (EVar
 
 
 dsExp (EAp e e')                = liftM2 EAp (dsExp e) (dsExp e')
-dsExp (ESig e qt)               = do x <- newName tempSym
-                                     dsExp (ELet [BSig [x] qt, BEqn (LFun x []) (RExp e)] (EVar x))
+dsExp (ESig e qt)               = liftM2 ESig (dsExp e) (return (dsQualWildType qt))
 dsExp (ELam ps e)            
   | all isESigVar ps            = liftM2 ELam (mapM dsPat ps) (dsExp e)
   | otherwise                   = do ps <- mapM dsPat ps
@@ -209,7 +208,7 @@ dsExp (ECon c)                  = return (ECon c)
 dsExp (ENeg (ELit (LInt i)))    = return (ELit (LInt (-i)))
 dsExp (ENeg (ELit (LRat r)))    = return (ELit (LRat (-r)))
 --dsExp (ENeg e)                        = dsExp (EAp (EVar Prim.negate) e)
-dsExp (ELit l)                  = return (ELit l)
+dsExp (ELit l)                  = dsLit l
 dsExp (ERec m fs)               = liftM (ERec m) (mapM dsF fs)
   where dsF (Field s e)         = liftM (Field s) (dsExp e)
 dsExp (EDo v t ss)              = liftM (EDo v (fmap dsWildType t)) (dsStmts ss)
@@ -294,7 +293,7 @@ dsPat (EWild)                   = do v <- newName dummySym
                                      return (EVar v)
 dsPat (ENeg (ELit (LInt i)))    = return (ELit (LInt (-i)))
 dsPat (ENeg (ELit (LRat r)))    = return (ELit (LRat (-r)))
-dsPat (ELit l)                  = return (ELit l)
+dsPat (ELit l)                  = dsLit l
 dsPat (ETup ps)                 = dsPat (foldl EAp (ECon (tuple (length ps))) ps)
 dsPat (EList ps)                = dsPat (foldr cons nil ps)
 dsPat p                         = dsConPat p
@@ -305,6 +304,12 @@ dsConPat p                      = fail "Illegal pattern"
 
 dsInnerPat (ESig (EVar v) t)    = return (ESig (EVar v) (dsWildType t))
 dsInnerPat p                    = dsPat p
+
+
+-- Literals ------------------------------------------------------------------
+
+dsLit (LStr s)                  = return (foldr cons nil (map (ELit . LChr) s))
+dsLit l                         = return (ELit l)
 
 
 -- Primitives ----------------------------------------------------------------

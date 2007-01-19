@@ -363,6 +363,14 @@ kvars Star                      = []
 kvars (KVar n)                  = [n]
 kvars (KFun k1 k2)              = kvars k1 ++ kvars k2
 
+kArgs (KFun k k')               = k : kArgs k
+kArgs k                         = []
+
+kFlat k                         = (kArgs k, kRes k)
+
+kRes (KFun k k')                = kRes k'
+kRes k                          = k
+
 
 instance Subst Kind Int Kind where
     subst s Star                = Star

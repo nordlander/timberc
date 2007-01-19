@@ -552,6 +552,7 @@ primKindEnv             = [ (prim Action,       Star),
                             (prim Ref,          KFun Star Star),
                             (prim PID,          KFun Star Star),
                             (prim PMC,          Star),
+                            (prim Time,         Star),
                                     
                             (prim Int,          Star),
                             (prim Float,        Star),
@@ -562,7 +563,8 @@ primKindEnv             = [ (prim Action,       Star),
                             (prim UNIT,         Star) ]
 
 
-primTypeEnv             = [ (prim NIL,          scheme1 (tList a)),
+primTypeEnv             = [ (prim UNIT,         scheme0 tUnit),
+                            (prim NIL,          scheme1 (tList a)),
                             (prim CONS,         scheme1 (TFun [a,tList a] (tList a))),
 
                             (prim FALSE,        scheme0 tBool),

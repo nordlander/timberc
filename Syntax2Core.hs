@@ -208,6 +208,9 @@ s2cEc env t (ECase e alts)      = do e <- s2cEc env TWild e
 s2cEc env t (ESelect e s)       = do e <- s2cEc env (peel t1) e
                                      return (Core.eAp (Core.ESel s) [e])
   where (t1,_)                  = splitT (lookupT s env)
+s2cEc env t (ESig e t')         = do e <- s2cEc env (peel t') e
+                                     t' <- s2cQualType t'
+                                     return (Core.ESig e t')
 s2cEc env t (ECon c)            = return (Core.ECon c)
 s2cEc env t (EVar v)            = return (Core.EVar v)
 s2cEc env t (ESel s)            = return (Core.ESel s)
@@ -219,8 +222,8 @@ s2cEc env _ e                   = s2cE env e
 
 -- translate an expression whose type cannot be rank-N polymorphic 
 -- (i.e., no point inheriting nor synthesizing signatures)
-s2cE env (ERec _ fs)                    = do eqs <- mapM (s2cF env) fs
-                                             return (Core.ERec eqs)
+s2cE env (ERec (Just (c,_)) eqs)        = do eqs <- mapM (s2cF env) eqs
+                                             return (Core.ERec c eqs)
 s2cE env (EAct (Just x) [SExp e])       = do (_,e) <- s2cEi env e
                                              return (Core.EAct (Core.EVar x) e)
 s2cE env (EReq (Just x) [SExp e])       = do (_,e) <- s2cEi env e
@@ -301,6 +304,9 @@ s2cEi env (ECase e alts)        = do e <- s2cEc env TWild e
 s2cEi env (ESelect e s)         = do e <- s2cEc env (peel t1) e
                                      return (t2, Core.eAp (Core.ESel s) [e])
   where (t1,t2)                 = splitT (lookupT s env)
+s2cEi env (ESig e t)            = do e <- s2cEc env (peel t) e
+                                     t' <- s2cQualType t
+                                     return (t, Core.ESig e t')
 s2cEi env (ESel s)              = return (lookupT s env, Core.ESel s)
 s2cEi env (ECon c)              = return (lookupT c env, Core.ECon c)
 s2cEi env (EVar v)              = return (lookupT v env, Core.EVar v)

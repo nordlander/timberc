@@ -1,5 +1,6 @@
 module Kindle where
 
+import Monad
 import Common
 import PP
 
@@ -20,15 +21,15 @@ import PP
 -- either a struct type or an enumeration type.  A binding either defines either a named function or 
 -- a named value of atomic type.  Both binding forms are immutable.  All type declarations are 
 -- mutually recursive, whereas term-level recursion is only supported within groups of adjacent 
--- function bindings.  Otherwise bindings scope over subsequent definitions.
+-- function bindings.  Otherwise bound names scope over subsequent bindings.
 data Module     = Module  Name Decls Binds
                 deriving (Eq,Show)
 
 -- A type declaration either introduces a struct type that defines the layout of heap-allocated 
 -- objects, or an enumeration type that defines a set of (parameterless) constructor names.  A 
--- struct may contain both value and function fieldn.  Each struct type introduces a private 
+-- struct may contain both value and function fields.  Each struct type introduces a private 
 -- namespace for its field names.  The constructor names of an enum belong to the top-level term 
--- namespace, and must therefore be globnally unique.  All type names belong to a common namespace 
+-- namespace, and must therefore be globally unique.  All type names belong to a common namespace 
 -- that is disjoint from every other namespace.
 type Decls      = Map Name Decl
 
@@ -37,8 +38,8 @@ data Decl       = Struct TEnv
                 deriving (Eq,Show)
 
 
--- A term binding is either a named value of atomic type or a named function.  The result and parameter
--- types of a function must all be atomic.
+-- A term binding is either a named value of atomic type or a named function.  The result and 
+-- parameter types of a function must all be atomic.
 type Binds      = Map Name Bind
 
 data Bind       = Val    AType Exp
@@ -47,7 +48,7 @@ data Bind       = Val    AType Exp
 
 
 -- The type of a binding is either just an atomic type in case of a value binding, or a pair of
--- result and parameter types in the function binding case.
+-- parameter and result types in the function binding case.
 type TEnv       = Map Name Type
 
 data Type       = ValT   AType
@@ -68,6 +69,7 @@ data AType      = TId    Name
 -- side-effects.  The current type system does not distinguish pure functions from side-effecting ones,
 -- although that separation will indeed be maintained by the translation from type-checked Core programs.
 data Cmd        = CRet    Exp                 -- simply return $1
+                | CRun    Exp Cmd             -- evaluate $1 for its side-effects only, then execure tail $2
                 | CBind   Binds Cmd           -- introduce local value or function bindings $1, then execute tail $2
                 | CAssign Exp Name Exp Cmd    -- overwrite value field $2 of struct $1 with value $3, execute tail $4
                 | CSwitch Exp [Alt] Cmd       -- depending on the value of $1, choose tails from $2, default to $3
@@ -75,8 +77,7 @@ data Cmd        = CRet    Exp                 -- simply return $1
                 | CBreak                      -- break out of a surrounding switch
                 deriving (Eq,Show)
 
--- Note 1: sequential function calls are expressed as function calls on the RH sides of value bindings
--- in a CBind command.
+-- Note 1: command (CRun e c) is identical to (CBind [(x,e)] c) if x is a fresh name not used anywhere else
 -- Note 2: scoping rules for the bindings in a CBind command are the same as for binding sequences on the
 -- module top level.
 -- Note 3: the Cmd alternatives CSeq and CBreak are intended to implement the Fatbar and Fail primitives 
@@ -102,6 +103,23 @@ data Exp        = EVar    Name                -- local or global value name, enu
 -- transformed away at compile-time.  The latter can be done using lambda-lifting for local functions and
 -- explicitly closing the struct functions via extra value fields accessed through "this".
 
+litType (LInt _)                        = TId (prim Int)
+litType (LRat _)                        = TId (prim Float)
+litType (LChr _)                        = TId (prim Char)
+litType (LStr _)                        = error "Internal chaos: Kindle.litType LStr"
+
+primDecls                               = (prim Bool,       Enum   [prim FALSE, prim TRUE]) :
+                                          (prim UNIT,       Enum   [prim UNIT]) :
+                                          (prim LISTtags,   Enum   [prim NILtag, prim CONStag]) :
+                                          (prim LIST,       Struct [(name0 "tag", ValT (TId (prim LISTtags)))]) :
+                                          (prim NIL,        Struct [(name0 "tag", ValT (TId (prim LISTtags)))]) :
+                                          (prim CONS,       Struct [(name0 "tag", ValT (TId (prim LISTtags))),
+                                                                    (name0 "hd",  ValT TWild), 
+                                                                    (name0 "tl",  ValT (TId (prim LIST)))]) :
+                                          []
+                                          
+primDict                                = [ (prim LIST, prim LISTtags), (prim NIL, prim NILtag), (prim CONS, prim CONStag) ]
+                                          
 
 isVal (_, Val _ _)                      = True
 isVal (_, Fun _ _ _)                    = False
@@ -112,6 +130,43 @@ isFunT (_, FunT _ _)                    = True
 mkTEnv bs                               = mapSnd f bs
   where f (Val t e)                     = ValT t
         f (Fun t te c)                  = FunT (rng te) t
+
+mkTEnv' bs                              = mapSnd ValT bs
+
+cbind [] c                              = c
+cbind bs c                              = CBind bs c
+
+
+protect x t c                         = liftM (CRun (ECall (prim LOCK) [EVar x])) (protect' x t c)
+
+protect' x t (CRet e)
+  | sensitive e                       = do y <- newName tempSym
+                                           return (CBind [(y,Val t e)] (CRun (ECall (prim UNLOCK) [EVar x]) (CRet (EVar y))))
+  | otherwise                         = return (CRun (ECall (prim UNLOCK) [EVar x]) (CRet e))
+protect' x t (CRun e c)               = liftM (CRun e) (protect' x t c)
+protect' x t (CBind bs c)             = liftM (CBind bs) (protect' x t c)
+protect' x t (CAssign e y e' c)       = liftM (CAssign e y e') (protect' x t c)
+protect' x t (CSwitch e alts c)       = liftM2 (CSwitch e) (mapM (protect'' x t) alts) (protect' x t c)
+protect' x t (CSeq c c')              = liftM2 CSeq (protect' x t c) (protect' x t c')
+protect' x t (CBreak)                 = return CBreak
+
+protect'' x t (ACon y c)              = liftM (ACon y) (protect' x t c)
+protect'' x t (ALit l c)              = liftM (ALit l) (protect' x t c)
+
+
+sensitive (ESel e n)                  = True
+sensitive (ECall n es)                = True
+sensitive (EEnter e n es)             = True
+sensitive (ENew n bs)                 = True
+sensitive (ECast t e)                 = sensitive e
+sensitive e                           = False
+
+
+lub TWild t                           = t
+lub t     TWild                       = t
+lub t     t'                          = t
+
+lub' ts                               = foldr lub TWild ts
 
 
 -- Tentative concrete syntax
@@ -150,6 +205,8 @@ instance Pr (Name, Bind) where
 
 instance Pr Cmd where
     pr (CRet e)                         = text "return" <+> pr e <> text ";"
+    pr (CRun e c)                       = pr e <> text ";" $$
+                                          pr c
     pr (CBind bs c)                     = vpr bs $$
                                           pr c
     pr (CAssign e x e' c)               = pr e <> text "." <> prId x <+> text ":=" <+> pr e' <> text ";" $$
