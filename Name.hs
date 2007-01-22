@@ -199,6 +199,12 @@ chopSel (Name ('.':l) n a)      = Name l n a
 chopSel n                       = n
 
 
+-- Local tyvars --------------------------------------------------------------------
+
+mkLocal (Name s n a)            = Name ('_':s) n a
+mkLocal n                       = n
+
+
 -- Equality & Order ----------------------------------------------------------------
 
 instance Eq Name where

@@ -76,18 +76,15 @@ tiBinds env (Binds rec te eqs)  = do --tr ("TYPE-CHECKING " ++ showids xs)
                                      --tr ("Witnesses obtained: " ++ showids (dom pe))
                                      (s',qe,f)    <- fullreduce (target te env) s pe
                                      let env1      = subst s' env
-                                         ts1       = subst s' ts
-                                         te1       = dom te `zip` ts1
-                                         (qe0,qe1) = partition (isFixed env1) qe
+                                         (qe1,qe2) = partition (isFixed env1) qe
                                          es2       = map f es1
-                                         es2'      = if rec then map (\e -> eAp (eLam te1 e) as) es2 else es2
-                                         es3       = {- map redTerm -} es2'
-                                         as        = let vs = dom qe1 in map (\x -> eAp' x vs) xs
-                                         (es',ts') = unzip (zipWith (qual qe1) es3 ts1)
-                                     --tr ("Witnesses returned: " ++ showids (dom qe0))
-                                     ts'' <- mapM (gen env1) ts'
-                                     return (mkEqns s', qe0, Binds rec (xs `zip` ts'') (xs `zip` (subst s' es')))
-  where ts                      = rng te
+                                         es3       = if rec then map (subst sat) es2 else es2
+                                         sat       = let vs = dom qe2 in map (\x -> (x, eAp' x vs)) xs
+                                         (es',ts') = unzip (zipWith (qual qe2) es3 (subst s' ts))
+                                     --tr ("Witnesses returned: " ++ showids (dom qe1))
+                                     (ss,ts'') <- fmap unzip (mapM (gen env1) ts')
+                                     return (mkEqns (s'++concat ss), qe1, Binds rec (xs `zip` ts'') (xs `zip` (subst s' es')))
+  where ts                      = map (lookup' te) xs
         (xs,es)                 = unzip eqs
         explWits                = map (explicit . annot) xs
         env'                    = if rec then addTEnv te env else env
@@ -108,24 +105,25 @@ tiExpT' env (False, Scheme t0 [] [], e)
                                      c            <- newName coercionSym
                                      return (ss, (c, Scheme (F [scheme' t] t0) [] []) : pe, EAp (EVar c) [e])
 tiExpT' env (False, Scheme t0 ps [], e) 
-                                = do (ss,pe,t,e)  <- tiExp env e
+                                = do (ss,qe,t,e)  <- tiExp env e
                                      c            <- newName coercionSym
                                      pe0          <- newEnv assumptionSym ps
-                                     let e1        = ELam pe0 (EAp (EVar c) (map EVar (dom pe0) ++ [e]))
-                                     return (ss, (c, Scheme (F [scheme' t] t0) ps []) : pe, e1)
+                                     let ws        = map EVar (dom pe0)
+                                         e1        = eLam pe0 (EAp (eAp (EVar c) ws) [e])
+                                     return (ss, (c, Scheme (F [scheme' t] t0) ps []) : qe, e1)
 tiExpT' env (explWit, Scheme t0 ps ke, e)
-                                = do (ss,pe,t,e)  <- tiExp env e
+                                = do (ss,qe,t,e)  <- tiExp env e
                                      s            <- unify env ss
                                      c            <- newName coercionSym
                                      pe0          <- newEnv assumptionSym ps
                                      let env1      = subst s env
-                                         (pe1,pe2) = partition (isFixed env1) (subst s pe)
-                                         (e',t')   = qual pe2 e (scheme' (subst s t))
+                                         (qe1,qe2) = partition (isFixed env1) (subst s qe)
+                                         (e',t')   = qual qe2 e (scheme' (subst s t))
                                          ws        = map EVar (dom pe0)
                                          (ws',ps') = if explWit then (ws, map norm ps) else ([], [])
-                                         e1        = ELam pe0 (EAp (EVar c) (ws ++ [e'] ++ ws'))
-                                     sc <- gen env1 t'
-                                     return (mkEqns s, (c, Scheme (F (sc : ps') t0) ps ke) : pe1, e1)
+                                         e1        = eLam pe0 (eAp (EAp (eAp (EVar c) ws) [e']) ws')
+                                     (s',sc)      <- gen env1 t'
+                                     return (mkEqns (s++s'), (c, Scheme (F [sc] (tFun ps' t0)) ps ke) : qe1, e1)
 
 
 mkEqns s                        = mapFst TVar s
@@ -156,8 +154,8 @@ tiAp env s pe rho e es          = do t <- newTVar Star
 tiExp env (ELit l)              = return ([], [], R (litType l), ELit l)
 tiExp env e@(EVar x)
   | explicit (annot x)          = do (t,ps) <- inst (findType env x)
-                                     return ([], [], tFunCat ps t, e)
-  | otherwise                   = do (pe,t,e) <- instantiate (findType env x) e
+                                     return ([], [], tFun ps t, e)
+  | otherwise                   = do (pe,t,e) <- instantiate (findType env x) (EVar (annotExplicit x))
                                      return ([], pe, t, e)
 tiExp env (ELam te e)           = do (s,pe,t,e) <- tiExp (addTEnv te env) e
                                      return (s, pe, F (rng te) t, ELam te e)
@@ -245,7 +243,7 @@ tiLhs env alpha tiX xs          = do x <- newName tempSym
                                          es1 = map f es
                                          pes1 = subst s (map (filter (not . isCoercion . fst)) pes)
                                          (es2,ts2) = unzip (zipWith3 qual pes1 es1 ts1)
-                                     ts3 <- mapM (gen (subst s env')) ts2
+                                     (_,ts3) <- fmap unzip (mapM (gen (subst s env')) ts2)
                                      return (subst s alpha, ts3, es2)
 
 

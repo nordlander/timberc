@@ -135,9 +135,6 @@ tFun scs rh                     = F scs rh
 
 tFun' scs t                     = tFun scs (R t)
 
-tFunCat ts (F ts' t)            = F (ts++ts') t
-tFunCat ts rh                   = tFun ts rh 
-
 tFlat t                         = flat t []
   where flat (TAp t t') ts      = flat t (t':ts)
         flat t ts               = (t,ts)
@@ -188,7 +185,7 @@ pscheme' p ps ke                = Scheme (R p) ps ke
 wild                            = scheme TWild
 
 
-norm (Scheme rh ps ke)          = Scheme (tFunCat (map norm ps) rh) [] ke
+norm (Scheme rh ps ke)          = Scheme (tFun (map norm ps) rh) [] ke
 
 
 ksigsOf (Types ke ds)           = ke
@@ -284,13 +281,13 @@ instance Ids Cmd where
 -- Note! This substitution algorithm does not alpha convert!
 -- Only use when variables are known not to clash
 
-instance Subst Binds Name Name where
+instance Subst Binds Name Exp where
     subst s (Binds r te eqns)   = Binds r te (subst s eqns)
     
-instance Subst Exp Name Name where
+instance Subst Exp Name Exp where
     subst [] e                  = e
     subst s (EVar v)            = case lookup v s of
-                                      Just v'  -> EVar v'
+                                      Just e  -> e
                                       Nothing -> EVar v
     subst s (ELam te e)         = ELam te (subst s e)
     subst s (EAp e e')          = EAp (subst s e) (subst s e')
@@ -304,7 +301,7 @@ instance Subst Exp Name Name where
     subst s (ESig e t)          = ESig (subst s e) t
     subst s e                   = e
 
-instance Subst Cmd Name Name where
+instance Subst Cmd Name Exp where
     subst s (CLet bs c)         = CLet (subst s bs) (subst s c)
     subst s (CAss x e c)        = CAss x (subst s e) (subst s c)
     subst s (CGen x t e c)      = CGen x t (subst s e) (subst s c)

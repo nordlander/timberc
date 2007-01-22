@@ -121,7 +121,7 @@ resolve env pe                          = do --tr ("###############\nBefore reso
                 ambig                   = null (tvs `intersect` reachable_tvs)
                 env'                    = tick env coercion
         closeCoercion env (v,p)
-          | isCoercion v                = do p' <- gen env p
+          | isCoercion v                = do (_,p') <- gen env p
                                              return (v, p')
           | otherwise                   = return (v, p)
         
@@ -210,7 +210,7 @@ red gs ((env, p@(Scheme (F [sc1] t2) ps2 ke2)):ps)
                                              let ps' = repeat (tick env' False) `zip` ps1
                                              (s,q,es,e,es') <- redf gs env' t1 t2 (ps'++ps)
                                              let (es1,es2) = splitAt (length ps') es'
-                                                 g = ELam (pe++[(v,sc1)]) (EAp e [eAp (EVar v) es1])
+                                                 g = eLam pe (ELam [(v,sc1)] (EAp e [eAp (EVar v) es1]))
 --                                               ptvs = tvars (subst s (p : map snd ps))
 -- Captured anyway...                        assert (null (pquant sc1) || null (tvars q \\ ptvs)) "Ambiguous coercion"
                                              return (s, q, es, g : es2)
@@ -355,26 +355,27 @@ auTerms gs es1 es2                      = auZip auTerm gs es1 es2
                                              return (q, eAp (ELam pe1 e) es)
       where (vs1,ps1)                   = unzip pe1
             (vs2,ps2)                   = unzip pe2
-            s                           = vs2 `zip` vs1
+            s                           = vs2 `zip` map EVar vs1
     auTerm' g e1 e2                     = newHyp g
 
     auSc (env,Scheme (R c) [] ke) e1 e2 = auTerm (addKEnv ke env,c) e1 e2
     auSc (env,Scheme (R c) ps ke) (ELam pe1 e1) (ELam pe2 e2)     
                                         = do (q,e) <- auTerm (env',c) e1 (subst s e2)
                                              return (q, ELam pe1 e)
-      where s                           = dom pe2 `zip` dom pe1
+      where s                           = dom pe2 `zip` map EVar (dom pe1)
             env'                        = addPEnv pe1 (addKEnv ke env)
     auSc _ _ _                          = error "Internal: auTerms"
 
 
 newHyp (env,c)                          = do v <- newName (sym env)
-                                             return ([(v,p)], eAp (EVar v) (map EVar vs))
+                                             return ([(v,p)], eAp (wit v) (map EVar vs))
   where p                               = Scheme (R c) ps ke
         tvs                             = tyvars c
         tvs'                            = tvars c
         useful p                        = all (`elem` tvs) (tyvars p) && all (`elem` tvs') (tvars p)
         (vs,ps)                         = unzip (filter useful (predEnv env))
         ke                              = filter ((`elem` tvs) . fst) (kindEnv env)
+        wit v                           = if isCoercion v then ESig (EVar v) (scheme c) else EVar v
         sym env
           | forced env                  = tempSym
           | ticked env                  = coercionSym 
@@ -517,8 +518,8 @@ mkTrans env (e1,p1) ((e0,p0),(e2,p2))   = do (pe0, R c0, e0) <- instantiate p0 e
                                              let e3       = EAp e2 [EAp e1 [EAp e0 [EVar x]]]
                                                  e        = ELam [(x,scheme (subst s' t))] (f e3)
                                                  (e',p')  = qual qe e (subst s' p)
-                                             sc <- gen env p'
-                                             return (redTerm e', sc)
+                                             (s'',sc) <- gen env p'
+                                             return (redTerm (subst s'' e'), sc)
 
 
 
@@ -550,8 +551,8 @@ mkSup env (e1,p1) (e2,p2)               = do (pe1, R c1, e1) <- instantiate p1 e
                                              w <- newName witnessSym
                                              let e = f (EAp e2 [e1])
                                                  (e',p') = qual qe e (subst s' p)
-                                             sc <- gen env p'
-                                             return (e', sc)
+                                             (s'',sc) <- gen env p'
+                                             return (subst s'' e', sc)
 
 
 classGraph env eqs []                   = return (env,eqs)

@@ -420,18 +420,18 @@ inst (Scheme t ps ke)           = do ts <- mapM newTVar ks
 
 instantiate sc e                = do (t,ps) <- inst sc
                                      ws <- mapM (const (newName assumptionSym)) ps
-                                     return (ws `zip` ps, t, eAp e (map EVar ws))
+                                     return (ws `zip` ps, t, eAp (esig t) (map EVar ws))
+  where esig t                  = if null (pquant sc) then e else ESig e (scheme' t)
 
 
-qual qe e (Scheme t ps ke)      = (qual' e, Scheme t (rng qe ++ ps) ke)
-  where qual' (ELam te e)       = ELam (qe++te) e
-        qual' e                 = eLam qe e
+qual qe e (Scheme t ps ke)      = (eLam qe e, Scheme t (rng qe ++ ps) ke)
 
 
 gen env sc@(Scheme t ps ke)     = do ids <- newNames paramSym (length tvs)
                                      let s = tvs `zip` map TId ids
+                                         s' = tvs `zip` map (TId . mkLocal) ids
                                          ke' = ids `zip` map tvKind tvs 
-                                     return (Scheme (subst s t) (subst s ps) (ke' ++ ke))
+                                     return (s', Scheme (subst s t) (subst s ps) (ke' ++ ke))
   where tvs                     = nub (filter (`notElem` tevars env) (tvars t ++ tvars ps))
 
 
