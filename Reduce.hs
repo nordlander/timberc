@@ -422,7 +422,6 @@ unify env eqs                           = fail ("Unification error: " ++ show (h
 
 tvarBind env n t eqs
   | t == TVar n                         = unify env eqs
-  | t == TWild                          = error "Internal: wild type in unify"
   | tvKind n /= kindOfType env t        = fail "Kind mismatch in unify"
   | n `elem` tvars t                    = fail "Occurs check failed in unify"
   | n `elem` skolEnvs env (tyvars t)    = fail "Skolem escape in unify"

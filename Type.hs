@@ -153,8 +153,8 @@ tiAp env s pe rho e es          = do t <- newTVar Star
 
 tiExp env (ELit l)              = return ([], [], R (litType l), ELit l)
 tiExp env e@(EVar x)
-  | explicit (annot x)          = do (t,ps) <- inst (findType env x)
-                                     return ([], [], tFun ps t, e)
+  | explicit (annot x)          = do (_,t,e) <- instantiate (norm0 (findType env x)) e
+                                     return ([], [], t, e)
   | otherwise                   = do (pe,t,e) <- instantiate (findType env x) (EVar (annotExplicit x))
                                      return ([], pe, t, e)
 tiExp env (ELam te e)           = do (s,pe,t,e) <- tiExp (addTEnv te env) e
@@ -168,11 +168,11 @@ tiExp env e@(ECon k)            = do (pe,t,e) <- instantiate (findType env k) e
                                      te       <- newEnv paramSym (fst (splitC t))
                                      return ([], pe, t, eLam te (eAp e (map EVar (dom te))))
 tiExp env e@(ESel l)            = do x        <- newName tempSym
-                                     (pe,t,e) <- instantiate (findType env l) (EAp e [EVar x])
-                                     return ([], pe, t, ELam [(x, fst (splitS t))] e)
+                                     (pe,t,e) <- instantiate (findType env l) e
+                                     return ([], pe, t, ELam [(x, fst (splitS t))] (EAp e [EVar x]))
 tiExp env (ESig e t)            = do (s,pe,e) <- tiExpT env t e
-                                     (pe',t',e') <- instantiate t e
-                                     return (s, pe++pe', t', ESig e' (scheme' t'))
+                                     (pe',t,e) <- instantiate t e
+                                     return (s, pe++pe', t, e)
 tiExp env (ERec c eqs)          = do alphas <- mapM newTVar (kArgs (findKind env c))
                                      (t,ts,_)   <- tiLhs env (foldl TAp (TId c) alphas) tiX sels
                                      (s,pe,es') <- tiRhs env ts es

@@ -419,9 +419,9 @@ inst (Scheme t ps ke)           = do ts <- mapM newTVar ks
 
 
 instantiate sc e                = do (t,ps) <- inst sc
-                                     ws <- mapM (const (newName assumptionSym)) ps
-                                     return (ws `zip` ps, t, eAp (esig t) (map EVar ws))
-  where esig t                  = if null (pquant sc) then e else ESig e (scheme' t)
+                                     pe <- newEnv assumptionSym ps
+                                     return (pe, t, eAp (esig e t ps) (map EVar (dom pe)))
+  where esig e t ps             = if null (pquant sc) then e else ESig e (Scheme t ps [])
 
 
 qual qe e (Scheme t ps ke)      = (eLam qe e, Scheme t (rng qe ++ ps) ke)

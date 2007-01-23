@@ -45,7 +45,6 @@ data Type       = TId     Name
                 | TVar    TVar
                 | TFun    [Type] Type
                 | TAp     Type Type
-                | TWild
                 deriving  (Eq,Show)
 
 type Alt        = (Pat, Exp)
@@ -182,10 +181,10 @@ scheme' t                       = Scheme t [] []
 pscheme p                       = Scheme (R p) [] []
 pscheme' p ps ke                = Scheme (R p) ps ke
 
-wild                            = scheme TWild
-
 
 norm (Scheme rh ps ke)          = Scheme (tFun (map norm ps) rh) [] ke
+
+norm0 (Scheme rh ps ke)         = Scheme (tFun ps rh) [] ke
 
 
 ksigsOf (Types ke ds)           = ke
@@ -379,7 +378,6 @@ instance Ids Type where
     idents (TVar _)             = []
     idents (TAp t t')           = idents t ++ idents t'
     idents (TFun ts t)          = idents ts ++ idents t
-    idents (TWild)              = []
 
 instance Ids Scheme where
     idents (Scheme rh ps ke)    = (idents rh ++ idents ps) \\ dom ke
@@ -395,7 +393,6 @@ instance Subst Type Name Type where
     subst s (TVar n)            = TVar n
     subst s (TAp t t')          = TAp (subst s t) (subst s t')
     subst s (TFun ts t)         = TFun (subst s ts) (subst s t)
-    subst s (TWild)             = TWild
 
 instance Subst Scheme Name Type where
     subst s (Scheme rh ps ke)   = Scheme (subst s rh) (subst s ps) ke
@@ -412,7 +409,6 @@ instance TVars Type where
     tvars (TVar n)              = [n]
     tvars (TAp t t')            = tvars t ++ tvars t'
     tvars (TFun ts t)           = tvars ts ++ tvars t
-    tvars (TWild)               = []
 
 instance TVars Scheme where
     tvars (Scheme t ps ke)      = tvars t ++ tvars ps
@@ -429,7 +425,6 @@ instance Subst Type TVar Type where
                                     Nothing -> TVar n
     subst s (TAp t t')          = TAp (subst s t) (subst s t')
     subst s (TFun ts t)         = TFun (subst s ts) (subst s t)
-    subst s (TWild)             = TWild
 
 instance Subst Scheme TVar Type where
     subst [] sc                 = sc
@@ -466,7 +461,6 @@ instance Subst Type Int Kind where
     subst s (TFun ts t)         = TFun (subst s ts) (subst s t)
     subst s (TId c)             = TId c
     subst s (TVar (TV (n,k)))   = TVar (TV (n, subst s k))
-    subst s (TWild)             = TWild
     
 
 -- Bound variables --------------------------------------------------------------
@@ -579,7 +573,6 @@ instance Pr Type where
 
     prn 2 (TId c)               = prId c
     prn 2 (TVar _)              = text "_"
-    prn 2 (TWild)               = text "_"
 
     prn 2 t                     = parens (prn 0 t)
 
