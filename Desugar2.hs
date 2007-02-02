@@ -47,7 +47,7 @@ dsSig (Sig vs t)                = Sig vs (dsQualType t)
 -- Types ----------------------------------------------------------------------
 
 dsQualType (TQual t ps)         = checkQual (dsRhoType t) (map dsQual ps)
-dsQualType t                    = TQual (dsRhoType t) []
+dsQualType t                    = dsRhoType t
 
 dsRhoType (TFun ts t)           = TFun (map dsQualType ts) (dsRhoType t)
 dsRhoType t                     = dsType t

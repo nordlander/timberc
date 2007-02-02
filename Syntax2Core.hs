@@ -105,6 +105,8 @@ s2cTSig vs t                    = do ts <- mapM (s2cQualType . const t) vs
 s2cQualType (TQual t qs)        = do (ps,ke) <- s2cQuals qs
                                      t <- s2cRhoType t
                                      return (Core.Scheme t ps ke)
+s2cQualType t                   = s2cQualType (TQual t [])
+
 
 -- translate a rank-N function type
 s2cRhoType (TFun ts t)          = do ts <- mapM s2cQualType ts
