@@ -176,9 +176,11 @@ coercionSym                     = "c"
 constrSym                       = "C"
 typeSym                         = "T"
 selfSym                         = "self"
+closureSym                      = "F"
 
 isCoercion n                    = isGenerated n && str n == coercionSym
 isTemp n                        = isGenerated n && str n == tempSym
+isClosure n                     = isGenerated n && str n == closureSym
 
 
 -- Textual variable supply -------------------------------------------------------------
@@ -250,6 +252,8 @@ infixr 4 @@
 type Map a b = [(a,b)]
 
 lookup' assoc x                 = fromJust (lookup x assoc)
+
+inv assoc                       = map (\(a,b) -> (b,a)) assoc
 
 delete k []                     = []
 delete k (x:xs)

@@ -92,7 +92,7 @@ data Exp        = EVar    Name                -- local or global value name, enu
                 | EThis                       -- the implicit first parameter of a function-valued struct field
                 | ELit    Lit                 -- literal
                 | ESel    Exp Name            -- selection of value field $2 from struct $1
-                | ENew    Name Binds          -- a new struct of type $1 filled with values and functions from $2
+                | ENew    Name Binds          -- a new struct of type $1 (partially) initialized from $2
                 | ECall   Name [Exp]          -- calling local or global function $1 with arguments $2
                 | EEnter  Exp Name [Exp]      -- calling function field $2 of struct $1 with arguments ($1,$3)
                 | ECast   AType Exp           -- unchecked cast of value $2 to type $1
@@ -131,42 +131,53 @@ mkTEnv bs                               = mapSnd f bs
   where f (Val t e)                     = ValT t
         f (Fun t te c)                  = FunT (rng te) t
 
-mkTEnv' bs                              = mapSnd ValT bs
+mkTEnv' te                              = mapSnd ValT te
 
 cbind [] c                              = c
 cbind bs c                              = CBind bs c
 
 
-protect x t c                         = liftM (CRun (ECall (prim LOCK) [EVar x])) (protect' x t c)
+protect x t c                           = liftM (CRun (ECall (prim LOCK) [EVar x])) (protect' x t c)
 
 protect' x t (CRet e)
-  | sensitive e                       = do y <- newName tempSym
-                                           return (CBind [(y,Val t e)] (CRun (ECall (prim UNLOCK) [EVar x]) (CRet (EVar y))))
-  | otherwise                         = return (CRun (ECall (prim UNLOCK) [EVar x]) (CRet e))
-protect' x t (CRun e c)               = liftM (CRun e) (protect' x t c)
-protect' x t (CBind bs c)             = liftM (CBind bs) (protect' x t c)
-protect' x t (CAssign e y e' c)       = liftM (CAssign e y e') (protect' x t c)
-protect' x t (CSwitch e alts c)       = liftM2 (CSwitch e) (mapM (protect'' x t) alts) (protect' x t c)
-protect' x t (CSeq c c')              = liftM2 CSeq (protect' x t c) (protect' x t c')
-protect' x t (CBreak)                 = return CBreak
+  | sensitive e                         = do y <- newName tempSym
+                                             return (CBind [(y,Val t e)] (CRun (ECall (prim UNLOCK) [EVar x]) (CRet (EVar y))))
+  | otherwise                           = return (CRun (ECall (prim UNLOCK) [EVar x]) (CRet e))
+protect' x t (CRun e c)                 = liftM (CRun e) (protect' x t c)
+protect' x t (CBind bs c)               = liftM (CBind bs) (protect' x t c)
+protect' x t (CAssign e y e' c)         = liftM (CAssign e y e') (protect' x t c)
+protect' x t (CSwitch e alts c)         = liftM2 (CSwitch e) (mapM (protect'' x t) alts) (protect' x t c)
+protect' x t (CSeq c c')                = liftM2 CSeq (protect' x t c) (protect' x t c')
+protect' x t (CBreak)                   = return CBreak
 
-protect'' x t (ACon y c)              = liftM (ACon y) (protect' x t c)
-protect'' x t (ALit l c)              = liftM (ALit l) (protect' x t c)
-
-
-sensitive (ESel e n)                  = True
-sensitive (ECall n es)                = True
-sensitive (EEnter e n es)             = True
-sensitive (ENew n bs)                 = True
-sensitive (ECast t e)                 = sensitive e
-sensitive e                           = False
+protect'' x t (ACon y c)                = liftM (ACon y) (protect' x t c)
+protect'' x t (ALit l c)                = liftM (ALit l) (protect' x t c)
 
 
-lub TWild t                           = t
-lub t     TWild                       = t
-lub t     t'                          = t
+sensitive (ESel e n)                    = True
+sensitive (ECall n es)                  = True
+sensitive (EEnter e n es)               = True
+sensitive (ENew n bs)                   = True
+sensitive (ECast t e)                   = sensitive e
+sensitive e                             = False
 
-lub' ts                               = foldr lub TWild ts
+
+cast t (CRet e)                         = CRet (ECast t e)
+cast t (CRun e c)                       = CRun e (cast t c)
+cast t (CBind bs c)                     = CBind bs (cast t c)
+cast t (CAssign e x e' c)               = CAssign e x e' (cast t c)
+cast t (CSwitch e alts c)               = CSwitch e (map cast' alts) (cast t c)
+  where cast' (ACon x c)                = ACon x (cast t c)
+        cast' (ALit l c)                = ALit l (cast t c)
+cast t (CSeq c c')                      = CSeq (cast t c) (cast t c')
+cast t (CBreak)                         = CBreak
+
+
+lub TWild t                             = t
+lub t     TWild                         = t
+lub t     t'                            = t
+
+lub' ts                                 = foldr lub TWild ts
 
 
 -- Tentative concrete syntax

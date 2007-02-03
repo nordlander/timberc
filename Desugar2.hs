@@ -27,11 +27,6 @@ dsDecls (d@(DKSig _ _) : ds)    = liftM (d :) (dsDecls ds)
 dsDecls (DData c vs bs cs : ds) = liftM (DData c vs (map dsQualBaseType bs) (map dsConstr cs) :) (dsDecls ds)
 dsDecls (DRec i c vs bs ss:ds)  = liftM (DRec i c vs (map dsQualBaseType bs) (map dsSig ss) :) (dsDecls ds)
 dsDecls (DType c vs t : ds)     = liftM (DType c vs (dsType t) :) (dsDecls ds)
-dsDecls (DInst t bs : ds)       = do w <- newName witnessSym
-                                     dsDecls (DPSig w (dsQualPred t) : DBind (BEqn (LFun w []) (RWhere (RExp r) bs)) : ds)
-  where r                       = ERec (Just (type2head t,True)) (map mkField (bvars bs))
-        mkField v | isId v      = Field (mkSel v) (EVar v)
-                  | otherwise   = error "Illegal symbol bindinging in instance declaration"
 dsDecls (DPSig v t : ds)        = liftM (DPSig v (dsQualPred t) :) (dsDecls ds)
 dsDecls (DBind b : ds)          = do bs' <- dsBinds bs
                                      liftM (map DBind bs' ++) (dsDecls ds2)
@@ -201,7 +196,8 @@ dsExp (ECase e alts)            = do e <- dsExp e
                                      pmc e alts
   where dsA (Alt p rh)          = liftM2 Alt (dsPat p) (dsRh rh)
 dsExp (ESelect e s)             = liftM (flip ESelect s) (dsExp e)
-dsExp (ESel s)                  = return (ESel s)
+dsExp (ESel s)                  = do x <- newName paramSym
+                                     return (ELam [EVar x] (ESelect (EVar x) s))
 dsExp (EWild)                   = fail "Illegal expression syntax"
 dsExp (EVar v)                  = return (EVar v)
 dsExp (ECon c)                  = return (ECon c)

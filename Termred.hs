@@ -18,17 +18,16 @@ redModule (Module m ds ie bs)   = Module m ds ie (redBinds env0 bs)
 
 simple (EVar _)                 = True
 simple (ECon _)                 = True
-simple (ESel _)                 = True
 simple (ELit _)                 = True
-simple (EAp (ESel _) [e])       = simple e
+simple (ESel e _)               = simple e
 simple (ELam _ e)               = simple e      -- dubious...
 simple _                        = False
 
 
 value (EVar _)                  = True
 value (ECon _)                  = True
-value (ESel _)                  = True
 value (ELit _)                  = True
+value (ESel e _)                = value e
 value (EAp (ECon c) es)         = all value es
 value (ERec _ eqs)              = all (value . snd) eqs
 value (ELam _ _)                = True
@@ -38,7 +37,6 @@ value _                         = False
 redBinds env (Binds r te eqns)  = Binds r te (mapSnd (redExp env) eqns)
 
 
-redExp env (ESel s)             = ESel s
 redExp env (ECon c)             = ECon c
 redExp env (ELit l)             = ELit l
 redExp env (ERec c eqs)         = ERec c (mapSnd (redExp env) eqs)
@@ -51,7 +49,7 @@ redExp env (EAp e es)           = redApp env e (map (redExp env) es)
 redExp env e                    = redApp env e []
 
 redApp env (ELam te e) es       = redBeta env te e es
-redApp env (ESel s) [e]         = redSel env e s
+redApp env (ESel e s) es        = redSel env (redExp env e) s es
 redApp env (ECase e alts d) es  = redCase env (eFlat (redExp env e)) alts d es
 redApp env (ELet bs e) es
   | rec                         = ELet bs' (redApp env e es)
@@ -82,10 +80,10 @@ redBeta env ((x,t):te) b (e:es)
 redBeta env [] b []             = redExp env b
 
 
-redSel env (ERec c eqs) s       = case lookup s eqs of
-                                    Just e -> redExp env e
+redSel env (ERec c eqs) s es    = case lookup s eqs of
+                                    Just e -> redApp env e es
                                     Nothing -> error "Internal: redSel"
-redSel env e s                  = eAp (ESel s) [e]
+redSel env e s es               = eAp (ESel e s) es
 
 
 redCase env (ECon k,es') alts d es

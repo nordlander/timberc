@@ -61,7 +61,7 @@ mkHead env i vs                         = (tAp' i vs, vs `zip` kArgs (findKind e
 
 dcsym i t                               = name0 ("Coerce_" ++ show (headsym t) ++ "_" ++ show i)
 
-rcsym i t                               = name0 (".coerce_" ++ show i ++ "_" ++ show (headsym t))
+rcsym i t                               = name0 ("coerce_" ++ show i ++ "_" ++ show (headsym t))
 
 
 desub env (i, DData vs bs cs)           = ((i, DData vs [] (ws `zip` map constr bs ++ cs)), wits `zip` map pred bs)
@@ -72,7 +72,7 @@ desub env (i, DData vs bs cs)           = ((i, DData vs [] (ws `zip` map constr 
         (t0,ke0)                        = mkHead env i vs
 desub env (i, DRec isC vs bs ss)        = ((i, DRec isC vs [] (ws `zip` bs ++ ss)), wits `zip` map pred bs)
   where ws                              = map (rcsym i) bs
-        wits                            = map ESel ws
+        wits                            = map (\w -> ELam [(name0 "x", scheme t0)] (ESel (EVar (name0 "x")) w)) ws     -- temporary....
         pred (Scheme (R t) _ ke)        = Scheme (R (t0 `sub` t)) [] (ke0++ke)
         (t0,ke0)                        = mkHead env i vs
 desub env (i, DType vs t)               = ((i, DType vs t), [])

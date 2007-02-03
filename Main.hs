@@ -46,6 +46,7 @@ Parser:
 Desugar1:
 - Checks record type acyclicity and selector consistence
 - Completes dotdot record patterns and expressions with missing fields
+- Translates instance declarations into instance signatures and named record terms
 - Checks and resolves if/elsif/else statements
 - Makes the "self" variable explicit.
 - Checks validity of return statement
@@ -68,8 +69,6 @@ Rename:
 - Renames local (explicitly quantified) type variables using unique names
 
 Desugar2:
-- Translates instance declarations into instance signatures and named record terms
-
 - Checks validity of type and type scheme syntax in signatures and declarations
 - Checks qualified types for syntactic ambiguity
 - Removes special syntax for list, tuple and function types, as well as subtype predicates

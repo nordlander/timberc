@@ -538,11 +538,11 @@ op0     :: { Name }
 
 selvar	:: { Name }
 	: selid					{ $1 }
-	| varid					{ mkSel $1 }
+	| varid					{ $1 }
 
 
 selid   :: { Name }
-        : loc SELID                             { name $1 $2 }
+        : loc SELID                             { name $1 (chopDot $2) }
 
 varid   :: { Name }
         : loc VARID                             { name $1 $2 }

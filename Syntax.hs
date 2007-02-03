@@ -436,12 +436,12 @@ instance Pr Exp where
     prn 11 (EAp e e')           = prn 11 e <+> prn 12 e'
     prn 11 e                    = prn 12 e
         
-    prn 12 (ESelect e l)        = prn 12 e <> prOp l
+    prn 12 (ESelect e l)        = prn 12 e <> text "." <> prId l
     prn 12 e                    = prn 13 e
         
     prn 13 (EVar v)             = prId v
     prn 13 (ECon c)             = prId c
-    prn 13 (ESel l)             = prId l
+    prn 13 (ESel l)             = parens (text "." <> prId l)
     prn 13 (EWild)              = text "_"
     prn 13 (ELit l)             = pr l
     prn 13 (ERec Nothing fs)    = text "{" <+> hpr ',' fs <+> text "}"

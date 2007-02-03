@@ -190,15 +190,6 @@ isGenerated (Name _ _ a)        = location a == Nothing
 isGenerated _                   = False
 
 
--- var <-> sel --------------------------------------------------------------------
-
-mkSel (Name s n a)              = Name ('.':s) n noAnnot
-mkSel n                         = n
-
-chopSel (Name ('.':l) n a)      = Name l n a
-chopSel n                       = n
-
-
 -- Local tyvars --------------------------------------------------------------------
 
 mkLocal (Name s n a)            = Name ('_':s) n a

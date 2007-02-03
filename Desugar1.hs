@@ -1,11 +1,13 @@
 module Desugar1 where
 
 import List(sort)
+import Monad
 import Common
 import Syntax
 
 
-desugar1 (Module c ds)          = return (Module c (ds1 (mkEnv ds) ds))
+desugar1 (Module c ds)          = do ds <- dsDecls (mkEnv ds) ds
+                                     return (Module c ds)
 
 {-
     This module performs desugaring transformations that must be performed before the renaming pass:
@@ -40,7 +42,7 @@ selsFromType env c              = case lookup c (sels env) of
 
 
 typeFromSels env ss             = f (sels env) ss
-  where f [] ss                 = error ("No record type with selectors " ++ showids (map chopSel ss))
+  where f [] ss                 = error ("No record type with selectors " ++ showids ss)
         f  ((c,ss'):se) ss
           | ss == ss'           = c
           | otherwise           = f se ss
@@ -50,6 +52,16 @@ haveSelf env                    = self env /= Nothing
 
 
 -- Desugaring -------------------------------------------------------------------------------------------
+
+dsDecls env (DInst t bs : ds)   = do w <- newName witnessSym
+                                     dsDecls env (DPSig w t : DBind (BEqn (LFun w []) (RWhere (RExp r) bs)) : ds)
+  where r                       = ERec (Just (type2head t,True)) (map mkField (bvars bs))
+        mkField v | isId v      = Field v (EVar v)
+                  | otherwise   = error "Illegal symbol bindinging in instance declaration"
+dsDecls env (DBind b : ds)      = liftM (DBind (ds1 env b) :) (dsDecls env ds)
+dsDecls env (d : ds)            = liftM (d :) (dsDecls env ds)
+dsDecls env []                  = return []
+
 
 class Desugar1 a where
     ds1 :: Env -> a -> a
@@ -86,10 +98,10 @@ instance Desugar1 Exp where
     ds1 env (ERec Nothing fs)      = ERec (Just (c,True)) (ds1 env fs)
       where c                      = typeFromSels env (sort (bvars fs))
     ds1 env (ERec (Just (c,all)) fs)
-      | all && not (null miss)     = error ("Missing selectors in record: " ++ showids (map chopSel miss))
+      | all && not (null miss)     = error ("Missing selectors in record: " ++ showids miss)
       | otherwise                  = ERec (Just (c,True)) (fs' ++ ds1 env fs)
       where miss                   = selsFromType env c \\ bvars fs
-            fs'                    = map (\s -> Field s (EVar (chopSel s))) miss
+            fs'                    = map (\s -> Field s (EVar s)) miss
  
     ds1 env (EAp e1 e2)            = EAp (ds1 env e1) (ds1 env e2)
     ds1 env (ETup es)              = ETup (ds1 env es)

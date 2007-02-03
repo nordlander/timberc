@@ -26,11 +26,12 @@ renameM m                          = rename initEnv m
 data Env                           = Env { rE :: Map Name Name, 
                                            rT :: Map Name Name, 
                                            rS :: Map Name Name,
+                                           rL :: Map Name Name,
                                            self :: [Name],
                                            void :: [Name]
                                          }
 
-initEnv                            = Env { rE = primTerms, rT = primTypes, rS = [], self = [], void = [] }
+initEnv                            = Env { rE = primTerms, rT = primTypes, rS = [], rL = [], self = [], void = [] }
 
 
 stateVars env                      = dom (rS env)
@@ -48,6 +49,10 @@ renS env v                         = case lookup v (rS env) of
                                        Just n  -> n { annot = a { stateVar = True} }
                                        Nothing -> error ("Undefined identifier: " ++ show v)
   where a                          = annot v
+
+renL env v                         = case lookup v (rL env) of
+                                       Just n  -> n { annot = annot v }
+                                       Nothing -> error ("Undefined selector: " ++ show v)
 
 renT env n@(Tuple _ _)             = n
 renT env v                         = case lookup v (rT env) of
@@ -76,6 +81,9 @@ unvoidAll env                      = env { void = [] }
 extRenT env vs                     = do rT' <- renaming (noDups vs)
                                         return (env { rT = rT' ++ rT env })
 
+extRenL env ss                     = do rL' <- renaming ss
+                                        return (env { rL = rL' ++ rL env })
+
 extRenSelf env s                   = do rE' <- renaming [s]
                                         return (env { rE = rE' ++ rE env, self = [s] })
 
@@ -88,10 +96,10 @@ noDups vs
 -- Binding of overloaded names ------------------------------------------------------------------------
 
 oloadBinds xs ds                   = concat [ binds c vs sels | DRec True c vs _ sels <- ds ]
-  where binds c vs sels            = concat [ binds' s x t | Sig ss t <- sels, s <- ss, let x = chopSel s, x `notElem` xs ]
+  where binds c vs sels            = concat [ binds' s t | Sig ss t <- sels, s <- ss, s `notElem` xs ]
           where p0                 = PType (foldl TAp (TCon c) (map TVar vs))
-                binds' x s t       = [ BSig [x] (tQual [p0] t), 
-                                       BEqn (LFun (annotExplicit x) [w]) (RExp (ESelect w s)) ]
+                binds' s t         = [ BSig [s] (tQual [p0] t), 
+                                       BEqn (LFun (annotExplicit s) [w]) (RExp (ESelect w s)) ]
         w                          = EVar (name0 paramSym)
 
 
@@ -110,8 +118,9 @@ instance Rename a => Rename (Maybe a) where
 
 instance Rename Module where
   rename env (Module c ds)         = do env1 <- extRenT env ts
-                                        env2 <- extRenE env1 (ss++cs++vs)
-                                        liftM (Module c) (rename env2 ds')
+                                        env2 <- extRenE env1 (cs++vs)
+                                        env3 <- extRenL env2 ss
+                                        liftM (Module c) (rename env3 ds')
     where (ts,ss,cs,bs)            = renameD [] [] [] [] [] [] ds
           ds'                      = filter (not . isDBind) ds ++ map DBind (bs' ++ bs)
           vs                       = bvars bs
@@ -184,7 +193,7 @@ renameQTs env ts                   = mapM (renameQT env) ts
 
 
 instance Rename Sig where
-  rename env (Sig vs t)            = liftM (Sig (map (renE env) vs)) (renameQT env t)
+  rename env (Sig vs t)            = liftM (Sig (map (renL env) vs)) (renameQT env t)
 
 instance Rename Pred where
   rename env (PType p)             = liftM PType (rename env p)
@@ -217,7 +226,7 @@ instance Rename Exp where
     | v `elem` stateVars env       = return (EVar (renS env v))
     | otherwise                    = return (EVar (renE env v))
   rename env (ECon c)              = return (ECon (renE env c))
-  rename env (ESel l)              = return (ESel (renE env l))
+  rename env (ESel l)              = return (ESel (renL env l))
   rename env (EAp e1 e2)           = liftM2 EAp (rename env e1) (rename env e2)
   rename env (ELit l)              = return (ELit l)
   rename env (ETup ps)             = liftM ETup (rename env ps)
@@ -236,7 +245,7 @@ instance Rename Exp where
   rename env (EComp e qs)          = liftM2 EComp (rename env e) (renameQ env qs)
   rename env (ESectR e op)         = liftM (flip ESectR op) (rename env e) 
   rename env (ESectL op e)         = liftM (ESectL op) (rename env e)
-  rename env (ESelect e l)         = liftM (flip ESelect (renE env l)) (rename env e) 
+  rename env (ESelect e l)         = liftM (flip ESelect (renL env l)) (rename env e) 
   rename env (EAct v ss)           = liftM (EAct (fmap (renE env) v)) (renameS (unvoidAll env) (shuffleS ss))
   rename env (EReq v ss)           = liftM (EReq (fmap (renE env) v)) (renameS (unvoidAll env) (shuffleS ss))
   rename env (EDo (Just v) Nothing ss)
@@ -252,7 +261,7 @@ instance Rename Exp where
 
 
 instance Rename Field where
-  rename env (Field l e)           = liftM (Field (renE env l)) (rename env e)
+  rename env (Field l e)           = liftM (Field (renL env l)) (rename env e)
 
 instance Rename (Rhs Exp) where
   rename env (RExp e)              = liftM RExp (rename env e)

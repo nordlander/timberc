@@ -134,6 +134,8 @@ tab_length = 8 :: Int
 isIdent  c = isAlpha c || isDigit c || c == '\'' || c == '_'
 isSymbol c = elem c ":!#$%&*+./<=>?@\\^|-~"
 
+chopDot ('.':s) = s
+chopDot s       = s
 
 data LexInt =
       Decimal     (String,String)

@@ -54,7 +54,7 @@ data Pat        = PCon    Name
                 deriving (Eq,Show)
 
 data Exp        = ECon    Name
-                | ESel    Name
+                | ESel    Exp Name
                 | EVar    Name
                 | ELam    TEnv Exp
                 | EAp     Exp [Exp]
@@ -77,6 +77,12 @@ data Cmd        = CGen    Name Type Exp Cmd
                 | CExp    Exp
                 deriving (Eq,Show)
 
+
+
+litType (LInt i)                = TId (prim Int)
+litType (LRat r)                = TId (prim Float)
+litType (LChr c)                = TId (prim Char)
+litType (LStr s)                = error "Internal chaos: Core.litType LStr"
 
 
 newTVar k                       = fmap TVar (newTV k)
@@ -108,7 +114,6 @@ eAbs e                          = ([],e)
 
 
 eAp e []                        = e
-eAp (EAp e es) es'              = EAp e (es++es')
 eAp e es                        = EAp e es
 
 eAp' x xs                       = EAp (EVar x) (map EVar xs)
@@ -121,6 +126,11 @@ eFlat e                         = flat e []
 
 eHead (EAp e e')                = eHead e
 eHead e                         = e
+
+eSig e t
+  | null (tvars t)              = e
+  | otherwise                   = ESig e t
+
 
 nAp n f es                      = f es1 : es2
   where (es1,es2)               = splitAt n es
@@ -181,10 +191,6 @@ scheme' t                       = Scheme t [] []
 pscheme p                       = Scheme (R p) [] []
 pscheme' p ps ke                = Scheme (R p) ps ke
 
-
-norm (Scheme rh ps ke)          = Scheme (tFun (map norm ps) rh) [] ke
-
-norm0 (Scheme rh ps ke)         = Scheme (tFun ps rh) [] ke
 
 
 ksigsOf (Types ke ds)           = ke
@@ -611,7 +617,7 @@ instance Pr Exp where
     prn 1 e                     = prn 2 e
         
     prn 2 (ECon c)              = prId c
-    prn 2 (ESel s)              = prId s
+    prn 2 (ESel e s)            = prn 2 e <> text "." <> prId s
     prn 2 (EVar v)              = prId v
     prn 2 (ELit l)              = pr l
     prn 2 (ERec c eqs)          = prId c <+> text "{" <+> hpr ',' eqs <+> text "}"

@@ -208,14 +208,13 @@ s2cEc env t (ECase e alts)      = do e <- s2cEc env TWild e
                                      alts <- mapM (s2cA env t) alts
                                      return (Core.ECase e alts dflt)
 s2cEc env t (ESelect e s)       = do e <- s2cEc env (peel t1) e
-                                     return (Core.eAp (Core.ESel s) [e])
+                                     return (Core.ESel e s)
   where (t1,_)                  = splitT (lookupT s env)
 s2cEc env t (ESig e t')         = do e <- s2cEc env (peel t') e
                                      t' <- s2cQualType t'
                                      return (Core.ESig e t')
 s2cEc env t (ECon c)            = return (Core.ECon c)
 s2cEc env t (EVar v)            = return (Core.EVar v)
-s2cEc env t (ESel s)            = return (Core.ESel s)
 s2cEc env t (ELit l)            = return (Core.ELit l)
 s2cEc env _ e                   = s2cE env e
 
@@ -304,12 +303,11 @@ s2cEi env (ECase e alts)        = do e <- s2cEc env TWild e
                                      alts <- mapM (s2cA env TWild) alts
                                      return (TWild, Core.ECase e alts dflt)
 s2cEi env (ESelect e s)         = do e <- s2cEc env (peel t1) e
-                                     return (t2, Core.eAp (Core.ESel s) [e])
+                                     return (t2, Core.ESel e s)
   where (t1,t2)                 = splitT (lookupT s env)
 s2cEi env (ESig e t)            = do e <- s2cEc env (peel t) e
                                      t' <- s2cQualType t
                                      return (t, Core.ESig e t')
-s2cEi env (ESel s)              = return (lookupT s env, Core.ESel s)
 s2cEi env (ECon c)              = return (lookupT c env, Core.ECon c)
 s2cEi env (EVar v)              = return (lookupT v env, Core.EVar v)
 s2cEi env (ELit l)              = return (TWild, Core.ELit l)
