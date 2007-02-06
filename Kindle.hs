@@ -137,21 +137,22 @@ cbind [] c                              = c
 cbind bs c                              = CBind bs c
 
 
-protect x t c                           = liftM (CRun (ECall (prim LOCK) [EVar x])) (protect' x t c)
+protect x t c                           = liftM (CRun (ECall (prim LOCK) [e])) (protect' e t c)
+  where e                               = ECast (TId (prim PID)) (EVar x)
 
-protect' x t (CRet e)
+protect' e0 t (CRet e)
   | sensitive e                         = do y <- newName tempSym
-                                             return (CBind [(y,Val t e)] (CRun (ECall (prim UNLOCK) [EVar x]) (CRet (EVar y))))
-  | otherwise                           = return (CRun (ECall (prim UNLOCK) [EVar x]) (CRet e))
-protect' x t (CRun e c)                 = liftM (CRun e) (protect' x t c)
-protect' x t (CBind bs c)               = liftM (CBind bs) (protect' x t c)
-protect' x t (CAssign e y e' c)         = liftM (CAssign e y e') (protect' x t c)
-protect' x t (CSwitch e alts c)         = liftM2 (CSwitch e) (mapM (protect'' x t) alts) (protect' x t c)
-protect' x t (CSeq c c')                = liftM2 CSeq (protect' x t c) (protect' x t c')
-protect' x t (CBreak)                   = return CBreak
+                                             return (CBind [(y,Val t e)] (CRun (ECall (prim UNLOCK) [e0]) (CRet (EVar y))))
+  | otherwise                           = return (CRun (ECall (prim UNLOCK) [e0]) (CRet e))
+protect' e0 t (CRun e c)                = liftM (CRun e) (protect' e0 t c)
+protect' e0 t (CBind bs c)              = liftM (CBind bs) (protect' e0 t c)
+protect' e0 t (CAssign e y e' c)        = liftM (CAssign e y e') (protect' e0 t c)
+protect' e0 t (CSwitch e alts c)        = liftM2 (CSwitch e) (mapM (protect'' e0 t) alts) (protect' e0 t c)
+protect' e0 t (CSeq c c')               = liftM2 CSeq (protect' e0 t c) (protect' e0 t c')
+protect' e0 t (CBreak)                  = return CBreak
 
-protect'' x t (ACon y c)                = liftM (ACon y) (protect' x t c)
-protect'' x t (ALit l c)                = liftM (ALit l) (protect' x t c)
+protect'' e0 t (ACon y c)               = liftM (ACon y) (protect' e0 t c)
+protect'' e0 t (ALit l c)               = liftM (ALit l) (protect' e0 t c)
 
 
 sensitive (ESel e n)                    = True
