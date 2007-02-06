@@ -155,33 +155,29 @@ tiExp env (ELit l)              = return ([], [], R (litType l), ELit l)
 tiExp env (EVar x)
   | explicit (annot x)          = do (t,ps) <- inst (findType env x)
                                      let t' = tFun ps t
-                                     return ([], [], t', eSig (EVar x) (scheme' t'))
+                                     return ([], [], t', EVar x {-(scheme' t')-})
   | otherwise                   = do (t,ps) <- inst (findType env x)
                                      pe <- newEnv assumptionSym ps
-                                     let e' = eSig (EVar (annotExplicit x)) (scheme' (tFun ps t))
+                                     let e' = EVar (annotExplicit x) {-(scheme' (tFun ps t))-}
                                      return ([], pe, t, eAp e' (map EVar (dom pe)))
 tiExp env (ECon k)
   | explicit (annot k)          = do (t,ps) <- inst (findType env k)
                                      let t' = tFun ps t
-                                     return ([], [], t', eSig (ECon k) (scheme' t'))
+                                     return ([], [], t', ECon k {-(scheme' t')-})
   | otherwise                   = do (t,ps) <- inst (findType env k)
                                      pe <- newEnv assumptionSym ps
-                                     let e' = eSig (ECon (annotExplicit k)) (scheme' (tFun ps t))
+                                     let e' = ECon (annotExplicit k) {-(scheme' (tFun ps t))-}
                                      return ([], pe, t, eAp e' (map EVar (dom pe)))
 tiExp env (ESel e l)
   | explicit (annot l)          = do (F [t0] t, ps) <- inst (findType env l)
                                      (s,pe,e) <- tiExpT env t0 e
                                      let t' = tFun ps t
-                                     return (s, pe, t', eSig (ESel e l) (scheme' t'))
+                                     return (s, pe, t', ESel e l {-(scheme' t')-})
   | otherwise                   = do (F [t0] t, ps) <- inst (findType env l)
                                      (s,pe,e) <- tiExpT env t0 e
                                      pe' <- newEnv assumptionSym ps
-                                     let e' = eSig (ESel e (annotExplicit l)) (scheme' (tFun ps t))
+                                     let e' = ESel e (annotExplicit l) {-(scheme' (tFun ps t))-}
                                      return (s, pe++pe', t, eAp e' (map EVar (dom pe')))
-tiExp env (ESig e t)            = do (s,pe,e) <- tiExpT env t e
-                                     (t,ps) <- inst t
-                                     pe' <- newEnv assumptionSym ps
-                                     return (s, pe++pe', t, eAp (ESig e (scheme' (tFun ps t))) (map EVar (dom pe)))
 tiExp env (ELam te e)           = do (s,pe,t,e) <- tiExp (addTEnv te env) e
                                      return (s, pe, F (rng te) t, ELam te e)
 tiExp env (EAp e es)            = do (s,pe,t,e) <- tiExp env e

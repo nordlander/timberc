@@ -160,10 +160,6 @@ kiExp env (ETempl x t te c)             = do t <- kiType' env t
 kiExp env (EDo x t c)                   = do t <- kiType' env t
                                              c <- kiCmd env c
                                              return (EDo x t c)
-kiExp env (ESig e t)                    = do e <- kiExp env e
-                                             cs <- kiScheme env t
-                                             s <- kindUnify cs
-                                             return (ESig e (subst s t))
 kiExp env e                             = return e
 
 

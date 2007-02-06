@@ -178,7 +178,8 @@ selectFrom e0 s p v             = ECase e0 [Alt (subst s p) (RExp (subst s (EVar
 
 
 dsExp (EAp e e')                = liftM2 EAp (dsExp e) (dsExp e')
-dsExp (ESig e qt)               = liftM2 ESig (dsExp e) (return (dsQualWildType qt))
+dsExp (ESig e qt)               = do x <- newName tempSym
+                                     dsExp (ELet [BSig [x] qt, BEqn (LFun x []) (RExp e)] (EVar x))
 dsExp (ELam ps e)            
   | all isESigVar ps            = liftM2 ELam (mapM dsPat ps) (dsExp e)
   | otherwise                   = do ps <- mapM dsPat ps

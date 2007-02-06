@@ -368,14 +368,13 @@ auTerms gs es1 es2                      = auZip auTerm gs es1 es2
 
 
 newHyp (env,c)                          = do v <- newName (sym env)
-                                             return ([(v,p)], eAp (wit v) (map EVar vs))
+                                             return ([(v,p)], eAp (EVar v) (map EVar vs))
   where p                               = Scheme (R c) ps ke
         tvs                             = tyvars c
         tvs'                            = tvars c
         useful p                        = all (`elem` tvs) (tyvars p) && all (`elem` tvs') (tvars p)
         (vs,ps)                         = unzip (filter useful (predEnv env))
         ke                              = filter ((`elem` tvs) . fst) (kindEnv env)
-        wit v                           = if isCoercion v then ESig (EVar v) (scheme c) else EVar v
         sym env
           | forced env                  = tempSym
           | ticked env                  = coercionSym 

@@ -53,12 +53,8 @@ data Prim                       =
                                 | Refl                  -- Terms
 
                                 | ActToCmd
-                                | ActToO
                                 | ReqToCmd
-                                | ReqToO
                                 | TemplToCmd
-                                | TemplToO
-                                | CmdToO
                                 | RefToPID
 
                                 | IntPlus
@@ -114,7 +110,7 @@ data Prim                       =
                                 | LOCK
                                 | UNLOCK
                                 
-                                | LISTtags
+                                | LISTtags              -- The Kindle Enum for built-in LIST tags
                                 | NILtag
                                 | CONStag
                                 deriving (Eq,Ord,Enum,Bounded,Show)

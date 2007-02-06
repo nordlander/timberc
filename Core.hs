@@ -3,6 +3,7 @@ module Core where
 import Common
 import PP
 
+
 data Module     = Module Name Types Binds Binds
                 deriving  (Eq,Show)
 
@@ -62,7 +63,6 @@ data Exp        = ECon    Name
                 | ECase   Exp [Alt] Exp
                 | ERec    Name Eqns
                 | ELit    Lit
-                | ESig    Exp Scheme
 
                 | EAct    Exp Exp
                 | EReq    Exp Exp
@@ -126,11 +126,6 @@ eFlat e                         = flat e []
 
 eHead (EAp e e')                = eHead e
 eHead e                         = e
-
-eSig e t
-  | null (tvars t)              = e
-  | otherwise                   = ESig e t
-
 
 nAp n f es                      = f es1 : es2
   where (es1,es2)               = splitAt n es
@@ -266,7 +261,6 @@ instance Ids Exp where
     idents (EReq e e')          = idents e ++ idents e'
     idents (ETempl x t te c)    = idents c \\ (x : dom te)
     idents (EDo x t c)          = filter (not . stateVar . annot) (idents c \\ [x])
-    idents (ESig e t)           = idents e
     idents _                    = []
 
 instance Ids Alt where
@@ -303,7 +297,6 @@ instance Subst Exp Name Exp where
     subst s (EReq e e')         = EReq (subst s e) (subst s e')
     subst s (ETempl x t te c)   = ETempl x t te (subst s c)
     subst s (EDo x t c)         = EDo x t (subst s c)
-    subst s (ESig e t)          = ESig (subst s e) t
     subst s e                   = e
 
 instance Subst Cmd Name Exp where
@@ -332,7 +325,6 @@ instance Subst Exp TVar Type where
     subst s (EReq e e')         = EReq (subst s e) (subst s e')
     subst s (ETempl x t te c)   = ETempl x (subst s t) (subst s te) (subst s c)
     subst s (EDo x t c)         = EDo x (subst s t) (subst s c)
-    subst s (ESig e t)          = ESig (subst s e) (subst s t)
     subst s e                   = e
 
 instance Subst Cmd TVar Type where
@@ -358,7 +350,6 @@ instance Subst Exp Name Type where
     subst s (EReq e e')         = EReq (subst s e) (subst s e')
     subst s (ETempl x t te c)   = ETempl x (subst s t) (subst s te) (subst s c)
     subst s (EDo x t c)         = EDo x (subst s t) (subst s c)
-    subst s (ESig e t)          = ESig (subst s e) (subst s t)
     subst s e                   = e
 
 instance Subst Cmd Name Type where
@@ -609,7 +600,6 @@ instance Pr Exp where
                                        nest 4 (pr c)
     prn 0 (EDo x t c)           = text "do@" <> prId x $$
                                        nest 4 (pr c)
-    prn 0 (ESig e t)            = prn 0 e <+> text "::" <+> pr t
     prn 0 e                     = prn 1 e
 
     prn 1 (EAp e es)            = hang (prn 1 e) 2 (sep (map (prn 2) es))

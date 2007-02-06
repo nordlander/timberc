@@ -59,10 +59,6 @@ redApp env (EVar (Prim p a)) es = redPrim env p a es
 redApp env (EVar x) es          = case lookup x env of
                                       Just e -> redApp env e es
                                       Nothing -> eAp (EVar x) es
-redApp env (ESig (EVar x) t) es = case lookup x env of
-                                      Just e -> redApp env e es
-                                      Nothing -> eAp (ESig (EVar x) t) es
-redApp env (ESig e t) es        = eAp (ESig (redExp env e) t) es
 redApp env e es                 = eAp (redExp env e) es
 
 
