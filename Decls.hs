@@ -17,7 +17,7 @@ import Reduce
 -}
 
 
-classPreds env (Binds r pe eqs)         = do (env,eqcs) <- closeWits env [] (mapFst EVar pe)
+classPreds env (Binds r pe eqs)         = do (env,eqcs) <- closeWits env [] (mapFst eVar pe)
                                              -- To do: check that the eqcs are respected by eqs
                                              return env
 
@@ -66,13 +66,13 @@ rcsym i t                               = name0 ("coerce_" ++ show i ++ "_" ++ s
 
 desub env (i, DData vs bs cs)           = ((i, DData vs [] (ws `zip` map constr bs ++ cs)), wits `zip` map pred bs)
   where ws                              = map (dcsym i) bs
-        wits                            = map ECon ws
+        wits                            = map eCon ws
         constr (Scheme (R t) _ ke)      = Constr [scheme t] [] ke
         pred (Scheme (R t) _ ke)        = Scheme (R (t `sub` t0)) [] (ke0++ke)
         (t0,ke0)                        = mkHead env i vs
 desub env (i, DRec isC vs bs ss)        = ((i, DRec isC vs [] (ws `zip` bs ++ ss)), wits `zip` map pred bs)
   where ws                              = map (rcsym i) bs
-        wits                            = map (\w -> ELam [(name0 "x", scheme t0)] (ESel (EVar (name0 "x")) w)) ws     -- temporary....
+        wits                            = map (\w -> ELam [(name0 "x", scheme t0)] (eSel (eVar (name0 "x")) w)) ws     -- temporary....
         pred (Scheme (R t) _ ke)        = Scheme (R (t0 `sub` t)) [] (ke0++ke)
         (t0,ke0)                        = mkHead env i vs
 desub env (i, DType vs t)               = ((i, DType vs t), [])

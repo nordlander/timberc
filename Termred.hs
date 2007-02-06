@@ -16,19 +16,19 @@ redModule (Module m ds ie bs)   = Module m ds ie (redBinds env0 bs)
   where env0                    = []
 
 
-simple (EVar _)                 = True
-simple (ECon _)                 = True
+simple (EVar _ _)               = True
+simple (ECon _ _)               = True
 simple (ELit _)                 = True
-simple (ESel e _)               = simple e
+simple (ESel e _ _)             = simple e
 simple (ELam _ e)               = simple e      -- dubious...
 simple _                        = False
 
 
-value (EVar _)                  = True
-value (ECon _)                  = True
+value (EVar _ _)                = True
+value (ECon _ _)                = True
 value (ELit _)                  = True
-value (ESel e _)                = value e
-value (EAp (ECon c) es)         = all value es
+value (ESel e _ _)              = value e
+value (EAp (ECon c _) es)       = all value es
 value (ERec _ eqs)              = all (value . snd) eqs
 value (ELam _ _)                = True
 value _                         = False
@@ -37,8 +37,8 @@ value _                         = False
 redBinds env (Binds r te eqns)  = Binds r te (mapSnd (redExp env) eqns)
 
 
-redExp env (ECon c)             = ECon c
-redExp env (ELit l)             = ELit l
+redExp env e@(ECon _ _)         = e
+redExp env e@(ELit _)           = e
 redExp env (ERec c eqs)         = ERec c (mapSnd (redExp env) eqs)
 redExp env (ETempl x t te c)    = ETempl x t te (redCmd env c)
 redExp env (EAct e e')          = EAct (redExp env e) (redExp env e')
@@ -49,16 +49,17 @@ redExp env (EAp e es)           = redApp env e (map (redExp env) es)
 redExp env e                    = redApp env e []
 
 redApp env (ELam te e) es       = redBeta env te e es
-redApp env (ESel e s) es        = redSel env (redExp env e) s es
+redApp env (ESel e s t) es      = redSel env (redExp env e) s t es
 redApp env (ECase e alts d) es  = redCase env (eFlat (redExp env e)) alts d es
 redApp env (ELet bs e) es
   | rec                         = ELet bs' (redApp env e es)
   | otherwise                   = redBeta env te e (map (lookup' eqs) (dom te) ++ es)
   where bs'@(Binds rec te eqs)  = redBinds env bs
-redApp env (EVar (Prim p a)) es = redPrim env p a es
-redApp env (EVar x) es          = case lookup x env of
+redApp env (EVar (Prim p a) _) es 
+                                = redPrim env p a es
+redApp env (EVar x t) es        = case lookup x env of
                                       Just e -> redApp env e es
-                                      Nothing -> eAp (EVar x) es
+                                      Nothing -> eAp (EVar x t) es
 redApp env e es                 = eAp (redExp env e) es
 
 
@@ -69,20 +70,21 @@ redCmd env (CLet bs c)          = CLet (redBinds env bs) (redCmd env c)
 redCmd env (CAss x e c)         = CAss x (redExp env e) (redCmd env c)
 
 
+redBeta env ((x,t):te) (EVar x' Nothing) (e:es)
+  | x == x'                     = redBeta env te e es                    -- trivial body
 redBeta env ((x,t):te) b (e:es)
-  | b == EVar x                 = redBeta env te e es                    -- trivial body
   | isGenerated x || simple e   = redBeta ((x,e):env) te b es            -- appears only once(??), strict, no size increase
   | otherwise                   = ELet (Binds False [(x,t)] [(x,e)]) (redBeta env te b es)
 redBeta env [] b []             = redExp env b
 
 
-redSel env (ERec c eqs) s es    = case lookup s eqs of
+redSel env (ERec c eqs) s t es  = case lookup s eqs of
                                     Just e -> redApp env e es
                                     Nothing -> error "Internal: redSel"
-redSel env e s es               = eAp (ESel e s) es
+redSel env e s t es             = eAp (ESel e s t) es
 
 
-redCase env (ECon k,es') alts d es
+redCase env (ECon k _,es') alts d es
   | all value es'                = findCon env k es' alts d es
 redCase env (ELit l,_) alts d es = findLit env l alts d es
 redCase env (e,es') alts d es    = eAp (ECase (eAp e (map (redExp env) es')) (mapSnd (redExp env) alts) (redExp env d)) es
@@ -106,12 +108,12 @@ redPrim env p a [ELit (LInt x), ELit (LInt y)]  = redInt p x y
 redPrim env p a [ELit (LRat x), ELit (LRat y)]  = redRat p x y
 redPrim env IntNeg _ [ELit (LInt x)]            = ELit (LInt (-x))
 redPrim env FloatNeg _ [ELit (LRat x)]          = ELit (LRat (-x))
-redPrim env p a es                              = eAp (EVar (Prim p a)) es
+redPrim env p a es                              = eAp (eVar (Prim p a)) es
 
 
-redFat env (EVar (Prim Fail _)) e               = e
-redFat env (EAp (EVar (Prim Commit _)) [e]) _   = e
-redFat env e e'                                 = EAp (EVar (prim Fatbar)) [e,e']
+redFat env (EVar (Prim Fail _) _) e             = e
+redFat env (EAp (EVar (Prim Commit _) _) [e]) _ = e
+redFat env e e'                                 = EAp (eVar (prim Fatbar)) [e,e']
 
 
 redInt IntPlus a b              = ELit (LInt (a + b))
@@ -143,5 +145,5 @@ redRat p _ _                    = error ("Internal: redRat " ++ show p)
 
 
 
-eBool True                      = EVar (prim TRUE)
-eBool False                     = EVar (prim FALSE)
+eBool True                      = eVar (prim TRUE)
+eBool False                     = eVar (prim FALSE)

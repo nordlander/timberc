@@ -72,8 +72,8 @@ simplify env pe                         = do -- tr ("SIMPLIFY " ++ show pe)
 
         g []                            = []
         g ((e1,e2):eqcs)                = case (redTerm e1, redTerm e2) of
-                                            (EVar v,e2) -> (v,e2) : g eqcs
-                                            (e1,EVar v) -> (v,e1) : g eqcs
+                                            (EVar v _,e2) -> (v,e2) : g eqcs
+                                            (e1,EVar v _) -> (v,e1) : g eqcs
                                             _           -> g eqcs
 
         f pe (v,e) e0                   = EAp (eLam [(v,lookup' pe v)] e0) [e]
@@ -210,7 +210,7 @@ red gs ((env, p@(Scheme (F [sc1] t2) ps2 ke2)):ps)
                                              let ps' = repeat (tick env' False) `zip` ps1
                                              (s,q,es,e,es') <- redf gs env' t1 t2 (ps'++ps)
                                              let (es1,es2) = splitAt (length ps') es'
-                                                 g = eLam pe (ELam [(v,sc1)] (EAp e [eAp (EVar v) es1]))
+                                                 g = eLam pe (ELam [(v,sc1)] (EAp e [eAp (eVarT v ps1 t1) es1]))
 --                                               ptvs = tvars (subst s (p : map snd ps))
 -- Captured anyway...                        assert (null (pquant sc1) || null (tvars q \\ ptvs)) "Ambiguous coercion"
                                              return (s, q, es, g : es2)
@@ -227,9 +227,9 @@ redf gs env (F ts t) (F ts' t') ps      = do te1' <- newEnv assumptionSym ts1'
                                              v    <- newName assumptionSym
                                              (s,q,es,e,es1,es2) <- redf1 gs env t (tFun ts2' t') ts1' ts1 ps
                                              let e0  = ELam [(v,scheme' (F ts t))] (ELam (te1'++te2') e1)
-                                                 e1  = eAp (EAp e [eLam te2 e2]) (map EVar (dom te2'))
-                                                 e2  = EAp (EVar v) (es3 ++ map EVar (dom te2))
-                                                 es3 = zipWith eAp1 es1 (map EVar (dom te1'))
+                                                 e1  = eAp (EAp e [eLam te2 e2]) (map eVar (dom te2'))
+                                                 e2  = EAp (eVar v) (es3 ++ map eVar (dom te2))
+                                                 es3 = zipWith eAp1 es1 (map eVar (dom te1'))
                                              return (s, q, es, e0, es2)
   where (ts1 ,ts2 )                     = splitAt (length ts') ts
         (ts1',ts2')                     = splitAt (length ts ) ts'
@@ -267,7 +267,7 @@ redf2 s gs env a b ps                   = do (s',q,es,e,es') <- redf (subst s gs
 
 solve RUnif (env,p) gs                  = do s <- unify env [(a,b)]
                                              (s',q,es,[]) <- red (subst s gs) []
-                                             return (s'@@s, q, EVar (prim Refl) : es)
+                                             return (s'@@s, q, eVar (prim Refl) : es)
   where (a,b)                           = subs p
 solve r g gs
   | mayLoop g                           = do assert (conservative g) "Recursive constraint"
@@ -344,31 +344,32 @@ auTerms gs es1 es2                      = auZip auTerm gs es1 es2
     auTerm g@(env,c) e1 e2              = auTerm' g (eFlat e1) (eFlat e2)
 
 
-    auTerm' g@(env,c) (EVar v1, es1) (EVar v2, es2)
+    auTerm' g@(env,c) (EVar v1 _, es1) (EVar v2 _, es2)
       | v1 == v2                        = do (R c',ps) <- inst (findPred env v1)
-                                             let ps' = repeat env `zip` subst (matchTs [(c,c')]) ps
-                                             (q,es) <- auZip auSc ps' es1 es2
-                                             return (q, eAp (EVar v1) es)
+                                             let s = matchTs [(c,c')]
+                                                 ps' = subst s ps
+                                             (q,es) <- auZip auSc (repeat env `zip` ps') es1 es2
+                                             return (q, eAp (eVarT v1 ps' (R (subst s c'))) es)
     auTerm' g@(env,c) (ELam pe1 e1, es1) (ELam pe2 e2, es2)
       | ps1 == ps2                      = do (q,e) <- auTerm g e1 (subst s e2)
                                              (q',es) <- auZip auSc (repeat env `zip` ps1) es1 es2
                                              return (q, eAp (ELam pe1 e) es)
       where (vs1,ps1)                   = unzip pe1
             (vs2,ps2)                   = unzip pe2
-            s                           = vs2 `zip` map EVar vs1
+            s                           = vs2 `zip` map eVar vs1
     auTerm' g e1 e2                     = newHyp g
 
     auSc (env,Scheme (R c) [] ke) e1 e2 = auTerm (addKEnv ke env,c) e1 e2
     auSc (env,Scheme (R c) ps ke) (ELam pe1 e1) (ELam pe2 e2)     
                                         = do (q,e) <- auTerm (env',c) e1 (subst s e2)
                                              return (q, ELam pe1 e)
-      where s                           = dom pe2 `zip` map EVar (dom pe1)
+      where s                           = dom pe2 `zip` map eVar (dom pe1)
             env'                        = addPEnv pe1 (addKEnv ke env)
     auSc _ _ _                          = error "Internal: auTerms"
 
 
 newHyp (env,c)                          = do v <- newName (sym env)
-                                             return ([(v,p)], eAp (EVar v) (map EVar vs))
+                                             return ([(v,p)], eAp (eVar v) (map eVar vs))
   where p                               = Scheme (R c) ps ke
         tvs                             = tyvars c
         tvs'                            = tvars c
@@ -440,7 +441,7 @@ isNull (Right ([],q,es))
   | all varTerm es                      = True
   where varTerm (EAp e es)              = varTerm e
         varTerm (ELam pe e)             = varTerm e
-        varTerm (EVar v)                = v `elem` vs
+        varTerm (EVar v _)              = v `elem` vs
         varTerm _                       = False
         vs                              = dom q
 isNull _                                = False
@@ -452,7 +453,7 @@ isNull _                                = False
 closeEnv env tvs pe ke                  = do env1 <- initRefl ke env0
                                              closeWits env1 [] wits
   where se                              = mapSnd (const (tvs ++ pevars env)) ke
-        wits                            = mapFst EVar pe
+        wits                            = mapFst eVar pe
         env0                            = freeze (addSkolEnv se (addPEnv pe (addKEnv ke env)))
 
 
@@ -460,7 +461,7 @@ initRefl ke env                         = do refls <- mapM mkRefl ke
                                              return (initSubs (dom ke) refls env)
   where mkRefl (i,k)                    = do vs <- newNames paramSym (length ks)
                                              let t = tAp (TId i) (map TId vs)
-                                             return (EVar (prim Refl), Scheme (R (t `sub` t)) [] (vs `zip` ks))
+                                             return (eVar (prim Refl), Scheme (R (t `sub` t)) [] (vs `zip` ks))
           where ks                      = kArgs k
 
 
@@ -513,7 +514,7 @@ mkTrans env (e1,p1) ((e0,p0),(e2,p2))   = do (pe0, R c0, e0) <- instantiate p0 e
                                                  p        = scheme (t `sub` subst s t2')
                                              (s',qe,f) <- normalize (protect p env) (subst s (pe0++pe1++pe2))
                                              x  <- newName paramSym
-                                             let e3       = EAp e2 [EAp e1 [EAp e0 [EVar x]]]
+                                             let e3       = EAp e2 [EAp e1 [EAp e0 [eVar x]]]
                                                  e        = ELam [(x,scheme (subst s' t))] (f e3)
                                                  (e',p')  = qual qe e (subst s' p)
                                              (s'',sc) <- gen env p'

@@ -420,7 +420,7 @@ inst (Scheme t ps ke)           = do ts <- mapM newTVar ks
 
 instantiate sc e                = do (t,ps) <- inst sc
                                      pe <- newEnv assumptionSym ps
-                                     return (pe, t, eAp e (map EVar (dom pe)))
+                                     return (pe, t, eAp e (map eVar (dom pe)))
 
 
 qual qe e (Scheme t ps ke)      = (eLam qe e, Scheme t (rng qe ++ ps) ke)
@@ -712,5 +712,5 @@ subTemplCmd     = (ePrim TemplToCmd, scheme2 (tTemplate a `sub` tCmd b a))
 subRefPID       = (ePrim RefToPID,   scheme1 (tRef a `sub` tPID))
 
 
-ePrim p         = EVar (prim p)
+ePrim p         = eVar (prim p)
 

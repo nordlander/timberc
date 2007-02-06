@@ -54,9 +54,9 @@ data Pat        = PCon    Name
                 | PLit    Lit
                 deriving (Eq,Show)
 
-data Exp        = ECon    Name
-                | ESel    Exp Name
-                | EVar    Name
+data Exp        = ECon    Name (Maybe Rho)
+                | ESel    Exp Name (Maybe Rho)
+                | EVar    Name (Maybe Rho)
                 | ELam    TEnv Exp
                 | EAp     Exp [Exp]
                 | ELet    Binds Exp
@@ -112,11 +112,14 @@ eLam te e                       = ELam te e
 eAbs (ELam te e)                = (te,e)
 eAbs e                          = ([],e)
 
+eVarT n ts t                    = EVar n (Just (F ts t))
+
+eVar n                          = EVar n Nothing
+eCon k                          = ECon k Nothing
+eSel e l                        = ESel e l Nothing
 
 eAp e []                        = e
 eAp e es                        = EAp e es
-
-eAp' x xs                       = EAp (EVar x) (map EVar xs)
 
 eAp1 e1 e2                      = EAp e1 [e2]
 
@@ -251,7 +254,8 @@ instance Ids Binds where
       | otherwise               = idents eqns
 
 instance Ids Exp where
-    idents (EVar v)             = [v]
+    idents (EVar v _)           = [v]
+    idents (ESel e l _)         = idents e
     idents (ELam te e)          = idents e \\ dom te
     idents (EAp e e')           = idents e ++ idents e'
     idents (ELet bs e)          = idents bs ++ (idents e \\ bvars bs)
@@ -285,9 +289,10 @@ instance Subst Binds Name Exp where
     
 instance Subst Exp Name Exp where
     subst [] e                  = e
-    subst s (EVar v)            = case lookup v s of
+    subst s (EVar v t)          = case lookup v s of
                                       Just e  -> e
-                                      Nothing -> EVar v
+                                      Nothing -> EVar v t
+    subst s (ESel e l t)        = ESel (subst s e) l t
     subst s (ELam te e)         = ELam te (subst s e)
     subst s (EAp e e')          = EAp (subst s e) (subst s e')
     subst s (ELet bs e)         = ELet (subst s bs) (subst s e)
@@ -316,6 +321,9 @@ instance Subst Binds TVar Type where
 
 instance Subst Exp TVar Type where
     subst [] e                  = e
+    subst s (EVar n t)          = EVar n (subst s t)
+    subst s (ESel e l t)        = ESel (subst s e) l (subst s t)
+    subst s (ECon k t)          = ECon k (subst s t)
     subst s (ELam te e)         = ELam (subst s te) (subst s e)
     subst s (EAp e e')          = EAp (subst s e) (subst s e')
     subst s (ELet bs e)         = ELet (subst s bs) (subst s e)
@@ -341,6 +349,9 @@ instance Subst Binds Name Type where
 
 instance Subst Exp Name Type where
     subst [] e                  = e
+    subst s (EVar n t)          = EVar n (subst s t)
+    subst s (ESel e l t)        = ESel (subst s e) l (subst s t)
+    subst s (ECon k t)          = ECon k (subst s t)
     subst s (ELam te e)         = ELam (subst s te) (subst s e)
     subst s (EAp e e')          = EAp (subst s e) (subst s e')
     subst s (ELet bs e)         = ELet (subst s bs) (subst s e)
@@ -606,9 +617,9 @@ instance Pr Exp where
 
     prn 1 e                     = prn 2 e
         
-    prn 2 (ECon c)              = prId c
-    prn 2 (ESel e s)            = prn 2 e <> text "." <> prId s
-    prn 2 (EVar v)              = prId v
+    prn 2 (ECon c _)            = prId c
+    prn 2 (ESel e s _)          = prn 2 e <> text "." <> prId s
+    prn 2 (EVar v _)            = prId v
     prn 2 (ELit l)              = pr l
     prn 2 (ERec c eqs)          = prId c <+> text "{" <+> hpr ',' eqs <+> text "}"
     prn 2 e                     = parens (prn 0 e)
