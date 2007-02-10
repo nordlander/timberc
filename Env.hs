@@ -617,18 +617,31 @@ primTypeEnv             = [ (prim UNIT,         scheme0 tUnit),
                             (prim PidEQ,        scheme0 (TFun [tPID,tPID] tBool)),
                             (prim PidNE,        scheme0 (TFun [tPID,tPID] tBool)),
 
+                            (prim Sec,          scheme0 (TFun [tInt] tTime)),
+                            (prim MilliSec,     scheme0 (TFun [tInt] tTime)),
+                            (prim MicroSec,     scheme0 (TFun [tInt] tTime)),
+                            (prim NanoSec,      scheme0 (TFun [tInt] tTime)),
+                            (prim Infinity,     scheme0 tTime),
+                                
+                            (prim TimePlus,     scheme0 (TFun [tTime,tTime] tTime)),
+                            (prim TimeMinus,    scheme0 (TFun [tTime,tTime] tTime)),
+                            (prim TimeMin,      scheme0 (TFun [tTime,tTime] tTime)),
+                                
+                            (prim TimeEQ,       scheme0 (TFun [tTime,tTime] tBool)),
+                            (prim TimeNE,       scheme0 (TFun [tTime,tTime] tBool)),
+                            (prim TimeLT,       scheme0 (TFun [tTime,tTime] tBool)),
+                            (prim TimeLE,       scheme0 (TFun [tTime,tTime] tBool)),
+                            (prim TimeGE,       scheme0 (TFun [tTime,tTime] tBool)),
+                            (prim TimeGT,       scheme0 (TFun [tTime,tTime] tBool)),
+
                             (prim Fail,         scheme1 (tPMC a)),
                             (prim Commit,       scheme1 (TFun [a] (tPMC a))),
                             (prim Match,        scheme1 (TFun [tPMC a] a)),
                             (prim Fatbar,       scheme1 (TFun [tPMC a, tPMC a] (tPMC a))),
 
-                            (prim After,        scheme0 tUnit),
-                            (prim Before,       scheme0 tUnit),
-
-                            (prim Baseline,     scheme0 (TFun [tMsg] tTime)),
-                            (prim Deadline,     scheme1 (TFun [tMsg] tTime)) ]
-
-primCurrentEnv          = [ (prim Current,      scheme0 tMsg) ]
+                            (prim After,        scheme0 (TFun [tTime,tAction] tAction)),
+                            (prim Before,       scheme0 (TFun [tTime,tAction] tAction))
+                          ]
 
 
 tAction                 = TId (prim Action)

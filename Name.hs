@@ -92,6 +92,23 @@ data Prim                       =
 
                                 | PidEQ
                                 | PidNE
+                                
+                                | Sec
+                                | MilliSec
+                                | MicroSec
+                                | NanoSec
+                                | Infinity
+                                
+                                | TimePlus
+                                | TimeMinus
+                                | TimeMin
+                                
+                                | TimeEQ
+                                | TimeNE
+                                | TimeLT
+                                | TimeLE
+                                | TimeGE
+                                | TimeGT
 
                                 | Fail
                                 | Commit
@@ -100,11 +117,6 @@ data Prim                       =
 
                                 | After
                                 | Before
-
-                                | Baseline              -- special syntax (selectors)
-                                | Deadline
-
-                                | Current               -- special syntax, not global
 
                                 | ASYNC                 -- invisible
                                 | LOCK
@@ -115,7 +127,7 @@ data Prim                       =
                                 | CONStag
                                 deriving (Eq,Ord,Enum,Bounded,Show)
 
-isConPrim p                     = p < Refl
+isConPrim p                     = p <= TRUE
 
 isIdPrim p                      = p `notElem` primSyms
 
@@ -123,9 +135,7 @@ primSyms                        = [LIST .. CONS]
 
 primTypes                       = map primKeyValue [Action .. UNIT]
 
-primTerms                       = map primKeyValue [UNIT .. Deadline]
-
-primCurrent                     = [primKeyValue Current]
+primTerms                       = map primKeyValue [UNIT .. Before]
 
 primKeyValue p                  = (name0 (strRep p), prim p)
 
@@ -136,9 +146,11 @@ strRep NIL                      = "[]"
 strRep CONS                     = ":"
 strRep TRUE                     = "True"
 strRep FALSE                    = "False"
-strRep Baseline                 = ".baseline"
-strRep Deadline                 = ".deadline"
-strRep Current                  = "current"
+strRep Sec                      = "sec"
+strRep MilliSec                 = "millisec"
+strRep MicroSec                 = "microsec"
+strRep NanoSec                  = "nanosec"
+strRep Infinity                 = "infinity"
 strRep p | isConPrim p          = show p
          | otherwise            = "prim" ++ show p
                                 
