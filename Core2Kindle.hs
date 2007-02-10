@@ -69,14 +69,14 @@ cDecls env (Types ke ds)            = do dss <- mapM cDecl ds
         cDecl (c,DData vs [] cs)
           | all simple cs           = return [(c, Kindle.Enum (dom cs))]
           | otherwise               = do dss <- mapM (cCon t) cs
-                                         tag <- newName "tag"
+                                         tag <- newName tagSym
                                          return ((c', Kindle.Enum cs') : (c, Kindle.Struct [(tag,t)]) : concat dss)
           where c'                  = substVar (dict env) c
                 t                   = Kindle.ValT (Kindle.TId c')
                 cs'                 = substVars (dict env) (dom cs)
 
-        cCon t (c,Constr ts ps _)   = do tag <- newName "tag"
-                                         te <- newEnv "arg" (ps++ts)
+        cCon t (c,Constr ts ps _)   = do tag <- newName tagSym
+                                         te <- newEnv paramSym (ps++ts)
                                          (ds,te) <- cTEnv' te
                                          return (ds ++ [(c, Kindle.Struct ((tag,t):te))])
 
@@ -142,7 +142,7 @@ cAType t                              = do (ds, ts, t) <- cType t
                                            case ts of
                                              [] -> return (ds, t)
                                              ts -> do c <- newName closureSym
-                                                      f <- newName "code"
+                                                      f <- newName codeSym
                                                       return ((c, Kindle.Struct [(f,Kindle.FunT ts t)]) : ds, Kindle.TId c)
 
 
@@ -185,16 +185,16 @@ cFunT env ts t0 (ELam te e)
         l_ts                            = length ts
         l_te                            = length te
 cFunT env [ty] t0 (EReq e e')           = do (ds1,bs,tx,e) <- cExp env e
-                                             x <- newName "self"
+                                             x <- newName selfSym
                                              (ds2,c) <- cCmdExpT (pushSelf x tx env) t0 e'
                                              c <- Kindle.protect x t0 c
-                                             y <- newName "_"
+                                             y <- newName dummySym
                                              return (ds1++ds2, [(y,ty)], Kindle.CBind (bs++[(x,Kindle.Val tx e)]) c)
 cFunT env [ta,tb] t0 (EAct e e')        = cAct env ta tb t0 e e'
 cFunT env [ty] t0 (ETempl x tx te c)    = do (ds0,tx@(Kindle.TId n)) <- cAType tx     -- Type-checker guarantees tx is a struct type name
                                              (ds1,te) <- cTEnv' te
                                              (ds,c) <- cCmdT (pushSelf x tx (addTEnv te env)) t0 c
-                                             y <- newName "_"
+                                             y <- newName dummySym
                                              let c' = Kindle.CBind [(x,Kindle.Val tx (Kindle.ENew n []))] c
                                              return ((n,Kindle.Struct te):ds0++ds1++ds, [(y,ty)], c')
 cFunT env [tx] t0 (EDo x tx' c)         = do (ds,c) <- cCmdT (pushSelf x tx env) t0 c
@@ -362,10 +362,10 @@ cFun env (ELam te e)                    = do (ds,te) <- cATEnv te
                                              (ds',te',t,c) <- cFun (addTEnv (Kindle.mkTEnv' te) env) e
                                              return (ds++ds', te++te', t, c)
 cFun env (EReq e e')                    = do (ds1,bs,tx,e) <- cExp env e
-                                             x <- newName "self"
+                                             x <- newName selfSym
                                              (ds2,t,c) <- cCmdExp (pushSelf x tx env) e'
                                              c <- Kindle.protect x t c
-                                             y <- newName "_"
+                                             y <- newName dummySym
                                              return (ds1++ds2, [(y,Kindle.TWild)], t, Kindle.CBind (bs++[(x,Kindle.Val tx e)]) c)
 cFun env (EAct e e')                    = do (ds,te,c) <- cAct env tTime tTime tMsg e e'
                                              return (ds, te, tMsg, c)
@@ -374,7 +374,7 @@ cFun env (EAct e e')                    = do (ds,te,c) <- cAct env tTime tTime t
 cFun env (ETempl x tx te c)             = do (ds0,tx@(Kindle.TId n)) <- cAType tx     -- Type-checker guarantees tx is a struct type name
                                              (ds1,te) <- cTEnv' te
                                              (ds2,t,c) <- cCmd (pushSelf x tx (addTEnv te env)) c
-                                             y <- newName "_"
+                                             y <- newName dummySym
                                              let c' = Kindle.CBind [(x,Kindle.Val tx (Kindle.ENew n []))] c
                                              return ((n,Kindle.Struct te):ds0++ds1++ds2, [(y,Kindle.TWild)], t, c')
 cFun env (EDo x tx c)                   = do (ds,tx) <- cAType tx
@@ -433,7 +433,7 @@ cExp env e                              = do (ds,bs,t,h) <- cHead env e
                                                   return (ds, bs, t, e)
                                                FHead f ts -> do
                                                   te <- newEnv paramSym ts
-                                                  x <- newName "code"
+                                                  x <- newName codeSym
                                                   n <- newName closureSym
                                                   let d = (n, Kindle.Struct [(x, Kindle.FunT ts t)])
                                                       b = (x, Kindle.Fun t te (Kindle.CRet (f (map Kindle.EVar (dom te)))))

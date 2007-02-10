@@ -55,13 +55,16 @@ let f = \w0 v x -> e w0 (f w0 v 7)                                            ::
 -}
 
 
-tiModule (Module v ds is bs)    = do (env1,ds') <- typeDecls env0 ds
-                                     env2 <- classPreds env1 is
-                                     (ss1,pe1,bs') <- tiBindsList (addTEnv0 (tsigsOf is) env2) (groupBinds bs)
-                                     (ss2,pe2,is') <- tiBinds (addTEnv0 (tsigsOf bs') env2) is
+tiModule (Module v ds is bs)    = do (env1,ds1,bs1) <- typeDecls env0 ds
+                                     (env2,bs2)     <- classPreds env1 is
+                                     -- Here it should be checked that the equalities collected in env2 
+                                     -- are actually met by the equations in bs1 and bs2
+                                     (ss1,pe1,bs')  <- tiBindsList (addTEnv0 (tsigsOf is) env2) (groupBinds bs)
+                                     (ss2,pe2,is')  <- tiBinds (addTEnv0 (tsigsOf bs') env2) is
                                      assert (null (pe1++pe2)) "Internal: top-level type inference"
                                      s <- unify env2 (ss1++ss2)
-                                     return (Module v ds' nullBinds (subst s is' `catBinds` subst s bs'))
+                                     let bs3 = bs1 `catBinds` subst s is' `catBinds` bs2 `catBinds` subst s bs'
+                                     return (Module v ds1 nullBinds bs3)
   where env0                    = initEnv
 
 
@@ -77,9 +80,11 @@ tiBinds env (Binds rec te eqs)  = do --tr ("TYPE-CHECKING " ++ showids xs)
                                      (s',qe,f)    <- fullreduce (target te env) s pe
                                      let env1      = subst s' env
                                          (qe1,qe2) = partition (isFixed env1) qe
+                                         (vs,qs)   = unzip qe2
                                          es2       = map f es1
                                          es3       = if rec then map (subst sat) es2 else es2
-                                         sat       = let vs = map eVar (dom qe2) in map (\x -> (x, eAp (eVar x) vs)) xs
+                                         sat       = let es = map eVar vs in map (\x -> (x, \t -> eAp (h x t) es)) xs
+                                         h x (Just t) = eVarT x qs t
                                          (es',ts') = unzip (zipWith (qual qe2) es3 (subst s' ts))
                                      --tr ("Witnesses returned: " ++ showids (dom qe1))
                                      (ss,ts'') <- fmap unzip (mapM (gen env1) ts')
@@ -152,32 +157,15 @@ tiAp env s pe rho e es          = do t <- newTVar Star
 
 
 tiExp env (ELit l)              = return ([], [], R (litType l), ELit l)
-tiExp env (EVar x _)
-  | explicit (annot x)          = do (t,ps) <- inst (findType env x)
-                                     let t' = tFun ps t
-                                     return ([], [], t', eVar x {-(scheme' t')-})
-  | otherwise                   = do (t,ps) <- inst (findType env x)
-                                     pe <- newEnv assumptionSym ps
-                                     let e' = eVar (annotExplicit x) {-(scheme' (tFun ps t))-}
-                                     return ([], pe, t, eAp e' (map eVar (dom pe)))
-tiExp env (ECon k _)
-  | explicit (annot k)          = do (t,ps) <- inst (findType env k)
-                                     let t' = tFun ps t
-                                     return ([], [], t', eCon k {-(scheme' t')-})
-  | otherwise                   = do (t,ps) <- inst (findType env k)
-                                     pe <- newEnv assumptionSym ps
-                                     let e' = eCon (annotExplicit k) {-(scheme' (tFun ps t))-}
-                                     return ([], pe, t, eAp e' (map eVar (dom pe)))
-tiExp env (ESel e l _)
-  | explicit (annot l)          = do (F [t0] t, ps) <- inst (findType env l)
+tiExp env (EVar x _)            = do (pe,t,e) <- instantiate (findExplType env x) (EVar (annotExplicit x))
+                                     return ([], pe, t, e)
+tiExp env (ECon k _)            = do (pe,t,e) <- instantiate (findExplType env k) (ECon (annotExplicit k))
+                                     return ([], pe, t, e)
+tiExp env (ESel e l _)          = do (F [t0] t, ps) <- inst (findType env l)
                                      (s,pe,e) <- tiExpT env t0 e
-                                     let t' = tFun ps t
-                                     return (s, pe, t', eSel e l {-(scheme' t')-})
-  | otherwise                   = do (F [t0] t, ps) <- inst (findType env l)
-                                     (s,pe,e) <- tiExpT env t0 e
-                                     pe' <- newEnv assumptionSym ps
-                                     let e' = eSel e (annotExplicit l) {-(scheme' (tFun ps t))-}
-                                     return (s, pe++pe', t, eAp e' (map eVar (dom pe')))
+                                     let r = if explicit (annot l) then (tFun ps t,[]) else (t,ps)
+                                     (pe',t',e') <- saturate r (ESel e (annotExplicit l))
+                                     return (s, pe++pe', t', e')
 tiExp env (ELam te e)           = do (s,pe,t,e) <- tiExp (addTEnv te env) e
                                      return (s, pe, F (rng te) t, ELam te e)
 tiExp env (EAp e es)            = do (s,pe,t,e) <- tiExp env e
@@ -260,9 +248,6 @@ tiLhs env alpha tiX xs          = do x <- newName tempSym
 
 
 splitF (TFun [t] t')            = (t,t')
-
-
-splitS (F [t] t')               = (t, scheme' t')
 
 
 splitC (F ts t)                 = (ts, scheme' t)

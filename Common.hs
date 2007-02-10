@@ -132,7 +132,8 @@ newNum                          = M $ \k -> Right (k+1, k)
 
 
 newName s                       = do n <- newNum
-                                     return (Name s n noAnnot)
+                                     return (Name s n ann)
+  where ann                     = if s `elem` explicitSyms then noAnnot { explicit = True } else noAnnot
 
 newNames s n                    = mapM (const (newName s)) [1..n]
 
@@ -171,17 +172,24 @@ tempSym                         = "x"
 functionSym                     = "f"
 dummySym                        = "d"
 paramSym                        = "a"
+tyvarSym                        = "t"
 skolemSym                       = "S"
 coercionSym                     = "c"
+labelSym                        = "l"
 constrSym                       = "C"
 typeSym                         = "T"
 selfSym                         = "self"
-closureSym                      = "F"
+codeSym                         = "code"
+tagSym                          = "tag"
+instanceSym                     = "inst"
+closureSym                      = "CLOS"
 
 isCoercion n                    = isGenerated n && str n == coercionSym
 isTemp n                        = isGenerated n && str n == tempSym
 isClosure n                     = isGenerated n && str n == closureSym
 isDummy n                       = isGenerated n && str n == dummySym
+
+explicitSyms                    = [coercionSym, assumptionSym, witnessSym]
 
 
 -- Textual variable supply -------------------------------------------------------------

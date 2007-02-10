@@ -101,9 +101,8 @@ isLambda _                      = False
 arity (ELam te e)               = length te
 arity e                         = 0
 
-eLet bss e                      = foldr ELet e bss
-
-cLet bss c                      = foldr CLet c bss
+eLet [] [] e                    = e
+eLet te eq e                    = ELet (Binds False te eq) e
 
 eLam [] e                       = e
 eLam te (ELam te' e)            = ELam (te++te') e
@@ -112,7 +111,7 @@ eLam te e                       = ELam te e
 eAbs (ELam te e)                = (te,e)
 eAbs e                          = ([],e)
 
-eVarT n ts t                    = EVar n (Just (F ts t))
+eVarT n ts t                    = EVar n (Just (tFun ts t))
 
 eVar n                          = EVar n Nothing
 eCon k                          = ECon k Nothing
@@ -165,6 +164,11 @@ isSub' p                        = isSub (pbody p)
 
 isSub (TFun [l] u)              = True
 isSub _                         = False
+
+isClass' p                      = isClass (pbody p)
+
+isClass c                       = not (isSub c)
+
 
 subs (TFun [l] u)               = (l,u)
 subs t                          = error ("Internal: subs of " ++ show t)
@@ -284,13 +288,13 @@ instance Ids Cmd where
 -- Note! This substitution algorithm does not alpha convert!
 -- Only use when variables are known not to clash
 
-instance Subst Binds Name Exp where
+instance Subst Binds Name (Maybe Rho -> Exp) where
     subst s (Binds r te eqns)   = Binds r te (subst s eqns)
     
-instance Subst Exp Name Exp where
+instance Subst Exp Name (Maybe Rho -> Exp) where
     subst [] e                  = e
     subst s (EVar v t)          = case lookup v s of
-                                      Just e  -> e
+                                      Just e  -> e t
                                       Nothing -> EVar v t
     subst s (ESel e l t)        = ESel (subst s e) l t
     subst s (ELam te e)         = ELam te (subst s e)
@@ -304,7 +308,7 @@ instance Subst Exp Name Exp where
     subst s (EDo x t c)         = EDo x t (subst s c)
     subst s e                   = e
 
-instance Subst Cmd Name Exp where
+instance Subst Cmd Name (Maybe Rho -> Exp) where
     subst s (CLet bs c)         = CLet (subst s bs) (subst s c)
     subst s (CAss x e c)        = CAss x (subst s e) (subst s c)
     subst s (CGen x t e c)      = CGen x t (subst s e) (subst s c)

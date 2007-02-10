@@ -17,11 +17,6 @@ import Reduce
 -}
 
 
-classPreds env (Binds r pe eqs)         = do (env,eqcs) <- closeWits env [] (mapFst eVar pe)
-                                             -- To do: check that the eqcs are respected by eqs
-                                             return env
-
-
 -- Extend kind environment
 -- Initialize empty class witness graph
 -- Extract selector and constructor type schemes
@@ -29,28 +24,35 @@ classPreds env (Binds r pe eqs)         = do (env,eqcs) <- closeWits env [] (map
 -- Replace subtyping in type declarations with explicit selectors/constructors
 -- Initialize subtyping graph with reflexivity witnesses
 -- Close subtyping graph under transitivity (report cyclic and ambiguity errors)
--- Return extended environment, transformed decls and class membner bindings
+-- Return extended environment, transformed decls and added witness bindings
 
-typeDecls env (Types ke ds)             = do env1 <- initRefl ke env0
-                                             (env2,eqcs) <- closeWits env1 [] (concat axioms)
-                                             -- [ What do we do with the eqcs? ]
-                                             return (env2, Types ke ds1)
-  where env0                            = addSelCon ds (initClasses cs (addKEnv ke env))
-        (ds1,axioms)                    = unzip (map (desub env0) ds)
+typeDecls env (Types ke ds)             = do (ds,pe1,eq1) <- desub env0 ds
+                                             (env',pe2,eq2) <- closePreds env0 [] pe1 []
+                                             let (pe3,eq3) = preferParams env' pe1 pe2 eq2
+                                             return (env', Types ke ds, Binds False (pe1++pe3) (eq1++eq3))
+  where te0                             = concatMap (tenvSelCon env) ds
+        env0                            = addTEnv0 te0 (addClasses cs (addKEnv ke env))
         cs                              = [ c | (c, DRec True _ _ _) <- ds ]
+
+
+-- Close the top-level instance delcarations
+-- Return the extended environment and the added witness bindings
+
+classPreds env (Binds r pe eqs)         = do (env',qe,eq) <- closePreds env [] pe []
+                                             let (qe',eq') = preferParams env' pe qe eq
+                                             return (env, Binds r qe' eq')
 
 
 -- Computes the stand-alone type schemes associated with selectors and constructors
 -- Note: these constants have no corresponding definition (i.e., no rhs)
 
-addSelCon [] env                        = env
-addSelCon ((c,DRec _ vs _ ss) : ds) env = addSelCon ds (addTEnv (map (f t ke) ss) env)
+tenvSelCon env (c,DRec _ vs _ ss)       = map (f t ke) ss
   where (t,ke)                          = mkHead env c vs
         f t ke (l, Scheme rh ps ke')    = (l, Scheme (F [scheme t] rh) ps (ke++ke'))
-addSelCon ((c,DData vs _ cs) : ds) env  = addSelCon ds (addTEnv (map (f t ke) cs) env)
+tenvSelCon env (c,DData vs _ cs)        = map (f t ke) cs
   where (t,ke)                          = mkHead env c vs
         f t ke (k, Constr ts ps ke')    = (k, Scheme (tFun' ts t) ps (ke++ke'))
-addSelCon (_ : ds) env                  = addSelCon ds env
+tenvSelCon env _                        = []
 
 
 mkHead env i vs                         = (tAp' i vs, vs `zip` kArgs (findKind env i))
@@ -58,27 +60,28 @@ mkHead env i vs                         = (tAp' i vs, vs `zip` kArgs (findKind e
 
 -- Decomposition of type declarations ---------------------------------------------------------
 
-
-dcsym i t                               = name0 ("Coerce_" ++ show (headsym t) ++ "_" ++ show i)
-
-rcsym i t                               = name0 ("coerce_" ++ show i ++ "_" ++ show (headsym t))
-
-
-desub env (i, DData vs bs cs)           = ((i, DData vs [] (ws `zip` map constr bs ++ cs)), wits `zip` map pred bs)
-  where ws                              = map (dcsym i) bs
-        wits                            = map eCon ws
-        constr (Scheme (R t) _ ke)      = Constr [scheme t] [] ke
-        pred (Scheme (R t) _ ke)        = Scheme (R (t `sub` t0)) [] (ke0++ke)
-        (t0,ke0)                        = mkHead env i vs
-desub env (i, DRec isC vs bs ss)        = ((i, DRec isC vs [] (ws `zip` bs ++ ss)), wits `zip` map pred bs)
-  where ws                              = map (rcsym i) bs
-        wits                            = map (\w -> ELam [(name0 "x", scheme t0)] (eSel (eVar (name0 "x")) w)) ws     -- temporary....
-        pred (Scheme (R t) _ ke)        = Scheme (R (t0 `sub` t)) [] (ke0++ke)
-        (t0,ke0)                        = mkHead env i vs
-desub env (i, DType vs t)               = ((i, DType vs t), [])
-
-
-
+desub env ds                            = do (ds',pes,eqs) <- fmap unzip3 (mapM desub' ds)
+                                             return (ds', concat pes, concat eqs)
+  where 
+    desub' (i, DData vs bs cs)          = do (pe,eq,cs') <- fmap unzip3 (mapM (con (mkHead env i vs)) bs)
+                                             return ((i, DData vs [] (cs'++cs)), pe, eq)
+    desub' (i, DRec isC vs bs ss)       = do (pe,eq,ss') <- fmap unzip3 (mapM (sel (mkHead env i vs)) bs)
+                                             return ((i, DRec isC vs [] (ss'++ss)), pe, eq)
+    desub' (i, DType vs t)              = return ((i, DType vs t), [], [])
+    con (t0,ke0) (Scheme (R t) [] ke)   = do w <- newName coercionSym
+                                             k <- newName constrSym
+                                             x <- newName paramSym
+                                             let p  = (w, Scheme (R (t `sub` t0)) [] (ke0++ke))
+                                                 eq = (w, ELam [(x,scheme t)] (EAp (eCon k) [eVar x]))
+                                                 c  = (k, Constr [scheme t] [] ke)
+                                             return (p, eq, c)
+    sel (t0,ke0) (Scheme (R t) [] ke)   = do w <- newName coercionSym
+                                             l <- newName labelSym
+                                             x <- newName paramSym
+                                             let p  = (w, Scheme (R (t0 `sub` t)) [] (ke0++ke))
+                                                 eq = (w, ELam [(x,scheme t0)] (eSel (eVar x) l))
+                                                 s  = (l, Scheme (R t) [] ke)
+                                             return (p, eq, s)
 
 {-
 

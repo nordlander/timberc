@@ -44,7 +44,7 @@ redExp env (ETempl x t te c)    = ETempl x t te (redCmd env c)
 redExp env (EAct e e')          = EAct (redExp env e) (redExp env e')
 redExp env (EReq e e')          = EReq (redExp env e) (redExp env e')
 redExp env (EDo x t c)          = EDo x t (redCmd env c)
-redExp env (ELam te e)          = ELam te (redExp env e)
+redExp env (ELam te e)          = redEta env te e
 redExp env (EAp e es)           = redApp env e (map (redExp env) es)
 redExp env e                    = redApp env e []
 
@@ -61,6 +61,11 @@ redApp env (EVar x t) es        = case lookup x env of
                                       Just e -> redApp env e es
                                       Nothing -> eAp (EVar x t) es
 redApp env e es                 = eAp (redExp env e) es
+
+
+redEta env te (EAp e es)
+  | es == map eVar (dom te)     = redExp env e
+redEta env te e                 = ELam te (redExp env e)
 
 
 redCmd env (CRet e)             = CRet (redExp env e)

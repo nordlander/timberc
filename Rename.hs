@@ -98,7 +98,7 @@ noDups vs
 oloadBinds xs ds                   = concat [ binds c vs sels | DRec True c vs _ sels <- ds ]
   where binds c vs sels            = concat [ binds' s t | Sig ss t <- sels, s <- ss, s `notElem` xs ]
           where p0                 = PType (foldl TAp (TCon c) (map TVar vs))
-                binds' s t         = [ BSig [s] (tQual [p0] t), 
+                binds' s t         = [ BSig [s] (tQual [p0] t),
                                        BEqn (LFun (annotExplicit s) [w]) (RExp (ESelect w s)) ]
         w                          = EVar (name0 paramSym)
 
@@ -118,13 +118,14 @@ instance Rename a => Rename (Maybe a) where
 
 instance Rename Module where
   rename env (Module c ds)         = do env1 <- extRenT env ts
-                                        env2 <- extRenE env1 (cs++vs)
+                                        env2 <- extRenE env1 (cs++vs++vs')
                                         env3 <- extRenL env2 ss
                                         liftM (Module c) (rename env3 ds')
     where (ts,ss,cs,bs)            = renameD [] [] [] [] [] [] ds
           ds'                      = filter (not . isDBind) ds ++ map DBind (bs' ++ bs)
           vs                       = bvars bs
           bs'                      = oloadBinds vs ds
+          vs'                      = bvars bs'
 
 
 renameD ks ts ss cs ws bs (DKSig c k : ds)

@@ -53,7 +53,7 @@ haveSelf env                    = self env /= Nothing
 
 -- Desugaring -------------------------------------------------------------------------------------------
 
-dsDecls env (DInst t bs : ds)   = do w <- newName witnessSym
+dsDecls env (DInst t bs : ds)   = do w <- newName instanceSym
                                      dsDecls env (DPSig w t : DBind (BEqn (LFun w []) (RWhere (RExp r) bs)) : ds)
   where r                       = ERec (Just (type2head t,True)) (map mkField (bvars bs))
         mkField v | isId v      = Field v (EVar v)

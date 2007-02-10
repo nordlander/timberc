@@ -41,7 +41,7 @@ reduce env pe                           = do -- tr ("###reduce " ++ show (tvars 
                                              --     "\n    tevars = " ++ show (tevars env) ++ "\n      " ++ show pe)
                                              (s,q,[],es) <- red [] (map mkGoal pe)
                                              -- tr ("###result: " ++ show s ++ ", preds: " ++ show q)
-                                             return (s, q, \e -> eAp (eLam pe e) es)
+                                             return (s, q, eLet pe (dom pe `zip` es))
   where mkGoal (v,p)                    = (tick env (isCoercion v), p)
 
 
@@ -49,12 +49,11 @@ reduce env pe                           = do -- tr ("###reduce " ++ show (tvars 
 
 simplify env pe                         = do -- tr ("SIMPLIFY " ++ show pe)
                                              cs <- newNames skolemSym (length tvs)
-                                             r <- expose (closeEnv env [] (subst (tvs`zip`map TId cs) pe) (cs`zip`ks))
+                                             r <- expose (closePreds env [] (subst (tvs`zip`map TId cs) pe) (cs`zip`ks))
                                              case r of
-                                               Right (_,eqcs) -> return (nullSubst, pe2, \e -> foldr (f pe1) e eqs)
-                                                 where eqs       = g eqcs
-                                                       vs        = dom eqs
-                                                       (pe1,pe2) = partition ((`elem`vs) . fst) pe
+                                               Right (env',qe,eq) -> return (nullSubst, pe', eLet qe' eq')
+                                                 where s = cs `zip` map TVar tvs
+                                                       (pe',qe',eq') = preferLocals env' pe (subst s qe) (subst s eq)
                                                Left s -> case decodeCircular s of
                                                  Nothing  -> fail s
 --                                               Just cs' -> return (nullSubst, pe, id)
@@ -69,14 +68,6 @@ simplify env pe                         = do -- tr ("SIMPLIFY " ++ show pe)
                                                                      return (tAp (TVar tv) ts)
   where tvs                             = tvars pe
         ks                              = map tvKind tvs
-
-        g []                            = []
-        g ((e1,e2):eqcs)                = case (redTerm e1, redTerm e2) of
-                                            (EVar v _,e2) -> (v,e2) : g eqcs
-                                            (e1,EVar v _) -> (v,e1) : g eqcs
-                                            _           -> g eqcs
-
-        f pe (v,e) e0                   = EAp (eLam [(v,lookup' pe v)] e0) [e]
 
 
 {-
@@ -107,10 +98,10 @@ resolve env pe                          = do --tr ("###############\nBefore reso
                                              (s,q,[],es) <- red [] (map mkGoal pe)
                                              --tr ("###############\nAfter resolve: " ++ show q)
                                              let env1 = subst s env
-                                                 q' = filter (isTemp . fst) q
+                                                 q' = filter (isDummy . fst) q
                                              assert (null q') ("Cannot resolve predicates: " ++ vshow (rng q'))
                                              q'' <- mapM (closeCoercion env1) q
-                                             return (s, q'', \e -> eAp (eLam pe e) es)
+                                             return (s, q'', eLet pe (dom pe `zip` es))
   where env_tvs                         = tevars env
         reachable_tvs                   = vclose (map tvars pe) (ps ++ ns ++ env_tvs)
           where (ps,ns)                 = pols env
@@ -205,26 +196,26 @@ red gs []                               = do (s,q,e:es) <- solve r g (gs1++gs2)
 red gs ((env, p@(Scheme (F [sc1] t2) ps2 ke2)):ps)
                                         = do (t1,ps1) <- inst sc1
                                              pe <- newEnv assumptionSym ps2
-                                             v  <- newName assumptionSym
-                                             (env',_) <- closeEnv env (tvars sc1 ++ tvars t2 ++ tvars ps2) pe ke2
+                                             v  <- newName coercionSym
+                                             (env',qe,eq) <- closePreds env (tvars sc1 ++ tvars t2 ++ tvars ps2) pe ke2
                                              let ps' = repeat (tick env' False) `zip` ps1
                                              (s,q,es,e,es') <- redf gs env' t1 t2 (ps'++ps)
                                              let (es1,es2) = splitAt (length ps') es'
-                                                 g = eLam pe (ELam [(v,sc1)] (EAp e [eAp (eVarT v ps1 t1) es1]))
---                                               ptvs = tvars (subst s (p : map snd ps))
--- Captured anyway...                        assert (null (pquant sc1) || null (tvars q \\ ptvs)) "Ambiguous coercion"
-                                             return (s, q, es, g : es2)
+                                                 (qe',eq') = preferParams env' pe qe eq
+                                                 e' = eLet qe' eq' (EAp e [eAp (eVarT v ps1 t1) es1])
+                                             return (s, q, es, eLam pe (ELam [(v,sc1)] e') : es2)
 red gs ((env, Scheme (R t) ps' ke):ps)  = do pe <- newEnv assumptionSym ps'
-                                             (env',_) <- closeEnv env (tvars t ++ tvars ps') pe ke
+                                             (env',qe,eq) <- closePreds env (tvars t ++ tvars ps') pe ke
                                              (s,q,e:es,es') <- red ((env',t) : gs) ps
-                                             return (s, q, es, eLam pe e : es')
+                                             let (qe',eq') = preferParams env' pe qe eq
+                                             return (s, q, es, eLam pe (eLet qe' eq' e) : es')
 
 
 
 redf gs env (F ts t) (F ts' t') ps      = do te1' <- newEnv assumptionSym ts1'
                                              te2' <- newEnv assumptionSym ts2'
                                              te2  <- newEnv assumptionSym ts2
-                                             v    <- newName assumptionSym
+                                             v    <- newName coercionSym
                                              (s,q,es,e,es1,es2) <- redf1 gs env t (tFun ts2' t') ts1' ts1 ps
                                              let e0  = ELam [(v,scheme' (F ts t))] (ELam (te1'++te2') e1)
                                                  e1  = eAp (EAp e [eLam te2 e2]) (map eVar (dom te2'))
@@ -286,8 +277,8 @@ try r accum wg g gs
                                              res <- expose (hyp wit g gs)
                                              accum <- plus (g : gs) accum res
                                              try r accum (wg2 res) g gs
-  where (l,wit,wg1)                     = takeWG wg
-        wg2 res                         = if mayPrune res r g then pruneWG l wg1 else wg1
+  where (wit,wg1)                       = takeWG wg
+        wg2 res                         = if mayPrune res r g then pruneWG (nameOf wit) wg1 else wg1
 
 
 mayPrune (Left _)  _          _         = False
@@ -295,13 +286,13 @@ mayPrune (Right r) (RClass _) (env,c)   = forced env || subst (fst3 r) c == c
 mayPrune _         _          _         = True
 
 
-hyp wit (env,c) gs                      = do (R c',ps) <- inst (predOf wit)
+hyp (w,p) (env,c) gs                    = do (R c',ps) <- inst p
                                              --tr ("hyp: " ++ show c ++ ", witness: " ++ show wit)
                                              s <- unify env [(c,c')]
                                              --tr "**OK"
                                              let ps' = repeat (subst s env) `zip` subst s ps
                                              (s',q,es,es') <- red (subst s gs) ps'
-                                             return (s'@@s, q, eAp (expOf wit) es' : es)
+                                             return (s'@@s, q, eAp (eVarT w ps (R c')) es' : es)
 
 
 plus gs (Left a) b                      = return b
@@ -356,14 +347,14 @@ auTerms gs es1 es2                      = auZip auTerm gs es1 es2
                                              return (q, eAp (ELam pe1 e) es)
       where (vs1,ps1)                   = unzip pe1
             (vs2,ps2)                   = unzip pe2
-            s                           = vs2 `zip` map eVar vs1
+            s                           = vs2 `zip` map EVar vs1
     auTerm' g e1 e2                     = newHyp g
 
     auSc (env,Scheme (R c) [] ke) e1 e2 = auTerm (addKEnv ke env,c) e1 e2
     auSc (env,Scheme (R c) ps ke) (ELam pe1 e1) (ELam pe2 e2)     
                                         = do (q,e) <- auTerm (env',c) e1 (subst s e2)
                                              return (q, ELam pe1 e)
-      where s                           = dom pe2 `zip` map eVar (dom pe1)
+      where s                           = dom pe2 `zip` map EVar (dom pe1)
             env'                        = addPEnv pe1 (addKEnv ke env)
     auSc _ _ _                          = error "Internal: auTerms"
 
@@ -377,39 +368,17 @@ newHyp (env,c)                          = do v <- newName (sym env)
         (vs,ps)                         = unzip (filter useful (predEnv env))
         ke                              = filter ((`elem` tvs) . fst) (kindEnv env)
         sym env
-          | forced env                  = tempSym
-          | ticked env                  = coercionSym 
-          | otherwise                   = assumptionSym
+          | forced env                  = dummySym          -- unwanted garbage predicate, trap in resolve
+          | ticked env                  = coercionSym       -- originates from a coercion predicate
+          | otherwise                   = assumptionSym     -- ordinary predicate
 
 
 -- Unification ----------------------------------------------------------
 
-{-
-unify env []                            = return nullSubst
-unify env ((t,TVar n []):eqs)           = tvarBind env n t eqs
-unify env ((TVar n [],t):eqs)           = tvarBind env n t eqs
-unify env ((TFun ts1 t1,TFun ts2 t2):eqs)
-  | length ts1 == length ts2            = unify env ((t1,t2) : ts1 `zip` ts2 ++ eqs)
-unify env ((TId c1 ts1,TId c2 ts2):eqs)
-  | c1 == c2                            = unify env (ts1 `zip` ts2 ++ eqs)
-unify env ((TVar n ts1,TId c ts2):eqs)
-  | length ts2 >= length ts1            = tvarBind env n (TId c post2) (ts1 `zip` pre2 ++ eqs)
-  where (pre2,post2)                    = splitAt (length ts1) ts2
-unify env ((TId c ts1,TVar n ts2):eqs)
-  | length ts1 >= length ts2            = tvarBind env n (TId c post1) (pre1 `zip` ts2 ++ eqs)
-  where (pre1,post1)                    = splitAt (length ts2) ts1
-unify env ((TVar n1 ts1,TVar n2 ts2):eqs)
-  | length ts2 >= length ts1            = tvarBind env n1 (TVar n2 post2) (ts1 `zip` pre2 ++ eqs)
-  | otherwise                           = tvarBind env n2 (TVar n1 post2) (pre1 `zip` ts2 ++ eqs)
-  where (pre1,post1)                    = splitAt (length ts2) ts1
-        (pre2,post2)                    = splitAt (length ts1) ts2
-unify env (eq:eqs)                      = fail ("Unification error: " ++ show eq)
--}
-
-
 unify env []                            = return nullSubst
 unify env ((TVar n,t):eqs)
   | mayBind env n                       = tvarBind env n t eqs
+  | t == TVar n                         = unify env eqs
 unify env ((t,TVar n):eqs)
   | mayBind env n                       = tvarBind env n t eqs
 unify env ((TAp t u,TAp t' u'):eqs)     = unify env ((t,t'):(u,u'):eqs)
@@ -448,134 +417,168 @@ isNull _                                = False
 
 
 
--- Environment closure reduction -------------------------------------------------
+-- Adding predicates to the environment -------------------------------------------------
 
-closeEnv env tvs pe ke                  = do env1 <- initRefl ke env0
-                                             closeWits env1 [] wits
+closePreds env tvs pe ke                = do (env1,pe1,eq1) <- closeTransitive env0 pe
+                                             (env2,pe2,eq2) <- closeSuperclass env1 pe
+                                             return (thaw env2, pe1++pe2, eq1++eq2)
   where se                              = mapSnd (const (tvs ++ pevars env)) ke
-        wits                            = mapFst eVar pe
-        env0                            = freeze (addSkolEnv se (addPEnv pe (addKEnv ke env)))
+        env0                            = freeze (addPEnv pe (addSkolEnv se (addKEnv ke env)))
 
 
-initRefl ke env                         = do refls <- mapM mkRefl ke
-                                             return (initSubs (dom ke) refls env)
-  where mkRefl (i,k)                    = do vs <- newNames paramSym (length ks)
-                                             let t = tAp (TId i) (map TId vs)
-                                             return (eVar (prim Refl), Scheme (R (t `sub` t)) [] (vs `zip` ks))
-          where ks                      = kArgs k
+preferLocals env pe qe eq               = walk [] [] [] (filter ((`elem` (vs0++dom qe)) . fst3) (equalities env))
+  where walk vs ws bs []                = (prune pe vs, prune qe ws, prune eq (dom bs++ws) ++ bs)
+        walk vs ws bs ((x,y,e):eqs)     = case (x `elem` vs0, y `elem` vs0) of
+                                            (True,  True)  -> walk (x:vs) ws bs eqs
+                                            (True,  False) -> walk (x:vs) ws bs eqs
+                                            (False, True)  -> walk vs ws ((y,e):bs) eqs
+                                            (False, False) -> walk vs (x:ws) bs eqs
+        vs0                             = dom pe
 
+preferParams env pe qe eq               = walk [] [] (filter ((`elem` (vs0++dom qe)) . fst3) (equalities env))
+  where walk ws bs []                   = (prune qe ws, bs ++ prune eq (dom bs++ws))
+        walk ws bs ((x,y,e):eqs)        = case (x `elem` vs0, y `elem` vs0) of
+                                            (True,  True)  -> walk ws bs eqs
+                                            (True,  False) -> walk ws ((y,e):bs) eqs
+                                            (False, True)  -> walk (x:ws) bs eqs
+                                            (False, False) -> walk (x:ws) bs eqs
+        vs0                             = dom pe
 
+{-
+                                                              Top-level & local reduction:        Action during simplify:
+In (equalities env):  Meaning:                                (prefer parameters/constants)       (prefer local defs)
 
--- Note: For top-level instances, the eqcs are equality constraints that must be met by the instance terms.
--- For local instance assumptions, they are facts that can be utilized for simplification.
+    (v,v',e)          Two witness parameters equal,           Ignore equality info                Remove parameter v
+                      only v' is in use
 
-closeWits env eqs []                    = return (thaw env, eqs)
-closeWits env eqs (wit : wits)
-  | isSub' p                            = do wits' <- mapSuccess (mkTrans (noClasses env) wit) wpairs
-                                             let cycles = filter (uncurry (==)) (map (subsyms . predOf) wits')
-                                             assert (null cycles) (encodeCircular (nub (a:b:map fst cycles)))
-                                             (env1,eqs1) <- subGraphs env eqs wits'
-                                             closeWits env1 eqs1 wits
-  | otherwise                           = do wits' <- mapSuccess (mkSup (noClasses env) wit) wsups
-                                             (env1,eqs1) <- classGraph env eqs wits'
-                                             closeWits env1 eqs1 wits
-  where c                               = headsym p
-        (a,b)                           = subsyms p
-        p                               = predOf wit
-        wbelow_a                        = rng (nodes (findBelow env a))
-        wabove_b                        = rng (nodes (findAbove env b))
-        wpairs                          = [ (w0,w2) | w0 <- wbelow_a, w2 <- wabove_b ]
-        wabove_c                        = rng (nodes (findAbove env c))
-        wsups                           = [ w | w <- wabove_c, uppersym (predOf w) `elem` dom (classEnv env) ]
+    (v,w',e)          Witness parameter is equal to a         Remove local def of w',             Remove parameter v
+                      local def, local def w' is in use       Add "let w' = e in ..."
 
+    (w,v',e)          Witness parameter is equal to a         Remove local def of w               Remove parameter v',
+                      local def, parameter v' is in use                                           Add def "let v' = e in ..."
 
+    (w,w',e)          Two local witness definitions           Remove local def of w               Remove local def of w
+                      are equal, only w' is in use
 
-imply env wit' wit                      = do res <- expose (red [] [(env0, p)])
-                                             case res of
-                                               Right (_,_,_,es) -> return (Just (expOf wit, head es))
-                                               Left _           -> return Nothing
-  where env0                            = singleWitness env wit'
-        p                               = predOf wit
+    v and v' are witness parameters
+    w and w' are locally generated witnesses
+-}
 
 
 mapSuccess f xs                         = do xs' <- mapM (expose . f) xs
-                                             return [ x | Right x <- xs' ]
+                                             return (unzip [ x | Right x <- xs' ])
 
 
-
-mkTrans env (e1,p1) ((e0,p0),(e2,p2))   = do (pe0, R c0, e0) <- instantiate p0 e0
-                                             (pe1, R c1, e1) <- instantiate p1 e1
-                                             (pe2, R c2, e2) <- instantiate p2 e2
-                                             let (t0,t0') = subs c0
-                                                 (t1,t1') = subs c1
-                                                 (t2,t2') = subs c2
-                                             s <- unify env [(t0',t1),(t1',t2)]
-                                             let t        = subst s t0
-                                                 p        = scheme (t `sub` subst s t2')
-                                             (s',qe,f) <- normalize (protect p env) (subst s (pe0++pe1++pe2))
-                                             x  <- newName paramSym
-                                             let e3       = EAp e2 [EAp e1 [EAp e0 [eVar x]]]
-                                                 e        = ELam [(x,scheme (subst s' t))] (f e3)
-                                                 (e',p')  = qual qe e (subst s' p)
-                                             (s'',sc) <- gen env p'
-                                             return (redTerm (subst s'' e'), sc)
+imply env n0 (w,p)                      = do res <- expose (red [] [(env0, p)])
+                                             case res of
+                                               Right (s,[],[],[e]) -> return (Just (subst s e))
+                                               _                   -> return Nothing
+  where env0                            = singleWitness env n0
 
 
+-- Handle subtype predicates
+closeTransitive env []                  = return (env, [], [])
+closeTransitive env ((w,p):pe)
+  | isSub' p                            = do assert (a /= b) "Illegal subtype predicate"
+                                             (pe1,eq1) <- mapSuccess (mkTrans env) [ (n1,n2) | n1 <- below_a, n2 <- [(w,p)] ]
+                                             (pe2,eq2) <- mapSuccess (mkTrans env) [ (n1,n2) | n1 <- (w,p):pe1, n2 <- above_b ]
+                                             let cycles = filter (uncurry (==)) (map (subsyms . predOf) (pe1++pe2))
+                                             assert (null cycles) (encodeCircular (nub (a:b:map fst cycles)))
+                                             env2 <- addPreds env ((w,p):pe1++pe2)
+                                             (env3,pe3,eq3) <- closeTransitive env2 pe
+                                             return (env3, pe1++pe2++pe3, eq1++eq2++eq3)
+  where (a,b)                           = subsyms p
+        below_a                         = nodes (findBelow env a)
+        above_b                         = nodes (findAbove env b)
+closeTransitive env (_:pe)              = closeTransitive env pe
 
-subGraphs env eqs []                    = return (env,eqs)
-subGraphs env eqs (wit:wits)            = case findCoercion env a b of
-                                            Just (l,wit') -> do 
-                                               r1 <- imply env wit' wit
-                                               r2 <- imply env wit wit'
-                                               case (r1,r2) of
-                                                 (Just eq, _) -> subGraphs env (eq:eqs) wits
-                                                 (_, Just eq) -> subGraphs (replaceWit l wit' env) (eq:eqs) wits
-                                                 _            -> fail "Ambiguous subtyping"
-                                            Nothing -> do 
-                                               l <- newNum
-                                               subGraphs (buildBelow l wit (buildAbove l wit env)) eqs wits
-  where (a,b)                           = subsyms (predOf wit)
-        replaceWit l wit' env           = env { aboveEnv = update a f (aboveEnv env),
-                                                belowEnv = update b f (belowEnv env) }
-          where f wg                    = wg { nodes = insert l wit' (nodes wg) }
-
-
-
-mkSup env (e1,p1) (e2,p2)               = do (pe1, R c1, e1) <- instantiate p1 e1
-                                             (pe2, R c2, e2) <- instantiate p2 e2
-                                             let (t2,t2') = subs c2
-                                             s <- unify env [(c1,t2)]
-                                             let p = scheme (subst s t2')
+mkTrans env ((w1,p1), (w2,p2))          = do (pe1, R c1, e1) <- instantiate p1 (EVar w1)
+                                             (pe2, R c2, e2) <- instantiate p2 (EVar w2)
+                                             let (t1,t1') = subs c1
+                                                 (t2',t2) = subs c2
+                                             s <- unify env [(t1',t2')]
+                                             let t = subst s t1
+                                                 p = scheme (t `sub` subst s t2)
                                              (s',qe,f) <- normalize (protect p env) (subst s (pe1++pe2))
-                                             w <- newName witnessSym
+                                             x  <- newName paramSym
+                                             let e = ELam [(x,scheme (subst s' t))] (f (EAp e2 [EAp e1 [eVar x]]))
+                                                 (e',p') = qual qe e (subst s' p)
+                                             (s'',sc) <- gen env p'
+                                             w <- newName coercionSym
+                                             return ((w,sc), (w,redTerm (subst s'' e')))
+
+-- Handle class predicates
+closeSuperclass env []                  = return (env, [], [])
+closeSuperclass env ((w,p):pe)
+  | isClass' p                          = do (pe1,eq1) <- mapSuccess (mkSuper env (w,p)) [ n | n <- above_c ]
+                                             env1 <- addPreds env ((w,p):pe1)
+                                             (env2,pe2,eq2) <- closeSuperclass env1 pe
+                                             return (env2, pe1++pe2, eq1++eq2)
+  where c                               = headsym p
+        above_c                         = filter ((`elem` dom (classEnv env)) . uppersym . predOf) (nodes (findAbove env c))
+closeSuperclass env (_:pe)              = closeSuperclass env pe
+
+mkSuper env (w1,p1) (w2,p2)             = do (pe1, R c1, e1) <- instantiate p1 (EVar w1)
+                                             (pe2, R c2, e2) <- instantiate p2 (EVar w2)
+                                             let (t2',t2) = subs c2
+                                             s <- unify env [(c1,t2')]
+                                             let p = scheme (subst s t2)
+                                             (s',qe,f) <- normalize (protect p env) (subst s (pe1++pe2))
                                              let e = f (EAp e2 [e1])
                                                  (e',p') = qual qe e (subst s' p)
                                              (s'',sc) <- gen env p'
-                                             return (subst s'' e', sc)
+                                             w <- newName witnessSym
+                                             return ((w,sc), (w,subst s'' e'))
 
 
-classGraph env eqs []                   = return (env,eqs)
-classGraph env eqs (wit:wits)           = do (eqs',pre,post) <- cmpW env [] [] [] wit (nodes wg)
-                                             l <- newNum
-                                             let ls = repeat l
-                                                 wg' = WG { nodes = insertBefore (l,wit) post (nodes wg),
-                                                            arcs  = pre `zip` ls ++ ls `zip` post ++ arcs wg }
-                                                 env' = insertClass c wg' env
-                                             classGraph env' (eqs' ++ eqs) wits
-  where c                               = headsym (predOf wit)
-        wg                              = findClass env c
+-- Add predicates to the environment and build overlap graph
+addPreds env []                         = return env
+addPreds env (n@(w,p):pe)
+  | isSub' p                            = case findCoercion env a b of
+                                            Just n' -> do 
+                                               r1 <- imply env n' n
+                                               r2 <- imply env n n'
+                                               case (r1,r2) of
+                                                 (Just _, Just e) -> addPreds (addEqs [(w,nameOf n',e)] env) pe
+                                                 _                -> fail "Ambiguous subtyping"
+                                            Nothing -> do 
+                                               addPreds (insertSubPred n env) pe
+  where (a,b)                           = subsyms p
+addPreds env (n@(w,p):pe)
+  | isClass' p                          = do r <- cmpNode [] [] n (nodes (findClass env c))
+                                             case r of
+                                                Right (pre,post) -> addPreds (insertClassPred pre n post env) pe
+                                                Left (w',e) -> addPreds (addEqs [(w,w',e)] env) pe
+  where c                               = headsym p
 
-
-cmpW env eqs pre post wit []            = return (eqs,pre,post)
-cmpW env eqs pre post wit ((l,wit'):ns) = do r1 <- imply env wit wit'
-                                             r2 <- imply env wit' wit
+        cmpNode pre post n []           = return (Right (pre,post))
+        cmpNode pre post n (n':pe')     = do r1 <- imply env n n'
+                                             r2 <- imply env n' n
                                              case (r1,r2) of
-                                               (Just _ , Just eq) -> cmpW env (eq:eqs) pre post wit ns
-                                               (Just _ , Nothing) -> cmpW env eqs (l:pre) post wit ns
-                                               (Nothing, Just _ ) -> cmpW env eqs pre (l:post) wit ns
-                                               (Nothing, Nothing) -> cmpW env eqs pre post wit ns
-        
+                                               (Just _,  Just e)  -> return (Left (nameOf n',e))
+                                               (Just _,  Nothing) -> cmpNode (nameOf n':pre) post n pe'
+                                               (Nothing, Just _)  -> cmpNode pre (nameOf n':post) n pe'
+                                               (Nothing, Nothing) -> cmpNode pre post n pe'
 
+{-
+closeWGs env eqs []                     = return (thaw env, eqs)
+closeWGs env eqs (n@(w,p) : ns)
+  | isSub' p                            = do ns' <- mapSuccess (mkTrans (noClasses env) n) nodePairs
+                                             let cycles = filter (uncurry (==)) (map (subsyms . predOf) ns')
+                                             assert (null cycles) (encodeCircular (nub (a:b:map fst cycles)))
+                                             (env1,eqs1) <- subGraphs env eqs ns'
+                                             closeWGs env1 eqs1 ns
+  | otherwise                           = do ns' <- mapSuccess (mkSup (noClasses env) n) nodeSups
+                                             (env1,eqs1) <- classGraph env eqs ns'
+                                             closeWGs env1 eqs1 ns
+  where c                               = headsym p
+        (a,b)                           = subsyms p
+        nodesBelow_a                    = nodes (findBelow env a)
+        nodesAbove_b                    = nodes (findAbove env b)
+        nodePairs                       = [ (n0,n2) | n0 <- nodesBelow_a, n2 <- nodesAbove_b ]
+        nodesAbove_c                    = nodes (findAbove env c)
+        nodeSups                        = [ n | n <- nodesAbove_c, uppersym (predOf n) `elem` dom (classEnv env) ]
+-}
 
 {-
 
