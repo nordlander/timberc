@@ -103,6 +103,15 @@ data Exp        = EVar    Name                -- local or global value name, enu
 -- transformed away at compile-time.  The latter can be done using lambda-lifting for local functions and
 -- explicitly closing the struct functions via extra value fields accessed through "this".
 
+-- Note': the presence of destructive updates to struct fields brings up the question of what value a
+-- free struct variable inside a local function refers to.  The most appropriate semantics for our purposes
+-- is that it denotes the value of the struct *at function binding time*.  This means that each used field
+-- should be brought out as free variables during lambda-lifting, not simply the struct reference itself.
+-- Luckily, our variable annotations indicate which struct fields that run the risk of being destructively
+-- updated, so this slightly awkward handling of free variables can be reserved for the cases where it 
+-- really makes a semantic difference.
+
+
 litType (LInt _)                        = TId (prim Int)
 litType (LRat _)                        = TId (prim Float)
 litType (LChr _)                        = TId (prim Char)

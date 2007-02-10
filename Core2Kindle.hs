@@ -499,7 +499,11 @@ cHead env (EAp e es)                    = do (ds,bs,t,f,ts) <- cFHead env e
           where l_ts                    = length ts
                 l_es                    = length es
                 (ts1,ts2)               = splitAt (l_es) ts
-cHead env (EVar x t')                   = case lookup' (tenv env) x of
+cHead env (EVar x t')
+  | stateVar (annot x)                  = case lookup' (tenv env) x of
+                                             Kindle.FunT ts t -> error "Internal: state variable is a FHead in c2k.cHead"
+                                             Kindle.ValT t    -> adjust t' [] [] t (VHead (Kindle.ESel (Kindle.EVar (self env)) x))
+  | otherwise                           = case lookup' (tenv env) x of
                                              Kindle.FunT ts t -> adjust t' [] [] t (FHead (Kindle.ECall x) ts)
                                              Kindle.ValT t    -> adjust t' [] [] t (VHead (Kindle.EVar x))
 cHead env (ESel e l t')                 = do (ds,bs,e) <- cExpT env t1 e
