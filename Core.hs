@@ -104,6 +104,12 @@ arity e                         = 0
 eLet [] [] e                    = e
 eLet te eq e                    = ELet (Binds False te eq) e
 
+eLet' [] e                      = e
+eLet' (bs:bss) e                = ELet bs (eLet' bss e)
+
+cLet' [] c                      = c
+cLet' (bs:bss) c                = CLet bs (cLet' bss c)
+
 eLam [] e                       = e
 eLam te (ELam te' e)            = ELam (te++te') e
 eLam te e                       = ELam te e
@@ -201,6 +207,8 @@ tdefsOf (Types ke ds)           = ds
 
 tsigsOf (Binds _ te es)         = te
 
+tsigsOf'                        = foldr (\bs -> ((tsigsOf bs) ++)) []
+
 eqnsOf (Binds _ te es)          = es
 
 isRec (Binds r _ _)             = r
@@ -208,6 +216,8 @@ isRec (Binds r _ _)             = r
 catDecls ds1 ds2                = Types (ksigsOf ds1 ++ ksigsOf ds2) (tdefsOf ds1 ++ tdefsOf ds2)
 
 catBinds bs1 bs2                = Binds (isRec bs1 || isRec bs2) (tsigsOf bs1 ++ tsigsOf bs2) (eqnsOf bs1 ++ eqnsOf bs2)
+
+concatBinds                     = foldr catBinds nullBinds
 
 nullDecls                       = Types [] []
 

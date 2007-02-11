@@ -53,6 +53,12 @@ cModule (Module m ds _ bs)          = do env <- conDict ds
                                          ds' <- currentStore
                                          return (Kindle.Module m (ds++reverse ds') bs)
 
+-- Convert a list of strongly connected Core binding groups into a list of Kindle bindings
+cBindsList env []                     = return []
+cBindsList env (bs:bss)               = do bs1 <- cBinds env bs
+                                           bs2 <- cBindsList (addTEnv (Kindle.mkTEnv bs1) env) bss
+                                           return (bs1++bs2)
+
 
 findClosureName ts t                = do ds <- currentStore
                                          case find ds of
@@ -165,12 +171,6 @@ cAType t                              = do (ts, t) <- cType t
                                                       return (Kindle.TId n)
 
 
--- Convert a list of strongly connected Core binding groups into a list of Kindle bindings
-cBindsList env []                     = return []
-cBindsList env (bs:bss)               = do bs1 <- cBinds env bs
-                                           bs2 <- cBindsList (addTEnv (Kindle.mkTEnv bs1) env) bss
-                                           return (bs1++bs2)
-
 -- Convert a (mutually recursive) set of Core bindings into a list of Kindle bindings on basis of declared type
 cBinds env (Binds r te eqs)           = do te <- cTEnv te
                                            assert (not r || all Kindle.isFunT te) "Illegal value recursion"
@@ -249,7 +249,7 @@ cAltT cBodyT env t0 e0 (PCon n, e)      = case findCon env n of
 
       
 -- Convert a Core.Exp with an expected Kindle.AType into a Kindle.Cmd
-cBodyT env t0 (ELet bs e)               = do bs' <- cBindsList env (groupBinds bs)
+cBodyT env t0 (ELet bs e)               = do bs' <- cBinds env bs
                                              c <- cBodyT (addTEnv (Kindle.mkTEnv bs') env) t0 e
                                              return (Kindle.CBind bs' c)
 cBodyT env t0 (ECase e alts e')         = do (bs,t,e0) <- cExp env e
@@ -304,7 +304,7 @@ cCmdT env t0 (CAss x e c)               = do (bs,e) <- cExpT env tx e
   where tx                              = case lookup' (tenv env) x of
                                              Kindle.ValT t -> t
                                              _ -> error "Internal: c2k.cCmdT"
-cCmdT env t0 (CLet bs c)                = do bs' <- cBindsList env (groupBinds bs)
+cCmdT env t0 (CLet bs c)                = do bs' <- cBinds env bs
                                              c <- cCmdT (addTEnv (Kindle.mkTEnv bs') env) t0 c
                                              return (Kindle.CBind bs' c)
 cCmdT env t0 (CGen x tx e c)
@@ -372,6 +372,11 @@ cAct env fa fb (EAct e e')              = do (ignore_te,t,c) <- cFun env (EReq e
                                                  es  = [Kindle.EVar m, fa (Kindle.EVar a), fb (Kindle.EVar b)]
                                                  e1  = Kindle.ECall (prim ASYNC) es
                                              return ([(a,tTime),(b,tTime)], c')
+cAct env fa fb e                        = do (bs,t0,f,[ta,tb]) <- cFHead env e
+                                             a  <- newName paramSym
+                                             b  <- newName paramSym
+                                             let c = Kindle.cbind bs (Kindle.CRet (f [fa (Kindle.EVar a), fb (Kindle.EVar b)]))
+                                             return ([(a,tTime), (b,tTime)], c)
 
 tTime                                   = Kindle.TId (prim Time)
 tMsg                                    = Kindle.TId (prim Msg)
@@ -433,7 +438,7 @@ cAlt cBody env e0 (PCon n, e)           = case findCon env n of
                                              return (t, Kindle.CBind bs c)
 
 -- Convert a Core.Exp into a Kindle.AType and Kindle.Cmd
-cBody env (ELet bs e)                   = do bs' <- cBindsList env (groupBinds bs)
+cBody env (ELet bs e)                   = do bs' <- cBinds env bs
                                              (t,c) <- cBody (addTEnv (Kindle.mkTEnv bs') env) e
                                              return (t, Kindle.CBind bs' c)
 cBody env (ECase e (a:alts) e')         = do (bs,t,e0) <- cExp env e
@@ -474,7 +479,7 @@ cHead env (ELit l)                      = return ([], Kindle.litType l, VHead (K
 cHead env (ERec c eqs)                  = do (bs,bs') <- cEqs env te eqs
                                              return (bs, Kindle.TId c, VHead (Kindle.ENew c bs'))
   where Kindle.Struct te                = lookup' (decls env) c
-cHead env (ELet bs e)                   = do bs <- cBindsList env (groupBinds bs)
+cHead env (ELet bs e)                   = do bs <- cBinds env bs
                                              (bs',t,h) <- cHead (addTEnv (Kindle.mkTEnv bs) env) e
                                              return (bs++bs', t, h)
 cHead env (EAp (EVar (Prim Refl _) _) [e])       = cHead env e
@@ -508,7 +513,7 @@ cHead env (EAp e es)                    = do (bs,t,f,ts) <- cFHead env e
                 (ts1,ts2)               = splitAt (l_es) ts
 cHead env (EVar x t')
   | stateVar (annot x)                  = case lookup' (tenv env) x of
-                                             Kindle.FunT ts t -> error "Internal: state variable is a FHead in c2k.cHead"
+                                             Kindle.FunT ts t -> error "Internal: state variable is an FHead in c2k.cHead"
                                              Kindle.ValT t    -> adjust t' [] t (VHead (Kindle.ESel (Kindle.EVar (self env)) x))
   | otherwise                           = case lookup' (tenv env) x of
                                              Kindle.FunT ts t -> adjust t' [] t (FHead (Kindle.ECall x) ts)
@@ -554,7 +559,7 @@ cCmd env (CAss x e c)                   = do (bs,e) <- cExpT env tx e
   where tx                              = case lookup' (tenv env) x of
                                             Kindle.ValT t -> t
                                             _ -> error "Internal: c2k.cCmdT"
-cCmd env (CLet bs c)                    = do bs' <- cBindsList env (groupBinds bs)
+cCmd env (CLet bs c)                    = do bs' <- cBinds env bs
                                              (t,c) <- cCmd (addTEnv (Kindle.mkTEnv bs') env) c
                                              return (t, Kindle.CBind bs' c)
 cCmd env (CGen x tx e c)

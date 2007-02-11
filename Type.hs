@@ -59,21 +59,23 @@ tiModule (Module v ds is bs)    = do (env1,ds1,bs1) <- typeDecls env0 ds
                                      (env2,bs2)     <- classPreds env1 is
                                      -- Here it should be checked that the equalities collected in env2 
                                      -- are actually met by the equations in bs1 and bs2
-                                     (ss1,pe1,bs')  <- tiBindsList (addTEnv0 (tsigsOf is) env2) (groupBinds bs)
-                                     (ss2,pe2,is')  <- tiBinds (addTEnv0 (tsigsOf bs') env2) is
+                                     (ss1,pe1,bs')  <- tiBindsList1 (addTEnv0 (tsigsOf is) env2) (groupBinds bs)
+                                     (ss2,pe2,is')  <- tiBinds (addTEnv0 (tsigsOf bs) env2) is
                                      assert (null (pe1++pe2)) "Internal: top-level type inference"
                                      s <- unify env2 (ss1++ss2)
-                                     let bs3 = bs1 `catBinds` subst s is' `catBinds` bs2 `catBinds` subst s bs'
-                                     return (Module v ds1 nullBinds bs3)
+                                     return (Module v ds1 nullBinds (concatBinds [bs1, subst s is', bs2, subst s bs']))
   where env0                    = initEnv
 
 
-tiBindsList env []              = return ([], [], nullBinds)
-tiBindsList env (bs:bss)        = do (ss1, pe1, bs1) <- tiBinds env bs
-                                     (ss2, pe2, bs2) <- tiBindsList (addTEnv0 (tsigsOf bs1) env) bss
-                                     return (ss1++ss2, pe1++pe2, catBinds bs1 bs2)
+tiBindsList env []              = return ([], [], [])
+tiBindsList env (bs:bss)        = do (ss1, pe1, bs) <- tiBinds env bs
+                                     (ss2, pe2, bss) <- tiBindsList (addTEnv (tsigsOf bs) env) bss
+                                     return (ss1++ss2, pe1++pe2, bs:bss)
 
-
+tiBindsList1 env bss            = do (ss,pe,bss) <- tiBindsList env bss
+                                     return (ss, pe, concatBinds bss)
+                                     
+                                     
 tiBinds env (Binds rec te eqs)  = do --tr ("TYPE-CHECKING " ++ showids xs)
                                      (s,pe,es1)   <- tiRhs0 env' explWits ts es
                                      --tr ("Witnesses obtained: " ++ showids (dom pe))
@@ -170,9 +172,9 @@ tiExp env (ELam te e)           = do (s,pe,t,e) <- tiExp (addTEnv te env) e
                                      return (s, pe, F (rng te) t, ELam te e)
 tiExp env (EAp e es)            = do (s,pe,t,e) <- tiExp env e
                                      tiAp env s pe t e es
-tiExp env (ELet bs e)           = do (s,pe,bs) <- tiBindsList env (groupBinds bs)
-                                     (s',pe',t,e) <- tiExp (addTEnv (tsigsOf bs) env) e
-                                     return (s++s',pe++pe', t, ELet bs e)
+tiExp env (ELet bs e)           = do (s,pe,bss) <- tiBindsList env (groupBinds bs)
+                                     (s',pe',t,e) <- tiExp (addTEnv (tsigsOf' bss) env) e
+                                     return (s++s',pe++pe', t, eLet' bss e)
 tiExp env (ERec c eqs)          = do alphas <- mapM newTVar (kArgs (findKind env c))
                                      (t,ts,_)   <- tiLhs env (foldl TAp (TId c) alphas) tiX sels
                                      (s,pe,es') <- tiRhs env ts es
@@ -228,9 +230,9 @@ tiCmd env (CGen x tx e c)       = do (s,pe,e) <- tiExpT env (scheme (tCmd (fromJ
 tiCmd env (CAss x e c)          = do (s,pe,e) <- tiExpT env (findType env x) e
                                      (s',pe',t,c) <- tiCmd env c
                                      return (s++s', pe++pe', t, CAss x e c)
-tiCmd env (CLet bs c)           = do (s,pe,bs) <- tiBindsList env (groupBinds bs)
-                                     (s',pe',t,c) <- tiCmd (addTEnv (tsigsOf bs) env) c
-                                     return (s++s', pe++pe', t, CLet bs c)
+tiCmd env (CLet bs c)           = do (s,pe,bss) <- tiBindsList env (groupBinds bs)
+                                     (s',pe',t,c) <- tiCmd (addTEnv (tsigsOf' bss) env) c
+                                     return (s++s', pe++pe', t, cLet' bss c)
 
 
 
