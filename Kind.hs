@@ -22,7 +22,7 @@ type KSubst = Map Int Kind
 
 type KEqs = [(Kind,Kind)]
 
-kunify                                  :: KEqs -> M KSubst
+kunify                                  :: KEqs -> M s KSubst
 kunify []                               = return nullSubst
 kunify ((Star,Star):cs)                 = kunify cs
 kunify ((KVar n,k):cs)                  = kvarBind n k cs

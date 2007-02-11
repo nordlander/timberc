@@ -11,7 +11,7 @@ import Reduce
 import Termred
 
 
-typecheck                       :: Module -> M Module
+typecheck                       :: Module -> M s Module
 typecheck m                     = tiModule m
 
 

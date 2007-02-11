@@ -97,13 +97,13 @@ instance Pr Lit where
 
 -- Underlying monad ----------------------------------------------------------------------
 
-newtype M a                     = M (Int -> Either String (Int, a))
+newtype M s a                   = M ((Int,[s]) -> Either String ((Int,[s]), a))
 
 
-instance Functor M where
+instance Functor (M s) where
     fmap f x                    = x >>= (return . f)
 
-instance Monad M where
+instance Monad (M s) where
     M m >>= f                   = M $ \k -> 
                                     case m k of 
                                         Right (k',a) -> m' k' where M m' = f a
@@ -124,12 +124,20 @@ expose (M m)                    = M $ \k ->
 unexpose (Right a)              = return a
 unexpose (Left b)               = fail b
 
-runM (M m)                      = case m 1 of 
+runM (M m)                      = case m (1,[]) of 
                                     Right (_,x) -> x
                                     Left s      -> error s
 
-newNum                          = M $ \k -> Right (k+1, k)
+newNum                          = M $ \(n,s) -> Right ((n+1,s), n)
 
+addToStore x                    = M $ \(n,s) -> Right ((n,x:s), ())
+
+currentStore                    = M $ \(n,s) -> Right ((n,s), s)
+
+localStore (M m)                = M $ \(n0,s0) ->
+                                    case m (n0,[]) of
+                                      Right ((n,s), x) -> Right ((n,s0), x)
+                                      Left s           -> Left s
 
 newName s                       = do n <- newNum
                                      return (Name s n ann)

@@ -206,7 +206,7 @@ compileTimber clo f = do putStrLn $ "[loading module " ++ show f ++ "]"
 -}
 			 return undefined
 
-        pass        :: (Pr b) => (a -> M b) -> Pass -> a -> M b
+        pass        :: (Pr b) => (a -> M s b) -> Pass -> a -> M s b
         pass m p a  = do -- tr ("Pass " ++ show p ++ "...")
                         r <- m a
                         Monad.when (dumpAfter clo p) 

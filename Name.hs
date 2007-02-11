@@ -118,9 +118,13 @@ data Prim                       =
                                 | After
                                 | Before
 
-                                | ASYNC                 -- invisible
+-- invisible ------------------------------------------------------------------------------------
+
+                                | ASYNC                 -- scheduler entry points
                                 | LOCK
                                 | UNLOCK
+                                
+                                | Code                  -- selectors of Msg
                                 
                                 | LISTtags              -- The Kindle Enum for built-in LIST tags
                                 | NILtag

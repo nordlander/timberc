@@ -4,11 +4,11 @@ import Common
 import Kindle
 
 
-lambdalift m                            = return (llModule m)
+lambdalift m                            = return llModule m)
 
 
-data Env                                = Env { locals     :: TEnv,
-                                                expansions :: Map Id [Id] }
+data Env                                = Env { locals     :: ATEnv,
+                                                expansions :: Map Name [Name] }
 
 
 addLocals env te                        = env { locals = te ++ locals env }
@@ -16,7 +16,7 @@ addLocals env te                        = env { locals = te ++ locals env }
 addExpansions env fve                   = env { expansions = fve ++ expansions env }
 
 
-llModule (Module m cs fs vs)            = Module m cs (concat fss ++ fs') vs
+llModule (Module m ds bs)               = Module m ds (concat fss ++ fs') vs
   where (fss,fs')                       = unzip (map (llFDef env0) fs)
         env0                            = Env { locals = [], expansions = [] }
 

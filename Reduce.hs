@@ -18,7 +18,7 @@ type TEqs                               = [(Type,Type)]
 noreduce env eqs pe                     = do s0 <- unify env eqs
                                              return (s0, pe, id)
 
-fullreduce                              :: Env -> TEqs -> PEnv -> M (TSubst, PEnv, Exp->Exp)
+fullreduce                              :: Env -> TEqs -> PEnv -> M s (TSubst, PEnv, Exp->Exp)
 fullreduce env eqs pe                   = do -- tr ("FULLREDUCE " ++ show pe)
                                              s0          <- unify env eqs
                                              let env0     = subst s0 env

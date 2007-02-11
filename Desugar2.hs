@@ -7,13 +7,13 @@ import Match
 import Maybe
 import Fixity
 
-desugar2 :: Module -> M Module
+desugar2 :: Module -> M s Module
 desugar2 m = dsModule m
 
 
 -- Modules ------------------------------------------------------------------
 
-dsModule :: Module -> M Module
+dsModule :: Module -> M s Module
 dsModule (Module c ds)          = do ds <- dsDecls ds
                                      return (Module c ds)
 
@@ -122,7 +122,6 @@ dsBinds bs                      = f [] bs
 
 -- Equations -----------------------------------------------------------------
 
-dsEqns                          :: [Eqn] -> M [Eqn]
 dsEqns []                       = return []
 dsEqns ((LPat p,rh):eqns)       = do v0 <- newName tempSym
                                      sels <- mapM (sel (EVar v0)) vs

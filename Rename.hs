@@ -106,7 +106,7 @@ oloadBinds xs ds                   = concat [ binds c vs sels | DRec True c vs _
 -- Renaming -----------------------------------------------------------------------------------------
 
 class Rename a where
-  rename :: Env -> a -> M a
+  rename :: Env -> a -> M s a
 
 instance Rename a => Rename [a] where
   rename env as                    = mapM (rename env) as

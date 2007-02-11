@@ -11,7 +11,7 @@ syntax2core m = s2c m
 
 
 -- translate a module in the empty environment
-s2c                             :: Module -> M Core.Module
+s2c                             :: Module -> M s Core.Module
 s2c (Module v ds)               = do (ts,pe,bs) <- s2cDecls env0 ds [] [] [] []
                                      return (Core.Module v ts pe bs)
   where env0                    = Env { sigs = [] }

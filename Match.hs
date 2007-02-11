@@ -5,11 +5,11 @@ import Syntax
 import Monad
 import qualified List
 
-pmc :: Exp -> [Alt Exp] -> M Exp
+pmc :: Exp -> [Alt Exp] -> M s Exp
 pmc e alts                      = do e' <- match0 e alts
                                      return (eMatch e')
 
-pmc' :: [Name] -> [([Pat],Rhs Exp)] -> M Exp
+pmc' :: [Name] -> [([Pat],Rhs Exp)] -> M s Exp
 pmc' ws eqs                     = do e <- match ws eqs
                                      return (eMatch e)
 
