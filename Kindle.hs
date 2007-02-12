@@ -134,9 +134,6 @@ isVal (_, Fun _ _ _)                    = False
 isFunT (_, ValT _)                      = False
 isFunT (_, FunT _ _)                    = True
 
-mkTEnv bs                               = mapSnd f bs
-  where f (Val t e)                     = ValT t
-        f (Fun t te c)                  = FunT (rng te) t
 
 cBind [] c                              = c
 cBind bs c                              = CBind False bs c
@@ -183,6 +180,36 @@ lub t     TWild                         = t
 lub t     t'                            = t
 
 lub' ts                                 = foldr lub TWild ts
+
+
+-- Free variables ------------------------------------------------------------------------------------
+
+instance Ids Exp where
+    idents (EVar x)                     = [x]
+    idents (EThis)                      = []
+    idents (ESel e l)                   = idents e
+    idents (ENew x bs)                  = idents bs
+    idents (ECall x es)                 = idents es
+    idents (EEnter e x es)              = idents e ++ idents es
+    idents (ECast t e)                  = idents e
+
+instance Ids Cmd where
+    idents (CRet e)                     = idents e
+    idents (CRun e c)                   = idents e ++ idents c
+    idents (CBind False bs c)           = idents bs ++ (idents c \\ dom bs)
+    idents (CBind True bs c)            = (idents bs ++ idents c) \\ dom bs
+    idents (CAssign e x e' c)           = idents e ++ idents e' ++ idents c
+    idents (CSwitch e alts d)           = idents e ++ idents alts ++ idents d
+    idents (CSeq c c')                  = idents c ++ idents c'
+    idents (CBreak)                     = []
+
+instance Ids Alt where
+    idents (ACon x c)                   = idents c
+    idents (ALit l c)                   = idents c
+
+instance Ids Bind where
+    idents (Val t e)                    = idents e
+    idents (Fun t te c)                 = idents c \\ dom te
 
 
 -- Tentative concrete syntax
