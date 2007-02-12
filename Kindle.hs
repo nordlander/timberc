@@ -70,17 +70,15 @@ data AType      = TId    Name
 -- although that separation will indeed be maintained by the translation from type-checked Core programs.
 data Cmd        = CRet    Exp                 -- simply return $1
                 | CRun    Exp Cmd             -- evaluate $1 for its side-effects only, then execure tail $2
-                | CBind   Binds Cmd           -- introduce local value or function bindings $1, then execute tail $2
+                | CBind   Bool Binds Cmd      -- introduce (recursive? $1) local bindings $2, then execute tail $3
                 | CAssign Exp Name Exp Cmd    -- overwrite value field $2 of struct $1 with value $3, execute tail $4
                 | CSwitch Exp [Alt] Cmd       -- depending on the value of $1, choose tails from $2, default to $3
                 | CSeq    Cmd Cmd             -- execute $1; if fall-through, continue with $2
                 | CBreak                      -- break out of a surrounding switch
                 deriving (Eq,Show)
 
--- Note 1: command (CRun e c) is identical to (CBind [(x,e)] c) if x is a fresh name not used anywhere else
--- Note 2: scoping rules for the bindings in a CBind command are the same as for binding sequences on the
--- module top level.
--- Note 3: the Cmd alternatives CSeq and CBreak are intended to implement the Fatbar and Fail primitives 
+-- Note 1: command (CRun e c) is identical to (CBind False [(x,e)] c) if x is a fresh name not used anywhere else
+-- Note 2: the Cmd alternatives CSeq and CBreak are intended to implement the Fatbar and Fail primitives 
 -- of the pattern-matching datatype PMC used in Core.
 
 data Alt        = ACon    Name Cmd            -- execute tail $2 if switch value matches constructor name $1
@@ -140,21 +138,18 @@ mkTEnv bs                               = mapSnd f bs
   where f (Val t e)                     = ValT t
         f (Fun t te c)                  = FunT (rng te) t
 
-mkTEnv' te                              = mapSnd ValT te
-
-cbind [] c                              = c
-cbind bs c                              = CBind bs c
-
+cBind [] c                              = c
+cBind bs c                              = CBind False bs c
 
 protect x t c                           = liftM (CRun (ECall (prim LOCK) [e])) (protect' e t c)
   where e                               = ECast (TId (prim PID)) (EVar x)
 
 protect' e0 t (CRet e)
   | sensitive e                         = do y <- newName tempSym
-                                             return (CBind [(y,Val t e)] (CRun (ECall (prim UNLOCK) [e0]) (CRet (EVar y))))
+                                             return (cBind [(y,Val t e)] (CRun (ECall (prim UNLOCK) [e0]) (CRet (EVar y))))
   | otherwise                           = return (CRun (ECall (prim UNLOCK) [e0]) (CRet e))
 protect' e0 t (CRun e c)                = liftM (CRun e) (protect' e0 t c)
-protect' e0 t (CBind bs c)              = liftM (CBind bs) (protect' e0 t c)
+protect' e0 t (CBind r bs c)            = liftM (CBind r bs) (protect' e0 t c)
 protect' e0 t (CAssign e y e' c)        = liftM (CAssign e y e') (protect' e0 t c)
 protect' e0 t (CSwitch e alts c)        = liftM2 (CSwitch e) (mapM (protect'' e0 t) alts) (protect' e0 t c)
 protect' e0 t (CSeq c c')               = liftM2 CSeq (protect' e0 t c) (protect' e0 t c')
@@ -174,7 +169,7 @@ sensitive e                             = False
 
 cast t (CRet e)                         = CRet (ECast t e)
 cast t (CRun e c)                       = CRun e (cast t c)
-cast t (CBind bs c)                     = CBind bs (cast t c)
+cast t (CBind r bs c)                   = CBind r bs (cast t c)
 cast t (CAssign e x e' c)               = CAssign e x e' (cast t c)
 cast t (CSwitch e alts c)               = CSwitch e (map cast' alts) (cast t c)
   where cast' (ACon x c)                = ACon x (cast t c)
@@ -228,7 +223,7 @@ instance Pr Cmd where
     pr (CRet e)                         = text "return" <+> pr e <> text ";"
     pr (CRun e c)                       = pr e <> text ";" $$
                                           pr c
-    pr (CBind bs c)                     = vpr bs $$
+    pr (CBind r bs c)                   = vpr bs $$
                                           pr c
     pr (CAssign e x e' c)               = pr e <> text "." <> prId x <+> text ":=" <+> pr e' <> text ";" $$
                                           pr c
