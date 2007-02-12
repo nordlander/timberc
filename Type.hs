@@ -95,7 +95,6 @@ tiBinds env (Binds rec te eqs)  = do --tr ("TYPE-CHECKING " ++ showids xs)
         (xs,es)                 = unzip eqs
         explWits                = map (explicit . annot) xs
         env'                    = if rec then addTEnv te env else env
-    
 
 
 tiRhs0 env explWits ts es       = do (ss,pes,es') <- fmap unzip3 (mapM (tiExpT' env) (zip3 explWits ts es))

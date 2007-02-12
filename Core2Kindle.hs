@@ -96,16 +96,16 @@ simple (c,Constr ts ps _)           = null ts && null ps
 -- Convert a Core.Types into a Kindle.Decls
 cDecls env (Types ke ds)            = do dss <- mapM cDecl ds
                                          return (concat dss)
-  where cDecl (c,DRec _ vs [] ss)   = do te <- cTEnv ss
-                                         return [(c, Kindle.Struct te)]
-        cDecl (c,DType vs t)        = error ("Internal: cannot yet compile type synonyms ")
-        cDecl (c,DData vs [] cs)
-          | all simple cs           = return [(c, Kindle.Enum (dom cs))]
+  where cDecl (n,DRec _ vs [] ss)   = do te <- cTEnv ss
+                                         return [(n, Kindle.Struct te)]
+        cDecl (n,DType vs t)        = error ("Internal: cannot yet compile type synonyms ")
+        cDecl (n,DData vs [] cs)
+          | all simple cs           = return [(n, Kindle.Enum (dom cs))]
           | otherwise               = do ds <- mapM (cCon t) cs
                                          tag <- newName tagSym
-                                         return ((c', Kindle.Enum cs') : (c, Kindle.Struct [(tag,t)]) : ds)
-          where c'                  = substVar (dict env) c
-                t                   = Kindle.ValT (Kindle.TId c')
+                                         return ((n', Kindle.Enum cs') : (n, Kindle.Struct [(tag,t)]) : ds)
+          where n'                  = substVar (dict env) n
+                t                   = Kindle.ValT (Kindle.TId n')
                 cs'                 = substVars (dict env) (dom cs)
 
         cCon t (c,Constr ts ps _)   = do tag <- newName tagSym
@@ -178,9 +178,18 @@ cAType t                              = do (ts, t) <- cType t
 
 -- Convert a (mutually recursive) set of Core bindings into a list of Kindle bindings on basis of declared type
 cBinds env (Binds r te eqs)           = do te <- cTEnv te
-                                           assert (not r || all Kindle.isFunT te) "Illegal value recursion"
+                                           assert (not r || all canRec (rng te)) "Illegal value recursion"
                                            (bf,bs) <- cEqs (if r then addTEnv te env else env) te eqs
                                            return (te, bf . Kindle.CBind r bs)
+  where canRec (Kindle.FunT ts t)     = True                                    -- function
+        canRec (Kindle.ValT t)        = canRec' t
+        canRec' (Kindle.TWild)        = False                                   -- black hole
+        canRec' (Kindle.TId n)
+          | isClosure n               = True                                    -- heap allocated object
+          | otherwise                 = case lookup n (decls env) of
+                                            Just (Kindle.Struct te) -> True     -- heap allocated object
+                                            Just (Kindle.Enum cs)   -> False    -- integer subset
+                                            Nothing                 -> False    -- primitive type
 
 
 -- Convert a set of Core equations into a list of Kindle bindings on basis of declared type

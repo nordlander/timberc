@@ -175,9 +175,8 @@ compileTimber clo f = do putStrLn $ "[loading module " ++ show f ++ "]"
                          rd  <- pass termred        Termred             tc
                          ki  <- pass core2kindle    C2K                 rd
                          ll  <- pass lambdalift     LLift               ki
---                         c   <- pass kindle2c       K2C                 el
---                         return c
-                         return undefined
+                         c   <- pass kindle2c       K2C                 ll
+                         return c
 
         pass        :: (Pr b) => (a -> M s b) -> Pass -> a -> M s b
         pass m p a  = do -- tr ("Pass " ++ show p ++ "...")

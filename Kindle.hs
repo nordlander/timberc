@@ -129,8 +129,8 @@ primDecls                               = (prim Bool,       Enum   [prim FALSE, 
                                           []
                                           
 primDict                                = [ (prim LIST, prim LISTtags), (prim NIL, prim NILtag), (prim CONS, prim CONStag) ]
-                                          
 
+                               
 isVal (_, Val _ _)                      = True
 isVal (_, Fun _ _ _)                    = False
 
