@@ -24,10 +24,7 @@ import Type
 import Termred
 import Kindle
 import Core2Kindle
---import Clos
---import Lambdalift
---import Collect
---import Eliminate
+import Lambdalift
 import Kindle2C
 
 {-
@@ -112,50 +109,31 @@ Decls:
 
 Type:
 - Performs type inference and constraint simplification/solving
+- Makes all function calls match the arity of the called function
 - Inserts explicit overloading and subtyping witnesses
 
 Termred:
 - Does simple term level reduction and restricted inlining within primitive environment (witnesses only)
 
 Core2Kindle:
-- Converts symbolic names to "sym_NN" syntax
-- Converts div, mod, negate, not to C/Kindle symbols
-- Replaces ' with _ in variable names
-- Translates Int, Char, Float typenames to C/Kindle counterparts
-
-- Converts type expressions by making function arities and closure types explicit
-- Approximates polymorphism by wildcard type (temporary solution)
+- Converts type expressions by making closure types explicit
+- Approximates polymorphism by the wildcard type
+- Splits non-trivial datatypes into constructor records with a common tag field
 
 - Encodes monadic code by means of extra (mutable) state argument
 
 - Sorts equations into value or function definitions, on basis of arity
 - Makes fatbar and fail pattern-matching operators explicit, removes match and commit
-- Replaces aft and bef primitive constants by side-effecting rts calls
-- Replaces act, req and templ by rts calls
-- Singles out "hard" expression atoms as arity 0 functions
-- Splits case expressions into literal and constructor variants
+- Implements after and before primitives in terms of Time arithmetic
+- 
+- Replaces act and req by calls to the rts
 
 - Builds Kindle abstract syntax
 
-Clos:
-- Eta-expands and splits argument lists as necessary to make arities match
-- Replaces anonymous abstractions with closure terms
-- Converts function calls to closure enter terms as guided by the closure type
-- Inserts explicit typecast terms
-
 LambdaLift:
-- Abstracts out all free local variables from function definitions and closure constructions
-- Adds free variable parameters to function calls and closures
-
-Collect:
-- Collects all closure types referenced in the program and generates corresponding Kindle classes
-- Collects all types at which classes are instantiated (and currently drops them)
-
-Eliminate:
+- Abstracts out free local variables from local function definitions and adds corresponding arguments to call sites
+- Abstracts out free local variables from struct functions as extra value fields referenced through "this"
 - Moves local function definitions to the top level
-- Replaces closure types with corresponding class names (deterministically generated)
-- Replaces closure terms with corresponding class instantiations and custom "enter" method
-- Replaces closure enter with "enter" method calls
 
 Kindle2C:
 - Classifies Kindle unions and classes according to their number of fields
@@ -196,15 +174,10 @@ compileTimber clo f = do putStrLn $ "[loading module " ++ show f ++ "]"
                          tc  <- pass typecheck      TCheck              kc
                          rd  <- pass termred        Termred             tc
                          ki  <- pass core2kindle    C2K                 rd
-{-
-                         cl  <- pass clos           Clos                ki
-                         ll  <- pass lambdalift     LLift               cl
-                         ct  <- pass collect        Coll                ll
-                         el  <- pass eliminate      Elim                ct
-                         c   <- pass kindle2c       K2C                 el
-                         return c
--}
-			 return undefined
+                         ll  <- pass lambdalift     LLift               ki
+--                         c   <- pass kindle2c       K2C                 el
+--                         return c
+                         return undefined
 
         pass        :: (Pr b) => (a -> M s b) -> Pass -> a -> M s b
         pass m p a  = do -- tr ("Pass " ++ show p ++ "...")

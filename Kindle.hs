@@ -123,6 +123,9 @@ primDecls                               = (prim Bool,       Enum   [prim FALSE, 
                                           (prim CONS,       Struct [(name0 "tag", ValT (TId (prim LISTtags))),
                                                                     (name0 "hd",  ValT TWild), 
                                                                     (name0 "tl",  ValT (TId (prim LIST)))]) :
+                                          (prim Msg,        Struct [(prim Code, FunT [] TWild),
+                                                                    (prim Baseline, ValT (TId (prim Time))),
+                                                                    (prim Deadline, ValT (TId (prim Time)))]) :
                                           []
                                           
 primDict                                = [ (prim LIST, prim LISTtags), (prim NIL, prim NILtag), (prim CONS, prim CONStag) ]
@@ -134,9 +137,13 @@ isVal (_, Fun _ _ _)                    = False
 isFunT (_, ValT _)                      = False
 isFunT (_, FunT _ _)                    = True
 
+typeOf (Val t e)                        = t
+typeOf (Fun t te c)                     = t
 
-cBind [] c                              = c
 cBind bs c                              = CBind False bs c
+
+cBindR r [] c                           = c
+cBindR r bs c                           = CBind r bs c
 
 protect x t c                           = liftM (CRun (ECall (prim LOCK) [e])) (protect' e t c)
   where e                               = ECast (TId (prim PID)) (EVar x)
@@ -189,7 +196,7 @@ instance Ids Exp where
     idents (EThis)                      = []
     idents (ESel e l)                   = idents e
     idents (ENew x bs)                  = idents bs
-    idents (ECall x es)                 = idents es
+    idents (ECall x es)                 = x : idents es
     idents (EEnter e x es)              = idents e ++ idents es
     idents (ECast t e)                  = idents e
 

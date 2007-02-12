@@ -124,7 +124,9 @@ data Prim                       =
                                 | LOCK
                                 | UNLOCK
                                 
-                                | Code                  -- selectors of Msg
+                                | Code                  -- selectors of struct Msg
+                                | Baseline
+                                | Deadline
                                 
                                 | LISTtags              -- The Kindle Enum for built-in LIST tags
                                 | NILtag
