@@ -216,10 +216,7 @@ data Pass            = Parser
                      | TCheck
                      | Termred
                      | C2K
-                     | Clos
                      | LLift
-                     | Coll
-                     | Elim
                      | K2C
                      | Main                  -- top level 'pass'
                      deriving (Show,Eq,Ord,Enum)

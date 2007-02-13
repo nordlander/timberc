@@ -128,7 +128,7 @@ primDecls                               = (prim Bool,       Enum   [prim FALSE, 
                                                                     (prim Deadline, ValT (TId (prim Time)))]) :
                                           []
                                           
-primDict                                = [ (prim LIST, prim LISTtags), (prim NIL, prim NILtag), (prim CONS, prim CONStag) ]
+primDict                                = [ (prim NIL, prim LIST), (prim CONS, prim LIST) ]
 
                                
 isVal (_, Val _ _)                      = True

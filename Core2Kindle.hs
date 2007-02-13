@@ -15,15 +15,13 @@ core2kindle m                       = localStore (cModule m)
 
 data Env                            = Env { decls :: Kindle.Decls,
                                             tenv  :: Kindle.TEnv,
-                                            dict  :: Map Name Name,
+                                            dict  :: Map Name Name,     -- connects constructor names to their sum type
                                             self  :: Name }
 
-env0                                = Env { decls = Kindle.primDecls, 
+env0 d                              = Env { decls = Kindle.primDecls, 
                                             tenv  = [],
-                                            dict  = Kindle.primDict,
+                                            dict  = Kindle.primDict ++ d,
                                             self  = name0 "" }
-
-invdict env                         = inv (dict env)
 
 addDecls ds env                     = env { decls = ds ++ decls env }
 
@@ -31,29 +29,29 @@ addTEnv te env                      = env { tenv = te ++ tenv env }
 
 addTEnv' te env                     = addTEnv (mapSnd Kindle.ValT te) env
 
-addDict d env                       = env { dict = d ++ dict env }
-
 pushSelf x t env                    = env { tenv = (x,Kindle.ValT t) : tenv env, self = x }
 
 findSel env l                       = head [ (Kindle.TId n, t) | (n, Kindle.Struct te) <- decls env, (l',t) <- te, l==l' ]
 
 findCon env k                       = case lookup k (decls env) of
-                                        Just (Kindle.Struct te) -> (Kindle.TId n, Just (mapSnd valT te))
-                                        _                       -> (Kindle.TId n, Nothing)
-  where k'                          = substVar (dict env) k
-        n'                          = head [ c | (c, Kindle.Enum cs) <- decls env, k' `elem` cs ]
-        n                           = substVar (invdict env) n'
+                                        Just (Kindle.Struct te) -> (t0, Just (mapSnd valT te))
+                                        _                       -> (t0, Nothing)
+  where t0                          = Kindle.TId (substVar (dict env) k)
         valT (Kindle.ValT t)        = t
         valT (Kindle.FunT _ _)      = error "Internal: c2k.findCon"     -- can't happen, see cCon below
 
 
 -- Convert a Core.Modul into a Kindle.Module
-cModule (Module m ds _ bs)          = do env <- conDict ds
-                                         ds  <- cDecls env ds
-                                         mapM_ addToStore (filter (isClosure . fst) ds)
-                                         bs  <- cBindsList env (groupBinds bs)
-                                         ds' <- currentStore
-                                         return (Kindle.Module m (ds++reverse ds') bs)
+cModule (Module m ds _ bs)          = do ds1  <- cDecls ds
+                                         mapM_ addToStore (filter (isClosure . fst) ds1)
+                                         bs  <- cBindsList (addDecls ds1 env) (groupBinds bs)
+                                         ds2 <- currentStore
+                                         return (Kindle.Module m (ds1++reverse ds2) bs)
+  where env                         = env0 (conDict ds)
+
+
+-- Construct the dictionary that connects constructor names to their sum type
+conDict (Types ke ds)               = concat [ dom cs `zip` repeat c | (c,DData _ _ cs) <- ds ]
 
 
 -- Convert a list of strongly connected Core binding groups into a list of Kindle bindings
@@ -84,34 +82,26 @@ findClosureDef n                    = do ds <- currentStore
                                             _ -> error "Internal: c2k.findClosureDef"
 
 
--- Construct the required renaming dictionary on basis of the declared data constructors
-conDict (Types ke ds)               = do d <- renaming cons
-                                         return (env0 { dict = d })
-  where cons                        = concat [ c : dom cs | (c,DData _ _ cs) <- ds, not (all simple cs) ]
-
-
 simple (c,Constr ts ps _)           = null ts && null ps
 
 
 -- Convert a Core.Types into a Kindle.Decls
-cDecls env (Types ke ds)            = do dss <- mapM cDecl ds
+cDecls (Types ke ds)                = do dss <- mapM cDecl ds
                                          return (concat dss)
   where cDecl (n,DRec _ vs [] ss)   = do te <- cTEnv ss
                                          return [(n, Kindle.Struct te)]
         cDecl (n,DType vs t)        = error ("Internal: cannot yet compile type synonyms ")
         cDecl (n,DData vs [] cs)
           | all simple cs           = return [(n, Kindle.Enum (dom cs))]
-          | otherwise               = do ds <- mapM (cCon t) cs
-                                         tag <- newName tagSym
-                                         return ((n', Kindle.Enum cs') : (n, Kindle.Struct [(tag,t)]) : ds)
-          where n'                  = substVar (dict env) n
-                t                   = Kindle.ValT (Kindle.TId n')
-                cs'                 = substVars (dict env) (dom cs)
+          | otherwise               = do tag <- newName tagSym
+                                         n' <- newName typeSym
+                                         let te0 = [(tag, Kindle.ValT (Kindle.TId n'))]
+                                         ds <- mapM (cCon te0) cs
+                                         return ((n', Kindle.Enum (dom cs)) : (n, Kindle.Struct te0) : ds)
 
-        cCon t (c,Constr ts ps _)   = do tag <- newName tagSym
-                                         te <- newEnv paramSym (ps++ts)
+        cCon te0 (c,Constr ts ps _) = do te <- newEnv paramSym (ps++ts)
                                          te <- cTEnv' te
-                                         return (c, Kindle.Struct ((tag,t):te))
+                                         return (c, Kindle.Struct (te0++te))
 
 -- Convert a Core.TEnv into a Kindle.TEnv on basis of type arity
 cTEnv te                            = mapM conv te
@@ -248,9 +238,9 @@ cAltT cBodyT env t0 e0 (PCon n, e)      = case findCon env n of
                                             (_,Just te) -> do let e1 = Kindle.ECast (Kindle.TId n) e0
                                                                   (xs,ts) = unzip (tail te)
                                                               c <- cRhsT env t0 e ts (map (Kindle.ESel e1) xs)
-                                                              return (Kindle.ACon (substVar (dict env) n) c)
+                                                              return (Kindle.ACon n c)
                                             (_,Nothing) -> do c <- cBodyT env t0 e
-                                                              return (Kindle.ACon (substVar (dict env) n) c)
+                                                              return (Kindle.ACon n c)
   where cRhsT env t0 e [] []            = cBodyT env t0 e
         cRhsT env t0 (ELam te e) ts es  = do te <- cATEnv te
                                              let bs = mkBind te (zipWith3 match (rng te) ts es)
@@ -437,9 +427,9 @@ cAlt cBody env e0 (PCon n, e)           = case findCon env n of
                                             (_,Just te) -> do let e1 = Kindle.ECast (Kindle.TId n) e0
                                                                   (xs,ts) = unzip (tail te)
                                                               (t, c) <- cRhs env e ts (map (Kindle.ESel e1) xs)
-                                                              return (t, Kindle.ACon (substVar (dict env) n) c)
+                                                              return (t, Kindle.ACon n c)
                                             (_,Nothing) -> do (t,c) <- cBody env e
-                                                              return (t, Kindle.ACon (substVar (dict env) n) c)
+                                                              return (t, Kindle.ACon n c)
   where cRhs env e [] []                = cBody env e
         cRhs env (ELam te e) ts es      = do te <- cATEnv te
                                              let bs = mkBind te (zipWith3 match (rng te) ts es)

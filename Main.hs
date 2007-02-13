@@ -136,10 +136,7 @@ LambdaLift:
 - Moves local function definitions to the top level
 
 Kindle2C:
-- Classifies Kindle unions and classes according to their number of fields
-- Makes initialization assignments explicit at object allocation time
 - Shotrcuts data representation for nullary constructors
-- Generates custom "main" function
 - Pretty-prints abstract syntax as C code
 
 
