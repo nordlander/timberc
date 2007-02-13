@@ -180,6 +180,7 @@ logHistory (env,c)                      = (env { history = c : history env }, c)
 conservative (env,c)                    = not (forced env)
 
 
+findKind env (Tuple n _)                = foldr KFun Star (replicate n Star)
 findKind env c                          = case lookup c (kindEnv env) of
                                             Just k  -> k
                                             Nothing -> Star  -- Hack!  This alternative is intended for the fresh type
