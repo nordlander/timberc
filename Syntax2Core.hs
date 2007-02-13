@@ -199,7 +199,7 @@ s2cEc env t (ELam ps e)         = do e' <- s2cEc (addSigs te env) t' e
 s2cEc env _ (EAp e1 e2)         = do (t,e1) <- s2cEi env e1
                                      let (t1,_) = splitT t
                                      e2 <- s2cEc env (peel t1) e2
-                                     return (Core.eAp e1 [e2])
+                                     return (Core.eAp2 e1 [e2])
 s2cEc env t (ELet bs e)         = do (te',bs') <- s2cBinds env te eqs
                                      e' <- s2cEc (addSigs te' env) t e
                                      return (Core.ELet bs' e')
@@ -291,7 +291,7 @@ s2cEi env (ELam ps e)           = do (t,e') <- s2cEi (addSigs te env) e
 s2cEi env (EAp e1 e2)           = do (t,e1) <- s2cEi env e1
                                      let (t1,t2) = splitT t
                                      e2 <- s2cEc env (peel t1) e2
-                                     return (t2, Core.eAp e1 [e2])
+                                     return (t2, Core.eAp2 e1 [e2])
 s2cEi env (ELet bs e)           = do (te',bs') <- s2cBinds env te eqs
                                      (t,e') <- s2cEi (addSigs te' env) e
                                      return (t, Core.ELet bs' e')

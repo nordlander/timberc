@@ -128,6 +128,9 @@ eAp e es                        = EAp e es
 
 eAp1 e1 e2                      = EAp e1 [e2]
 
+eAp2 (EAp e es) es'             = eAp2 e (es++es')
+eAp2 e es                       = EAp e es
+
 eFlat e                         = flat e []
   where flat (EAp e es) es'     = flat e (es++es')
         flat e es               = (e,es)
