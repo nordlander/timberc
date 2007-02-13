@@ -478,20 +478,13 @@ instance Polvars Type where
 
 
 instance Polvars (Type,[Type]) where
-    polvars env (t@(TId c), ts)         = polvars env ps `pcat` pswap (polvars env ns) `pcat` pdupl (tvars zs)
-      where (w,p)                       = findCoercion' env c c
-            (ps0,ns0)                   = unzip (map (subs . pbody) (pctxt p))
-            (tlo,tup)                   = subs (pbody p)
-            vs                          = tyvars tlo
-            s                           = vs `zip` ts
-            ps                          = [ t | (v,t) <- s, v `elem` tyvars ps0 ]
-            ns                          = [ t | (v,t) <- s, v `elem` tyvars ns0 ]
-            zs                          = [ t | (v,t) <- s, v `elem` tyvars tup ]
+    polvars env (TFun ts t, [])         = polvars env t  `pcat` pswap (polvars env ts)
+    polvars env (TId c, ts)             = pdupl (tvars ts)
+      where k                           = findKind env c    -- Future work: let the result be determined by variances encoded in k
     polvars env (TVar n, ts)            = ([n],[]) `pcat` pdupl (tvars ts)
         
 instance Polvars Scheme where
-    polvars env (Scheme r ps ke)        = (vs,vs) `pcat` polvars env r
-      where vs                          = tvars ps
+    polvars env (Scheme t ps ke)        = polvars env t `pcat` pdupl (tvars ps)
 
 instance Polvars Rho where
     polvars env (R t)                   = polvars env t
