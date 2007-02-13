@@ -207,7 +207,7 @@ stdSupply                               = alternate (abcdeijklxyz 0 []) (mfghn 0
 abcdeijklxyz                            = gensupply "abcdeijklxyz"
 mfghn                                   = gensupply "mfghn"
 
-abcSupply                               = gensupply "abcdefghijklmnopqrstuvwxyz" 0
+abcSupply                               = gensupply "abcdefghijklmnopqrstuvwxyz" 0 []
 
 
 gensupply                               :: String -> Int -> [String] -> [String]

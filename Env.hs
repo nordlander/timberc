@@ -204,6 +204,10 @@ findKind env c                          = case lookup c (kindEnv env) of
                                                     -- error ("Internal: Unknown type constructor: " ++ show c)
 
 
+findType env (Tuple n _)                = Scheme (R (TFun ts t)) [] (vs `zip` repeat Star)
+  where vs                              = map name0 (take n abcSupply)
+        ts                              = map TId vs
+        t                               = tAp (TId (tuple n)) ts
 findType env v                          = case lookup v (typeEnv env ++ typeEnv0 env) of
                                             Just sc -> sc
                                             Nothing -> error ("Internal: Unknown identifier: " ++ show v)
