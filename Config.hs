@@ -217,6 +217,7 @@ data Pass            = Parser
                      | Termred
                      | C2K
                      | LLift
+                     | Prepare4C
                      | K2C
                      | Main                  -- top level 'pass'
                      deriving (Show,Eq,Ord,Enum)

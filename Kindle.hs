@@ -3,6 +3,8 @@ module Kindle where
 import Monad
 import Common
 import PP
+import qualified Core
+import qualified Env
 
 -- Kindle is the main back-end intermediate language.  It is a typed imerative language with dynamic 
 -- memory allocation and garbage-collection, that can be described as a slightly extended version of
@@ -128,17 +130,43 @@ primDecls                               = (prim Bool,       Enum   [prim FALSE, 
                                                                     (prim Deadline, ValT (TId (prim Time)))]) :
                                           []
                                           
-primDict                                = [ (prim NIL, prim LIST), (prim CONS, prim LIST) ]
+primCons                                = (prim UNIT,       prim UNIT) :
+                                          (prim NIL,        prim LIST) :
+                                          (prim CONS,       prim LIST) :
+                                          (prim TRUE,       prim Bool) :
+                                          (prim FALSE,      prim Bool) :
+                                          []
 
-                               
+primKindleTerms                         = map prim [ IntPlus .. TimeGT ]
+
+primTEnv                                = map cv (Env.primTypeEnv `restrict` primKindleTerms)
+  where 
+    cv (x,Core.Scheme (Core.R t) [] []) = (x, cv1 t)
+    cv _                                = error "Internal: Kindle.primTEnv"
+    cv1 (Core.TFun ts t)                = FunT (map cv2 ts) (cv2 t)
+    cv1 t                               = ValT (cv2 t)
+    cv2 (Core.TId n)                    = TId n
+    cv2 _                               = error "Internal: Kindle.primTEnv"
+
+
+searchField ds x                        = [ (TId n, t) | (n, Struct te) <- ds, (x',t) <- te, x==x' ]
+
+searchCons ds x                         = [ TId n | (n, Enum xs) <- ds, x `elem` xs ]
+
+
 isVal (_, Val _ _)                      = True
 isVal (_, Fun _ _ _)                    = False
 
 isFunT (_, ValT _)                      = False
 isFunT (_, FunT _ _)                    = True
 
-typeOf (Val t e)                        = t
-typeOf (Fun t te c)                     = t
+typeOf (Val t e)                        = ValT t
+typeOf (Fun t te c)                     = FunT (rng te) t
+
+rngType (ValT t)                        = t
+rngType (FunT ts t)                     = t
+
+typeOf' b                               = rngType (typeOf b)
 
 cBind bs c                              = CBind False bs c
 

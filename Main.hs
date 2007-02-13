@@ -25,6 +25,7 @@ import Termred
 import Kindle
 import Core2Kindle
 import Lambdalift
+import Prepare4C
 import Kindle2C
 
 {-
@@ -172,7 +173,8 @@ compileTimber clo f = do putStrLn $ "[loading module " ++ show f ++ "]"
                          rd  <- pass termred        Termred             tc
                          ki  <- pass core2kindle    C2K                 rd
                          ll  <- pass lambdalift     LLift               ki
-                         c   <- pass kindle2c       K2C                 ll
+                         pc  <- pass prepare4c      Prepare4C           ll
+                         c   <- pass kindle2c       K2C                 pc
                          return c
 
         pass        :: (Pr b) => (a -> M s b) -> Pass -> a -> M s b

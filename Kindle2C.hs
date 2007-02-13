@@ -4,8 +4,185 @@ module Kindle2C(kindle2c) where
 import Common
 import Kindle
 import PP
+import Char
 
-kindle2c m                      = undefined
+kindle2c m                      = return (render h, render c)
+  where h                       = k2hModule m
+        c                       = k2cModule m
+
+-- ====================================================================================================
+-- Generate .h file
+-- ====================================================================================================
+
+k2hModule (Module n ds bs)      = hHeader n $$$
+                                  vcat (map k2cStructStub [ n | (n, Struct te) <- ds ]) $$$
+                                  vcat (map k2cDecl ds) $$$
+                                  vcat (map k2cBindStub bs) $$$
+                                  hFooter n
+
+hHeader n                       = empty
+hFooter n                       = empty
+
+k2cStructStub n                 = text "struct" <+> k2cName n <> text ";"
+
+k2cDecl (n, Enum cs)            = text "enum" <+> braces (commasep k2cName cs) <> text ";"
+k2cDecl (n, Struct te)          = text "struct" <+> text "{" $$
+                                    nest 4 (vcat (map k2cSig te)) $$
+                                  text "};" $$
+                                  text "typedef" <+> text "struct" <+> k2cName n <+> text "*" <> k2cName n <> text ";"
+
+k2cSig (x, FunT ts t)           = k2cType t <+> parens (text "*" <> k2cName x) <+> parens (commasep k2cType ts) <> text";"
+k2cSig (x, ValT t)              = k2cType t <+> k2cName x <> text ";"
+
+k2cSig' (x, t)                  = k2cType t <+> k2cName x
+
+k2cBindStub (x, Fun t te c)     = k2cType t <+> k2cName x <+> parens (commasep k2cSig' te) <> text";"
+k2cBindStub (x, Val t e)        = text "extern" <+> k2cType t <+> k2cName x <> text ";"
+
+
+-- Generate types
+k2cType (TId n)                 = k2cName n
+k2cType (TWild)                 = text "void*"
+
+
+-- ====================================================================================================
+-- Generate .c file
+-- ====================================================================================================
+
+k2cModule (Module n ds bs)      = cHeader n $$$
+                                  vcat (map k2cBind bs) $$$
+                                  cFooter n
+
+cHeader n                       = empty
+cFooter n                       = empty
+
+
+                                  -- temporary, only works for non-recursive values
+k2cBind (x, Val t (ENew n bs))  = k2cType t <+> k2cName x <+> newCall $$
+                                  vcat (map (k2cSBind (EVar x)) bs)
+  where newCall                 = k2cName (prim NEW) <+> parens (text "sizeOf" <> parens (text "*" <> k2cName n))
+k2cBind (x, Val t e)            = k2cType t <+> k2cName x <+> text "=" <+> k2cExp e <> text ";"
+k2cBind (x, Fun t te c)         = k2cType t <+> k2cName x <+> parens (commasep k2cSig' te) <+> text "{" $$
+                                    nest 4 (k2cCmd c) $$
+                                  text "}"
+
+
+k2cSBind e0 (x, Val t e)        = k2cExp (ESel e0 x) <+> text "=" <+> k2cExp e <> text ";"
+k2cSBind e0 (x, Fun t te (CRet (ECall f es)))
+                                = k2cExp (ESel e0 x) <+> text "=" <+> k2cName f <> text ";"
+k2cSBind e0 (x, _)              = error "Internal: k2cSBind"
+
+
+k2cCmd (CRet e)                 = text "return" <+> k2cExp e <> text ";"
+k2cCmd (CRun e c)               = k2cExp e <> text ";" $$
+                                  k2cCmd c
+k2cCmd (CBind False bs c)       = vcat (map k2cBind bs) $$
+                                  k2cCmd c
+k2cCmd (CAssign e x e' c)       = k2cExp (ESel e x) <+> text "=" <+> k2cExp e' <> text ";" $$
+                                  k2cCmd c
+k2cCmd (CSwitch e alts d)       = text "switch" <+> parens (k2cExp e) <+> text "{" $$
+                                    nest 4 (vcat (map k2cAlt alts)) $$
+                                    text "default:" <+> k2cNestCmd d $$
+                                  text "}"
+k2cCmd (CSeq c c')              = k2cCmd c $$
+                                  k2cCmd c'
+k2cCmd (CBreak)                 = text "break;"
+
+
+k2cAlt (ACon n c)               = k2cName n <> text ":" <+> k2cNestCmd c
+k2cAlt (ALit l c)               = pr l <> text ":" <+> k2cNestCmd c
+
+
+k2cNestCmd (CRet e)             = text "return" <+> k2cExp e <> text ";"
+k2cNestCmd (CBreak)             = text "break;"
+k2cNestCmd c                    = text "{" <+> k2cCmd c $$
+                                  text "}"
+
+
+k2cExp (ECall x [e1,e2])
+  | isInfix x                   = k2cExp' e1 <+> k2cName x <+> k2cExp' e2
+k2cExp e                        = k2cExp' e
+
+
+k2cExp' (EVar x)                = k2cName x
+k2cExp' (ELit l)                = pr l
+k2cExp' (ESel e l)              = k2cExp' e <> text "->" <> k2cName l
+k2cExp' (EEnter (EVar x) f es)  = k2cExp' (ESel (EVar x) f) <> parens (commasep k2cExp (EVar x : es))
+k2cExp' e@(ECall x es)
+  | isInfix x                   = parens (k2cExp e)
+  | otherwise                   = k2cName x <> parens (commasep k2cExp es)
+k2cExp' _                       = error "Internal: k2cExp"
+
+
+k2cName (Prim p _)              = k2cPrim p
+k2cName (Tuple i _)             = text ("_TUP" ++ show i)
+k2cName (Name s t a)
+  | location a == Nothing       = text ('_':s) <> text ('_':show t)     -- proper names can't begin with "_"
+  | isCName s                   = text s <> text ('_':show t)
+  | otherwise                   = text ('_':show t)
+
+
+isCName s                       = isAlpha (head s) && all isAlphaNum (tail s)
+
+
+isInfix (Prim p _)              = p `notElem` [IntNeg, FloatNeg, CharToInt, IntToChar] ++ [Sec .. Infinity]
+isInfix _                       = False
+
+
+k2cPrim IntPlus                 = text "+"
+k2cPrim IntMinus                = text "-"
+k2cPrim IntTimes                = text "*"
+k2cPrim IntDiv                  = text "/"
+k2cPrim IntMod                  = text "%"
+k2cPrim IntNeg                  = text "-"
+
+k2cPrim IntEQ                   = text "=="
+k2cPrim IntNE                   = text "!="
+k2cPrim IntLT                   = text "<"
+k2cPrim IntLE                   = text "<="
+k2cPrim IntGE                   = text ">="
+k2cPrim IntGT                   = text ">"
+                                
+k2cPrim FloatPlus               = text "+"
+k2cPrim FloatMinus              = text "-"
+k2cPrim FloatTimes              = text "*"
+k2cPrim FloatDiv                = text "/"
+k2cPrim FloatNeg                = text "-"
+                                
+k2cPrim FloatEQ                 = text "=="
+k2cPrim FloatNE                 = text "!="
+k2cPrim FloatLT                 = text "<"
+k2cPrim FloatLE                 = text "<="
+k2cPrim FloatGE                 = text ">="
+k2cPrim FloatGT                 = text ">"
+
+k2cPrim CharToInt               = text "(int)"
+k2cPrim IntToChar               = text "(char)"
+
+k2cPrim MsgEQ                   = text "=="
+k2cPrim MsgNE                   = text "!="
+
+k2cPrim PidEQ                   = text "=="
+k2cPrim PidNE                   = text "!="
+                                
+k2cPrim Sec                     = text "SEC"
+k2cPrim MilliSec                = text "MILLISEC"
+k2cPrim MicroSec                = text "MICROSEC"
+k2cPrim NanoSec                 = text "NANOSEC"
+k2cPrim Infinity                = text "INFINITY"
+                                
+k2cPrim TimePlus                = text "+"
+k2cPrim TimeMinus               = text "-"
+k2cPrim TimeMin                 = text "MIN"
+                                
+k2cPrim TimeEQ                  = text "=="
+k2cPrim TimeNE                  = text "!="
+k2cPrim TimeLT                  = text "<"
+k2cPrim TimeLE                  = text "<="
+k2cPrim TimeGE                  = text ">="
+k2cPrim TimeGT                  = text ">"
+
+
 {-
 
 kindle2c m                      = return ((render (k2cHeader m)), (render (k2cModule m)))

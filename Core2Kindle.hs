@@ -1,6 +1,5 @@
 module Core2Kindle(core2kindle) where
 {- -}
-import List(unzip4)
 import Common
 import Core
 import Name
@@ -15,12 +14,12 @@ core2kindle m                       = localStore (cModule m)
 
 data Env                            = Env { decls :: Kindle.Decls,
                                             tenv  :: Kindle.TEnv,
-                                            dict  :: Map Name Name,     -- connects constructor names to their sum type
+                                            cons  :: Map Name Name,     -- connects constructor names to their sum type
                                             self  :: Name }
 
-env0 d                              = Env { decls = Kindle.primDecls, 
-                                            tenv  = [],
-                                            dict  = Kindle.primDict ++ d,
+env0                                = Env { decls = Kindle.primDecls, 
+                                            tenv  = Kindle.primTEnv,
+                                            cons  = Kindle.primCons,
                                             self  = name0 "" }
 
 addDecls ds env                     = env { decls = ds ++ decls env }
@@ -29,14 +28,16 @@ addTEnv te env                      = env { tenv = te ++ tenv env }
 
 addTEnv' te env                     = addTEnv (mapSnd Kindle.ValT te) env
 
+addCons cs env                      = env { cons = cs ++ cons env }
+
 pushSelf x t env                    = env { tenv = (x,Kindle.ValT t) : tenv env, self = x }
 
-findSel env l                       = head [ (Kindle.TId n, t) | (n, Kindle.Struct te) <- decls env, (l',t) <- te, l==l' ]
+findSel env l                       = head (Kindle.searchField (decls env) l)
 
 findCon env k                       = case lookup k (decls env) of
                                         Just (Kindle.Struct te) -> (t0, Just (mapSnd valT te))
                                         _                       -> (t0, Nothing)
-  where t0                          = Kindle.TId (substVar (dict env) k)
+  where t0                          = Kindle.TId (substVar (cons env) k)
         valT (Kindle.ValT t)        = t
         valT (Kindle.FunT _ _)      = error "Internal: c2k.findCon"     -- can't happen, see cCon below
 
@@ -47,11 +48,11 @@ cModule (Module m ds _ bs)          = do ds1  <- cDecls ds
                                          bs  <- cBindsList (addDecls ds1 env) (groupBinds bs)
                                          ds2 <- currentStore
                                          return (Kindle.Module m (ds1++reverse ds2) bs)
-  where env                         = env0 (conDict ds)
+  where env                         = addCons (dataCons ds) env0
 
 
--- Construct the dictionary that connects constructor names to their sum type
-conDict (Types ke ds)               = concat [ dom cs `zip` repeat c | (c,DData _ _ cs) <- ds ]
+-- Build a mapping from constructor names to the corresponding datatype name
+dataCons (Types ke ds)              = concat [ dom cs `zip` repeat c | (c,DData _ _ cs) <- ds ]
 
 
 -- Convert a list of strongly connected Core binding groups into a list of Kindle bindings
@@ -171,15 +172,14 @@ cBinds env (Binds r te eqs)           = do te <- cTEnv te
                                            assert (not r || all canRec (rng te)) "Illegal value recursion"
                                            (bf,bs) <- cEqs (if r then addTEnv te env else env) te eqs
                                            return (te, bf . Kindle.CBind r bs)
-  where canRec (Kindle.FunT ts t)     = True                                    -- function
+  where canRec (Kindle.FunT ts t)     = True                -- function
         canRec (Kindle.ValT t)        = canRec' t
-        canRec' (Kindle.TWild)        = False                                   -- black hole
-        canRec' (Kindle.TId n)
-          | isClosure n               = True                                    -- heap allocated object
-          | otherwise                 = case lookup n (decls env) of
-                                            Just (Kindle.Struct te) -> True     -- heap allocated object
-                                            Just (Kindle.Enum cs)   -> False    -- integer subset
-                                            Nothing                 -> False    -- primitive type
+        canRec' (Kindle.TWild)        = False               -- black hole
+        conRec' (Kindle.TId n)        = canRec'' n
+        canRec'' (Prim Int _)         = False               -- no range left for dummy values
+        canRec'' (Prim Float _)       = False               -- no range left for dummy values
+        canRec'' (Prim Time _)        = False               -- no range left for dummy values
+        canRec'' n                    = True                -- pointer or limited range constant
 
 
 -- Convert a set of Core equations into a list of Kindle bindings on basis of declared type

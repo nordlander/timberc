@@ -120,9 +120,10 @@ data Prim                       =
 
 -- invisible ------------------------------------------------------------------------------------
 
-                                | ASYNC                 -- scheduler entry points
+                                | ASYNC                 -- RTS entry points
                                 | LOCK
                                 | UNLOCK
+                                | NEW
                                 
                                 | Code                  -- selectors of struct Msg
                                 | Baseline
