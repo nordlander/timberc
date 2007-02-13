@@ -75,12 +75,14 @@ redCmd env (CLet bs c)          = CLet (redBinds env bs) (redCmd env c)
 redCmd env (CAss x e c)         = CAss x (redExp env e) (redCmd env c)
 
 
-redBeta env ((x,t):te) (EVar x' Nothing) (e:es)
+redBeta env ((x,t):te) (EVar x' _) (e:es)
   | x == x'                     = redBeta env te e es                    -- trivial body
 redBeta env ((x,t):te) b (e:es)
   | isGenerated x || simple e   = redBeta ((x,e):env) te b es            -- appears only once(??), strict, no size increase
   | otherwise                   = ELet (Binds False [(x,t)] [(x,e)]) (redBeta env te b es)
 redBeta env [] b []             = redExp env b
+redBeta env [] b es             = redApp env b es
+redBeta env te b []             = redEta env te b
 
 
 redSel env (ERec c eqs) s t es  = case lookup s eqs of
@@ -92,7 +94,7 @@ redSel env e s t es             = eAp (ESel e s t) es
 redCase env (ECon k _,es') alts d es
   | all value es'                = findCon env k es' alts d es
 redCase env (ELit l,_) alts d es = findLit env l alts d es
-redCase env (e,es') alts d es    = eAp (ECase (eAp e (map (redExp env) es')) (mapSnd (redExp env) alts) (redExp env d)) es
+redCase env (e,es') alts d es    = eAp (ECase (eAp e es') (mapSnd (redExp env) alts) (redExp env d)) es
 
 
 findCon env k es' [] d es       = redApp env d es

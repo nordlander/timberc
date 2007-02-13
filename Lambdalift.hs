@@ -120,23 +120,3 @@ llExp env (EEnter e f es)               = do e <- llExp env e
                                              liftM (EEnter e f) (mapM (llExp env) es)
 llExp env (ECast t e)                   = liftM (ECast t) (llExp env e)
 
-
-{-llBody env (BDef fs b)                  = tr' ("Lifting  " ++ showids xs ++ "\n" ++
-                                               " free0:  " ++ showids free0 ++ "\n" ++
-                                               " free1:  " ++ showids free1 ++ "\n" ++
-                                               " locals: " ++ showids (locals env) ++ "\n" ++
-                                               " fte:    " ++ show fte ++ "\n" ++
-                                               " fs':    " ++ show fs' ++ "\n" ++
-                                               " lifted: " ++ show (map lift fs1) ++ "\n") 
-                                              (concat fss ++ map lift fs' ++ fs'', b')
-  where xs                              = dom fs
-        te                              = funEnv fs
-        free0                           = evars fs \\ xs
-        free1                           = free0 ++ concat [ ys | (y,ys) <- expansions env, y `elem` free0 ]
-        fte                             = locals env `restrict` free1
-        env'                            = addExpansions env (xs `zip` repeat (dom fte))
-        (fss,fs')                       = unzip (map (llFDef env') fs)
-        lift (x, Fun te t b)            = (x, Fun (fte++te) t b)
-        (fs'', b')                      = llBody env' b
--}
-

@@ -169,17 +169,15 @@ cAType t                              = do (ts, t) <- cType t
 
 -- Convert a (mutually recursive) set of Core bindings into a list of Kindle bindings on basis of declared type
 cBinds env (Binds r te eqs)           = do te <- cTEnv te
-                                           assert (not r || all canRec (rng te)) "Illegal value recursion"
+                                           assert (not r || all rec (rng te)) "Illegal value recursion"
                                            (bf,bs) <- cEqs (if r then addTEnv te env else env) te eqs
                                            return (te, bf . Kindle.CBind r bs)
-  where canRec (Kindle.FunT ts t)     = True                -- function
-        canRec (Kindle.ValT t)        = canRec' t
-        canRec' (Kindle.TWild)        = False               -- black hole
-        conRec' (Kindle.TId n)        = canRec'' n
-        canRec'' (Prim Int _)         = False               -- no range left for dummy values
-        canRec'' (Prim Float _)       = False               -- no range left for dummy values
-        canRec'' (Prim Time _)        = False               -- no range left for dummy values
-        canRec'' n                    = True                -- pointer or limited range constant
+  where rec (Kindle.FunT ts t)        = True                -- function
+        rec (Kindle.ValT t)           = rec1 t
+        rec1 (Kindle.TWild)           = False               -- black hole
+        rec1 (Kindle.TId n)           = rec2 (lookup n (decls env))
+        rec2 (Just (Kindle.Struct _)) = True                -- heap-allocated object
+        rec2 _                        = False               -- primitive type or enum type
 
 
 -- Convert a set of Core equations into a list of Kindle bindings on basis of declared type

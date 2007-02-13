@@ -58,9 +58,9 @@ cFooter n                       = empty
 
 
                                   -- temporary, only works for non-recursive values
-k2cBind (x, Val t (ENew n bs))  = k2cType t <+> k2cName x <+> newCall $$
+k2cBind (x, Val t (ENew n bs))  = k2cType t <+> k2cName x <+> text "=" <+> newCall $$
                                   vcat (map (k2cSBind (EVar x)) bs)
-  where newCall                 = k2cName (prim NEW) <+> parens (text "sizeOf" <> parens (text "*" <> k2cName n))
+  where newCall                 = k2cName (prim NEW) <+> parens (text "sizeof" <> parens (text "*" <> k2cName n))
 k2cBind (x, Val t e)            = k2cType t <+> k2cName x <+> text "=" <+> k2cExp e <> text ";"
 k2cBind (x, Fun t te c)         = k2cType t <+> k2cName x <+> parens (commasep k2cSig' te) <+> text "{" $$
                                     nest 4 (k2cCmd c) $$
@@ -111,6 +111,7 @@ k2cExp' (EEnter (EVar x) f es)  = k2cExp' (ESel (EVar x) f) <> parens (commasep 
 k2cExp' e@(ECall x es)
   | isInfix x                   = parens (k2cExp e)
   | otherwise                   = k2cName x <> parens (commasep k2cExp es)
+k2cExp' (ECast t e)             = parens (k2cType t) <> k2cExp' e
 k2cExp' _                       = error "Internal: k2cExp"
 
 
