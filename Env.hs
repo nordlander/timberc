@@ -399,20 +399,17 @@ instance Show ([TVar],[TVar],[TVar],[TVar],[TVar],[TVar],([TVar],[TVar])) where
                                           "ub' = "  ++ show ub'  ++ "\n" ++
                                           "pols = (" ++ show (fst pols)   ++ "," ++ show (snd pols) ++ ")\n"
 -}
-varInfo gs                              = (emb,vs,lb,ub,lb',ub',polvs)
-  where (subs,cls)                      = partition isSub (map snd gs)
-        tts                             = map ((\[t1,t2] -> (tFlat t1, tFlat t2)) . snd . tFlat) subs
-        lb                              = [ n | ((TVar _, _), (TVar n, _)) <- tts ]
-        ub                              = [ n | ((TVar n, _), (TVar _, _)) <- tts ]
-        lb'                             = [ n | (_, (TVar n, _)) <- tts ]
-        ub'                             = [ n | ((TVar n, _), _) <- tts ]
-        emb                             = concat (map (\((_,ts1),(_,ts2)) -> tvars ts1 ++ tvars ts2) tts)
-        env                             = fst (head gs)
-        vs                              = tevars env
-        vs'                             = vs ++ tvars cls
-        (pvs,nvs)                       = pols env
-        polvs                           = (nub (vs'++pvs), nub (vs'++nvs))
-                                        
+varInfo gs                              = (emb, vs, lb, ub, lb', ub', polvs)
+  where (sPreds,cPreds)                 = partition isSub (map snd gs)
+        tts                             = map ((\(t1,t2) -> (tFlat t1, tFlat t2)) . subs) sPreds
+        lb                              = [ n | ((TVar _, _), (TVar n, _)) <- tts ]       -- all n with a lower var bound
+        ub                              = [ n | ((TVar n, _), (TVar _, _)) <- tts ]       -- all n with an upper var bound
+        lb'                             = [ n | (_, (TVar n, _)) <- tts ]                 -- all n with any lower bound
+        ub'                             = [ n | ((TVar n, _), _) <- tts ]                 -- all n with any upper bound
+        emb                             = concat (map (\((_,ts1),(_,ts2)) -> tvars (ts1++ts2)) tts) -- the vars inside type exps
+        vs                              = tevars env                                      -- the vars free in the environment
+        polvs                           = pnub (pols env `pcat` pdupl (vs++tvars cPreds)) -- target vars (positive & negative)
+        env                             = fst (head gs) -- arbitrary choice, but we only use info that must be equal in all gs
 
 
 
@@ -461,6 +458,8 @@ pcat (p,n) (p',n')                      = (p++p', n++n')
 pswap (p,n)                             = (n, p)
 
 pdupl tvs                               = (tvs,tvs)
+
+pnub (p,n)                              = (nub p, nub n)
 
 
 class Polvars a where
