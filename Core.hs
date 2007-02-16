@@ -280,7 +280,7 @@ instance Ids Exp where
     idents (EAct e e')          = idents e ++ idents e'
     idents (EReq e e')          = idents e ++ idents e'
     idents (ETempl x t te c)    = idents c \\ (x : dom te)
-    idents (EDo x t c)          = filter (not . stateVar . annot) (idents c \\ [x])
+    idents (EDo x t c)          = filter (not . isState) (idents c \\ [x])
     idents _                    = []
 
 instance Ids Alt where

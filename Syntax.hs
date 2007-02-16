@@ -508,13 +508,9 @@ instance Ids Exp where
     idents _                    = []
 
 
-pvars x                         = filter isVar (idents x)
+pvars p                         = evars p
 
-pvars' x                        = map show (pvars x)
-
-svars ss                        = concat [ pvars p | SAss p _ <- ss ]
-
-svars' x                        = map show (svars x)
+assignedVars ss                 = concat [ pvars p | SAss p _ <- ss ]
 
 
 -- Bound variables ----------------------------------------------------------

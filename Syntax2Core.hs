@@ -234,7 +234,7 @@ s2cE env (ETempl (Just x) Nothing ss)   = do c <- s2cS (addSigs te env) (map uns
                                              te2 <- s2cTE te1
                                              return (Core.ETempl x t te2 c)
   where 
-    vs                                  = svars ss
+    vs                                  = assignedVars ss
     te                                  = sigs ss
     te1                                 = prune te vs ++ ((vs \\ dom te) `zip` repeat TWild)
 

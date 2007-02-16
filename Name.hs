@@ -204,6 +204,8 @@ isVar i                         = not (isCon i)
 isGenerated (Name _ _ a)        = location a == Nothing
 isGenerated _                   = False
 
+isState n                       = stateVar (annot n)
+
 
 -- Local tyvars --------------------------------------------------------------------
 

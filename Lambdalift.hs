@@ -26,7 +26,7 @@ setThisVars vs env                      = env { thisVars = vs }
 
 addLocals te env                        = env { locals = te ++ locals env }
 
-addExpansions fve env                   = env { expansions = fve ++ expansions env }
+addExpansions exps env                  = env { expansions = exps ++ expansions env }
 
 
 -- Convert a module
@@ -72,10 +72,10 @@ llCmd env (CBind r bs c)                = do vals' <- mapM (llBind env') vals
                                              return (cBindR r vals' c')
   where (vals,funs)                     = partition isVal bs
         free0                           = evars funs
-        free1                           = free0 ++ concat [ vs | (f,vs) <- expansions env, f `elem` free0 ]
+        free1                           = free0 ++ concat [ xs | (f,xs) <- expansions env, f `elem` free0 ]
         fte                             = locals (if r then env1 else env) `restrict` free1
         env1                            = addLocals (mapSnd typeOf' vals) env
-        env2                            = addExpansions (dom funs `zip` repeat (dom fte)) env2
+        env2                            = addExpansions (dom funs `zip` repeat (dom fte)) env1
         env'                            = if r then env2 else env
         liftFun (x, Fun t te c)         = addToStore (Right (x, Fun t (fte++te) c))
 llCmd env (CRet e)                      = liftM CRet (llExp env e)
@@ -95,7 +95,7 @@ llAlt env (ALit l c)                    = liftM (ALit l) (llCmd env c)
 -- Convert an expression
 llExp env (ECall x es)                  = do es <- mapM (llExp env) es
                                              case lookup x (expansions env) of
-                                                Just vs -> return (ECall x (map EVar vs ++ es))
+                                                Just xs -> return (ECall x (map EVar xs ++ es))
                                                 Nothing -> return (ECall x es)
 llExp env (ENew n bs)
   | null fte                            = liftM (ENew n) (mapM (llBind env) bs)
@@ -106,7 +106,7 @@ llExp env (ENew n bs)
                                              return (ECast (TId n) (ENew n' (vals' ++ funs' ++ map close fte)))
   where (vals,funs)                     = partition isVal bs
         free0                           = evars funs
-        free1                           = free0 ++ concat [ vs | (f,vs) <- expansions env, f `elem` free0 ]
+        free1                           = free0 ++ concat [ xs | (f,xs) <- expansions env, f `elem` free0 ]
         fte                             = locals env `restrict` free1
         Kindle.Struct te                = lookup' (decls env) n
         close (x,t)                     = (x, Val t (EVar x))
@@ -119,4 +119,3 @@ llExp env (ESel e l)                    = liftM (flip ESel l) (llExp env e)
 llExp env (EEnter e f es)               = do e <- llExp env e
                                              liftM (EEnter e f) (mapM (llExp env) es)
 llExp env (ECast t e)                   = liftM (ECast t) (llExp env e)
-

@@ -246,6 +246,8 @@ tyvars x                        = filter isVar (idents x)
 
 evars x                         = filter isVar (idents x)
 
+svars x                         = filter isState (idents x)
+
 
 vclose vss vs
   | null vss2                   = nub vs

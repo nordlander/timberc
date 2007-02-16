@@ -103,14 +103,6 @@ data Exp        = EVar    Name                -- local or global value name, enu
 -- transformed away at compile-time.  The latter can be done using lambda-lifting for local functions and
 -- explicitly closing the struct functions via extra value fields accessed through "this".
 
--- Note': the presence of destructive updates to struct fields brings up the question of what value a
--- free struct variable inside a local function refers to.  The most appropriate semantics for our purposes
--- is that it denotes the value of the struct *at function binding time*.  This means that each used field
--- should be brought out as free variables during lambda-lifting, not simply the struct reference itself.
--- Luckily, our variable annotations indicate which struct fields that run the risk of being destructively
--- updated, so this slightly awkward handling of free variables can be reserved for the cases where it 
--- really makes a semantic difference.
-
 
 litType (LInt _)                        = TId (prim Int)
 litType (LRat _)                        = TId (prim Float)
@@ -149,7 +141,7 @@ primTEnv                                = map cv (Env.primTypeEnv `restrict` pri
     cv2 _                               = error "Internal: Kindle.primTEnv"
 
 
-searchField ds x                        = [ (TId n, t) | (n, Struct te) <- ds, (x',t) <- te, x==x' ]
+searchFields ds x                       = [ (TId n, t) | (n, Struct te) <- ds, (x',t) <- te, x==x' ]
 
 searchCons ds x                         = [ TId n | (n, Enum xs) <- ds, x `elem` xs ]
 
@@ -198,7 +190,7 @@ sensitive (ENew n bs)                   = True
 sensitive (ECast t e)                   = sensitive e
 sensitive e                             = False
 
-
+{-
 cast t (CRet e)                         = CRet (ECast t e)
 cast t (CRun e c)                       = CRun e (cast t c)
 cast t (CBind r bs c)                   = CBind r bs (cast t c)
@@ -208,13 +200,7 @@ cast t (CSwitch e alts c)               = CSwitch e (map cast' alts) (cast t c)
         cast' (ALit l c)                = ALit l (cast t c)
 cast t (CSeq c c')                      = CSeq (cast t c) (cast t c')
 cast t (CBreak)                         = CBreak
-
-
-lub TWild t                             = t
-lub t     TWild                         = t
-lub t     t'                            = t
-
-lub' ts                                 = foldr lub TWild ts
+-}
 
 
 -- Free variables ------------------------------------------------------------------------------------
@@ -247,7 +233,7 @@ instance Ids Bind where
     idents (Fun t te c)                 = idents c \\ dom te
 
 
--- Tentative concrete syntax
+-- Tentative concrete syntax ------------------------------------------------------------------------------
 
 instance Pr Module where
     pr (Module m ds bs)                 = text "module" <+> prId m <+> text "where" $$

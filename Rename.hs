@@ -256,7 +256,7 @@ instance Rename Exp where
                                    = do env1 <- extRenSelf env v
                                         env2 <- setRenS env1 st
                                         liftM (ETempl (Just (renE env2 v)) Nothing) (renameS env2 (shuffleS ss))
-    where st                       = svars ss
+    where st                       = assignedVars ss
   rename env (EAfter e1 e2)        = liftM2 EAfter (rename env e1) (rename env e2)
   rename env (EBefore e1 e2)       = liftM2 EBefore (rename env e1) (rename env e2)
 

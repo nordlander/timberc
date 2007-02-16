@@ -15,12 +15,12 @@ core2kindle m                       = localStore (cModule m)
 data Env                            = Env { decls :: Kindle.Decls,
                                             tenv  :: Kindle.TEnv,
                                             cons  :: Map Name Name,     -- connects constructor names to their sum type
-                                            self  :: Name }
+                                            selfN :: Maybe Name }
 
 env0                                = Env { decls = Kindle.primDecls, 
                                             tenv  = Kindle.primTEnv,
                                             cons  = Kindle.primCons,
-                                            self  = name0 "" }
+                                            selfN = Nothing }
 
 addDecls ds env                     = env { decls = ds ++ decls env }
 
@@ -30,9 +30,15 @@ addTEnv' te env                     = addTEnv (mapSnd Kindle.ValT te) env
 
 addCons cs env                      = env { cons = cs ++ cons env }
 
-pushSelf x t env                    = env { tenv = (x,Kindle.ValT t) : tenv env, self = x }
+pushSelf x t env                    = env { tenv = (x,Kindle.ValT t) : tenv env, selfN = Just x }
 
-findSel env l                       = head (Kindle.searchField (decls env) l)
+haveSelf env                        = selfN env /= Nothing
+
+self env                            = fromJust (selfN env)
+
+nullSelf env                        = env { selfN = Nothing }
+
+findSel env l                       = head (Kindle.searchFields (decls env) l)
 
 findCon env k                       = case lookup k (decls env) of
                                         Just (Kindle.Struct te) -> (t0, Just (mapSnd valT te))
@@ -172,12 +178,12 @@ cBinds env (Binds r te eqs)           = do te <- cTEnv te
                                            assert (not r || all rec (rng te)) "Illegal value recursion"
                                            (bf,bs) <- cEqs (if r then addTEnv te env else env) te eqs
                                            return (te, bf . Kindle.CBind r bs)
-  where rec (Kindle.FunT ts t)        = True                -- function
+  where rec (Kindle.FunT ts t)        = True                            -- Good: function
         rec (Kindle.ValT t)           = rec1 t
-        rec1 (Kindle.TWild)           = False               -- black hole
+        rec1 (Kindle.TWild)           = False                           -- Bad: black hole
         rec1 (Kindle.TId n)           = rec2 (lookup n (decls env))
-        rec2 (Just (Kindle.Struct _)) = True                -- heap-allocated object
-        rec2 _                        = False               -- primitive type or enum type
+        rec2 (Just (Kindle.Struct _)) = True                            -- Good: heap-allocated object
+        rec2 _                        = False                           -- Bad: primitive type or enum type
 
 
 -- Convert a set of Core equations into a list of Kindle bindings on basis of declared type
@@ -188,7 +194,7 @@ cEqs env te eqs                       = do (bfs,bs) <- fmap unzip (mapM cEq eqs)
                                               (bf,e) <- cExpT env t e
                                               return (bf, (x, Kindle.Val t e))
                                           Kindle.FunT ts t -> do
-                                              (te,c) <- cFunT env ts t e             -- Top-down mode!
+                                              (te,c) <- cFunT (nullSelf env) ts t e             -- Top-down mode!
                                               return (id, (x, Kindle.Fun t te c))
 
 
@@ -286,7 +292,7 @@ cExpT env t0 e0                         = do (bf,t,e) <- cExp env e0
                                                  fmap and (sequence (zipWith matches (t:ts) (t':ts')))
         matches t t'                    = return True
         cExpT' (Kindle.TId n) e         = do (ts,t) <- findClosureDef n
-                                             (te,c) <- cFunT env ts t e
+                                             (te,c) <- cFunT (nullSelf env) ts t e
                                              return (id, Kindle.ENew n [(prim Code, Kindle.Fun t te c)])
 
 
@@ -298,24 +304,22 @@ cExpTs env (t:ts) (e:es)                = do (bf,e) <- cExpT env t e
 
 -- Convert a Core.Cmd into a Kindle.Cmd
 cCmdT env t0 (CRet e)                   = do (bf,e) <- cExpT env t0 e
-                                             return (bf (Kindle.CRet e))
+                                             return (bindOrphans env bf e (Kindle.CRet e))
 cCmdT env t0 (CAss x e c)               = do (bf,e) <- cExpT env tx e
                                              (c) <- cCmdT env t0 c
-                                             return (bf (Kindle.CAssign (Kindle.EVar (self env)) x e c))
-  where tx                              = case lookup' (tenv env) x of
-                                             Kindle.ValT t -> t
-                                             _ -> error "Internal: c2k.cCmdT"
+                                             return (bindOrphans env bf e (Kindle.CAssign (Kindle.EVar (self env)) x e c))
+  where tx                              = Kindle.rngType (lookup' (tenv env) x)
 cCmdT env t0 (CLet bs c)                = do (te,bf) <- cBinds env bs
                                              c <- cCmdT (addTEnv te env) t0 c
-                                             return (bf c)
+                                             return (bindOrphans' env bf c)
 cCmdT env t0 (CGen x tx e c)
   | isDummy x                           = do (bf,t,e) <- cExp env (EAp e [eVar (self env)])
                                              c <- cCmdT env t0 c
-                                             return (bf (Kindle.CRun e c))
+                                             return (bindOrphans env bf e (Kindle.CRun e c))
   | otherwise                           = do tx <- cAType tx
                                              (bf,e) <- cExpT env tx (EAp e [eVar (self env)])
                                              c <- cCmdT (addTEnv [(x,Kindle.ValT tx)] env) t0 c
-                                             return (bf (Kindle.cBind [(x,Kindle.Val tx e)] c))
+                                             return (bindOrphans env bf e (Kindle.cBind [(x,Kindle.Val tx e)] c))
 cCmdT env t0 (CExp e)                   = cCmdExpT env t0 e
 
 
@@ -326,14 +330,25 @@ cCmdExpT env t0 (EDo x tx c)            = do tx <- cAType tx
 cCmdExpT env t0 (ECase e alts e')       = do (bf,t,e0) <- cExp env e
                                              alts <- mapM (cAltT cCmdExpT env t0 e0) alts
                                              c <- cBodyT env t0 e'
-                                             return (bf (Kindle.CSwitch (scrutinee env t e0) alts c))
+                                             return (bindOrphans env bf e0 (Kindle.CSwitch (scrutinee env t e0) alts c))
 cCmdExpT env t0 e                       = do (bf,e) <- cExpT env t0 (EAp e [eVar (self env)])
-                                             return (bf (Kindle.CRet e))
+                                             return (bindOrphans env bf e (Kindle.CRet e))
 
 
 -- =========================================================================================
 -- Misc helpers
 -- =========================================================================================
+
+bindOrphans env bf e
+  | not (haveSelf env)                  = bf
+  | otherwise                           = Kindle.cBind bs' . bf
+  where bs'                             = zipWith mkSelBind vs ts
+        vs                              = nub (filter isState (idents e ++ idents (bf Kindle.CBreak)))
+        ts                              = map (Kindle.rngType . snd . findSel env) vs
+        mkSelBind v t                   = (v, Kindle.Val t (Kindle.ESel (Kindle.EVar (self env)) v))
+ 
+bindOrphans' env bf                     = bindOrphans env bf (Kindle.EVar (prim UNIT))
+ 
 
 -- Cast Kindle.Exp e into Kindle.AType t (if necessary)
 match t t' e
@@ -458,7 +473,6 @@ cBody env e                             = do (bf,t,e) <- cExp env e
                                              return (t, bf (Kindle.CRet e))
 
 
-
 -- Convert a Core.Exp into a Kindle.Exp, infer its Kindle.AType and overflow into a list of Kindle.Binds if necessary
 cExp env e                              = do (bf,t,h) <- cHead env e
                                              case h of
@@ -513,7 +527,7 @@ cHead env (EAp e es)                    = do (bf,t,f,ts) <- cFHead env e
                 l_es                    = length es
                 (ts1,ts2)               = splitAt (l_es) ts
 cHead env (EVar x t')
-  | stateVar (annot x)                  = case lookup' (tenv env) x of
+  | stateVar (annot x) && haveSelf env  = case lookup' (tenv env) x of
                                              Kindle.FunT ts t -> error "Internal: state variable is an FHead in c2k.cHead"
                                              Kindle.ValT t    -> adjust t' id t (VHead (Kindle.ESel (Kindle.EVar (self env)) x))
   | otherwise                           = case lookup' (tenv env) x of
@@ -528,13 +542,15 @@ cHead env (ECon k t')                   = case t2 of
                                              Just te -> adjust t' id t1 (FHead (Kindle.ECast t1 . Kindle.ENew k . mkBind te) (rng te))
                                              Nothing -> adjust t' id t1 (VHead (Kindle.EVar k))
   where (t1,t2)                         = findCon env k
-cHead env e                             = do (te,t,c) <- cFun env e      -- Bottom-up mode!
+cHead env e@(ECase _ _ _)               = do (t,c) <- cBody env e       -- Bottom-up mode!
                                              x <- newName tempSym
-                                             let h = if null te then VHead (Kindle.ECall x []) else FHead (Kindle.ECall x) (rng te)
-                                             return (Kindle.cBind [(x, Kindle.Fun t te c)], t, h)
+                                             return (Kindle.cBind [(x, Kindle.Fun t [] c)], t, VHead (Kindle.ECall x []))
+cHead env e                             = do (te,t,c) <- cFun (nullSelf env) e     -- Bottom-up mode!
+                                             x <- newName tempSym
+                                             return (Kindle.cBind [(x, Kindle.Fun t te c)], t, FHead (Kindle.ECall x) (rng te))
 
 
--- Adjust the type of a Head on bassis of the leaf identifier's annotated instance type (if any)
+-- Adjust the type of a Head on basis of the leaf identifier's annotated instance type (if any)
 adjust Nothing bf t h                   = return (bf, t, h)
 adjust (Just t0) bf t h                 = do (ts',t') <- cType (deQualify' t0)
                                              return (bf, t', adjust' t h ts' t')
@@ -548,29 +564,27 @@ cFHead env e                            = do (bf,t,h) <- cHead env e
                                                 FHead f ts -> return (bf, t, f, ts)
                                                 VHead e -> do (ts,t') <- findClosureDef n
                                                               return (bf, t', Kindle.EEnter e (prim Code), ts)
-                                                  where Kindle.TId n           = t
+                                                  where Kindle.TId n = t
 
 
 -- Convert a Core.Cmd into a Kindle.AType and a Kindle.Cmd 
 cCmd env (CRet e)                       = do (bf,t,e) <- cExp env e
-                                             return (t, bf (Kindle.CRet e))
+                                             return (t, bindOrphans env bf e (Kindle.CRet e))
 cCmd env (CAss x e c)                   = do (bf,e) <- cExpT env tx e
                                              (t,c) <- cCmd env c
-                                             return (t, bf (Kindle.CAssign (Kindle.EVar (self env)) x e c))
-  where tx                              = case lookup' (tenv env) x of
-                                            Kindle.ValT t -> t
-                                            _ -> error "Internal: c2k.cCmdT"
+                                             return (t, bindOrphans env bf e (Kindle.CAssign (Kindle.EVar (self env)) x e c))
+  where tx                              = Kindle.rngType (lookup' (tenv env) x)
 cCmd env (CLet bs c)                    = do (te,bf) <- cBinds env bs
                                              (t,c) <- cCmd (addTEnv te env) c
-                                             return (t, bf c)
+                                             return (t, bindOrphans' env bf c)
 cCmd env (CGen x tx e c)
   | isDummy x                           = do (bf,t,e) <- cExp env (EAp e [eVar (self env)])
                                              (t',c) <- cCmd env c
-                                             return (t', bf (Kindle.CRun e c))
+                                             return (t', bindOrphans env bf e (Kindle.CRun e c))
   | otherwise                           = do tx <- cAType tx
                                              (bf,e) <- cExpT env tx (EAp e [eVar (self env)])
                                              (t,c) <- cCmd (addTEnv [(x,Kindle.ValT tx)] env) c
-                                             return (t, bf (Kindle.cBind [(x,Kindle.Val tx e)] c))
+                                             return (t, bindOrphans env bf e (Kindle.cBind [(x,Kindle.Val tx e)] c))
 cCmd env (CExp e)                       = cCmdExp env e
 
 
@@ -582,6 +596,6 @@ cCmdExp env (ECase e (a:alts) e')       = do (bf,t,e0) <- cExp env e
                                              (t1,a) <- cAlt cCmdExp env e0 a
                                              alts <- mapM (cAltT cCmdExpT env t1 e0) alts
                                              c <- cBodyT env t1 e'
-                                             return (t1, bf (Kindle.CSwitch (scrutinee env t e0) (a:alts) c))
+                                             return (t1, bindOrphans env bf e0 (Kindle.CSwitch (scrutinee env t e0) (a:alts) c))
 cCmdExp env e                           = do (bf,t,e) <- cExp env (EAp e [eVar (self env)])
-                                             return (t, bf (Kindle.CRet e))
+                                             return (t, bindOrphans env bf e (Kindle.CRet e))
