@@ -111,7 +111,7 @@ litType (LStr _)                        = error "Internal chaos: Kindle.litType 
 
 primDecls                               = (prim Bool,       Enum   [prim FALSE, prim TRUE]) :
                                           (prim UNIT,       Enum   [prim UNIT]) :
-                                          (prim LISTtags,   Enum   [prim NILtag, prim CONStag]) :
+                                          (prim LISTtags,   Enum   [prim NIL, prim CONS]) :
                                           (prim LIST,       Struct [(name0 "tag", ValT (TId (prim LISTtags)))]) :
                                           (prim NIL,        Struct [(name0 "tag", ValT (TId (prim LISTtags)))]) :
                                           (prim CONS,       Struct [(name0 "tag", ValT (TId (prim LISTtags))),

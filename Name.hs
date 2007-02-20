@@ -129,12 +129,15 @@ data Prim                       =
                                 | Baseline
                                 | Deadline
                                 
+                                | Box                   -- The Kindle Struct for boxed values
+                                | Value                 -- selector of struct Box
+                                
                                 | LISTtags              -- The Kindle Enum for built-in LIST tags
-                                | NILtag
-                                | CONStag
                                 deriving (Eq,Ord,Enum,Bounded,Show)
 
 isConPrim p                     = p <= TRUE
+
+invisible p                     = p >= ASYNC
 
 isIdPrim p                      = p `notElem` primSyms
 
@@ -158,8 +161,9 @@ strRep MilliSec                 = "millisec"
 strRep MicroSec                 = "microsec"
 strRep NanoSec                  = "nanosec"
 strRep Infinity                 = "infinity"
-strRep p | isConPrim p          = show p
-         | otherwise            = "prim" ++ show p
+strRep p 
+  | isConPrim p || invisible p  = show p
+  | otherwise                   = "prim" ++ show p
                                 
 
 

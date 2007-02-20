@@ -1,4 +1,4 @@
-module Type where
+module Type(typecheck) where
       
 import Common
 import Core

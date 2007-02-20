@@ -1,4 +1,4 @@
-module Prepare4C where
+module Prepare4C(prepare4c) where
 
 import Monad
 import Common
@@ -9,6 +9,8 @@ import Kindle
 --   every struct function simply relays all work to a global function with an explicit "this" parameter
 --   every EEnter expression has a variable as its body
 --   every ENew expression occurs at the rhs of a Val binding
+
+-- Implements boxing and unboxing of non-ptr values that are cast to/from polymorphic type
 
 -- (Not yet):
 -- Flattens the struct subtyping graph by inlining the first coercion field
@@ -120,9 +122,23 @@ pExp' env (EEnter e f es)           = do (bs1,t@(TId n),e) <- pRhsExp env e
                                          x <- newName tempSym
                                          let Struct te = lookup' (decls env) n
                                          return (bs1++bs2++[(x, Val t e)], rngType (lookup' te f), EEnter (EVar x) f es)
+pExp' env (ECast TWild e)           = do (bs,t',e) <- pExp' env e
+                                         if mustBox env t' then do
+                                             x <- newName tempSym
+                                             let bs1 = [(x, Val (TId (prim Box)) (ENew (prim Box) bs2))]
+                                                 bs2 = [(prim Value, Val TWild (ECast TWild e))]
+                                             return (bs++bs1, TWild, ECast TWild (EVar x))
+                                          else
+                                             return (bs, TWild, ECast TWild e)
 pExp' env (ECast t e)               = do (bs,t',e) <- pExp' env e
-                                         return (bs, t, ECast t e)
+                                         if t'==TWild && mustBox env t then
+                                             return (bs, t, ECast t (ESel (ECast (TId (prim Box)) e) (prim Value)))
+                                          else
+                                             return (bs, t, ECast t e)
 pExp' env (ENew n bs)               = do (bs1,bs) <- pMap (pSBind env n) bs
                                          x <- newName tempSym
                                          return (bs1++[(x, Val (TId n) (ENew n bs))], TId n, EVar x)
 
+
+mustBox env TWild                   = False
+mustBox env (TId n)                 = lookup n (decls env) == Nothing
