@@ -3,17 +3,21 @@ module Termred(termred, redTerm) where
 import Common
 import Core
 import Env
+import Depend
 import PP
 
 termred m                       = return (redModule m)
 
 
-redTerm e                       = redExp env0 e
-  where env0                    = []
+redTerm env e                   = redExp env e
 
 
-redModule (Module m ds ie bs)   = Module m ds ie (redBinds env0 bs)
+redModule (Module m ds ie bs)   = Module m ds ie' (redBinds env1 bs)
   where env0                    = []
+        ie'                     = redBinds env0 ie
+        env1                    = f (groupBinds ie')
+        f []                    = []
+        f (Binds r te eqs : bs) = if r then eqs ++ f bs else f bs
 
 
 simple (EVar _ _)               = True

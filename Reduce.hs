@@ -92,8 +92,6 @@ a x < b x \\ x, a x < c x \\ x, b x < c Int \\ x
 
 -- Forced reduction ------------------------------------------------------------------------
 
---resolve env pe                                = return (nullSubst, pe, id)
-
 resolve env pe                          = do --tr ("###############\nBefore resolve: " ++ show pe)
                                              (s,q,[],es) <- red [] (map mkGoal pe)
                                              --tr ("###############\nAfter resolve: " ++ show q)
@@ -116,14 +114,6 @@ resolve env pe                          = do --tr ("###############\nBefore reso
                                              return (v, p')
           | otherwise                   = return (v, p)
         
-
-
-resolve' env pe                         = do (s,q,[],es) <- red [] (map mkGoal pe)
-                                             let q' = filter (isTemp . fst) q
-                                             assert (null q') ("Cannot resolve predicates: " ++ vshow (rng q'))
-                                             return (s, q, \e -> eAp (eLam pe e) es)
-  where mkGoal (v,p)                    = (force env True, p)
-
 
 
 {-
@@ -505,7 +495,7 @@ mkTrans env ((w1,p1), (w2,p2))          = do (pe1, R c1, e1) <- instantiate p1 (
                                                  (e',p') = qual qe e (subst s' p)
                                              (s'',sc) <- gen env p'
                                              w <- newName coercionSym
-                                             return ((w,sc), (w,redTerm (subst s'' e')))
+                                             return ((w,sc), (w, redTerm (insts env) (subst s'' e')))
 
 -- Handle class predicates
 closeSuperclass env []                  = return (env, [], [])

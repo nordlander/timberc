@@ -10,6 +10,8 @@ import qualified Kindle
 core2kindle                         :: Module -> M s Kindle.Module
 core2kindle m                       = localStore (cModule m)
 
+-- Note: bound variables in the output from this pass are no longer guaranteed to be globally unique!
+-- This arises from the handling of orphaned state variables (see bindOrphans)
 
 
 data Env                            = Env { decls :: Kindle.Decls,
@@ -162,7 +164,7 @@ cType' (TAp t t')                         = cType' t
 cType' (TId n)
   | isCon n                               = return ([], Kindle.TId n)
   | otherwise                             = return ([], Kindle.TWild)
-cType' (TVar _)                           = error "Internal error: TVar in Core2Kindle"
+cType' (TVar _)                           = return ([], Kindle.TWild)
 
 
 -- Convert a Core.Type into a Kindle.AType, overflowing into a list of Kindle.Decls if necessary
@@ -247,9 +249,11 @@ cAltT cBodyT env t0 e0 (PCon n, e)      = case findCon env n of
                                                               return (Kindle.ACon n c)
   where cRhsT env t0 e [] []            = cBodyT env t0 e
         cRhsT env t0 (ELam te e) ts es  = do te <- cATEnv te
-                                             let bs = mkBind te (zipWith3 match (rng te) ts es)
-                                             c <- cBodyT (addTEnv' te env) t0 e
+                                             let bs = mkBind te (zipWith3 match (rng te) ts1 es1)
+                                             c <- cRhsT (addTEnv' te env) t0 e ts2 es2
                                              return (Kindle.cBind bs c)
+          where (es1,es2)               = splitAt (length te) es
+                (ts1,ts2)               = splitAt (length te) ts
         cRhsT env t0 e ts es            = do te <- newEnv paramSym ts
                                              let bs = mkBind te es
                                              c <- cBodyT (addTEnv' te env) t0 (EAp e (map eVar (dom te)))
@@ -445,9 +449,11 @@ cAlt cBody env e0 (PCon n, e)           = case findCon env n of
                                                               return (t, Kindle.ACon n c)
   where cRhs env e [] []                = cBody env e
         cRhs env (ELam te e) ts es      = do te <- cATEnv te
-                                             let bs = mkBind te (zipWith3 match (rng te) ts es)
-                                             (t,c) <- cBody (addTEnv' te env) e
+                                             let bs = mkBind te (zipWith3 match (rng te) ts1 es1)
+                                             (t,c) <- cRhs (addTEnv' te env) e ts2 es2
                                              return (t, Kindle.cBind bs c)
+          where (es1,es2)               = splitAt (length te) es
+                (ts1,ts2)               = splitAt (length te) ts
         cRhs env e ts es                = do te <- newEnv paramSym ts
                                              let bs = mkBind te es
                                              (t,c) <- cBody (addTEnv' te env) (EAp e (map eVar (dom te)))

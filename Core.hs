@@ -202,6 +202,10 @@ pscheme p                       = Scheme (R p) [] []
 pscheme' p ps ke                = Scheme (R p) ps ke
 
 
+splitInsts (Binds r pe eq)      = (Binds False pe1 eq1, Binds r pe2 eq2)
+  where (pe1,pe2)               = partition (isSub' . snd) pe
+        (eq1,eq2)               = partition ((`elem` dom pe1) . fst) eq
+
 
 ksigsOf (Types ke ds)           = ke
 

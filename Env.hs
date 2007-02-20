@@ -26,6 +26,8 @@ data Env = Env { kindEnv       :: KEnv,              -- Kind for each global tyc
                  tevars        :: [TVar],            -- The tvars free in typeEnv (cached)
                  pevars        :: [TVar],            -- The tvars free in predEnv (cached)
                  stateT        :: Maybe Type,        -- Type of current state scope (invariant: included in typeEnv as well)
+                 
+                 insts         :: Eqns,              -- Top-level 
 
                  aboveEnv      :: Map Name WGraph,   -- Overlap graph of all S > T for each T (closed under reflexivity & transitivity)
                  belowEnv      :: Map Name WGraph,   -- Overlap graph of all S < T for each T (closed under reflexivity & transitivity)
@@ -53,6 +55,7 @@ nullEnv                                 = Env { kindEnv    = [],
                                                 tevars     = [],
                                                 pevars     = [],
                                                 stateT     = Nothing,
+                                                insts      = [],
                                                 aboveEnv   = [],
                                                 belowEnv   = [],
                                                 classEnv   = [],
@@ -88,6 +91,8 @@ noClasses env                           = env { classEnv = [] }
 
 setSelf x t env                         = env' { stateT = Just t }
   where env'                            = addTEnv [(x,scheme (tRef t))] env
+
+addInsts eqs env                        = env { insts = eqs ++ insts env }
 
 addSkolEnv se env                       = env { skolEnv  = se ++ skolEnv env }
 

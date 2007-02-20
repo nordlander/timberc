@@ -5,6 +5,7 @@ import Core
 import Env
 import Depend
 import List(unzip4, zipWith3)
+import Monad
 import Kind
 import Decls
 import Reduce
@@ -56,15 +57,20 @@ let f = \w0 v x -> e w0 (f w0 v 7)                                            ::
 
 
 tiModule (Module v ds is bs)    = do (env1,ds1,bs1) <- typeDecls env0 ds
-                                     (env2,bs2)     <- classPreds env1 is
-                                     -- Here it should be checked that the equalities collected in env2 
-                                     -- are actually met by the equations in bs1 and bs2
-                                     (ss1,pe1,bs')  <- tiBindsList1 (addTEnv0 (tsigsOf is) env2) (groupBinds bs)
-                                     (ss2,pe2,is')  <- tiBinds (addTEnv0 (tsigsOf bs) env2) is
-                                     assert (null (pe1++pe2)) "Internal: top-level type inference"
-                                     s <- unify env2 (ss1++ss2)
-                                     return (Module v ds1 nullBinds (concatBinds [bs1, subst s is', bs2, subst s bs']))
+                                     (env2,bs2) <- instancePreds env1 (tsigsOf is)
+                                     (ss0,pe0,subInsts) <- tiBinds env2 (bs1 `catBinds` subInsts)
+                                     -- Here it should be checked that the equation in subInsts follow the
+                                     -- retsricted rules for coercions, and that the equalities collected 
+                                     -- in env2 are actually met by the equations in is, bs1 and bs2
+                                     let is0  = bs2 `catBinds` subInsts
+                                         env3 = addInsts (eqnsOf is0) env2
+                                     (ss1,pe1,bs) <- tiBindsList1 (addTEnv0 (tsigsOf is) env3) (groupBinds bs)
+                                     (ss2,pe2,classInsts) <- tiBinds (addTEnv0 (tsigsOf bs) env3) classInsts
+                                     assert (null (pe0++pe1++pe2)) "Internal: top-level type inference"
+                                     s <- unify env2 (ss0++ss1++ss2)
+                                     return (Module v ds1 (is0 `catBinds` subst s classInsts) (subst s bs))
   where env0                    = initEnv
+        (subInsts,classInsts)   = splitInsts is
 
 
 tiBindsList env []              = return ([], [], [])
@@ -175,24 +181,28 @@ tiExp env (ELet bs e)           = do (s,pe,bss) <- tiBindsList env (groupBinds b
                                      (s',pe',t,e) <- tiExp (addTEnv (tsigsOf' bss) env) e
                                      return (s++s',pe++pe', t, eLet' bss e)
 tiExp env (ERec c eqs)          = do alphas <- mapM newTVar (kArgs (findKind env c))
-                                     (t,ts,_)   <- tiLhs env (foldl TAp (TId c) alphas) tiX sels
+                                     (t,ts,sels')   <- tiLhs env (foldl TAp (TId c) alphas) tiX sels
                                      (s,pe,es') <- tiRhs env ts es
-                                     return (s, pe, R t, ERec c (sels `zip` es'))
+                                     e <- mkRec env c (map flatSels sels' `zip` es')
+                                     return (s, pe, R t, e)
   where (sels,es)               = unzip eqs
         tiX env x l             = tiExp env (eSel (eVar x) l)
 tiExp env (ECase e alts d)      = do alpha <- newTVar Star
-                                     (t,ts,_)    <- tiLhs env alpha tiX pats
-                                     (s,pe,es')  <- tiRhs env ts es
-                                     let (t0,t1)  = splitF t
-                                     (s1,pe1,e') <- tiExpT env (scheme t0) e
-                                     (s2,pe2,d') <- tiExpT env (scheme t1) d
-                                     return (s++s1++s2, pe++pe1++pe2, R t1, ECase e' (pats `zip` es') d')
+                                     (t,ts,pats') <- tiLhs env alpha tiX pats
+                                     (s,pe,es')   <- tiRhs env ts es
+                                     let TFun [t0] t1 = t
+                                     (s1,pe1,e')  <- tiExpT env (scheme t0) e
+                                     (s2,pe2,d')  <- tiExpT env (scheme t1) d
+                                     e <- mkCase env e' (map flatCons pats' `zip` es') d'
+                                     return (s++s1++s2, pe++pe1++pe2, R t1, e)
   where (pats,es)               = unzip alts
         tiX env x (PLit l)      = tiExp env (EAp (eVar x) [ELit l])
         tiX env x (PCon k)      = do (t,_) <- inst (findType env k)
-                                     te <- newEnv paramSym (fst (splitC t))
+                                     te <- newEnv paramSym (fArgs t)
                                      tiExp env (eLam te (e (dom te)))
           where e vs            = EAp (eVar x) [EAp (eCon k) (map eVar vs)]
+                fArgs (F ts t)  = ts
+                fArgs t         = []
 tiExp env (EReq e e')           = do alpha <- newTVar Star
                                      beta <- newTVar Star
                                      (s,pe,e) <- tiExpT env (scheme (tRef alpha)) e
@@ -216,7 +226,6 @@ tiExp env (ETempl x tx te c)
   | otherwise                   = error "Explicitly typed template expressions not yet implemented"
 
 
-
 tiCmd env (CRet e)              = do alpha <- newTVar Star
                                      (s,pe,e) <- tiExpT env (scheme alpha) e
                                      return (s, pe, alpha, CRet e)
@@ -234,25 +243,121 @@ tiCmd env (CLet bs c)           = do (s,pe,bss) <- tiBindsList env (groupBinds b
                                      return (s++s', pe++pe', t, cLet' bss c)
 
 
-
+-- Compute a list of
 tiLhs env alpha tiX xs          = do x <- newName tempSym
                                      let env' = addTEnv [(x,scheme alpha)] env
-                                     (_,pes,ts,es) <- fmap unzip4 (mapM (tiX env' x) xs)
-                                     let env'' = target alpha env'
-                                     (s,_,f) <- resolve' (target alpha env') (concat pes)
+                                     (_,pes,ts,es) <- fmap unzip4 (mapM (tiX env' x) xs)    -- ignore returned substs (must be null)
+                                     (s,_,f) <- resolve (target alpha env) (concat pes)     -- ignore returned qe (filter pes instead)
                                      let ts1 = map scheme' (subst s ts)
                                          es1 = map f es
-                                         pes1 = subst s (map (filter (not . isCoercion . fst)) pes)
+                                         pes1 = subst s (map (filter (not . isCoercion . fst)) pes) -- preserve non-coercions for each alt
                                          (es2,ts2) = unzip (zipWith3 qual pes1 es1 ts1)
-                                     (_,ts3) <- fmap unzip (mapM (gen (subst s env')) ts2)
-                                     return (subst s alpha, ts3, es2)
+                                     (s',ts3) <- fmap unzip (mapM (gen (subst s env')) ts2)
+                                     return (subst s alpha, ts3, map (redTerm (insts env)) es2)
+                                     -- Note: the lhs terms es2 are returned *without* the generalizing substitution s'
+                                     -- applied to them.  This simplifies their use in the construction of corresponding
+                                     -- right-hand sides.  See mkCase below in particular.
 
 
-splitF (TFun [t] t')            = (t,t')
+-- Build record fields -----------------------------------------------------------------------------------------------------------
+-- Note: ancestors reachable through different paths not yet handled
+
+-- Extract a list of selectors from the lhs term computed by tiLhs
+-- x.l   ===>   \ws -> (w x).l ws    ===>   \ws -> ((x.l1)...ln).l ws    ==>    l1, ..., ln, l
+flatSels (ELam _ e)             = flatSels e
+flatSels (EAp e _)              = flatSels e
+flatSels e                      = flat e []
+  where flat (ESel e l _) sels  = flat e (l:sels) 
+        flat _ sels             = sels
+
+-- Construct record field definitions on basis of the original rhs terms and the flattened list of selectors computed by tiLhs
+mkRec env c eqs                 = liftM (ERec c) (mapM mkEqn ls)
+  where ls                      = nub (map (head . fst) eqs)
+        mkEqn l                 = case [ (ls,e) | (l':ls,e) <- eqs, l==l' ] of
+                                    ([],e):_ -> return (l, e)
+                                    eqs_l    -> do e <- mkRec env (tId (tHead t)) eqs_l
+                                                   return (l, e)
+                                      where Scheme (F _ (R t)) _ _ = findType env l
 
 
-splitC (F ts t)                 = (ts, scheme' t)
-splitC t                        = ([], scheme' t)
+-- Build case alternatives -------------------------------------------------------------------------------------------------------
+-- Note: ancestors reachable through different paths not yet handled
+
+-- Extract a list of constructors from the lhs term computed by tiLhs
+-- \xs -> x (k xs)  ===>  \ws -> \xs -> x (w (k ws xs))   ===>  \ws -> \xs -> x (k1 (... kn (k ws xs)))  ==>  k1, ... , kn, k
+flatCons (ELam _ e)             = flatCons e
+flatCons (EAp (EVar x _) [e])   = flatCons e
+flatCons e                      = flat e
+  where flat (EAp e [e'])       = flat e ++ flat e'
+        flat (ECon k t)         = [(PCon k, t)]
+        flat (ELit l)           = [(PLit l, Nothing)]
+        flat _                  = []
+
+-- Construct case alternatives on basis of the original rhs terms and the flattened list of constructors computed by tiLhs
+mkCase env e alts d             = liftM (\a -> ECase e a d) (mapM mkAlt ps)
+  where ps                      = nub (map (head . fst) alts)
+        mkAlt p                 = case [ (ps,e) | (p':ps,e) <- alts, p==p' ] of
+                                    ([],e):_ -> return (fst p, e)
+                                    alts_p   -> do x <- newName tempSym
+                                                   e' <- mkCase env (eVar x) alts_p (eVar (prim Fail))
+                                                   return (fst p, ELam [(x,t)] e')
+                                      where F [t] _ = fromJust (snd p)
+                                -- Note: type t above may actually contain type variables that have been generalized in the type 
+                                -- scheme for the alternative computed by tiLhs.  However, since the generalizing substitution 
+                                -- is not applied to the terms returned by tiLhs, the type we encounter here will appear as if
+                                -- it has gone through another substitution replacing the generalized variables with fresh tvars.
+
+
+
+
+-- data Pack m a = Pack (m a) \\ Eq a
+-- data Exists m > Pack m a \\ a
+--               = Test (m Int)
+
+-- Translation 1:
+-- data Pack m a = Pack (m a) \\ Eq a
+-- data Exists m = Exists_from_Pack (Pack m a) \\ a
+--               | Test (m Int)
+
+-- Translation 2:
+-- data Pack m a = Pack (Eq a) (m a)
+-- data Exists m = Exists_from_Pack (Pack m a) \\ a
+--               | Test (m Int)
+
+-- Constructor types:
+-- Pack             :: Eq a -> m a -> Pack m a \\ a, m
+-- Exists_from_Pack :: Pack (m a) -> Exists m \\ a, m
+-- Test             :: m Int -> Exists m \\ m
+
+-- case e0 of
+--   Pack -> (\w r -> e1)
+--   Test -> (\q -> e2
+
+-- case e0 of
+--   Exixts_from_Pack -> (\x -> case x of
+--                                Pack -> (\w r -> e1)
+--                                _    -> fail
+--   Test             -> (\q -> e2)
+
+
+-- Formulation without subtyping: ------------------------------
+--
+-- data Exists m = Pack (m a) \\ Eq a, a
+--               | Test (m Int)
+
+-- Translation:
+-- data Exists m = Pack (Eq a) (m a) \\ a
+--               | Test (m Int)
+
+-- Constructor types:
+-- Pack  :: Eq a -> m a -> Exists m \\ a, m
+-- Test  :: m Int -> Exists m \\ m
+
+-- case e0 of
+--   Pack -> (\(w :: Eq _) (r :: _ _) -> e1)
+--   Test -> (\(q :: _ Int) -> e2)
+
+
 
 
 

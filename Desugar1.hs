@@ -95,12 +95,17 @@ instance Desugar1 Qual where
     ds1 env (QLet bs)           = QLet (ds1 env bs)
 
 instance Desugar1 Exp where
-    ds1 env (ERec Nothing fs)      = ERec (Just (c,True)) (ds1 env fs)
+    ds1 env (ERec Nothing fs)
+      | not (null dups)            = error ("Duplicate field definitions in record: " ++ showids dups)
+      | otherwise                  = ERec (Just (c,True)) (ds1 env fs)
       where c                      = typeFromSels env (sort (bvars fs))
+            dups                   = duplicates (bvars fs)
     ds1 env (ERec (Just (c,all)) fs)
+      | not (null dups)            = error ("Duplicate field definitions in record: " ++ showids dups)
       | all && not (null miss)     = error ("Missing selectors in record: " ++ showids miss)
       | otherwise                  = ERec (Just (c,True)) (fs' ++ ds1 env fs)
       where miss                   = selsFromType env c \\ bvars fs
+            dups                   = duplicates (bvars fs)
             fs'                    = map (\s -> Field s (EVar s)) miss
  
     ds1 env (EAp e1 e2)            = EAp (ds1 env e1) (ds1 env e2)
