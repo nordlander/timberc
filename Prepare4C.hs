@@ -45,15 +45,16 @@ pDecl d                         = return d
 pMap f xs                       = do (bss,xs) <- fmap unzip (mapM f xs)
                                      return (concat bss, xs)
 
+
 -- Prepare bindings
-pBind env (x, Val t e)          = do (bs,e) <- pRhsExp env e 
+pBind env (x, Val t e)          = do (bs,_,e) <- pRhsExp env e 
                                      return (bs, (x, Val t e))
 pBind env (x, Fun t te c)       = do c <- pCmd (addVals te env) c
                                      return ([], (x, Fun t te c))
 
 
 -- Prepare struct bindings
-pSBind env n (x, Val t e)       = do (bs,e) <- pRhsExp env e 
+pSBind env n (x, Val t e)       = do (bs,_,e) <- pRhsExp env e 
                                      return (bs, (x, Val t e))
 pSBind env n b@(x, Fun t te (CRet (ECall f (EThis:es))))
   | es == map EVar (dom te)     = return ([], b)
@@ -89,44 +90,39 @@ pAlt env (ACon n c)             = liftM (ACon n) (pCmd env c)
 
 -- Prepare a right-hand-side expression
 pRhsExp env (ENew n bs)         = do (bs1,bs) <- pMap (pSBind env n) bs
-                                     return (bs1, ENew n bs)
-pRhsExp env e                   = pExp env e
+                                     return (bs1, TId n, ENew n bs)
+pRhsExp env e                   = pExp' env e
 
 
 -- Prepare an expression in an arbitrary position
-pExp env e@(EVar _)             = return ([], e)
-pExp env e@(ELit _)             = return ([], e)
-pExp env (EThis)                = return ([], EVar (fst (fromJust (this env))))
-pExp env (ESel e l)             = do (bs,e) <- pExp env e
-                                     return (bs, ESel e l)
-pExp env (ECall n es)           = do (bs,es) <- pMap (pExp env) es
-                                     return (bs, ECall n es)
-pExp env (EEnter (EVar x) n es) = do (bs,es) <- pMap (pExp env) es
-                                     return (bs, EEnter (EVar x) n es)
-pExp env (EEnter e n es)        = do (bs1,es) <- pMap (pExp env) es
-                                     (bs2,e) <- pRhsExp env e
-                                     x <- newName tempSym
-                                     return (bs1++bs2++[(x, Val t e)], EEnter (EVar x) n es)
-  where t                       = typeOfExp env e
-pExp env (ECast t e)            = do (bs,e) <- pExp env e
-                                     return (bs, ECast t e)
-pExp env (ENew n bs)            = do (bs1,bs) <- pMap (pSBind env n) bs
-                                     x <- newName tempSym
-                                     return (bs1++[(x, Val (TId n) (ENew n bs))], EVar x)
-
+pExp env e                      = do (bs,t,e) <- pExp' env e
+                                     return (bs,e)
                                      
 
--- Compute the type of an expression
-typeOfExp env (EVar x)          = case searchCons (decls env) x of
-                                     [t] -> t
-                                     _   -> rngType (lookup' (tenv env) x)
-typeOfExp env (ELit l)          = litType l
-typeOfExp env (EThis)           = snd (fromJust (this env))
-typeOfExp env (ESel e x)        = rngType (lookup' te x)
-  where TId n                   = typeOfExp env e
-        Struct te               = lookup' (decls env) n
-typeOfExp env (ECall x es)      = rngType (lookup' (tenv env) x)
-typeOfExp env (EEnter e x es)   = rngType (lookup' te x)
-  where TId n                   = typeOfExp env e
-        Struct te               = lookup' (decls env) n
-typeOfExp env (ECast t e)       = t
+-- Prepare an expression in an arbitrary position and compute its type
+pExp' env e@(EVar x)                = case searchCons (decls env) x of
+                                        [t] -> return ([], t, e)
+                                        _   -> return ([], rngType (lookup' (tenv env) x), e)
+pExp' env e@(ELit l)                = return ([], litType l, e)
+pExp' env (EThis)                   = return ([], t, EVar x)
+  where (x,t)                       = fromJust (this env)
+pExp' env (ESel e l)                = do (bs,TId n,e) <- pExp' env e
+                                         let Struct te = lookup' (decls env) n
+                                         return (bs, rngType (lookup' te l), ESel e l)
+pExp' env (ECall f es)              = do (bs,es) <- pMap (pExp env) es
+                                         return (bs, rngType (lookup' (tenv env) f), ECall f es)
+pExp' env (EEnter (EVar x) f es)    = do (bs1,TId n,e) <- pExp' env (EVar x)
+                                         (bs2,es) <- pMap (pExp env) es
+                                         let Struct te = lookup' (decls env) n
+                                         return (bs1++bs2, rngType (lookup' te f), EEnter e f es)
+pExp' env (EEnter e f es)           = do (bs1,t@(TId n),e) <- pRhsExp env e
+                                         (bs2,es) <- pMap (pExp env) es
+                                         x <- newName tempSym
+                                         let Struct te = lookup' (decls env) n
+                                         return (bs1++bs2++[(x, Val t e)], rngType (lookup' te f), EEnter (EVar x) f es)
+pExp' env (ECast t e)               = do (bs,t',e) <- pExp' env e
+                                         return (bs, t, ECast t e)
+pExp' env (ENew n bs)               = do (bs1,bs) <- pMap (pSBind env n) bs
+                                         x <- newName tempSym
+                                         return (bs1++[(x, Val (TId n) (ENew n bs))], TId n, EVar x)
+
