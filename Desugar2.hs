@@ -115,7 +115,7 @@ dsBinds (BSig vs qt : bs)       = do bs <- dsBinds bs
                                      return (BSig vs (dsQualWildType qt) : bs)
 dsBinds bs                      = f [] bs
   where f eqns (BEqn lh rh :bs) = f ((lh,rh) : eqns) bs
-        f eqns bs               = do eqns <- dsEqns (reverse eqns) 
+        f eqns bs               = do eqns <- dsEqns eqns
                                      bs <- dsBinds bs
                                      return (map (uncurry BEqn) eqns ++ bs)
 
@@ -125,7 +125,7 @@ dsBinds bs                      = f [] bs
 dsEqns []                       = return []
 dsEqns ((LPat p,rh):eqns)       = do v0 <- newName tempSym
                                      sels <- mapM (sel (EVar v0)) vs
-                                     dsEqns ((LFun v0 [], RExp (rh2exp rh)) : sels ++ eqns)
+                                     dsEqns (sels ++ [(LFun v0 [], RExp (rh2exp rh))] ++ eqns)
   where vs                      = pvars p
         sel e0 v                = do es <- mapM (const (newEVar paramSym)) vs
                                      return (LFun v [], RExp (selectFrom e0 (vs `zip` es) p v))
