@@ -185,7 +185,7 @@ dsExp (ELam ps e)
                                      e <- dsExp e
                                      ws <- newNames paramSym (length ps)
                                      e' <- pmc' ws [(ps,RExp e)]
-                                     return (ELam (zipSigs ws ps) e)
+                                     return (ELam (zipSigs ws ps) e')
 dsExp (ELet bs e)               = liftM2 ELet (dsBinds bs) (dsExp e)
 dsExp (EIf e e1 e2)             = dsExp (ECase e [Alt true  (RExp e1), Alt false (RExp e2)])
 dsExp (ESectR e op)             = dsExp (EAp (op2exp op) e)
