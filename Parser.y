@@ -189,7 +189,7 @@ recbinds   :: { [Field] }
         | recbind				{ [$1] }
         
 recbind    :: { Field }
-        : selvar exp 				{ Field $1  $2 }
+        : selvar '=' exp 				{ Field $1  $3 }
 
 vars	:: { [Name] }
 	: vars ',' var				{ $3 : $1 }
