@@ -116,14 +116,7 @@ k2cExp' _                       = error "Internal: k2cExp"
 
 
 k2cName (Prim p _)              = k2cPrim p
-k2cName (Tuple i _)             = text ("_TUP" ++ show i)
-k2cName (Name s t a)
-  | location a == Nothing       = text ('_':s) <> text ('_':show t)     -- proper names can't begin with "_"
-  | isCName s                   = text s <> text ('_':show t)
-  | otherwise                   = text ('_':show t)
-
-
-isCName s                       = isAlpha (head s) && all isAlphaNum (tail s)
+k2cMame n                       = prId3 n
 
 
 isInfix (Prim p _)              = p `notElem` [IntNeg, FloatNeg, CharToInt, IntToChar] ++ [Sec .. Infinity]
@@ -183,7 +176,7 @@ k2cPrim TimeLE                  = text "<="
 k2cPrim TimeGE                  = text ">="
 k2cPrim TimeGT                  = text ">"
 
-k2cPrim p                       = text (strRep p)
+k2cPrim p                       = text (strRep2 p)
 
 
 {-

@@ -161,10 +161,11 @@ strRep MilliSec                 = "millisec"
 strRep MicroSec                 = "microsec"
 strRep NanoSec                  = "nanosec"
 strRep Infinity                 = "infinity"
-strRep p 
+strRep p                        = strRep2 p
+                                
+strRep2 p
   | isConPrim p || invisible p  = show p
   | otherwise                   = "prim" ++ show p
-                                
 
 
 -- Name construction ------------------------------------------------------------
@@ -193,7 +194,7 @@ annotState n                    = n { annot = a { stateVar = True } }
 -- Testing Names ----------------------------------------------------------------
 
 isId (Name s _ _)               = isIdent (head s)
-isId (Tuple _ _)                = False
+isId (Tuple _ _)                = True
 isId (Prim p _)                 = isIdPrim p
 
 isSym i                         = not (isId i)
@@ -253,6 +254,13 @@ prId i                          = if isSym i then parens (pr i) else pr i
 
 prOp i                          = if isSym i then pr i else backQuotes (pr i)
 
+prId2 (Prim p _)                = text (strRep2 p)
+prId2 (Tuple n _)               = text ("_TUP" ++ show n)
+prId2 n                         = prId n
+
+prId3 (Name s n a)              = pre <> text ('_' : show n)
+  where pre                     = if isAlpha (head s) && all isAlphaNum (tail s) then text s else empty
+prId3 n                         = prId2 n
 
 
 

@@ -236,34 +236,34 @@ instance Ids Bind where
 -- Tentative concrete syntax ------------------------------------------------------------------------------
 
 instance Pr Module where
-    pr (Module m ds bs)                 = text "module" <+> prId m <+> text "where" $$
+    pr (Module m ds bs)                 = text "module" <+> prId2 m <+> text "where" $$
                                           vpr ds $$ 
                                           vpr bs
 
 
 instance Pr (Name, Decl) where
-    pr (c, Struct te)                   = text "struct" <+> prId c <+> text "{" $$
+    pr (c, Struct te)                   = text "struct" <+> prId2 c <+> text "{" $$
                                           nest 4 (vpr te) $$
                                           text "}"
-    pr (c, Enum xs)                     = text "enum" <+> prId c <+> text "{" <> commasep pr xs <> text "}"
+    pr (c, Enum xs)                     = text "enum" <+> prId2 c <+> text "{" <> commasep pr xs <> text "}"
 
 
 instance Pr (Name, Type) where
-    pr (x, ValT t)                      = pr t <+> prId x
-    pr (x, FunT ts t)                   = pr t <+> prId x <> parens (commasep pr ts) <> text ";"
+    pr (x, ValT t)                      = pr t <+> prId2 x
+    pr (x, FunT ts t)                   = pr t <+> prId2 x <> parens (commasep pr ts) <> text ";"
 
 
 instance Pr AType where
-    pr (TId c)                          = prId c
+    pr (TId c)                          = prId2 c
     pr (TWild)                          = text "?"
 
 instance Pr (Name, AType) where
-    pr (x, t)                           = pr t <+> prId x
+    pr (x, t)                           = pr t <+> prId2 x
 
 
 instance Pr (Name, Bind) where
-    pr (x, Val t e)                     = pr t <+> prId x <+> text "=" <+> pr e
-    pr (x, Fun t te c)                  = pr t <+> prId x <+> parens (commasep pr te) <+> text "{" $$
+    pr (x, Val t e)                     = pr t <+> prId2 x <+> text "=" <+> pr e
+    pr (x, Fun t te c)                  = pr t <+> prId2 x <+> parens (commasep pr te) <+> text "{" $$
                                           nest 4 (pr c) $$
                                           text "}"
 
@@ -273,7 +273,7 @@ instance Pr Cmd where
                                           pr c
     pr (CBind r bs c)                   = vpr bs $$
                                           pr c
-    pr (CAssign e x e' c)               = pr e <> text "." <> prId x <+> text ":=" <+> pr e' <> text ";" $$
+    pr (CAssign e x e' c)               = pr e <> text "." <> prId2 x <+> text ":=" <+> pr e' <> text ";" $$
                                           pr c
     pr (CSwitch e alts d)               = text "switch" <+> parens (pr e) <+> text "{" $$
                                           nest 2 (vpr alts $$ prDefault d) $$
@@ -290,7 +290,7 @@ prScope c                               = text "{" <+> pr c $$
                                           text "}"
 
 instance Pr Alt where
-    pr (ACon x c)                       = prId x <> text ":" <+> prScope c
+    pr (ACon x c)                       = prId2 x <> text ":" <+> prScope c
     pr (ALit l c)                       = pr l <> text ":" <+> prScope c
 
 
@@ -298,17 +298,19 @@ prDefault c                             = text "default: " <+> prScope c
 
 
 instance Pr Exp where
-    pr (EVar x)                         = prId x
+    pr (EVar x)                         = prId2 x
     pr (EThis)                          = text "this"
     pr (ELit l)                         = pr l
     pr (ESel e l)                       = pr e <> text "." <> pr l
     pr (ENew x bs)
-      | all isVal bs                    = text "new" <+> prId x <+> text "{" <> commasep pr bs <> text "}"
-    pr (ENew x bs)                      = text "new" <+> prId x <+> text "{" $$
+      | all isVal bs                    = text "new" <+> prId2 x <+> text "{" <> commasep prInit bs <> text "}"
+    pr (ENew x bs)                      = text "new" <+> prId2 x <+> text "{" $$
                                           nest 4 (vpr bs) $$
                                           text "}"
-    pr (ECall x es)                     = prId x <+> parens (commasep pr es)
-    pr (EEnter e x es)                  = pr e <> text "." <> prId x <> parens (commasep pr es)
+    pr (ECall x es)                     = prId2 x <+> parens (commasep pr es)
+    pr (EEnter e x es)                  = pr e <> text "." <> prId2 x <> parens (commasep pr es)
     pr (ECast t e)                      = parens (pr t) <> pr e
 
 
+prInit (x, Val t e)                     = prId2 x <+> text "=" <+> pr e
+prInit b                                = pr b
