@@ -245,8 +245,7 @@ findClass env c                         = case lookup c (classEnv env) of
 
 findCoercion env a b
   | a == b                              = Just reflAll
-  | otherwise                           = do wg <- lookup a (aboveEnv env)
-                                             search (upperIs b) (nodes wg)
+  | otherwise                           = search (upperIs b) (nodes (findAbove env a))
 
 findCoercion' env a b                   = case findCoercion env a b of
                                             Just n -> n
@@ -308,14 +307,12 @@ T < Eq T, S < T, Eq a < Eq b \\ b < a  |-  x < Eq x
 
 
 
-findWG (RConCon i j)  (env,_)
-  | i == j                              = reflWG
-  | otherwise                           = shrinkWG (lookup' (aboveEnv env) i) j
-findWG (ROrd _ Pos i) (env,_)           = addReflWG (lookup' (aboveEnv env) i)
-findWG (ROrd _ Neg i) (env,_)           = addReflWG (lookup' (belowEnv env) i)
+findWG (RConCon i j)  (env,_)           = unitWG (findCoercion' env i j)
+findWG (ROrd _ Pos i) (env,_)           = addReflWG (findAbove env i)
+findWG (ROrd _ Neg i) (env,_)           = addReflWG (findBelow env i)
 findWG (RUnif)        (env,_)           = reflWG
-findWG (RInv _ Pos i) (env,_)           = concatWG reflWG (lookup' (aboveEnv env) i)
-findWG (RInv _ Neg i) (env,_)           = concatWG reflWG (lookup' (belowEnv env) i)
+findWG (RInv _ Pos i) (env,_)           = concatWG reflWG (findAbove env i)
+findWG (RInv _ Neg i) (env,_)           = concatWG reflWG (findBelow env i)
 findWG (RClass i)     (env,_)           = lookup' (classEnv env) i
 findWG (RVarVar)      (env,_)           = foldr concatWG reflWG (rng (aboveEnv env))
 

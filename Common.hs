@@ -270,7 +270,9 @@ infixr 4 @@
 
 type Map a b = [(a,b)]
 
-lookup' assoc x                 = fromJust (lookup x assoc)
+lookup' assoc x                 = case lookup x assoc of
+                                    Just e -> e
+                                    Nothing -> error ("Internal: lookup': " ++ show x ++ " not in " ++ show (assoc))
 
 inv assoc                       = map (\(a,b) -> (b,a)) assoc
 
