@@ -258,7 +258,9 @@ prId2 (Prim p _)                = text (strRep2 p)
 prId2 (Tuple n _)               = text ("_TUP" ++ show n)
 prId2 n                         = prId n
 
-prId3 (Name s n a)              = pre <> text ('_' : show n)
+prId3 (Name s n a)
+  | n == 0                      = text s
+  | otherwise                   = pre <> text ('_' : show n)
   where pre                     = if isAlpha (head s) && all isAlphaNum (tail s) then text s else empty
 prId3 n                         = prId2 n
 
