@@ -545,7 +545,9 @@ cHead env (ESel e l t')                 = do (bf,e) <- cExpT env t1 e
                                                Kindle.ValT t    -> adjust t' bf t (VHead (Kindle.ESel e l))
   where (t1,t2)                         = findSel env l
 cHead env (ECon k t')                   = case t2 of
-                                             Just te -> adjust t' id t1 (FHead (Kindle.ECast t1 . Kindle.ENew k . mkBind te) (rng te))
+                                             Just te -> adjust t' id t1 (FHead (Kindle.ECast t1 . newK . mkBind te') (rng te'))
+                                               where ((tag,tagT):te') = te
+                                                     newK = Kindle.ENew k . ((tag, Kindle.Val tagT (Kindle.EVar k)):)
                                              Nothing -> adjust t' id t1 (VHead (Kindle.EVar k))
   where (t1,t2)                         = findCon env k
 cHead env e@(ECase _ _ _)               = do (t,c) <- cBody env e       -- Bottom-up mode!
