@@ -160,6 +160,7 @@ rngType (FunT ts t)                     = t
 
 typeOf' b                               = rngType (typeOf b)
 
+cBind [] c                              = c
 cBind bs c                              = CBind False bs c
 
 cBindR r [] c                           = c
@@ -255,14 +256,14 @@ instance Pr (Name, Type) where
 
 instance Pr AType where
     pr (TId c)                          = prId2 c
-    pr (TWild)                          = text "?"
+    pr (TWild)                          = text "POLY"
 
 instance Pr (Name, AType) where
     pr (x, t)                           = pr t <+> prId2 x
 
 
 instance Pr (Name, Bind) where
-    pr (x, Val t e)                     = pr t <+> prId2 x <+> text "=" <+> pr e
+    pr (x, Val t e)                     = pr t <+> prId2 x <+> text "=" <+> pr e <> text ";"
     pr (x, Fun t te c)                  = pr t <+> prId2 x <+> parens (commasep pr te) <+> text "{" $$
                                           nest 4 (pr c) $$
                                           text "}"
@@ -301,7 +302,7 @@ instance Pr Exp where
     pr (EVar x)                         = prId2 x
     pr (EThis)                          = text "this"
     pr (ELit l)                         = pr l
-    pr (ESel e l)                       = pr e <> text "." <> pr l
+    pr (ESel e l)                       = pr e <> text "->" <> pr l
     pr (ENew x bs)
       | all isVal bs                    = text "new" <+> prId2 x <+> text "{" <> commasep prInit bs <> text "}"
     pr (ENew x bs)                      = text "new" <+> prId2 x <+> text "{" $$

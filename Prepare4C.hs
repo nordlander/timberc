@@ -77,7 +77,7 @@ pCmd env (CBind r bs c)         = do (bs1,bs) <- pMap (pBind (if r then env' els
   where env'                    = addBinds bs env
 pCmd env (CAssign e x e' c)     = do (bs,e) <- pExp env e
                                      (bs',e') <- pExp env e'
-                                     liftM (cBind (bs ++ bs') . CAssign e x e') (pCmd env c)
+                                     liftM (cBind bs . cBind bs' . CAssign e x e') (pCmd env c)
 pCmd env (CSwitch e alts d)     = do (bs,e) <- pExp env e
                                      alts <- mapM (pAlt env) alts
                                      liftM (cBind bs . CSwitch e alts) (pCmd env d)

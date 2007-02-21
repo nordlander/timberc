@@ -38,7 +38,6 @@ normalize env pe                        = do -- tr ("NORMALIZE " ++ show pe)
 -- Conservative reduction ----------------------------------------------------------------------
 
 reduce env pe                           = do -- tr ("###reduce " ++ show (tvars (typeEnv env)) ++ 
-                                             --     "\n    tevars = " ++ show (tevars env) ++ "\n      " ++ show pe)
                                              (s,q,[],es) <- red [] (map mkGoal pe)
                                              -- tr ("###result: " ++ show s ++ ", preds: " ++ show q)
                                              return (s, q, eLet pe (dom pe `zip` es))
@@ -92,7 +91,7 @@ a x < b x \\ x, a x < c x \\ x, b x < c Int \\ x
 
 -- Forced reduction ------------------------------------------------------------------------
 
-resolve env pe                          = do --tr ("###############\nBefore resolve: " ++ show pe)
+resolve env pe                          = do -- tr ("###############\nBefore resolve: ")
                                              (s,q,[],es) <- red [] (map mkGoal pe)
                                              --tr ("###############\nAfter resolve: " ++ show q)
                                              let env1 = subst s env
@@ -226,7 +225,6 @@ redf gs env (R a) (R b) ps              = do (s,q,e:es,es') <- red ((tick env Tr
                                              return (s,q,es,e,es')
 
 
-
 redf1 gs env a b (sc1:ts1) (sc2:ts2) ps = do (s,q,es,e,es1,e2:es2) <- redf1 gs env a b ts1 ts2 ((env,sc):ps)
                                              return (s, q, es, e, flip e2 : es1, es2)
   where Scheme t2 ps2 ke2               = sc2
@@ -246,6 +244,9 @@ redf2 s gs env a b ps                   = do (s',q,es,e,es') <- redf (subst s gs
 
 -- Predicate reduction ----------------------------------------------------------------------
 
+solve RFun (env,p) gs                   = do (s,q,es,[e]) <- red gs [(env, scheme' (F [scheme a] (R b)))]
+                                             return (s, q, e:es)
+  where (a,b)                           = subs p
 solve RUnif (env,p) gs                  = do s <- unify env [(a,b)]
                                              (s',q,es,[]) <- red (subst s gs) []
                                              return (s'@@s, q, eVar (prim Refl) : es)

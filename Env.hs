@@ -346,7 +346,8 @@ nullWG                                  = WG { nodes = [], arcs = [] }
 data Dir                                = Pos | Neg
                                         deriving (Ord,Eq,Show)
 
-data Rank                               = RConCon Name Name     -- con-con, only one solution possible (or failure!)
+data Rank                               = RFun                  -- function type in either position, handle as a predicate scheme
+                                        | RConCon Name Name     -- con-con, only one solution possible (or failure!)
                                         | ROrd    Int Dir Name  -- con-var, with gravity governed by var's position in target type
                                         | RUnif                 -- var-var, unifiable (either safe or forced)
                                         | RInv    Int Dir Name  -- con-var, requires unordered search 
@@ -359,6 +360,8 @@ rank info (env,TFun [l] u)              = subrank (tFlat l) (tFlat u)
   where 
     (emb,vs,lb,ub,lb',ub',pols)         = info
     approx                              = forced env                 -- solve subtype predicates at all costs
+    subrank (TFun _ _, _) _             = RFun                       -- resubmit to predicate scheme reducer
+    subrank _ (TFun _ _, _)             = RFun                       -- resubmit to predicate scheme reducer
     subrank (TId i,_) (TId j,_)         = RConCon i j                -- only one choice, highest rank
     subrank (TId i,_) (TVar n,_)
       | l==0 && b==0 && not (isNeg v)   = ROrd 0 Pos i               -- no embeddings, only constant bounds, right polarity
@@ -554,7 +557,7 @@ primKindEnv             = [ (prim Action,       Star),
                             (prim Msg,          Star),
                             (prim Ref,          KFun Star Star),
                             (prim PID,          KFun Star Star),
-                            (prim PMC,          Star),
+                            (prim PMC,          KFun Star Star),
                             (prim Time,         Star),
                                     
                             (prim Int,          Star),
@@ -566,80 +569,80 @@ primKindEnv             = [ (prim Action,       Star),
                             (prim UNIT,         Star) ]
 
 
-primTypeEnv             = [ (prim UNIT,         scheme0 tUnit),
-                            (prim NIL,          scheme1 (tList a)),
-                            (prim CONS,         scheme1 (TFun [a,tList a] (tList a))),
+primTypeEnv             = [ (prim UNIT,         scheme0 [] tUnit),
+                            (prim NIL,          scheme1 [] (tList a)),
+                            (prim CONS,         scheme1 [a,tList a] (tList a)),
 
-                            (prim FALSE,        scheme0 tBool),
-                            (prim TRUE,         scheme0 tBool),
+                            (prim FALSE,        scheme0 [] tBool),
+                            (prim TRUE,         scheme0 [] tBool),
 
-                            (prim Refl,         scheme1 (TFun [a] a)),
+                            (prim Refl,         scheme1 [a] a),
 
-                            (prim ActToCmd,     scheme1 (TFun [tAction] (tCmd a tMsg))),
-                            (prim ReqToCmd,     scheme2 (TFun [tRequest a] (tCmd b a))),
-                            (prim TemplToCmd,   scheme2 (TFun [tTemplate a] (tCmd b a))),
-                            (prim RefToPID,     scheme1 (TFun [tRef a] tPID)),
+                            (prim ActToCmd,     scheme1 [tAction] (tCmd a tMsg)),
+                            (prim ReqToCmd,     scheme2 [tRequest a] (tCmd b a)),
+                            (prim TemplToCmd,   scheme2 [tTemplate a] (tCmd b a)),
+                            (prim RefToPID,     scheme1 [tRef a] tPID),
 
-                            (prim IntPlus,      scheme0 (TFun [tInt,tInt] tInt)),
-                            (prim IntMinus,     scheme0 (TFun [tInt,tInt] tInt)),
-                            (prim IntTimes,     scheme0 (TFun [tInt,tInt] tInt)),
-                            (prim IntDiv,       scheme0 (TFun [tInt,tInt] tInt)),
-                            (prim IntMod,       scheme0 (TFun [tInt,tInt] tInt)),
-                            (prim IntNeg,       scheme0 (TFun [tInt] tInt)),
+                            (prim IntPlus,      scheme0 [tInt,tInt] tInt),
+                            (prim IntMinus,     scheme0 [tInt,tInt] tInt),
+                            (prim IntTimes,     scheme0 [tInt,tInt] tInt),
+                            (prim IntDiv,       scheme0 [tInt,tInt] tInt),
+                            (prim IntMod,       scheme0 [tInt,tInt] tInt),
+                            (prim IntNeg,       scheme0 [tInt] tInt),
 
-                            (prim IntEQ,        scheme0 (TFun [tInt,tInt] tBool)),
-                            (prim IntNE,        scheme0 (TFun [tInt,tInt] tBool)),
-                            (prim IntLT,        scheme0 (TFun [tInt,tInt] tBool)),
-                            (prim IntLE,        scheme0 (TFun [tInt,tInt] tBool)),
-                            (prim IntGE,        scheme0 (TFun [tInt,tInt] tBool)),
-                            (prim IntGT,        scheme0 (TFun [tInt,tInt] tBool)),
+                            (prim IntEQ,        scheme0 [tInt,tInt] tBool),
+                            (prim IntNE,        scheme0 [tInt,tInt] tBool),
+                            (prim IntLT,        scheme0 [tInt,tInt] tBool),
+                            (prim IntLE,        scheme0 [tInt,tInt] tBool),
+                            (prim IntGE,        scheme0 [tInt,tInt] tBool),
+                            (prim IntGT,        scheme0 [tInt,tInt] tBool),
 
-                            (prim FloatPlus,    scheme0 (TFun [tFloat,tFloat] tFloat)),
-                            (prim FloatMinus,   scheme0 (TFun [tFloat,tFloat] tFloat)),
-                            (prim FloatTimes,   scheme0 (TFun [tFloat,tFloat] tFloat)),
-                            (prim FloatDiv,     scheme0 (TFun [tFloat,tFloat] tFloat)),
-                            (prim FloatNeg,     scheme0 (TFun [tFloat] tFloat)),
+                            (prim FloatPlus,    scheme0 [tFloat,tFloat] tFloat),
+                            (prim FloatMinus,   scheme0 [tFloat,tFloat] tFloat),
+                            (prim FloatTimes,   scheme0 [tFloat,tFloat] tFloat),
+                            (prim FloatDiv,     scheme0 [tFloat,tFloat] tFloat),
+                            (prim FloatNeg,     scheme0 [tFloat] tFloat),
 
-                            (prim FloatEQ,      scheme0 (TFun [tFloat,tFloat] tBool)),
-                            (prim FloatNE,      scheme0 (TFun [tFloat,tFloat] tBool)),
-                            (prim FloatLT,      scheme0 (TFun [tFloat,tFloat] tBool)),
-                            (prim FloatLE,      scheme0 (TFun [tFloat,tFloat] tBool)),
-                            (prim FloatGE,      scheme0 (TFun [tFloat,tFloat] tBool)),
-                            (prim FloatGT,      scheme0 (TFun [tFloat,tFloat] tBool)),
+                            (prim FloatEQ,      scheme0 [tFloat,tFloat] tBool),
+                            (prim FloatNE,      scheme0 [tFloat,tFloat] tBool),
+                            (prim FloatLT,      scheme0 [tFloat,tFloat] tBool),
+                            (prim FloatLE,      scheme0 [tFloat,tFloat] tBool),
+                            (prim FloatGE,      scheme0 [tFloat,tFloat] tBool),
+                            (prim FloatGT,      scheme0 [tFloat,tFloat] tBool),
 
-                            (prim CharToInt,    scheme0 (TFun [tChar] tInt)),
-                            (prim IntToChar,    scheme0 (TFun [tInt] tChar)),
+                            (prim CharToInt,    scheme0 [tChar] tInt),
+                            (prim IntToChar,    scheme0 [tInt] tChar),
 
-                            (prim MsgEQ,        scheme0 (TFun [tMsg,tMsg] tBool)),
-                            (prim MsgNE,        scheme0 (TFun [tMsg,tMsg] tBool)),
+                            (prim MsgEQ,        scheme0 [tMsg,tMsg] tBool),
+                            (prim MsgNE,        scheme0 [tMsg,tMsg] tBool),
 
-                            (prim PidEQ,        scheme0 (TFun [tPID,tPID] tBool)),
-                            (prim PidNE,        scheme0 (TFun [tPID,tPID] tBool)),
+                            (prim PidEQ,        scheme0 [tPID,tPID] tBool),
+                            (prim PidNE,        scheme0 [tPID,tPID] tBool),
 
-                            (prim Sec,          scheme0 (TFun [tInt] tTime)),
-                            (prim MilliSec,     scheme0 (TFun [tInt] tTime)),
-                            (prim MicroSec,     scheme0 (TFun [tInt] tTime)),
-                            (prim NanoSec,      scheme0 (TFun [tInt] tTime)),
-                            (prim Infinity,     scheme0 tTime),
+                            (prim Sec,          scheme0 [tInt] tTime),
+                            (prim MilliSec,     scheme0 [tInt] tTime),
+                            (prim MicroSec,     scheme0 [tInt] tTime),
+                            (prim NanoSec,      scheme0 [tInt] tTime),
+                            (prim Infinity,     scheme0 [] tTime),
                                 
-                            (prim TimePlus,     scheme0 (TFun [tTime,tTime] tTime)),
-                            (prim TimeMinus,    scheme0 (TFun [tTime,tTime] tTime)),
-                            (prim TimeMin,      scheme0 (TFun [tTime,tTime] tTime)),
+                            (prim TimePlus,     scheme0 [tTime,tTime] tTime),
+                            (prim TimeMinus,    scheme0 [tTime,tTime] tTime),
+                            (prim TimeMin,      scheme0 [tTime,tTime] tTime),
                                 
-                            (prim TimeEQ,       scheme0 (TFun [tTime,tTime] tBool)),
-                            (prim TimeNE,       scheme0 (TFun [tTime,tTime] tBool)),
-                            (prim TimeLT,       scheme0 (TFun [tTime,tTime] tBool)),
-                            (prim TimeLE,       scheme0 (TFun [tTime,tTime] tBool)),
-                            (prim TimeGE,       scheme0 (TFun [tTime,tTime] tBool)),
-                            (prim TimeGT,       scheme0 (TFun [tTime,tTime] tBool)),
+                            (prim TimeEQ,       scheme0 [tTime,tTime] tBool),
+                            (prim TimeNE,       scheme0 [tTime,tTime] tBool),
+                            (prim TimeLT,       scheme0 [tTime,tTime] tBool),
+                            (prim TimeLE,       scheme0 [tTime,tTime] tBool),
+                            (prim TimeGE,       scheme0 [tTime,tTime] tBool),
+                            (prim TimeGT,       scheme0 [tTime,tTime] tBool),
 
-                            (prim Fail,         scheme1 (tPMC a)),
-                            (prim Commit,       scheme1 (TFun [a] (tPMC a))),
-                            (prim Match,        scheme1 (TFun [tPMC a] a)),
-                            (prim Fatbar,       scheme1 (TFun [tPMC a, tPMC a] (tPMC a))),
+                            (prim Fail,         scheme1 [] (tPMC a)),
+                            (prim Commit,       scheme1 [a] (tPMC a)),
+                            (prim Match,        scheme1 [tPMC a] a),
+                            (prim Fatbar,       scheme1 [tPMC a, tPMC a] (tPMC a)),
 
-                            (prim After,        scheme0 (TFun [tTime,tAction] tAction)),
-                            (prim Before,       scheme0 (TFun [tTime,tAction] tAction))
+                            (prim After,        scheme0 [tTime,tAction] tAction),
+                            (prim Before,       scheme0 [tTime,tAction] tAction)
                           ]
 
 
@@ -662,10 +665,12 @@ tUnit                   = TId (prim UNIT)
 a                       = TId (name0 "a")
 b                       = TId (name0 "b")
         
-scheme0 t               = Scheme (R t) [] []
-scheme1 t               = Scheme (R t) [] [(name0 "a",Star)]
-scheme2 t               = Scheme (R t) [] [(name0 "a",Star),(name0 "b",Star)]
+scheme0 ts t            = Scheme (mkRho ts t) [] []
+scheme1 ts t            = Scheme (mkRho ts t) [] [(name0 "a",Star)]
+scheme2 ts t            = Scheme (mkRho ts t) [] [(name0 "a",Star),(name0 "b",Star)]
 
+mkRho [] t              = R t
+mkRho ts t              = F (map scheme ts) (R t)
 
 primAboveEnv    = [ (prim Action,   unitWG subActCmd),
                     (prim Request,  unitWG subReqCmd),
@@ -684,15 +689,15 @@ primBelowEnv    = [ (prim Action,   nullWG),
                   ]
 
 
-reflAll         = (prim Refl,       scheme1 (a `sub` a))
+reflAll         = (prim Refl,       scheme1 [] (a `sub` a))
 
-subActCmd       = (prim ActToCmd,   scheme1 (tAction `sub` tCmd a tMsg))
+subActCmd       = (prim ActToCmd,   scheme1 [] (tAction `sub` tCmd a tMsg))
 
-subReqCmd       = (prim ReqToCmd,   scheme2 (tRequest a `sub` tCmd b a))
+subReqCmd       = (prim ReqToCmd,   scheme2 [] (tRequest a `sub` tCmd b a))
 
-subTemplCmd     = (prim TemplToCmd, scheme2 (tTemplate a `sub` tCmd b a))
+subTemplCmd     = (prim TemplToCmd, scheme2 [] (tTemplate a `sub` tCmd b a))
 
-subRefPID       = (prim RefToPID,   scheme1 (tRef a `sub` tPID))
+subRefPID       = (prim RefToPID,   scheme1 [] (tRef a `sub` tPID))
 
 
 primClassEnv    = []

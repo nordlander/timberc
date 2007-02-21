@@ -93,6 +93,7 @@ tiBinds env (Binds rec te eqs)  = do --tr ("TYPE-CHECKING " ++ showids xs)
                                          es3       = if rec then map (subst sat) es2 else es2
                                          sat       = let es = map eVar vs in map (\x -> (x, \t -> eAp (h x t) es)) xs
                                          h x (Just t) = eVarT x qs t
+                                         h x _        = eVar x
                                          (es',ts') = unzip (zipWith (qual qe2) es3 (subst s' ts))
                                      --tr ("Witnesses returned: " ++ showids (dom qe1))
                                      (ss,ts'') <- fmap unzip (mapM (gen env1) ts')
@@ -200,7 +201,7 @@ tiExp env (ECase e alts d)      = do alpha <- newTVar Star
         tiX env x (PCon k)      = do (t,_) <- inst (findType env k)
                                      te <- newEnv paramSym (fArgs t)
                                      tiExp env (eLam te (e (dom te)))
-          where e vs            = EAp (eVar x) [EAp (eCon k) (map eVar vs)]
+          where e vs            = EAp (eVar x) [eAp (eCon k) (map eVar vs)]
                 fArgs (F ts t)  = ts
                 fArgs t         = []
 tiExp env (EReq e e')           = do alpha <- newTVar Star
@@ -288,7 +289,7 @@ mkRec env c eqs                 = liftM (ERec c) (mapM mkEqn ls)
 flatCons (ELam _ e)             = flatCons e
 flatCons (EAp (EVar x _) [e])   = flatCons e
 flatCons e                      = flat e
-  where flat (EAp e [e'])       = flat e ++ flat e'
+  where flat (EAp e es)         = flat e ++ flat (head es)      -- if e is a coercion, es will all be variables except for the head
         flat (ECon k t)         = [(PCon k, t)]
         flat (ELit l)           = [(PLit l, Nothing)]
         flat _                  = []
