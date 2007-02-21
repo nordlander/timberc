@@ -240,14 +240,18 @@ instance Ord Name where
 -- Printing Names -----------------------------------------------------------------
 
 instance Show Name where
-  show (Name s 0 _)             = s
-  show (Name s n _)             = s ++ "_" ++ show n
-  show (Tuple n _)              = '(' : replicate (n-1) ',' ++ ")"
-  show (Prim p _)               = strRep p
+  show (Name s 0 _)             = show s
+  show (Name s n _)             = show (s ++ "_" ++ show n)
+  show (Tuple n _)              = show ('(' : replicate (n-1) ',' ++ ")")
+  show (Prim p _)               = show (strRep p)
 
 
 instance Pr Name where
-  pr x                          = text (show x)
+  pr (Name s 0 _)               = text s
+  pr (Name s n _)               = text (s ++ "_" ++ show n)
+  pr (Tuple n _)                = text ('(' : replicate (n-1) ',' ++ ")")
+  pr (Prim p _)                 = text (strRep p)
+
 
 
 prId i                          = if isSym i then parens (pr i) else pr i
