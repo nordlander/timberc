@@ -116,7 +116,7 @@ k2cExp' _                       = error "Internal: k2cExp"
 
 
 k2cName (Prim p _)              = k2cPrim p
-k2cMame n                       = prId3 n
+k2cName n                       = prId3 n
 
 
 isInfix (Prim p _)              = p `notElem` [IntNeg, FloatNeg, CharToInt, IntToChar] ++ [Sec .. Infinity]
