@@ -28,7 +28,7 @@ k2cStructStub n                 = text "struct" <+> k2cName n <> text ";"
 k2cDecl (n, Enum cs)            = text "enum" <+> braces (commasep k2cName cs) <> text ";"
 k2cDecl (n, Struct te)          = text "struct" <+> text "{" $$
                                     nest 4 (vcat (map k2cSig te)) $$
-                                  text "};" $$
+                                  text "}" <+> k2cName n <> text ";" $$
                                   text "typedef" <+> text "struct" <+> k2cName n <+> text "*" <> k2cName n <> text ";"
 
 k2cSig (x, FunT ts t)           = k2cType t <+> parens (text "*" <> k2cName x) <+> parens (commasep k2cType ts) <> text";"

@@ -628,6 +628,7 @@ instance Pr Exp where
     prn 0 (EReq e e')           = text "request@" <> prn 2 e $$
                                        nest 4 (pr e')
     prn 0 (ETempl x t te c)     = text "template@" <> prId x $$
+                                       nest 4 (vpr te) $$
                                        nest 4 (pr c)
     prn 0 (EDo x t c)           = text "do@" <> prId x $$
                                        nest 4 (pr c)

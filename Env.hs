@@ -314,7 +314,7 @@ findWG (RUnif)        (env,_)           = reflWG
 findWG (RInv _ Pos i) (env,_)           = concatWG reflWG (findAbove env i)
 findWG (RInv _ Neg i) (env,_)           = concatWG reflWG (findBelow env i)
 findWG (RClass i)     (env,_)           = lookup' (classEnv env) i
-findWG (RVarVar)      (env,_)           = foldr concatWG reflWG (rng (aboveEnv env))
+findWG (RVarVar)      (env,_)           = foldl concatWG reflWG (rng (aboveEnv env))
 
 
 addReflWG wg                            = WG { nodes = reflAll : nodes wg, 
@@ -358,7 +358,7 @@ data Rank                               = RFun                  -- function type
 
 rank info (env,TFun [l] u)              = subrank (tFlat l) (tFlat u)
   where 
-    (emb,vs,lb,ub,lb',ub',pols)         = info
+    (emb,vs,lb,ub,lb',ub',pvs)          = info
     approx                              = forced env                 -- solve subtype predicates at all costs
     subrank (TFun _ _, _) _             = RFun                       -- resubmit to predicate scheme reducer
     subrank _ (TFun _ _, _)             = RFun                       -- resubmit to predicate scheme reducer
@@ -369,14 +369,14 @@ rank info (env,TFun [l] u)              = subrank (tFlat l) (tFlat u)
       | otherwise                       = RInv l Pos i               -- otherwise rank below v-v unification (dir only for env lookup)
       where l                           = length (filter (==n) emb)  -- # of embeddings of n
             b                           = length (filter (==n) lb)   -- # of lower var bounds for n
-            v                           = polarity pols n            -- polarity of n in target type
+            v                           = polarity pvs n             -- polarity of n in target type
     subrank (TVar n,_) (TId i,_)
       | l==0 && b==0 && not (isPos v)   = ROrd 0 Neg i               -- no embeddings, only constant bounds, right polarity
       | approx && n `notElem` vs        = ROrd l Neg i               -- approximate in right direction if n not in environment
       | otherwise                       = RInv l Neg i               -- otherwise rank below v-v unification (dir only for env lookup)
       where l                           = length (filter (==n) emb)  -- # of embeddings of n
             b                           = length (filter (==n) ub)   -- # of upper var bounds for n
-            v                           = polarity pols n            -- polarity of n in target type
+            v                           = polarity pvs n             -- polarity of n in target type
     subrank (TVar n,ts) (TVar n',ts')
       | n == n' && ts == ts'            = RUnif     -- identical types, just eliminate the predicate
       | l==0 && b==1 && null ts && not (isPos v)
@@ -387,10 +387,10 @@ rank info (env,TFun [l] u)              = subrank (tFlat l) (tFlat u)
       | otherwise                       = RVarVar   -- leave them until last when in conservative mode
       where l                           = length (filter (==n) emb)  -- # of embeddings of n
             b                           = length (filter (==n) ub')  -- # of upper var OR con bounds for n
-            v                           = polarity pols n            -- polarity of n in target type
+            v                           = polarity pvs n             -- polarity of n in target type
             l'                          = length (filter (==n') emb) -- # of embeddings of n'
             b'                          = length (filter (==n') lb') -- # of lower var OR con bounds for n'
-            v'                          = polarity pols n'           -- polarity of n' in target type
+            v'                          = polarity pvs n'            -- polarity of n' in target type
 rank info (env,t)                       = RClass (tId (tHead t))     -- class predicate, rank just above conservative var-to-var
 
 
@@ -556,7 +556,7 @@ primKindEnv             = [ (prim Action,       Star),
                                     
                             (prim Msg,          Star),
                             (prim Ref,          KFun Star Star),
-                            (prim PID,          KFun Star Star),
+                            (prim PID,          Star),
                             (prim PMC,          KFun Star Star),
                             (prim Time,         Star),
                                     

@@ -37,7 +37,7 @@ normalize env pe                        = do -- tr ("NORMALIZE " ++ show pe)
 
 -- Conservative reduction ----------------------------------------------------------------------
 
-reduce env pe                           = do -- tr ("###reduce " ++ show (tvars (typeEnv env)) ++ 
+reduce env pe                           = do -- tr ("###reduce " ++ show (tvars (typeEnv env)))
                                              (s,q,[],es) <- red [] (map mkGoal pe)
                                              -- tr ("###result: " ++ show s ++ ", preds: " ++ show q)
                                              return (s, q, eLet pe (dom pe `zip` es))
@@ -93,26 +93,20 @@ a x < b x \\ x, a x < c x \\ x, b x < c Int \\ x
 
 resolve env pe                          = do -- tr ("###############\nBefore resolve: ")
                                              (s,q,[],es) <- red [] (map mkGoal pe)
-                                             --tr ("###############\nAfter resolve: " ++ show q)
+                                             -- tr ("###############\nAfter resolve: " ++ show q)
                                              let env1 = subst s env
                                                  q' = filter (isDummy . fst) q
                                              assert (null q') ("Cannot resolve predicates: " ++ vshow (rng q'))
-                                             q'' <- mapM (closeCoercion env1) q
-                                             return (s, q'', eLet pe (dom pe `zip` es))
+                                             return (s, q, eLet pe (dom pe `zip` es))
   where env_tvs                         = tevars env
         reachable_tvs                   = vclose (map tvars pe) (ps ++ ns ++ env_tvs)
           where (ps,ns)                 = pols env
         mkGoal (v,p)                    = (force env' (local  && (coercion || ambig)), p)
           where tvs                     = tvars p
                 coercion                = isCoercion v
-                local                   = null (tvs `intersect` env_tvs)
+                local                   = not (null (tvs \\ env_tvs))
                 ambig                   = null (tvs `intersect` reachable_tvs)
                 env'                    = tick env coercion
-        closeCoercion env (v,p)
-          | isCoercion v                = do (_,p') <- gen env p
-                                             return (v, p')
-          | otherwise                   = return (v, p)
-        
 
 
 {-
@@ -174,7 +168,8 @@ resolve env pe                          = do -- tr ("###############\nBefore res
 
 
 red [] []                               = return (nullSubst, [], [], [])
-red gs []                               = do (s,q,e:es) <- solve r g (gs1++gs2)
+red gs []                               = do -- tr ("%%%%%%%% solve info: " ++ show info)
+                                             (s,q,e:es) <- solve r g (gs1++gs2)
                                              let (es1,es2) = splitAt i es
                                              return (s, q, es1++[e]++es2, [])
   where rs                              = map (rank info) gs
@@ -257,14 +252,14 @@ solve r g gs
                                              (s,q,es,_) <- red gs []
                                              (q',e) <- newHyp g
                                              return (s, q'++q, e:es)
-  | otherwise                           = do --tr ("Solving " ++ show r ++ " : " ++ show (snd g))
+  | otherwise                           = do -- tr ("Solving " ++ show r ++ " : " ++ show (snd g))
                                              try r (Left msg) (findWG r g) (logHistory g) gs
   where msg                             = "Cannot solve typing constraint " ++ show' (snd g)
 
 
 try r accum wg g gs
   | isNullWG wg || isNull accum         = unexpose accum
-  | otherwise                           = do --tr ("###Witness graph: " ++ show wg)
+  | otherwise                           = do -- tr ("###Witness graph: " ++ show wg)
                                              res <- expose (hyp wit g gs)
                                              accum <- plus (g : gs) accum res
                                              try r accum (wg2 res) g gs
@@ -278,9 +273,9 @@ mayPrune _         _          _         = True
 
 
 hyp (w,p) (env,c) gs                    = do (R c',ps) <- inst p
-                                             --tr ("hyp: " ++ show c ++ ", witness: " ++ show wit)
+                                             -- tr ("hyp: " ++ show c ++ ", witness: " ++ show (w,p))
                                              s <- unify env [(c,c')]
-                                             --tr "**OK"
+                                             -- tr ("**OK: " ++ show s)
                                              let ps' = repeat (subst s env) `zip` subst s ps
                                              (s',q,es,es') <- red (subst s gs) ps'
                                              return (s'@@s, q, eAp (eVarT w ps (R c')) es' : es)
@@ -350,7 +345,8 @@ auTerms gs es1 es2                      = auZip auTerm gs es1 es2
     auSc _ _ _                          = error "Internal: auTerms"
 
 
-newHyp (env,c)                          = do v <- newName (sym env)
+newHyp (env,c)                          = do --tr ("newHyp " ++ show c ++ "    ## tenv = " ++ show (typeEnv env))
+                                             v <- newName (sym env)
                                              return ([(v,p)], eAp (eVar v) (map eVar vs))
   where p                               = Scheme (R c) ps ke
         tvs                             = tyvars c

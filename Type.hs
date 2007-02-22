@@ -84,7 +84,7 @@ tiBindsList1 env bss            = do (ss,pe,bss) <- tiBindsList env bss
                                      
 tiBinds env (Binds rec te eqs)  = do --tr ("TYPE-CHECKING " ++ showids xs)
                                      (s,pe,es1)   <- tiRhs0 env' explWits ts es
-                                     --tr ("Witnesses obtained: " ++ showids (dom pe))
+                                     -- tr ("Witnesses obtained: " ++ show pe)
                                      (s',qe,f)    <- fullreduce (target te env) s pe
                                      let env1      = subst s' env
                                          (qe1,qe2) = partition (isFixed env1) qe
@@ -95,7 +95,7 @@ tiBinds env (Binds rec te eqs)  = do --tr ("TYPE-CHECKING " ++ showids xs)
                                          h x (Just t) = eVarT x qs t
                                          h x _        = eVar x
                                          (es',ts') = unzip (zipWith (qual qe2) es3 (subst s' ts))
-                                     --tr ("Witnesses returned: " ++ showids (dom qe1))
+                                     -- tr ("Witnesses returned: " ++ show qe1)
                                      (ss,ts'') <- fmap unzip (mapM (gen env1) ts')
                                      return (mkEqns (s'++concat ss), qe1, Binds rec (xs `zip` ts'') (xs `zip` es'))
   where ts                      = map (lookup' te) xs
