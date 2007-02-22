@@ -278,42 +278,31 @@ instance Rename (GExp Exp) where
 
 
 renameQ env []                     = return []
-renameQ env (q@(QExp _) : qs)      = liftM2 (:) (rename env q) (renameQ env qs)
-renameQ env (q@(QGen p _) : qs)    = do env' <- extRenE env (pvars p)
-                                        liftM2 (:) (rename env' q) (renameQ env' qs)
-renameQ env (q@(QLet bs) : qs)     = do env' <- extRenE env (bvars bs)
-                                        liftM2 (:) (rename env' q) (renameQ env' qs)
+renameQ env (QExp e : qs)          = liftM2 (:) (liftM QExp (rename env e)) (renameQ env qs)
+renameQ env (QGen p e : qs)        = do env' <- extRenE env (pvars p)
+                                        liftM2 (:) (liftM2 QGen (rename env' p) (rename env e)) (renameQ env' qs)
+renameQ env (QLet bs : qs)         = do env' <- extRenE env (bvars bs)
+                                        liftM2 (:) (liftM QLet (rename env' bs)) (renameQ env' qs)
 
 
 instance Rename (Alt Exp) where
   rename env (Alt  p rh)           = do env' <- extRenE env (pvars p)
                                         liftM2 Alt (rename env' p) (rename env' rh) 
 
-instance Rename Qual where
-  rename env (QExp e)              = liftM QExp (rename env e)
-  rename env (QGen p e)            = liftM2 QGen (rename env p) (rename env e)
-  rename env (QLet bs)             = liftM QLet (rename env (shuffleB bs))
-
-
-instance Rename Stmt where
-  rename env (SExp e)              = liftM SExp (rename env e)
-  rename env (SRet e)              = liftM SRet (rename env e)
-  rename env (SGen p e)            = liftM2 SGen (rename env p) (rename env e)
-  rename env (SBind b)             = liftM SBind (rename env b)
-  rename env (SAss p e)
-    | not (null illegal)           = fail ("Unknown state variable: " ++ showids illegal)
-    | otherwise                    = liftM2 SAss (rename (unvoidAll env) p) (rename env e)
-    where illegal                  = pvars p \\ stateVars env
-
 
 renameS env []                     = return []
-renameS env (s@(SGen p e) : ss)    = do env' <- extRenE env (pvars p)
-                                        liftM2 (:) (rename env s) (renameS env' ss)
+renameS env [SRet e]               = liftM (:[]) (liftM SRet (rename env e))
+renameS env (SExp e : ss)          = liftM2 (:) (liftM SExp (rename env e)) (renameS env ss)
+renameS env (SGen p e : ss)        = do env' <- extRenE env (pvars p)
+                                        liftM2 (:) (liftM2 SGen (rename env' p) (rename env e)) (renameS env' ss)
 renameS env ss@(SBind _ : _)       = do env' <- extRenE env (bvars ss1)
-                                        liftM2 (++) (rename env' ss1) (renameS env' ss2)
+                                        liftM2 (++) (mapM (renameB env') ss1) (renameS env' ss2)
   where (ss1,ss2)                  = span isSBind ss
-renameS env (s@(SAss p e) : ss)    = liftM2 (:) (rename env s) (renameS (unvoid (pvars p) env) ss)
-renameS env (s:ss)                 = liftM2 (:) (rename env s) (renameS env ss)
+        renameB env (SBind b)      = liftM SBind (rename env b)
+renameS env (SAss p e : ss)
+  | not (null illegal)             = fail ("Unknown state variable: " ++ showids illegal)
+  | otherwise                      = liftM2 (:) (liftM2 SAss (rename (unvoidAll env) p) (rename env e)) (renameS (unvoid (pvars p) env) ss)
+  where illegal                    = pvars p \\ stateVars env
 
 
 

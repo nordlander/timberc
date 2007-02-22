@@ -181,4 +181,5 @@ ds1S env (SWhile e ss' : ss)     = error "while stmt not yet implemented"
 ds1T env [SRet e]                = [SRet (ds1 env e)]
 ds1T env (SBind b : ss)          = SBind (ds1 env b) : ds1T env ss
 ds1T env (SAss p e : ss)         = SAss (ds1 env p) (ds1 env e) : ds1T env ss
-ds1T env _                       = error "Illegal statement in template"
+ds1T env (SGen p e : ss)         = SGen (ds1 env p) (ds1 env e) : ds1T env ss           -- temporary
+ds1T env ss                      = error ("Illegal statement in template: " ++ show ss)
