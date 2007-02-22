@@ -535,7 +535,7 @@ prInst (i, p)                   = text "instance" <+> prId i <+> text "::" <+> p
 -- Bindings -----------------------------------------------------------------
 
 instance Pr Binds where
-    pr (Binds r te eqns)        = vpr te $$ vpr eqns
+    pr (Binds _ te eqns)        = vpr te $$ vpr eqns
     
 instance Pr (Name, Scheme) where
     pr (v, sc)                  = prId v <+> text "::" <+> pr sc

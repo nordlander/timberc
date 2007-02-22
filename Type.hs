@@ -64,7 +64,7 @@ tiModule (Module v ds is bs)    = do (env1,ds1,bs1) <- typeDecls env0 ds
                                      -- in env2 are actually met by the equations in is, bs1 and bs2
                                      let is0  = bs2 `catBinds` subInsts
                                          env3 = addInsts (eqnsOf is0) env2
-                                     (ss1,pe1,bs) <- tiBindsList1 (addTEnv0 (tsigsOf is) env3) (groupBinds bs)
+                                     (ss1,pe1,bs) <- tiBindsList (addTEnv0 (tsigsOf is) env3) (groupBinds bs)
                                      (ss2,pe2,classInsts) <- tiBinds (addTEnv0 (tsigsOf bs) env3) classInsts
                                      assert (null (pe0++pe1++pe2)) "Internal: top-level type inference"
                                      s <- unify env2 (ss0++ss1++ss2)
@@ -73,16 +73,13 @@ tiModule (Module v ds is bs)    = do (env1,ds1,bs1) <- typeDecls env0 ds
         (subInsts,classInsts)   = splitInsts is
 
 
-tiBindsList env []              = return ([], [], [])
-tiBindsList env (bs:bss)        = do (ss1, pe1, bs) <- tiBinds env bs
-                                     (ss2, pe2, bss) <- tiBindsList (addTEnv (tsigsOf bs) env) bss
-                                     return (ss1++ss2, pe1++pe2, bs:bss)
+tiBindsList env []              = return ([], [], nullBinds)
+tiBindsList env (bs:bss)        = do (ss1, pe1, bs') <- tiBinds env bs
+                                     (ss2, pe2, bss') <- tiBindsList (addTEnv (tsigsOf bs') env) bss
+                                     return (ss1++ss2, pe1++pe2, bs' `catBinds` bss')
 
-tiBindsList1 env bss            = do (ss,pe,bss) <- tiBindsList env bss
-                                     return (ss, pe, concatBinds bss)
                                      
-                                     
-tiBinds env (Binds rec te eqs)  = do --tr ("TYPE-CHECKING " ++ showids xs)
+tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ showids xs ++ " rec: " ++ show rec)
                                      (s,pe,es1)   <- tiRhs0 env' explWits ts es
                                      -- tr ("Witnesses obtained: " ++ show pe)
                                      (s',qe,f)    <- fullreduce (target te env) s pe
@@ -178,9 +175,9 @@ tiExp env (ELam te e)           = do (s,pe,t,e) <- tiExp (addTEnv te env) e
                                      return (s, pe, F (rng te) t, ELam te e)
 tiExp env (EAp e es)            = do (s,pe,t,e) <- tiExp env e
                                      tiAp env s pe t e es
-tiExp env (ELet bs e)           = do (s,pe,bss) <- tiBindsList env (groupBinds bs)
-                                     (s',pe',t,e) <- tiExp (addTEnv (tsigsOf' bss) env) e
-                                     return (s++s',pe++pe', t, eLet' bss e)
+tiExp env (ELet bs e)           = do (s,pe,bs) <- tiBinds env bs
+                                     (s',pe',t,e) <- tiExp (addTEnv (tsigsOf bs) env) e
+                                     return (s++s',pe++pe', t, ELet bs e)
 tiExp env (ERec c eqs)          = do alphas <- mapM newTVar (kArgs (findKind env c))
                                      (t,ts,sels')   <- tiLhs env (foldl TAp (TId c) alphas) tiX sels
                                      (s,pe,es') <- tiRhs env ts es
@@ -239,9 +236,9 @@ tiCmd env (CGen x tx e c)       = do (s,pe,e) <- tiExpT env (scheme (tCmd (fromJ
 tiCmd env (CAss x e c)          = do (s,pe,e) <- tiExpT env (findType env x) e
                                      (s',pe',t,c) <- tiCmd env c
                                      return (s++s', pe++pe', t, CAss x e c)
-tiCmd env (CLet bs c)           = do (s,pe,bss) <- tiBindsList env (groupBinds bs)
-                                     (s',pe',t,c) <- tiCmd (addTEnv (tsigsOf' bss) env) c
-                                     return (s++s', pe++pe', t, cLet' bss c)
+tiCmd env (CLet bs c)           = do (s,pe,bs) <- tiBinds env bs
+                                     (s',pe',t,c) <- tiCmd (addTEnv (tsigsOf bs) env) c
+                                     return (s++s', pe++pe', t, CLet bs c)
 
 
 -- Compute a list of

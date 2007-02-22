@@ -4,6 +4,7 @@ module Syntax2Core where
 import Common
 import Syntax
 import Monad
+import Depend
 import qualified Core
 
 
@@ -202,7 +203,7 @@ s2cEc env _ (EAp e1 e2)         = do (t,e1) <- s2cEi env e1
                                      return (Core.eAp2 e1 [e2])
 s2cEc env t (ELet bs e)         = do (te',bs') <- s2cBinds env te eqs
                                      e' <- s2cEc (addSigs te' env) t e
-                                     return (Core.ELet bs' e')
+                                     return (Core.eLet' (groupBinds bs') e')
   where (te,eqs)                = splitBinds bs
 s2cEc env t (ECase e alts)      = do e <- s2cEc env TWild e
                                      alts <- mapM (s2cA env t) alts
@@ -294,7 +295,7 @@ s2cEi env (EAp e1 e2)           = do (t,e1) <- s2cEi env e1
                                      return (t2, Core.eAp2 e1 [e2])
 s2cEi env (ELet bs e)           = do (te',bs') <- s2cBinds env te eqs
                                      (t,e') <- s2cEi (addSigs te' env) e
-                                     return (t, Core.ELet bs' e')
+                                     return (t, Core.eLet' (groupBinds bs') e')
   where (te,eqs)                = splitBinds bs
 s2cEi env (ECase e alts)        = do e <- s2cEc env TWild e
                                      alts <- mapM (s2cA env TWild) alts

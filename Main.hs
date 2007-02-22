@@ -93,10 +93,11 @@ Syntax2Core:
 - Applies up/down signature propagation within constructor/selector/member/signature environment
 - Completes bindings and lambdas with missing signatures
 
-- Does dependency analysis on bindings and declarations
+- Does dependency analysis on local bindings
 - Builds Core syntax tree
 
 Kind:
+- Does dependency analysis on type declarations
 - Performs kind inference, replacing every kind unification variable (defaulting to *)
 
 Decls:
@@ -109,6 +110,7 @@ Decls:
 - Computes instance overlap graph, closed under superclass relation (checks cyclic and ambiguity errors)
 
 Type:
+- Does dependency analysis on top-level bindings
 - Performs type inference and constraint simplification/solving
 - Makes all function calls match the arity of the called function
 - Inserts explicit overloading and subtyping witnesses

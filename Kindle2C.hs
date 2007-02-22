@@ -82,7 +82,7 @@ k2cCmd (CAssign e x e' c)       = k2cExp (ESel e x) <+> text "=" <+> k2cExp e' <
                                   k2cCmd c
 k2cCmd (CSwitch e alts d)       = text "switch" <+> parens (k2cExp e) <+> text "{" $$
                                     nest 4 (vcat (map k2cAlt alts)) $$
-                                    text "default:" <+> k2cNestCmd d $$
+                                    nest 4 (text "default:" <+> k2cNestCmd d) $$
                                   text "}"
 k2cCmd (CSeq c c')              = k2cCmd c $$
                                   k2cCmd c'

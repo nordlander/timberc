@@ -108,6 +108,7 @@ instance Desugar1 Exp where
             dups                   = duplicates (bvars fs)
             fs'                    = map (\s -> Field s (EVar s)) miss
  
+    ds1 env (ELet bs e)            = ELet (ds1 env bs) (ds1 env e)
     ds1 env (EAp e1 e2)            = EAp (ds1 env e1) (ds1 env e2)
     ds1 env (ETup es)              = ETup (ds1 env es)
     ds1 env (EList es)             = EList (ds1 env es)
