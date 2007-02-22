@@ -117,7 +117,7 @@ dsBinds bs                      = f [] bs
   where f eqns (BEqn lh rh :bs) = f ((lh,rh) : eqns) bs
         f eqns bs               = do eqns <- dsEqns eqns
                                      bs <- dsBinds bs
-                                     return (map (uncurry BEqn) eqns ++ bs)
+                                     return (map (uncurry BEqn) (reverse eqns) ++ bs)
 
 
 -- Equations -----------------------------------------------------------------
