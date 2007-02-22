@@ -133,12 +133,12 @@ primKindleTerms                         = map prim [ IntPlus .. TimeGT ]
 
 primTEnv                                = map cv (Env.primTypeEnv `restrict` primKindleTerms)
   where 
-    cv (x,Core.Scheme (Core.R t) [] []) = (x, cv1 t)
-    cv _                                = error "Internal: Kindle.primTEnv"
-    cv1 (Core.TFun ts t)                = FunT (map cv2 ts) (cv2 t)
-    cv1 t                               = ValT (cv2 t)
-    cv2 (Core.TId n)                    = TId n
-    cv2 _                               = error "Internal: Kindle.primTEnv"
+    cv (x,Core.Scheme r [] _)           = (x, cv0 r)
+    cv0 (Core.F ts t)                   = FunT (map cv1 ts) (cv2 t)
+    cv0 (Core.R t)                      = ValT (cv3 t)
+    cv1 (Core.Scheme r [] _)            = cv2 r
+    cv2 (Core.R t)                      = cv3 t
+    cv3 (Core.TId n)                    = TId n
 
 
 searchFields ds x                       = [ (TId n, t) | (n, Struct te) <- ds, (x',t) <- te, x==x' ]

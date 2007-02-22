@@ -67,10 +67,11 @@ redApp env (EVar x t) es        = case lookup x env of
 redApp env e es                 = eAp (redExp env e) es
 
 
-redEta env te e@(EAp (ECon _ _) _)
-                                = ELam te (redExp env e)
 redEta env te (EAp e es)
-  | es == map eVar (dom te)     = redExp env e
+  | ok e                        = redExp env e
+  where ok (ECon _ _)           = False
+        ok (EVar (Prim _ _) _)  = False
+        ok _                    = es == map eVar (dom te)
 redEta env te e                 = ELam te (redExp env e)
 
 

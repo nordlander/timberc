@@ -265,7 +265,7 @@ prId2 n                         = prId n
 prId3 (Name s n a)
   | n == 0                      = text s
   | otherwise                   = pre <> text ('_' : show n)
-  where pre                     = if isAlpha (head s) && all isAlphaNum (tail s) then text s else empty
+  where pre                     = if isAlpha (head s) && all isAlphaNum (tail s) then text s else text "SYM"
 prId3 n                         = prId2 n
 
 
