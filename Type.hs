@@ -222,7 +222,7 @@ tiExp env (EDo x tx c)
 tiExp env (ETempl x tx te c)
   | isTVar tx                   = do n <- newName typeSym
                                      let env' = setSelf x (TId n) (addTEnv te (addKEnv [(n,Star)] env))
-                                     (s,pe,t,e) <- tiCmd env' c
+                                     (s,pe,t,c) <- tiCmd env' c
                                      return ((TId n, tx):s, pe, R (tTemplate t), ETempl x (TId n) te c)
   | otherwise                   = error "Explicitly typed template expressions not yet implemented"
 
