@@ -95,11 +95,11 @@ llAlt env (ALit l c)                    = liftM (ALit l) (llCmd env c)
 -- Convert an expression
 llExp env (ECall x es)                  = do es <- mapM (llExp env) es
                                              case lookup x (expansions env) of
-                                                Just xs -> return (ECall x (map EVar xs ++ es))
+                                                Just xs -> return (ECall x (map (mkEVar env) xs ++ es))
                                                 Nothing -> return (ECall x es)
 llExp env (ENew n bs)
   | null fte                            = liftM (ENew n) (mapM (llBind env) bs)
-  | otherwise                           = do n' <- newName (str n)
+  | otherwise                           = do n' <- newName typeSym
                                              addToStore (Left (n', Kindle.Struct (te ++ mapSnd ValT fte)))
                                              vals' <- mapM (llBind env) vals
                                              funs' <- mapM (llBind (setThisVars (dom fte) env)) funs
@@ -110,12 +110,13 @@ llExp env (ENew n bs)
         fte                             = locals env `restrict` free1
         Kindle.Struct te                = lookup' (decls env) n
         close (x,t)                     = (x, Val t (EVar x))
-llExp env (EVar x)
-  | x `elem` thisVars env               = return (ESel EThis x)
-  | otherwise                           = return (EVar x)
+llExp env (EVar x)                      = return (mkEVar env x)
 llExp env (EThis)                       = return (EThis)
 llExp env (ELit l)                      = return (ELit l)
 llExp env (ESel e l)                    = liftM (flip ESel l) (llExp env e)
 llExp env (EEnter e f es)               = do e <- llExp env e
                                              liftM (EEnter e f) (mapM (llExp env) es)
 llExp env (ECast t e)                   = liftM (ECast t) (llExp env e)
+
+
+mkEVar env x                            = if x `elem` thisVars env then ESel EThis x else EVar x

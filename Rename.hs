@@ -223,7 +223,7 @@ instance Rename Lhs where
 
 instance Rename Exp where
   rename env (EVar v)
-    | v `elem` void env            = fail "Uninitialized state variable"
+    | v `elem` void env            = fail ("Uninitialized state variable: " ++ show v)
     | v `elem` stateVars env       = return (EVar (renS env v))
     | otherwise                    = return (EVar (renE env v))
   rename env (ECon c)              = return (ECon (renE env c))
@@ -234,7 +234,7 @@ instance Rename Exp where
   rename env (EList es)            = liftM EList (rename env es)
   rename env EWild                 = return EWild
   rename env (ESig e t)            = liftM2 ESig (rename env e) (renameQT env t)
-  rename env (ERec m fs)           = liftM (ERec m) (rename env fs)
+  rename env (ERec m fs)           = liftM (ERec (renRec env m)) (rename env fs)
   rename env (ELam ps e)           = do env' <- extRenE env (pvars ps)
                                         liftM2 ELam (rename env' ps) (rename env' e)
   rename env (ELet bs e)           = do env' <- extRenE env (bvars bs)
@@ -260,6 +260,8 @@ instance Rename Exp where
   rename env (EAfter e1 e2)        = liftM2 EAfter (rename env e1) (rename env e2)
   rename env (EBefore e1 e2)       = liftM2 EBefore (rename env e1) (rename env e2)
 
+renRec env (Just (n, t))           = Just (renT env n, t)
+renRec env Nothing                 = Nothing
 
 instance Rename Field where
   rename env (Field l e)           = liftM (Field (renL env l)) (rename env e)
@@ -300,7 +302,7 @@ instance Rename Stmt where
   rename env (SBind b)             = liftM SBind (rename env b)
   rename env (SAss p e)
     | not (null illegal)           = fail ("Unknown state variable: " ++ showids illegal)
-    | otherwise                    = liftM2 SAss (rename env p) (rename env e)
+    | otherwise                    = liftM2 SAss (rename (unvoidAll env) p) (rename env e)
     where illegal                  = pvars p \\ stateVars env
 
 

@@ -209,6 +209,7 @@ cast t (CBreak)                         = CBreak
 instance Ids Exp where
     idents (EVar x)                     = [x]
     idents (EThis)                      = []
+    idents (ELit l)                     = []
     idents (ESel e l)                   = idents e
     idents (ENew x bs)                  = idents bs
     idents (ECall x es)                 = x : idents es
@@ -274,7 +275,7 @@ instance Pr Cmd where
                                           pr c
     pr (CBind r bs c)                   = vpr bs $$
                                           pr c
-    pr (CAssign e x e' c)               = pr e <> text "." <> prId2 x <+> text ":=" <+> pr e' <> text ";" $$
+    pr (CAssign e x e' c)               = pr e <> text "->" <> prId2 x <+> text "=" <+> pr e' <> text ";" $$
                                           pr c
     pr (CSwitch e alts d)               = text "switch" <+> parens (pr e) <+> text "{" $$
                                           nest 2 (vpr alts $$ prDefault d) $$

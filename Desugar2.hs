@@ -134,7 +134,7 @@ dsEqns ((LFun v ps,rh):eqns)    = dsFunBind v [(ps,rh)] eqns
 
 dsFunBind v alts ((LFun v' ps,rh) : eqns)
   | v' == v                     = dsFunBind v ((ps,rh) : alts) eqns
-dsFunBind v [(ps,rh)] eqns      = do e <- dsExp (ELam ps (rh2exp rh))
+dsFunBind v [(ps,rh)] eqns      = do e <- dsExp (eLam ps (rh2exp rh))
                                      eqns <- dsEqns eqns
                                      return ((LFun v [], RExp e) : eqns)
 dsFunBind v alts eqns

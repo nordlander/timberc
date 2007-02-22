@@ -215,7 +215,7 @@ cFunT env ts t0 (ELam te e)
         l_te                            = length te
 cFunT env [ty] t0 (EReq e e')           = do (bf,tx,e) <- cExp env e
                                              x <- newName selfSym
-                                             (c) <- cCmdExpT (pushSelf x tx env) t0 e'
+                                             c <- cCmdExpT (pushSelf x tx env) t0 e'
                                              c <- Kindle.protect x t0 c
                                              y <- newName dummySym
                                              return ([(y,ty)], bf (Kindle.cBind [(x,Kindle.Val tx e)] c))
@@ -382,13 +382,13 @@ cAct env fa fb (EAp (EVar (Prim Before _) _) [e,e'])
                                              (te,c) <- cAct env fa (min e1 . fb) e'
                                              return (te, bf c)
   where min e1 b                        = Kindle.ECall (prim TimeMin) [e1,b]
-cAct env fa fb (EAct e e')              = do (ignore_te,c) <- cFunT env [Kindle.TWild] Kindle.TWild (EReq e e')
+cAct env fa fb (EAct e e')              = do (te,t,c) <- cFun env (EReq e e')
                                              a  <- newName paramSym
                                              b  <- newName paramSym
                                              m  <- newName tempSym
                                              let c'  = Kindle.cBind bs (Kindle.CRun e1 (Kindle.CRet (Kindle.EVar m)))
                                                  bs  = [(m, Kindle.Val tMsg (Kindle.ENew (prim Msg) bs'))]
-                                                 bs' = [(prim Code, Kindle.Fun Kindle.TWild [] c)]
+                                                 bs' = [(prim Code, Kindle.Fun t [] c)]
                                                  es  = [Kindle.EVar m, fa (Kindle.EVar a), fb (Kindle.EVar b)]
                                                  e1  = Kindle.ECall (prim ASYNC) es
                                              return ([(a,tTime),(b,tTime)], c')
