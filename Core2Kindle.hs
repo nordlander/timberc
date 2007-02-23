@@ -382,13 +382,13 @@ cAct env fa fb (EAp (EVar (Prim Before _) _) [e,e'])
                                              (te,c) <- cAct env fa (min e1 . fb) e'
                                              return (te, bf c)
   where min e1 b                        = Kindle.ECall (prim TimeMin) [e1,b]
-cAct env fa fb (EAct e e')              = do (te,t,c) <- cFun env (EReq e e')
+cAct env fa fb (EAct e e')              = do (ignore_te,c) <- cFunT env [Kindle.TWild] Kindle.TWild (EReq e e')
                                              a  <- newName paramSym
                                              b  <- newName paramSym
                                              m  <- newName tempSym
                                              let c'  = Kindle.cBind bs (Kindle.CRun e1 (Kindle.CRet (Kindle.EVar m)))
                                                  bs  = [(m, Kindle.Val tMsg (Kindle.ENew (prim Msg) bs'))]
-                                                 bs' = [(prim Code, Kindle.Fun t [] c)]
+                                                 bs' = [(prim Code, Kindle.Fun Kindle.TWild [] c)]
                                                  es  = [Kindle.EVar m, fa (Kindle.EVar a), fb (Kindle.EVar b)]
                                                  e1  = Kindle.ECall (prim ASYNC) es
                                              return ([(a,tTime),(b,tTime)], c')
@@ -527,7 +527,7 @@ cHead env (EAp e es)                    = do (bf,t,f,ts) <- cFHead env e
           | l_ts <  l_es                = error "Internal: c2k.appFun"
           | l_ts == l_es                = do (bf,es) <- cExpTs env ts es
                                              return (bf, t, VHead (f es))
-          | l_ts >  l_es                = do (bf,es) <- cExpTs env ts es
+          | l_ts >  l_es                = do (bf,es) <- cExpTs env ts1 es
                                              return (bf, t, FHead (\es' -> f (es++es')) ts2)
           where l_ts                    = length ts
                 l_es                    = length es
@@ -563,7 +563,7 @@ adjust Nothing bf t h                   = return (bf, t, h)
 adjust (Just t0) bf t h                 = do (ts',t') <- cType (deQualify' t0)
                                              return (bf, t', adjust' t h ts' t')
   where adjust' t (VHead e) [] t'       = VHead (match t' t e)
-        adjust' t (FHead f ts) ts' t'   = FHead (match t' t . f . zipWith3 match ts' ts) ts'
+        adjust' t (FHead f ts) ts' t'   = FHead (match t' t . f . zipWith3 match ts ts') ts'
 
 
 -- Convert a Core.Exp into an expression head that is expected to be a function

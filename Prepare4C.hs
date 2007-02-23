@@ -140,5 +140,8 @@ pExp' env (ENew n bs)               = do (bs1,bs) <- pMap (pSBind env n) bs
                                          return (bs1++[(x, Val (TId n) (ENew n bs))], TId n, EVar x)
 
 
-mustBox env TWild                   = False
-mustBox env (TId n)                 = lookup n (decls env) == Nothing
+mustBox env TWild                   = False                             -- Already polymorphic
+mustBox env (TId n)                 = case lookup n (decls env) of
+                                         Just (Struct te) -> False      -- Already heap allocated
+                                         Just (Enum cs)   -> False      -- Limited range, can't be confused with a pointer
+                                         _ -> True                      -- In effect, integers and floats

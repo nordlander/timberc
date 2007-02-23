@@ -251,7 +251,7 @@ instance Pr (Name, Decl) where
 
 
 instance Pr (Name, Type) where
-    pr (x, ValT t)                      = pr t <+> prId2 x
+    pr (x, ValT t)                      = pr t <+> prId2 x <> text ";"
     pr (x, FunT ts t)                   = pr t <+> prId2 x <> parens (commasep pr ts) <> text ";"
 
 

@@ -408,7 +408,7 @@ instance Subst (Kind,Kind) Int Kind where
     subst s (a,b)               = (subst s a, subst s b)
 
 instance Pr (Name,Kind) where
-    pr (id,k)                   = prId id <+> text "::" <+> pr k
+    pr (n,k)                    = prId n <+> text "::" <+> pr k
 
 instance Pr Kind where
     prn 0 (KFun k1 k2)          = prn 1 k1 <+> text "->" <+> prn 0 k2

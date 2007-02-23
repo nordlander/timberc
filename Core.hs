@@ -566,7 +566,10 @@ instance Pr (Name,Constr) where
 
 prContext [] []                 = empty
 prContext ps ke                 = text "\\\\" <+> preds
-  where preds                   = hsep (punctuate comma (map (prPScheme 1) ps{- ++ map pr ke-}))
+  where preds                   = hsep (punctuate comma (map (prPScheme 1) ps ++ map prKind ke))
+
+prKind (n,Star)                 = prId n
+prKind (n,k)                    = prId n <+> text "::" <+> pr k
 
 prPScheme 0 (Scheme p ps ke)    = prPred p <+> prContext ps ke
 prPScheme 1 (Scheme p [] [])    = prPred p
@@ -654,7 +657,7 @@ instance Pr Cmd where
                                   pr c
     pr (CAss x e c)             = prId x <+> text ":=" <+> pr e $$
                                   pr c
-    pr (CGen x t e c)           = prId x <+> text "<-" <+> pr e $$
+    pr (CGen x t e c)           = prId x <+> {- text "::" <+> pr t <+> -} text "<-" <+> pr e $$
                                   pr c
     pr (CRet e)                 = text "return" <+> pr e
     pr (CExp e)                 = pr e

@@ -141,7 +141,7 @@ invisible p                     = p >= ASYNC
 
 isIdPrim p                      = p `notElem` primSyms
 
-primSyms                        = [LIST .. CONS]
+primSyms                        = [LIST, NIL, CONS]
 
 primTypes                       = map primKeyValue [Action .. UNIT]
 

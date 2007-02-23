@@ -15,7 +15,7 @@ class Pr a where
     vpr xs = vcat (map pr xs)
 
     hpr  :: Char -> [a] -> Doc
-    hpr c xs = hsep (punctuate (char c) (map pr xs))
+    hpr c xs = sep (punctuate (char c) (map pr xs))
 
     dump :: a -> IO ()
     dump x = putStr (render (pr x))
@@ -42,7 +42,7 @@ lit c         = showLitChar c ""
 charQuotes p  = char '\'' <> p <> char '\''
 curlies       = braces
 
-commasep f xs                   = hsep (punctuate comma (map f xs))
+commasep f xs = sep (punctuate comma (map f xs))
 
 
 show' :: Pr a => a -> String
