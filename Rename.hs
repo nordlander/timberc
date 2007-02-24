@@ -243,7 +243,8 @@ instance Rename Exp where
   rename env (EIf e1 e2 e3)        = liftM3 EIf (rename env e1) (rename env e2) (rename env e3)
   rename env (ENeg e)              = liftM ENeg (rename env e)
   rename env (ESeq e1 e2 e3)       = liftM3 ESeq (rename env e1) (rename env e2) (rename env e3)
-  rename env (EComp e qs)          = liftM2 EComp (rename env e) (renameQ env qs)
+  rename env (EComp e qs)          = do (qs,e) <- renameQ env qs e
+                                        return (EComp e qs)
   rename env (ESectR e op)         = liftM (flip ESectR op) (rename env e) 
   rename env (ESectL op e)         = liftM (ESectL op) (rename env e)
   rename env (ESelect e l)         = liftM (flip ESelect (renL env l)) (rename env e) 
@@ -274,15 +275,24 @@ instance Rename (Rhs Exp) where
 
 
 instance Rename (GExp Exp) where
-  rename env (GExp qs e)           = liftM2 GExp (renameQ env qs) (rename env e)
+  rename env (GExp qs e)           = do (qs,e) <- renameQ env qs e
+                                        return (GExp qs e)
 
 
-renameQ env []                     = return []
-renameQ env (QExp e : qs)          = liftM2 (:) (liftM QExp (rename env e)) (renameQ env qs)
-renameQ env (QGen p e : qs)        = do env' <- extRenE env (pvars p)
-                                        liftM2 (:) (liftM2 QGen (rename env' p) (rename env e)) (renameQ env' qs)
-renameQ env (QLet bs : qs)         = do env' <- extRenE env (bvars bs)
-                                        liftM2 (:) (liftM QLet (rename env' bs)) (renameQ env' qs)
+renameQ env [] e0                  = do e0 <- rename env e0
+                                        return ([], e0)
+renameQ env (QExp e : qs) e0       = do e <- rename env e
+                                        (qs,e0) <- renameQ env qs e0
+                                        return (QExp e : qs, e0)
+renameQ env (QGen p e : qs) e0     = do e <- rename env e
+                                        env' <- extRenE env (pvars p)
+                                        p <- rename env' p
+                                        (qs,e0) <- renameQ env' qs e0
+                                        return (QGen p e : qs, e0)
+renameQq env (QLet bs : qs) e0     = do env' <- extRenE env (bvars bs)
+                                        bs <- rename env' bs
+                                        (qs,e0) <- renameQ env' qs e0
+                                        return (QLet bs : qs, e0)
 
 
 instance Rename (Alt Exp) where

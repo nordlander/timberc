@@ -101,6 +101,7 @@ k2cNestCmd c                    = text "{" <+> k2cCmd c $$
 
 k2cExp (ECall x [e1,e2])
   | isInfix x                   = k2cExp' e1 <+> k2cName x <+> k2cExp' e2
+k2cExp (ECast t e)              = parens (k2cType t) <> k2cExp' e
 k2cExp e                        = k2cExp' e
 
 
@@ -109,10 +110,8 @@ k2cExp' (ELit l)                = pr l
 k2cExp' (ESel e l)              = k2cExp' e <> text "->" <> k2cName l
 k2cExp' (EEnter (EVar x) f es)  = k2cExp' (ESel (EVar x) f) <> parens (commasep k2cExp (EVar x : es))
 k2cExp' e@(ECall x es)
-  | isInfix x                   = parens (k2cExp e)
-  | otherwise                   = k2cName x <> parens (commasep k2cExp es)
-k2cExp' (ECast t e)             = parens (k2cType t) <> k2cExp' e
-k2cExp' _                       = error "Internal: k2cExp"
+  | not (isInfix x)             = k2cName x <> parens (commasep k2cExp es)
+k2cExp' e                       = parens (k2cExp e)
 
 
 k2cName (Prim p _)              = k2cPrim p

@@ -300,18 +300,21 @@ prDefault c                             = text "default: " <+> prScope c
 
 
 instance Pr Exp where
-    pr (EVar x)                         = prId2 x
-    pr (EThis)                          = text "this"
-    pr (ELit l)                         = pr l
-    pr (ESel e l)                       = pr e <> text "->" <> pr l
-    pr (ENew x bs)
+    prn 0 (ECast t e)                   = parens (pr t) <> prn 0 e
+    prn 0 e                             = prn 1 e
+    
+    prn 1 (EVar x)                      = prId2 x
+    prn 1 (EThis)                       = text "this"
+    prn 1 (ELit l)                      = pr l
+    prn 1 (ENew x bs)
       | all isVal bs                    = text "new" <+> prId2 x <+> text "{" <> commasep prInit bs <> text "}"
-    pr (ENew x bs)                      = text "new" <+> prId2 x <+> text "{" $$
+    prn 1 (ENew x bs)                   = text "new" <+> prId2 x <+> text "{" $$
                                           nest 4 (vpr bs) $$
                                           text "}"
-    pr (ECall x es)                     = prId2 x <+> parens (commasep pr es)
-    pr (EEnter e x es)                  = pr e <> text "." <> prId2 x <> parens (commasep pr es)
-    pr (ECast t e)                      = parens (pr t) <> pr e
+    prn 1 (ECall x es)                  = prId2 x <+> parens (commasep pr es)
+    prn 1 (ESel e l)                    = prn 1 e <> text "->" <> prId2 l
+    prn 1 (EEnter e x es)               = prn 1 e <> text "." <> prId2 x <> parens (commasep pr es)
+    prn 1 e                             = parens (prn 0 e)
 
 
 prInit (x, Val t e)                     = prId2 x <+> text "=" <+> pr e
