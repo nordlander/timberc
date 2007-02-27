@@ -248,8 +248,8 @@ findCoercion env a b
   | otherwise                           = search (upperIs b) (nodes (findAbove env a))
 
 findCoercion' env a b                   = case findCoercion env a b of
-                                            Just n -> n
-                                            Nothing -> error ("Internal: findCoercion " ++ show a ++ " " ++ show b)
+                                            Just n -> unitWG n
+                                            Nothing -> nullWG
 
 
 upperIs t (w,p)                         = uppersym p == t
@@ -307,7 +307,7 @@ T < Eq T, S < T, Eq a < Eq b \\ b < a  |-  x < Eq x
 
 
 
-findWG (RConCon i j)  (env,_)           = unitWG (findCoercion' env i j)
+findWG (RConCon i j)  (env,_)           = findCoercion' env i j
 findWG (ROrd _ Pos i) (env,_)           = addReflWG (findAbove env i)
 findWG (ROrd _ Neg i) (env,_)           = addReflWG (findBelow env i)
 findWG (RUnif)        (env,_)           = reflWG

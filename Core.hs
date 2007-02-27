@@ -571,12 +571,14 @@ prContext ps ke                 = text "\\\\" <+> preds
 prKind (n,Star)                 = prId n
 prKind (n,k)                    = prId n <+> text "::" <+> pr k
 
-prPScheme 0 (Scheme p ps ke)    = prPred p <+> prContext ps ke
-prPScheme 1 (Scheme p [] [])    = prPred p
+prPScheme 0 (Scheme p ps ke)    = prRPred p <+> prContext ps ke
+prPScheme 1 (Scheme p [] [])    = prRPred p
 prPScheme 1 sc                  = parens (prPScheme 0 sc)
 
-prPred (R (TFun [t1] t2))       = prn 1 t1 <+> text "<" <+> prn 1 t2
-prPred (F [t1] t2)              = prn 1 t1 <+> text "<" <+> prn 1 t2
+prRPred (F [t1] t2)             = prn 1 t1 <+> text "<" <+> prn 1 t2
+prRPred (R t)                   = prPred t
+
+prPred (TFun [t1] t2)           = prn 1 t1 <+> text "<" <+> prn 1 t2
 prPred t                        = pr t
 
 
@@ -595,7 +597,7 @@ instance Pr Rho where
     prn 1 rh                    = parens (prn 0 rh)
     
 instance Pr Type where
-    prn 0 (TFun (t:ts) t')      = prn 1 t <+> text "->" <+> prn 0 (TFun ts t)
+    prn 0 (TFun (t:ts) t')      = prn 1 t <+> text "->" <+> prn 0 (TFun ts t')
     prn 0 (TFun [] t)           = prn 1 t
     prn 0 t                     = prn 1 t
     

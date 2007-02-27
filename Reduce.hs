@@ -28,25 +28,25 @@ fullreduce env eqs pe                   = do -- tr ("FULLREDUCE " ++ show pe)
                                              -- tr ("END FULLREDUCE " ++ show pe2)
                                              return (s2@@s1@@s0, pe2, f2 . f1)
 
-normalize env pe                        = do -- tr ("NORMALIZE " ++ show pe)
+normalize env pe                        = do -- tr ("NORMALIZE ") -- ++ show pe)
                                              (s1, pe1, f1) <- reduce env pe
                                              (s2, pe2, f2) <- simplify (subst s1 env) pe1
-                                             -- tr ("END NORMALIZE " ++ show pe2)
+                                             -- tr ("END NORMALIZE ") -- ++ show pe2)
                                              return (s2@@s1, pe2, f2 . f1)
 
 
 -- Conservative reduction ----------------------------------------------------------------------
 
-reduce env pe                           = do -- tr ("###reduce " ++ show (tvars (typeEnv env)))
+reduce env pe                           = do -- tr ("###reduce ") -- ++ show (tvars (typeEnv env)))
                                              (s,q,[],es) <- red [] (map mkGoal pe)
-                                             -- tr ("###result: " ++ show s ++ ", preds: " ++ show q)
+                                             -- tr ("###result: ") -- ++ show s ++ ", preds: " ++ show q)
                                              return (s, q, eLet pe (dom pe `zip` es))
   where mkGoal (v,p)                    = (tick env (isCoercion v), p)
 
 
 -- Simplification ------------------------------------------------------------------------------
 
-simplify env pe                         = do -- tr ("SIMPLIFY " ++ show pe)
+simplify env pe                         = do -- tr ("SIMPLIFY ") -- ++ show pe)
                                              cs <- newNames skolemSym (length tvs)
                                              r <- expose (closePreds env [] (subst (tvs`zip`map TId cs) pe) (cs`zip`ks))
                                              case r of
@@ -254,7 +254,7 @@ solve r g gs
                                              return (s, q'++q, e:es)
   | otherwise                           = do -- tr ("Solving " ++ show r ++ " : " ++ show (snd g))
                                              try r (Left msg) (findWG r g) (logHistory g) gs
-  where msg                             = "Cannot solve typing constraint " ++ show' (snd g)
+  where msg                             = "Cannot solve typing constraint " ++ render (prPred (snd g))
 
 
 try r accum wg g gs

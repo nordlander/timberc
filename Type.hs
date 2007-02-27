@@ -81,7 +81,6 @@ tiBindsList env (bs:bss)        = do (ss1, pe1, bs') <- tiBinds env bs
                                      
 tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ showids xs ++ " rec: " ++ show rec)
                                      (s,pe,es1)   <- tiRhs0 env' explWits ts es
-                                     -- tr ("Witnesses obtained: " ++ show pe)
                                      (s',qe,f)    <- fullreduce (target te env) s pe
                                      let env1      = subst s' env
                                          (qe1,qe2) = partition (isFixed env1) qe
@@ -180,6 +179,7 @@ tiExp env (ELet bs e)           = do (s,pe,bs) <- tiBinds env bs
                                      return (s++s',pe++pe', t, ELet bs e)
 tiExp env (ERec c eqs)          = do alphas <- mapM newTVar (kArgs (findKind env c))
                                      (t,ts,sels')   <- tiLhs env (foldl TAp (TId c) alphas) tiX sels
+                                     -- tr ("record " ++ show t ++ ", selectors: " ++ show sels ++ "  :  " ++ show ts)
                                      (s,pe,es') <- tiRhs env ts es
                                      e <- mkRec env c (map flatSels sels' `zip` es')
                                      return (s, pe, R t, e)
