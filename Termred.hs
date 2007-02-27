@@ -17,16 +17,19 @@ redModule (Module m ds ie bs)   = Module m ds ie' (redBinds env1 bs)
         ie'                     = redBinds env0 ie
         env1                    = f (groupBinds ie')
         f []                    = []
-        f (Binds r te eqs : bs) = if r then eqs ++ f bs else f bs
+        f (Binds r te eqs : bs) = if r then f bs else eqs ++ f bs
 
 
-simple (EVar _ _)               = True
-simple (ECon _ _)               = True
-simple (ELit _)                 = True
-simple (ESel e _ _)             = simple e
-simple (ELam _ e)               = simple e      -- dubious...
-simple _                        = False
+reallySimple (EVar _ _)         = True
+reallySimple (ECon _ _)         = True
+reallySimple (ELit _)           = True
+reallySimple (ESel e _ _)       = reallySimple e
+reallySimple (EAp (EVar (Prim _ _) _) [e1,e2])
+                                = reallySimple e1 && reallySimple e2
+reallySimple e                  = False
 
+simple (ELam _ e)               = simple e
+simple e                        = reallySimple e
 
 value (EVar _ _)                = True
 value (ECon _ _)                = True
@@ -38,7 +41,13 @@ value (ELam _ _)                = True
 value _                         = False
 
 
-redBinds env (Binds r te eqns)  = Binds r te (mapSnd (redExp env) eqns)
+redBinds env (Binds r te eqns)  = Binds r te (redEqns env eqns)
+
+redEqns env []                  = []
+redEqns env ((x,e):eqns)
+  | reallySimple e'             = (x,e') : redEqns ((x,e'):env) eqns
+  | otherwise                   = (x,e') : redEqns env eqns
+  where e'                      = redExp env e
 
 
 redExp env e@(ECon _ _)         = e
