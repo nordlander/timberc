@@ -131,8 +131,8 @@ tiExpT' env (explWit, Scheme t0 ps ke, e)
                                          ws        = map eVar (dom pe0)
                                          (ws',ps') = if explWit then (ws, ps) else ([], [])
                                          e1        = eLam pe0 (eAp (EAp (eAp (eVar c) ws) [e']) ws')
-                                     (s',sc)      <- gen env1 t'
-                                     return (mkEqns (s++s'), (c, Scheme (F [sc] (tFun ps' t0)) ps ke) : qe1, e1)
+                                     (_,sc)      <- gen env1 t'
+                                     return (mkEqns s, (c, Scheme (F [sc] (tFun ps' t0)) ps ke) : qe1, e1)
 
 
 mkEqns s                        = mapFst TVar s
