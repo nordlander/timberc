@@ -247,11 +247,13 @@ instance Show Name where
 
 
 instance Pr Name where
-  pr (Name s 0 _)               = text s
-  pr (Name s n _)               = text (s ++ "_" ++ show n)
-  pr (Tuple n _)                = text ('(' : replicate (n-1) ',' ++ ")")
-  pr (Prim p _)                 = text (strRep p)
+  pr (Name s 0 a)               = {- prExpl a <> -} text s
+  pr (Name s n a)               = {- prExpl a <> -} text (s ++ "_" ++ show n)
+  pr (Tuple n a)                = text ('(' : replicate (n-1) ',' ++ ")")
+  pr (Prim p a)                 = text (strRep p)
 
+
+prExpl a                        = if explicit a then text "~" else empty
 
 
 prId i                          = if isSym i then parens (pr i) else pr i

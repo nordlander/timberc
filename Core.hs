@@ -623,7 +623,8 @@ instance Pr Pat where
 -- Expressions -------------------------------------------------------------
 
 instance Pr Exp where
-    prn 0 (ELam te e)           = hang (char '\\' <> hsep (map prId (dom te)) <+> text "->") 4 (pr e)
+--    prn 0 (ELam te e)           = hang (char '\\' <> sep (map (parens . pr) te) <+> text "->") 4 (pr e)
+    prn 0 (ELam te e)           = hang (char '\\' <> sep (map prId (dom te)) <+> text "->") 4 (pr e)
     prn 0 (ELet bs e)           = text "let" $$ nest 4 (pr bs) $$ text "in" <+> pr e
     prn 0 (ECase e alts def)    = text "case" <+> pr e <+> text "of" $$ 
                                        nest 2 (vpr alts $$ text "_ ->" <+> pr def)
@@ -644,6 +645,7 @@ instance Pr Exp where
         
     prn 2 (ECon c _)            = prId c
     prn 2 (ESel e s _)          = prn 2 e <> text "." <> prId s
+--    prn 2 (EVar v (Just t))     = parens (prId v <+> text "::" <+> pr t)
     prn 2 (EVar v _)            = prId v
     prn 2 (ELit l)              = pr l
     prn 2 (ERec c eqs)          = prId c <+> text "{" <+> hpr ',' eqs <+> text "}"

@@ -93,7 +93,7 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ showids xs ++ " 
                                          (es',ts') = unzip (zipWith (qual qe2) es3 (subst s' ts))
                                      -- tr ("Witnesses returned: " ++ show qe1)
                                      (ss,ts'') <- fmap unzip (mapM (gen env1) ts')
-                                     return (mkEqns (s'++concat ss), qe1, Binds rec (xs `zip` ts'') (xs `zip` es'))
+                                     return (mkEqns (s'{-++concat ss-}), qe1, Binds rec (xs `zip` ts'') (xs `zip` es'))
   where ts                      = map (lookup' te) xs
         (xs,es)                 = unzip eqs
         explWits                = map (explicit . annot) xs
