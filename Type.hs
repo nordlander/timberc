@@ -144,7 +144,7 @@ isFixed env pred                = all (`elem` tvs) (tvars pred)
 tiAp env s pe (F scs rho) e es
   | len_scs >= len_es           = do (s',pe',es') <- tiRhs env scs1 es
                                      te <- newEnv paramSym scs2
-                                     return (s++s', pe++pe', tFun scs2 rho, eLam te (EAp e (es++map eVar (dom te))))
+                                     return (s++s', pe++pe', tFun scs2 rho, eLam te (EAp e (es'++map eVar (dom te))))
   | otherwise                   = do (s',pe',es') <- tiRhs env scs es1
                                      tiAp env (s++s') (pe++pe') rho (EAp e es') es2
   where len_scs                 = length scs
