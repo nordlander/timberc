@@ -215,7 +215,7 @@ instance Rename Type where
 instance Rename Bind where
   rename env (BEqn lh rh)          = do env' <- extRenE env (bvars lh)
                                         liftM2 BEqn (rename env' lh) (rename env' rh)
-  rename env (BSig vs t)           = return (BSig (map (renE env) vs) t)
+  rename env (BSig vs t)           = liftM (BSig (map (renE env) vs)) (renameQT env t)
 
 instance Rename Lhs where
   rename env (LFun v ps)           = liftM (LFun (renE env v)) (rename env ps)
