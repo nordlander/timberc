@@ -80,7 +80,7 @@ redEta env te (EAp e es)
   | ok e                        = redExp env e
   where ok (ECon _ _)           = False
         ok (EVar (Prim _ _) _)  = False
-        ok _                    = es == map eVar (dom te)
+        ok _                    = map (redExp env) es == map eVar (dom te)
 redEta env te e                 = ELam te (redExp env e)
 
 
