@@ -558,14 +558,34 @@ cHead env e@(ECase _ _ _)               = do (t,c) <- cBody env e       -- Botto
 cHead env e                             = do (te,t,c) <- cFun (nullSelf env) e     -- Bottom-up mode!
                                              x <- newName tempSym
                                              return (Kindle.cBind [(x, Kindle.Fun t te c)], t, FHead (Kindle.ECall x) (rng te))
+{-
 
+id :: a -> a \\ a
+id = \x -> x
+
+fun :: (a -> a \\ a) -> (b -> b \\ b) -> Int -> Int
+fun = \id f x -> ((id::(Int->Int)->(Int->Int)) (f::Int->Int)) x
+
+CLOS_ID = struct { POLY code (POLY) }
+clos_id = new CLOS_ID { POLY code (POLY x) { return x; } }
+
+CLOS_1 = struct { Int code (Int) }
+
+CLOS_2 = struct { CLOS_1 code (CLOS_1) }
+
+Int fun (CLOS_ID id, CLOS_ID f, Int x) {
+  return ((CLOS_2)id).code((CLOS_1)f).code(x);
+
+-}
 
 -- Adjust the type of a Head on basis of the leaf identifier's annotated instance type (if any)
 adjust Nothing bf t h                   = return (bf, t, h)
 adjust (Just t0) bf t h                 = do (ts',t') <- cType (deQualify' t0)
-                                             return (bf, t', adjust' t h ts' t')
-  where adjust' t (VHead e) [] t'       = VHead (match t' t e)
-        adjust' t (FHead f ts) ts' t'   = FHead (match t' t . f . zipWith3 match ts ts') ts'
+                                             adjust' t h ts' t'
+  where adjust' t (FHead f ts) ts' t'   = return (bf, t', FHead (match t' t . f . zipWith3 match ts ts') ts')
+        adjust' t (VHead e) [] t'       = return (bf, t', VHead (match t' t e))
+        adjust' t (VHead e) ts' t'      = do n <- findClosureName ts' t'
+                                             return (bf, Kindle.TId n, VHead (match (Kindle.TId n) t e))
 
 
 -- Convert a Core.Exp into an expression head that is expected to be a function

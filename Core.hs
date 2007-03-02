@@ -111,7 +111,6 @@ cLet' [] c                      = c
 cLet' (bs:bss) c                = CLet bs (cLet' bss c)
 
 eLam [] e                       = e
-eLam te (ELam te' e)            = ELam (te++te') e
 eLam te e                       = ELam te e
 
 eAbs (ELam te e)                = (te,e)
