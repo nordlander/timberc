@@ -217,7 +217,7 @@ tiExp env (EDo x tx c)
                                      return (s'++s, pe, R (tCmd tx t), EDo x tx c)
   | otherwise                   = error "Explicitly typed do expressions not yet implemented"
 tiExp env (ETempl x tx te c)
-  | isTVar tx                   = do n <- newName typeSym
+  | isTVar tx                   = do n <- newName stateSym
                                      let env' = setSelf x (TId n) (addTEnv te (addKEnv [(n,Star)] env))
                                      (s,pe,t,c) <- tiCmd env' c
                                      return ((TId n, tx):s, pe, R (tTemplate t), ETempl x (TId n) te c)

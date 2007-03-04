@@ -38,7 +38,7 @@ setThis x t env                 = env { this = Just (x,t) }
 pModule (Module m ds bs)        = do ds <- mapM pDecl ds
                                      (bs1,bs) <- pMap (pBind (addBinds bs (addDecls ds env0))) bs
                                      bs2 <- currentStore
-                                     return (Module m ds (bs1++bs++bs2))
+                                     return (Module m ds (bs1 ++ bs ++ reverse bs2))
 
 
 pDecl d                         = return d
@@ -61,7 +61,7 @@ pSBind env n (x, Val t e)       = do (bs,_,e) <- pRhsExp env e
 pSBind env n b@(x, Fun t te (CRet (ECall f (EThis:es))))
   | es == map EVar (dom te)     = return ([], b)
 pSBind env n (x, Fun t te c)    = do f <- newName functionSym
-                                     y <- newName tempSym
+                                     y <- newName thisSym
                                      c <- pCmd (addVals te (setThis y (TId n) env)) c
                                      addToStore (f, Fun t ((y,TId n):te) c)
                                      return ([], (x, Fun t te (CRet (ECall f (EThis : map EVar (dom te))))))

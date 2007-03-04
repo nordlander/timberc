@@ -173,7 +173,6 @@ circularMsg                     = "Circular subtyping: "
 
 -- Internal identifier conventions -----------------------------------------------------
 
-stateSym                        = "s"
 witnessSym                      = "w"
 assumptionSym                   = "v"
 tempSym                         = "x"
@@ -186,7 +185,9 @@ coercionSym                     = "c"
 labelSym                        = "l"
 constrSym                       = "C"
 typeSym                         = "T"
+stateSym                        = "S"
 selfSym                         = "self"
+thisSym                         = "this"
 codeSym                         = "code"
 tagSym                          = "tag"
 instanceSym                     = "inst"
