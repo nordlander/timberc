@@ -58,15 +58,19 @@ cFooter n                       = empty
 
 
                                   -- temporary, only works for non-recursive values
-k2cBind (x, Val t (ENew n bs))  = k2cType t <+> k2cName x <+> text "=" <+> newCall $$
+k2cBind (x, Val t (ENew n bs))  = k2cType t <+> k2cName x <+> text "=" <+> newCall n $$
                                   vcat (map (k2cSBind (EVar x)) bs)
-  where newCall                 = k2cName (prim NEW) <+> parens (text "sizeof" <> parens (text "*" <> k2cName n))
 k2cBind (x, Val t e)            = k2cType t <+> k2cName x <+> text "=" <+> k2cExp e <> text ";"
 k2cBind (x, Fun t te c)         = k2cType t <+> k2cName x <+> parens (commasep k2cSig' te) <+> text "{" $$
                                     nest 4 (k2cCmd c) $$
                                   text "}"
 
+newCall n                       = k2cName (prim NEW) <+> parens (text "sizeof" <> parens (text "*" <> k2cName n))
 
+
+k2cSBind e0 (x, Val t (ENew n bs))
+                                = k2cExp (ESel e0 x) <+> text "=" <+> newCall n $$
+                                  vcat (map (k2cSBind (ESel e0 x)) bs)
 k2cSBind e0 (x, Val t e)        = k2cExp (ESel e0 x) <+> text "=" <+> k2cExp e <> text ";"
 k2cSBind e0 (x, Fun t te (CRet (ECall f es)))
                                 = k2cExp (ESel e0 x) <+> text "=" <+> k2cName f <> text ";"
