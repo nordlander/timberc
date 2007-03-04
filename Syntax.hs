@@ -122,6 +122,7 @@ newEVar v                       = do i <- newName v
 op2exp c                        = if isCon c then ECon c else EVar c
 
 isEVar (EVar _)                 = True
+isEVar (EWild)                  = True
 isEVar _                        = False
 
 isEConApp (EAp e es)            = isEConApp e
@@ -134,9 +135,8 @@ isELit _                        = False
 isERec (ERec _ _)               = True
 isERec _                        = False
 
-isESigVar (ESig (EVar _) _)     = True
-isESigVar (EVar _)              = True
-isESigVar _                     = False
+isESigVar (ESig e _)            = isEVar e
+isESigVar e                     = isEVar e
 
 isETup (ETup _)                 = True
 isETup _                        = False

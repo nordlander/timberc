@@ -123,12 +123,14 @@ dsBinds bs                      = f [] bs
 -- Equations -----------------------------------------------------------------
 
 dsEqns []                       = return []
-dsEqns ((LPat p,rh):eqns)       = do v0 <- newName tempSym
-                                     sels <- mapM (sel (EVar v0)) vs
-                                     dsEqns (sels ++ [(LFun v0 [], RExp (rh2exp rh))] ++ eqns)
+dsEqns ((LPat p,RExp (EVar v)):eqns)
+                                = do sels <- mapM (sel (EVar v)) vs
+                                     dsEqns (sels ++ eqns)
   where vs                      = pvars p
         sel e0 v                = do es <- mapM (const (newEVar paramSym)) vs
                                      return (LFun v [], RExp (selectFrom e0 (vs `zip` es) p v))
+dsEqns ((LPat p,rh):eqns)       = do v <- newName tempSym
+                                     dsFunBind v [([], rh)] ((LPat p, RExp (EVar v)) : eqns)
 dsEqns ((LFun v ps,rh):eqns)    = dsFunBind v [(ps,rh)] eqns
 
 
@@ -245,6 +247,7 @@ dsStmts (SBind b : ss)          = do bs' <- dsBinds bs
   where (ss1,ss2)               = span isSBind ss
         bs                      = b : [ b' | SBind b' <- ss1 ]
 dsStmts (SAss p e : ss)
+  | p == EWild                  = fail "Bad assignment"
   | isEVar p                    = do e <- dsExp e
                                      ss <- dsStmts ss
                                      return (SAss p e : ss)
@@ -283,7 +286,9 @@ dsEQual (QLet bs)               = liftM  QLet (dsBinds bs)
 
 -- Patterns ----------------------------------------------------------------------------
 
-dsPat (ESig (EVar v) qt)        = return (ESig (EVar v) (dsQualWildType qt))
+dsPat (ESig p qt)
+  | isEVar p                    = do p <- dsPat p
+                                     return (ESig p (dsQualWildType qt))
 dsPat (EVar v)                  = return (EVar v)
 dsPat (EWild)                   = do v <- newName dummySym
                                      return (EVar v)
@@ -298,7 +303,9 @@ dsConPat (EAp p p')             = liftM2 EAp (dsConPat p) (dsInnerPat p')
 dsConPat (ECon c)               = return (ECon c)
 dsConPat p                      = fail "Illegal pattern"
 
-dsInnerPat (ESig (EVar v) t)    = return (ESig (EVar v) (dsWildType t))
+dsInnerPat (ESig p t)
+  | isEVar p                    = do p <- dsPat p
+                                     return (ESig p (dsWildType t))
 dsInnerPat p                    = dsPat p
 
 
