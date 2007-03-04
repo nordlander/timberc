@@ -278,7 +278,7 @@ s2cS env (SBind b : ss)                 = s2cS' env [b] ss
 s2cS' env bs (SBind b : ss)             = s2cS' env (b:bs) ss
 s2cS' env bs ss                         = do (te',bs') <- s2cBinds env te es
                                              c <- s2cS (addSigs te' env) ss
-                                             return (Core.CLet bs' c)
+                                             return (Core.cLet' (groupBinds bs') c)
   where (te,es)                         = splitBinds (reverse bs)
 
 
