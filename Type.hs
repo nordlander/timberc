@@ -92,8 +92,8 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ showids xs ++ " 
                                          h x _        = eVar x
                                          (es',ts') = unzip (zipWith (qual qe2) es3 (subst s' ts))
                                      -- tr ("Witnesses returned: " ++ show qe1)
-                                     (ss,ts'') <- fmap unzip (mapM (gen env1) ts')
-                                     return (mkEqns (s'{-++concat ss-}), qe1, Binds rec (xs `zip` ts'') (xs `zip` es'))
+                                     ts'' <- mapM (gen env1) ts'
+                                     return (mkEqns s', qe1, Binds rec (xs `zip` ts'') (xs `zip` es'))
   where ts                      = map (lookup' te) xs
         (xs,es)                 = unzip eqs
         explWits                = map (explicit . annot) xs
@@ -131,7 +131,7 @@ tiExpT' env (explWit, Scheme t0 ps ke, e)
                                          ws        = map eVar (dom pe0)
                                          (ws',ps') = if explWit then (ws, ps) else ([], [])
                                          e1        = eLam pe0 (eAp (EAp (eAp (eVar c) ws) [e']) ws')
-                                     (_,sc)      <- gen env1 t'
+                                     sc           <- gen env1 t'
                                      return (mkEqns s, (c, Scheme (F [sc] (tFun ps' t0)) ps ke) : qe1, e1)
 
 
@@ -250,11 +250,8 @@ tiLhs env alpha tiX xs          = do x <- newName tempSym
                                          es1 = map f es
                                          pes1 = subst s (map (filter (not . isCoercion . fst)) pes) -- preserve non-coercions for each alt
                                          (es2,ts2) = unzip (zipWith3 qual pes1 es1 ts1)
-                                     (s',ts3) <- fmap unzip (mapM (gen (subst s env')) ts2)
+                                     ts3 <- mapM (gen (subst s env')) ts2
                                      return (subst s alpha, ts3, map (redTerm (insts env)) es2)
-                                     -- Note: the lhs terms es2 are returned *without* the generalizing substitution s'
-                                     -- applied to them.  This simplifies their use in the construction of corresponding
-                                     -- right-hand sides.  See mkCase below in particular.
 
 
 -- Build record fields -----------------------------------------------------------------------------------------------------------
@@ -300,10 +297,6 @@ mkCase env e alts d             = liftM (\a -> ECase e a d) (mapM mkAlt ps)
                                                    e' <- mkCase env (eVar x) alts_p (eVar (prim Fail))
                                                    return (fst p, ELam [(x,t)] e')
                                       where F [t] _ = fromJust (snd p)
-                                -- Note: type t above may actually contain type variables that have been generalized in the type 
-                                -- scheme for the alternative computed by tiLhs.  However, since the generalizing substitution 
-                                -- is not applied to the terms returned by tiLhs, the type we encounter here will appear as if
-                                -- it has gone through another substitution replacing the generalized variables with fresh tvars.
 
 
 

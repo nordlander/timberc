@@ -444,9 +444,8 @@ qual qe e (Scheme t ps ke)      = (eLam qe e, Scheme t (rng qe ++ ps) ke)
 
 gen env sc@(Scheme t ps ke)     = do ids <- newNames tyvarSym (length tvs)
                                      let s = tvs `zip` map TId ids
-                                         s' = tvs `zip` map (TId . mkLocal) ids
                                          ke' = ids `zip` map tvKind tvs 
-                                     return (s', Scheme (subst s t) (subst s ps) (ke' ++ ke))
+                                     return (Scheme (subst s t) (subst s ps) (ke' ++ ke))
   where tvs                     = nub (filter (`notElem` tevars env) (tvars t ++ tvars ps))
 
 

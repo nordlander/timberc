@@ -490,9 +490,9 @@ mkTrans env ((w1,p1), (w2,p2))          = do (pe1, R c1, e1) <- instantiate p1 (
                                              x  <- newName paramSym
                                              let e = ELam [(x,scheme (subst s' t))] (f (EAp e2 [EAp e1 [eVar x]]))
                                                  (e',p') = qual qe e (subst s' p)
-                                             (s'',sc) <- gen env p'
+                                             sc <- gen env p'
                                              w <- newName coercionSym
-                                             return ((w,sc), (w, redTerm (insts env) (subst s'' e')))
+                                             return ((w,sc), (w, redTerm (insts env) e'))
 
 -- Handle class predicates
 closeSuperclass env []                  = return (env, [], [])
@@ -513,9 +513,9 @@ mkSuper env (w1,p1) (w2,p2)             = do (pe1, R c1, e1) <- instantiate p1 (
                                              (s',qe,f) <- normalize (protect p env) (subst s (pe1++pe2))
                                              let e = f (EAp e2 [e1])
                                                  (e',p') = qual qe e (subst s' p)
-                                             (s'',sc) <- gen env p'
+                                             sc <- gen env p'
                                              w <- newName witnessSym
-                                             return ((w,sc), (w,subst s'' e'))
+                                             return ((w,sc), (w,e'))
 
 
 -- Add predicates to the environment and build overlap graph
