@@ -91,6 +91,10 @@ findClosureDef n                    = do ds <- currentStore
                                             _ -> error "Internal: c2k.findClosureDef"
 
 
+findClosureType (Kindle.TId n)      = findClosureDef n
+findClosureType _                   = error "Internal: c2k.findClosureType"
+
+
 simple (c,Constr ts ps _)           = null ts && null ps
 
 
@@ -165,6 +169,8 @@ cType' (TId n)
   | isCon n                               = return ([], Kindle.TId n)
   | otherwise                             = return ([], Kindle.TWild)
 cType' (TVar _)                           = return ([], Kindle.TWild)
+cType' t                                  = do t <- cAType t
+                                               return ([], t)
 
 
 -- Convert a Core.Type into a Kindle.AType, overflowing into a list of Kindle.Decls if necessary
@@ -521,17 +527,23 @@ cHead env (EAp (EVar (Prim Before _) _) [e,e'])  = do (bf,e1) <- cExpT env (Kind
                                                       return (bf . bf', t, FHead (\[a,b] -> f [a, min b e1]) ts)
   where min b e1                                 = Kindle.ECall (prim TimeMin) [b,e1]
 cHead env (EAp e es)                    = do (bf,t,f,ts) <- cFHead env e
-                                             (bf',t',h) <- appFun t f ts es
-                                             return (bf . bf', t', h)
-  where appFun t f ts es
-          | l_ts <  l_es                = error "Internal: c2k.appFun"
-          | l_ts == l_es                = do (bf,es) <- cExpTs env ts es
-                                             return (bf, t, VHead (f es))
-          | l_ts >  l_es                = do (bf,es) <- cExpTs env ts1 es
-                                             return (bf, t, FHead (\es' -> f (es++es')) ts2)
+                                             tr ("### App:  " ++ show e ++ " @@@ " ++ show es)
+                                             appFun bf t f ts es
+  where appFun bf t f ts es
+          | l_ts <  l_es                = do (bf',es) <- cExpTs env ts es1
+                                             (ts',t') <- findClosureType t
+                                             tr ("Split app:  " ++ show (f es) ++ "    leftover args:  " ++ show es2)
+                                             appFun (bf . bf') t' (Kindle.EEnter (f es) (prim Code)) ts' es2
+          | l_ts == l_es                = do (bf',es) <- cExpTs env ts es
+                                             tr ("Saturated app:  " ++ show (f es))
+                                             return (bf . bf', t, VHead (f es))
+          | l_ts >  l_es                = do (bf',es) <- cExpTs env ts1 es
+                                             tr ("Partial app: " ++ show ts1 ++ "   missing: " ++ show ts2)
+                                             return (bf . bf', t, FHead (\es' -> f (es++es')) ts2)
           where l_ts                    = length ts
                 l_es                    = length es
-                (ts1,ts2)               = splitAt (l_es) ts
+                (ts1,ts2)               = splitAt l_es ts
+                (es1,es2)               = splitAt l_ts es
 cHead env (EVar x t')
   | stateVar (annot x) && haveSelf env  = case lookup' (tenv env) x of
                                              Kindle.FunT ts t -> error "Internal: state variable is an FHead in c2k.cHead"
@@ -582,19 +594,27 @@ Int fun (CLOS_ID id, CLOS_ID f, Int x) {
 adjust Nothing bf t h                   = return (bf, t, h)
 adjust (Just t0) bf t h                 = do (ts',t') <- cType (deQualify' t0)
                                              adjust' t h ts' t'
-  where adjust' t (FHead f ts) ts' t'   = return (bf, t', FHead (match t' t . f . zipWith3 match ts ts') ts')
-        adjust' t (VHead e) [] t'       = return (bf, t', VHead (match t' t e))
-        adjust' t (VHead e) ts' t'      = do n <- findClosureName ts' t'
+  where adjust' t (FHead f ts) ts1 t1   = do (ts2,t2) <- adjustArity (length ts) ts1 t1
+                                             return (bf, t2, FHead (match t2 t . f . zipWith3 match ts ts2) ts2)
+        adjust' t (VHead e) [] t1       = return (bf, t1, VHead (match t1 t e))
+        adjust' t (VHead e) ts1 t1      = do (ts,_) <- findClosureType t
+                                             (ts2,t2) <- adjustArity (length ts) ts1 t1
+                                             n <- findClosureName ts2 t2
                                              return (bf, Kindle.TId n, VHead (match (Kindle.TId n) t e))
+        adjustArity n ts t 
+          | l_ts == n                   = return (ts,t)
+          | l_ts < n                    = do (ts',t') <- findClosureType t
+                                             adjustArity n (ts++ts') t'
+          | l_ts > n                    = error "Internal: c2k.adjustArity"
+          where l_ts                    = length ts
 
 
 -- Convert a Core.Exp into an expression head that is expected to be a function
 cFHead env e                            = do (bf,t,h) <- cHead env e
                                              case h of
                                                 FHead f ts -> return (bf, t, f, ts)
-                                                VHead e -> do (ts,t') <- findClosureDef n
+                                                VHead e -> do (ts,t') <- findClosureType t
                                                               return (bf, t', Kindle.EEnter e (prim Code), ts)
-                                                  where Kindle.TId n = t
 
 
 -- Convert a Core.Cmd into a Kindle.AType and a Kindle.Cmd 
