@@ -8,7 +8,6 @@ import Char
 data Token 
     = VarId      String
     | ConId      String
-    | SelId      String
     | VarSym     String
     | ConSym     String
     | IntTok     String
@@ -36,6 +35,7 @@ Reserved operators
 
 -}
     | Assign
+    | Dot
     | DotDot
     | DoubleColon
     | Equals
@@ -84,6 +84,7 @@ Reserved Ids
 reserved_ops :: [(String, Token)]
 reserved_ops
     = [
+        ( ".",  Dot ),    
         ( "..", DotDot ),    
         ( "::", DoubleColon ),
         ( ":=", Assign ),
@@ -133,9 +134,6 @@ tab_length = 8 :: Int
 
 isIdent  c = isAlpha c || isDigit c || c == '\'' || c == '_'
 isSymbol c = elem c ":!#$%&*+./<=>?@\\^|-~"
-
-chopDot ('.':s) = s
-chopDot s       = s
 
 data LexInt =
       Decimal     (String,String)

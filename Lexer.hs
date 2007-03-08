@@ -96,24 +96,6 @@ lexToken cont =
         ';' -> special SemiColon
         '[' -> special LeftSquare
         ']' -> special RightSquare
-        '_' -> let (vidtail, rest) = span isIdent s
-                   vid             = c:vidtail
-                   l_vid           = 1 + length vidtail
-               in case vidtail of
-                   "" -> special Wildcard
-                   _  -> forward l_vid (VarId vid) rest
-        '.' -> let (sidtail, r1) = span isIdent s
-                   sid           = c:sidtail
-                   l_sid         = length sidtail + 1
-                   (symtail, r2) = span isSymbol s
-                   sym           = c:symtail
-                   l_sym         = length symtail
-               in case lookup sym reserved_ops of
-                   Just t  -> forward l_sym t r2
-                   Nothing -> if sid /= "." && lookup sidtail reserved_ids == Nothing 
-                              then forward l_sid (SelId sid) r1
-                              else forward l_sym (VarSym sym) r2
-                    
         '`' -> special BackQuote
         '{' -> special LeftCurly
         '}' -> \state ->
@@ -127,7 +109,8 @@ lexToken cont =
         '\'' -> (unPM $ lexChar cont)   s loc (x + 1)
         '\"' -> (unPM $ lexString cont) s loc (x + 1)
 
-
+        '_' | not (isIdent (head s)) -> special Wildcard
+        
         c | isDigit c ->
               case lexInt (c:s) of
               Decimal (n, rest) ->

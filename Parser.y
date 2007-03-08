@@ -17,7 +17,6 @@ parser str = runPM2 parse str
 %token
         VARID 	 { VarId $$ }
 	CONID	 { ConId $$ }
-        SELID    { SelId $$ }
 	'-'	 { VarSym "-" }
         '<'      { VarSym "<" }
         '>'      { VarSym ">" }
@@ -49,6 +48,7 @@ Symbols
 Reserved operators
 
 -}
+        '.'     { Dot }
 	'..'	{ DotDot }
 	'::'	{ DoubleColon }
         ':='    { Assign }
@@ -166,7 +166,7 @@ sigs	:: { [Sig] }
         | sig					{ [$1] }
 
 sig	:: { Sig }
-        : selvars '::' type	                { Sig (reverse $1) $3 }
+        : vars '::' type	                { Sig (reverse $1) $3 }
 
 
 -- Bindings ----------------------------------------------------------------
@@ -189,15 +189,11 @@ recbinds   :: { [Field] }
         | recbind				{ [$1] }
         
 recbind    :: { Field }
-        : selvar '=' exp 				{ Field $1  $3 }
+        : var '=' exp 				{ Field $1  $3 }
 
 vars	:: { [Name] }
 	: vars ',' var				{ $3 : $1 }
         | var					{ [$1] }
-
-selvars	:: { [Name] }
-	: selvars ',' selvar			{ $3 : $1 }
-        | selvar				{ [$1] }
 
 lhs     :: { Lhs }
         : exp0s                                 { exp2lhs $1 }
@@ -335,7 +331,7 @@ fexp    :: { Exp }
         | aexp                                  { $1 }
 
 aexp    :: { Exp }
-        : aexp selid                            { ESelect $1 $2 }
+        : aexp '.' var                          { ESelect $1 $3 }
         | bexp                                  { $1 }
 
 bexp    :: { Exp }
@@ -344,7 +340,7 @@ bexp    :: { Exp }
         | con                                   { ECon $1 }
         | lit                                   { ELit $1 }
         | '(' ')'                               { ECon (prim UNIT) }
-        | '(' selid ')'                         { ESel $2 }
+        | '(' '.' var ')'                       { ESel $3 }
         | '(' exp ')'                           { $2 }
         | '(' exps ')'                          { ETup (reverse $2) } 
         | '[' list ']'                          { $2 }
@@ -536,13 +532,6 @@ op0     :: { Name }
         | '`' varid '`'                         { $2 }
         | conop                                 { $1 }
 
-selvar	:: { Name }
-	: selid					{ $1 }
-	| varid					{ $1 }
-
-
-selid   :: { Name }
-        : loc SELID                             { name $1 (chopDot $2) }
 
 varid   :: { Name }
         : loc VARID                             { name $1 $2 }
