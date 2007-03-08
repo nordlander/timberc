@@ -527,18 +527,14 @@ cHead env (EAp (EVar (Prim Before _) _) [e,e'])  = do (bf,e1) <- cExpT env (Kind
                                                       return (bf . bf', t, FHead (\[a,b] -> f [a, min b e1]) ts)
   where min b e1                                 = Kindle.ECall (prim TimeMin) [b,e1]
 cHead env (EAp e es)                    = do (bf,t,f,ts) <- cFHead env e
-                                             tr ("### App:  " ++ show e ++ " @@@ " ++ show es)
                                              appFun bf t f ts es
   where appFun bf t f ts es
           | l_ts <  l_es                = do (bf',es) <- cExpTs env ts es1
                                              (ts',t') <- findClosureType t
-                                             tr ("Split app:  " ++ show (f es) ++ "    leftover args:  " ++ show es2)
                                              appFun (bf . bf') t' (Kindle.EEnter (f es) (prim Code)) ts' es2
           | l_ts == l_es                = do (bf',es) <- cExpTs env ts es
-                                             tr ("Saturated app:  " ++ show (f es))
                                              return (bf . bf', t, VHead (f es))
           | l_ts >  l_es                = do (bf',es) <- cExpTs env ts1 es
-                                             tr ("Partial app: " ++ show ts1 ++ "   missing: " ++ show ts2)
                                              return (bf . bf', t, FHead (\es' -> f (es++es')) ts2)
           where l_ts                    = length ts
                 l_es                    = length es
