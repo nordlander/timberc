@@ -393,7 +393,7 @@ kvars Star                      = []
 kvars (KVar n)                  = [n]
 kvars (KFun k1 k2)              = kvars k1 ++ kvars k2
 
-kArgs (KFun k k')               = k : kArgs k
+kArgs (KFun k k')               = k : kArgs k'
 kArgs k                         = []
 
 kFlat k                         = (kArgs k, kRes k)
