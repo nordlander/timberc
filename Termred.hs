@@ -50,30 +50,32 @@ redEqns env ((x,e):eqns)
   where e'                      = redExp env e
 
 
-redExp env e@(ECon _ _)         = e
-redExp env e@(ELit _)           = e
 redExp env (ERec c eqs)         = ERec c (mapSnd (redExp env) eqs)
 redExp env (ETempl x t te c)    = ETempl x t te (redCmd env c)
 redExp env (EAct e e')          = EAct (redExp env e) (redExp env e')
 redExp env (EReq e e')          = EReq (redExp env e) (redExp env e')
 redExp env (EDo x t c)          = EDo x t (redCmd env c)
 redExp env (ELam te e)          = redEta env te e
-redExp env (EAp e es)           = redApp env e (map (redExp env) es)
-redExp env e                    = redApp env e []
+redExp env (ESel e s t)         = redSel env (redExp env e) s t
+redExp env (ECase e alts d)     = redCase env (eFlat (redExp env e)) alts d
+redExp env (ELet bs e)
+  | rec                         = ELet bs' (redExp env e)
+  | otherwise                   = redBeta env te e (map (lookup' eqs) (dom te))
+  where bs'@(Binds rec te eqs)  = redBinds env bs
+redExp env e@(EVar x _)         = case lookup x env of
+                                      Just e' -> e'
+                                      Nothing -> e
+redExp env (EAp e es)           = redApp env (redExp env e) (map (redExp env) es)
+redExp env e                    = e
+
 
 redApp env (ELam te e) es       = redBeta env te e es
-redApp env (ESel e s t) es      = redSel env (redExp env e) s t es
-redApp env (ECase e alts d) es  = redCase env (eFlat (redExp env e)) alts d es
-redApp env (ELet bs e) es
-  | rec                         = ELet bs' (redApp env e es)
-  | otherwise                   = redBeta env te e (map (lookup' eqs) (dom te) ++ es)
-  where bs'@(Binds rec te eqs)  = redBinds env bs
+redApp env (ECase e alts d) es  = ECase e (map f alts) (redApp env d es)
+  where f (p,e)                 = (p, redApp env e es)
+redApp env (ELet bs e) es       = ELet bs (redApp env e es)
 redApp env (EVar (Prim p a) _) es 
                                 = redPrim env p a es
-redApp env (EVar x t) es        = case lookup x env of
-                                      Just e -> redApp env e es
-                                      Nothing -> eAp (EVar x t) es
-redApp env e es                 = eAp (redExp env e) es
+redApp env e es                 = EAp e es
 
 
 redEta env te (EAp e es)
@@ -91,38 +93,37 @@ redCmd env (CLet bs c)          = CLet (redBinds env bs) (redCmd env c)
 redCmd env (CAss x e c)         = CAss x (redExp env e) (redCmd env c)
 
 
-redBeta env ((x,t):te) (EVar x' _) (e:es)
-  | x == x'                     = redBeta env te e es                    -- trivial body
+redBeta env ((x,t):te) (EVar y _) (e:es)
+  | x == y                      = redBeta env te e es                    -- trivial body
 redBeta env ((x,t):te) b (e:es)
   | isGenerated x || simple e   = redBeta ((x,e):env) te b es            -- appears only once(??), strict, no size increase
   | otherwise                   = ELet (Binds False [(x,t)] [(x,e)]) (redBeta env te b es)
 redBeta env [] b []             = redExp env b
-redBeta env [] b es             = redApp env b es
-redBeta env te b []             = redEta env te b
 
 
-redSel env (ERec c eqs) s t es  = case lookup s eqs of
-                                    Just e -> redApp env e es
+redSel env (ERec c eqs) s t
+  | all simple (rng eqs)        = case lookup s eqs of
+                                    Just e -> e
                                     Nothing -> error "Internal: redSel"
-redSel env e s t es             = eAp (ESel e s t) es
+redSel env e s t                = ESel e s t
 
 
-redCase env (ECon k _,es') alts d es
-  | all value es'                = findCon env k es' alts d es
-redCase env (ELit l,_) alts d es = findLit env l alts d es
-redCase env (e,es') alts d es    = eAp (ECase (eAp e es') (mapSnd (redExp env) alts) (redExp env d)) es
+redCase env (ECon k _,es) alts d
+  | all value es                 = findCon env k es alts d
+redCase env (ELit l,_) alts d    = findLit env l alts d
+redCase env (e,es) alts d        = ECase (eAp e es) (mapSnd (redExp env) alts) (redExp env d)
 
 
-findCon env k es' [] d es       = redApp env d es
-findCon env k es' ((PCon k',e):_) d es
-  | k == k'                     = redApp env e (es'++es)
-findCon env k es' (_:alts) d es = findCon env k es' alts d es
+findCon env k es [] d           = redExp env d
+findCon env k es ((PCon k',e):_) d
+  | k == k'                     = redExp env e
+findCon env k es (_:alts) d     = findCon env k es alts d
 
 
-findLit env l [] d es           = redApp env d es
-findLit env l ((PLit l',e):_) d es
-  | l == l'                     = redApp env e es
-findLit env l (_:alts) d es     = findLit env l alts d es
+findLit env l [] d              = redExp env d
+findLit env l ((PLit l',e):_) d 
+  | l == l'                     = redExp env e
+findLit env l (_:alts) d        = findLit env l alts d
 
 
 redPrim env Refl _ [e]                          = e
