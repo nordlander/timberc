@@ -20,15 +20,19 @@ noreduce env eqs pe                     = do s0 <- unify env eqs
 
 fullreduce                              :: Env -> TEqs -> PEnv -> M s (TSubst, PEnv, Exp->Exp)
 fullreduce env eqs pe                   = do -- tr ("FULLREDUCE " ++ show pe)
-                                             s0          <- unify env eqs
-                                             let env0     = subst s0 env
-                                             (s1,pe1,f1) <- normalize env0 (subst s0 pe)
-                                             let env1     = subst s1 env0
+                                             (s1,pe1,f1) <- normalize env eqs pe
+                                             let env1     = subst s1 env
                                              (s2,pe2,f2) <- resolve env1 pe1
                                              -- tr ("END FULLREDUCE " ++ show pe2)
-                                             return (s2@@s1@@s0, pe2, f2 . f1)
+                                             return (s2@@s1, pe2, f2 . f1)
 
-normalize env pe                        = do -- tr ("NORMALIZE " ++ show pe)
+normalize env eqs pe                    = do s0 <- unify env eqs
+                                             let env0 = subst s0 env
+                                             (s1,pe1,f1) <- norm env0 (subst s0 pe)
+                                             return (s1@@s0, pe1, f1)
+                                             
+
+norm env pe                             = do -- tr ("NORMALIZE " ++ show pe)
                                              (s1, pe1, f1) <- reduce env pe
                                              (s2, pe2, f2) <- simplify (subst s1 env) pe1
                                              -- tr ("END NORMALIZE " ++ show pe2)
@@ -60,7 +64,7 @@ simplify env pe                         = do -- tr ("SIMPLIFY ") -- ++ show pe)
                                                                 -- tr ("Circular: " ++ show pe)
                                                                 s <- unify env (repeat t `zip` ts)
                                                                 -- tr ("New: " ++ show (subst s pe))
-                                                                (s',pe',f) <- normalize (subst s env) (subst s pe)
+                                                                (s',pe',f) <- norm (subst s env) (subst s pe)
                                                                 return (s'@@s, pe', f)
                                                    where tvs' = [ tv | (tv,c) <- tvs `zip` cs, c `elem` cs' ]
                                                          sat tv = do ts <- mapM newTVar (kArgs (tvKind tv))
@@ -486,7 +490,7 @@ mkTrans env ((w1,p1), (w2,p2))          = do (pe1, R c1, e1) <- instantiate p1 (
                                              s <- unify env [(t1',t2')]
                                              let t = subst s t1
                                                  p = scheme (t `sub` subst s t2)
-                                             (s',qe,f) <- normalize (protect p env) (subst s (pe1++pe2))
+                                             (s',qe,f) <- norm (protect p env) (subst s (pe1++pe2))
                                              x  <- newName paramSym
                                              let e = ELam [(x,scheme (subst s' t))] (f (EAp e2 [EAp e1 [eVar x]]))
                                                  (e',p') = qual qe e (subst s' p)
@@ -510,13 +514,13 @@ mkSuper env (w1,p1) (w2,p2)             = do (pe1, R c1, e1) <- instantiate p1 (
                                              let (t2',t2) = subs c2
                                              s <- unify env [(c1,t2')]
                                              let p = scheme (subst s t2)
-                                             (s',qe,f) <- normalize (protect p env) (subst s (pe1++pe2))
+                                             (s',qe,f) <- norm (protect p env) (subst s (pe1++pe2))
                                              let e = f (EAp e2 [e1])
                                                  (e',p') = qual qe e (subst s' p)
                                              sc <- gen env p'
                                              w <- newName witnessSym
                                              return ((w,sc), (w,e'))
-
+                                             
 
 -- Add predicates to the environment and build overlap graph
 addPreds env []                         = return env

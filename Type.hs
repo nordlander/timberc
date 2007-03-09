@@ -100,6 +100,8 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ show te ++ " rec
         env'                    = if rec then addTEnv te env else env
 
 
+
+
 tiRhs0 env explWits ts es       = do (ss,pes,es') <- fmap unzip3 (mapM (tiExpT' env) (zip3 explWits ts es))
                                      return (concat ss, concat pes, es')
 
@@ -122,12 +124,13 @@ tiExpT' env (False, Scheme t0 ps [], e)
                                      return (ss, (c, Scheme (F [scheme' t] t0) ps []) : qe, e1)
 tiExpT' env (explWit, Scheme t0 ps ke, e)
                                 = do (ss,qe,t,e)  <- tiExp env e
-                                     s            <- unify env ss
+                                     -- tr ("INFERRED: " ++ show t ++ "   \\\\    " ++ show qe)
+                                     (s,qe,f)     <- normalize env ss qe
                                      c            <- newName coercionSym
                                      pe0          <- newEnv assumptionSym ps
                                      let env1      = subst s env
                                          (qe1,qe2) = partition (isFixed env1) (subst s qe)
-                                         (e',t')   = qual qe2 e (scheme' (subst s t))
+                                         (e',t')   = qual qe2 (f e) (scheme' (subst s t))
                                          ws        = map eVar (dom pe0)
                                          (ws',ps') = if explWit then (ws, ps) else ([], [])
                                          e1        = eLam pe0 (eAp (EAp (eAp (eVar c) ws) [e']) ws')
