@@ -377,6 +377,10 @@ instance Eq TVar where
 instance Show TVar where
     show (TV (n,k))             = show n
 
+instance Pr TVar where
+    pr (TV (n,k))               = pr n
+
+
 newTV k                         = do n <- newNum
                                      return (TV (n,k))
 

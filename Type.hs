@@ -79,7 +79,7 @@ tiBindsList env (bs:bss)        = do (ss1, pe1, bs') <- tiBinds env bs
                                      return (ss1++ss2, pe1++pe2, bs' `catBinds` bss')
 
                                      
-tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ showids xs ++ " rec: " ++ show rec)
+tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ show te ++ " rec: " ++ show rec)
                                      (s,pe,es1)   <- tiRhs0 env' explWits ts es
                                      (s',qe,f)    <- fullreduce (target te env) s pe
                                      let env1      = subst s' env

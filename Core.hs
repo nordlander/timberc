@@ -605,6 +605,7 @@ instance Pr Type where
 
     prn 2 (TId c)               = prId c
     prn 2 (TVar _)              = text "_"
+--    prn 2 (TVar n)              = text "_" <> pr n
 
     prn 2 t                     = parens (prn 0 t)
 
