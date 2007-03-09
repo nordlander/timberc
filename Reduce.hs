@@ -19,7 +19,7 @@ noreduce env eqs pe                     = do s0 <- unify env eqs
                                              return (s0, pe, id)
 
 fullreduce                              :: Env -> TEqs -> PEnv -> M s (TSubst, PEnv, Exp->Exp)
-fullreduce env eqs pe                   = do -- tr ("FULLREDUCE " ++ show pe)
+fullreduce env eqs pe                   = do -- tr ("FULLREDUCE\n" ++ render (vpr pe))
                                              (s1,pe1,f1) <- normalize env eqs pe
                                              let env1     = subst s1 env
                                              (s2,pe2,f2) <- resolve env1 pe1

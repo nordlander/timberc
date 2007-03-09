@@ -10,6 +10,7 @@ import Kind
 import Decls
 import Reduce
 import Termred
+import PP
 
 
 typecheck                       :: Module -> M s Module
