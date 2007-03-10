@@ -9,7 +9,7 @@ import Depend
 kindcheck m                             = kiModule m
 
 kiModule (Module v ds is bs)            = do ds <- kiDeclsList env (groupTypes ds)
-                                             let env' = addKEnv (ksigsOf ds) env
+                                             let env' = addKEnv0 (ksigsOf ds) env
                                              is <- kiBinds env' is
                                              bs <- kiBinds env' bs
                                              return (Module v ds is bs)
@@ -73,11 +73,11 @@ kiTExp env (TAp t t')                   = do (cs,k) <- kiTExp env t
 
 kiDeclsList env []                      = return nullDecls
 kiDeclsList env (ds:dss)                = do ds1 <- kiDecls env ds
-                                             ds2 <- kiDeclsList (addKEnv (ksigsOf ds) env) dss
+                                             ds2 <- kiDeclsList (addKEnv0 (ksigsOf ds) env) dss
                                              return (catDecls ds1 ds2)
 
 
-kiDecls env (Types ke ds)               = do css <- mapM (kiDecl (addKEnv ke env)) ds
+kiDecls env (Types ke ds)               = do css <- mapM (kiDecl (addKEnv0 ke env)) ds
                                              s <- kindUnify (concat css)
                                              return (Types (subst s ke) (subst s ds))
 

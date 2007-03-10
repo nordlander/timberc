@@ -92,8 +92,8 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ show te ++ " rec
                                          h x (Just t) = eVarT x qs t
                                          h x _        = eVar x
                                          (es',ts') = unzip (zipWith (qual qe2) es3 (subst s' ts))
-                                     -- tr ("Witnesses returned: " ++ show qe1)
-                                     ts'' <- mapM (gen env1) ts'
+                                     -- tr ("Witnesses returned: " ++ show qe1 ++ "   |   " ++ show qe2)
+                                     ts'' <- mapM (gen (tevars env1 ++ tvars qe1)) ts'
                                      return (mkEqns s', qe1, Binds rec (xs `zip` ts'') (xs `zip` es'))
   where ts                      = map (lookup' te) xs
         (xs,es)                 = unzip eqs
@@ -135,13 +135,13 @@ tiExpT' env (explWit, Scheme t0 ps ke, e)
                                          ws        = map eVar (dom pe0)
                                          (ws',ps') = if explWit then (ws, ps) else ([], [])
                                          e1        = eLam pe0 (eAp (EAp (eAp (eVar c) ws) [e']) ws')
-                                     sc           <- gen env1 t'
+                                     sc           <- gen (tevars env1 ++ tvars qe1) t'
                                      return (mkEqns s, (c, Scheme (F [sc] (tFun ps' t0)) ps ke) : qe1, e1)
 
 
 mkEqns s                        = mapFst TVar s
 
-isFixed env pred                = all (`elem` tvs) (tvars pred)
+isFixed env (w,p)               = isDummy w || all (`elem` tvs) (tvars p)
   where tvs                     = tevars env
 
 
@@ -222,7 +222,7 @@ tiExp env (EDo x tx c)
   | otherwise                   = error "Explicitly typed do expressions not yet implemented"
 tiExp env (ETempl x tx te c)
   | isTVar tx                   = do n <- newName stateSym
-                                     let env' = setSelf x (TId n) (addTEnv te (addKEnv [(n,Star)] env))
+                                     let env' = setSelf x (TId n) (addTEnv te (addKEnv0 [(n,Star)] env))
                                      (s,pe,t,c) <- tiCmd env' c
                                      return ((TId n, tx):s, pe, R (tTemplate t), ETempl x (TId n) te c)
   | otherwise                   = error "Explicitly typed template expressions not yet implemented"
@@ -254,7 +254,7 @@ tiLhs env alpha tiX xs          = do x <- newName tempSym
                                          es1 = map f es
                                          pes1 = subst s (map (filter (not . isCoercion . fst)) pes) -- preserve non-coercions for each alt
                                          (es2,ts2) = unzip (zipWith3 qual pes1 es1 ts1)
-                                     ts3 <- mapM (gen (subst s env')) ts2
+                                     ts3 <- mapM (gen (tevars (subst s env'))) ts2
                                      return (subst s alpha, ts3, map (redTerm (insts env)) es2)
 
 

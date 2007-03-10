@@ -43,9 +43,9 @@ norm env pe                             = do -- tr ("NORMALIZE " ++ show pe)
 
 reduce env pe                           = do -- tr ("###reduce " ++ show (tvars (typeEnv env)))
                                              (s,q,[],es) <- red [] (map mkGoal pe)
-                                             -- tr ("###result: " ++ show s ++ ", preds: " ++ show q)
+                                             -- tr ("###result: " ++ show (dom pe `zip` es))
                                              return (s, q, eLet pe (dom pe `zip` es))
-  where mkGoal (v,p)                    = (tick env (isCoercion v), p)
+  where mkGoal (v,p)                    = (tick env (isCoercion v || isDummy v), p)
 
 
 -- Simplification ------------------------------------------------------------------------------
@@ -95,22 +95,21 @@ a x < b x \\ x, a x < c x \\ x, b x < c Int \\ x
 
 -- Forced reduction ------------------------------------------------------------------------
 
-resolve env pe                          = do -- tr ("###############\nBefore resolve: ")
+resolve env pe                          = do -- tr ("############### Before resolve: " ++ show pe)
                                              (s,q,[],es) <- red [] (map mkGoal pe)
-                                             -- tr ("###############\nAfter resolve: " ++ show q)
-                                             let env1 = subst s env
-                                                 q' = filter (isDummy . fst) q
-                                             assert (null q') ("Cannot resolve predicates: " ++ vshow (rng q'))
+                                             -- tr ("############### After resolve: " ++ show q)
+                                             let q' = filter badDummy q
+                                             assert (null q') ("Cannot resolve predicates: " ++ show q')
                                              return (s, q, eLet pe (dom pe `zip` es))
   where env_tvs                         = tevars env
         reachable_tvs                   = vclose (map tvars pe) (ps ++ ns ++ env_tvs)
           where (ps,ns)                 = pols env
-        mkGoal (v,p)                    = (force env' (local  && (coercion || ambig)), p)
+        mkGoal (v,p)                    = (force env' (coercion || ambig), p)
           where tvs                     = tvars p
                 coercion                = isCoercion v
-                local                   = not (null (tvs \\ env_tvs))
                 ambig                   = null (tvs `intersect` reachable_tvs)
                 env'                    = tick env coercion
+        badDummy (v,p)                  = isDummy v && null (tvars p `intersect` env_tvs)
 
 
 {-
@@ -172,7 +171,7 @@ resolve env pe                          = do -- tr ("###############\nBefore res
 
 
 red [] []                               = return (nullSubst, [], [], [])
-red gs []                               = do -- tr ("%%%%%%%% solve info: " ++ show info)
+red gs []                               = do -- tr ("%%%%%%%% solve " ++ show r ++ ",  info: " ++ show info)
                                              (s,q,e:es) <- solve r g (gs1++gs2)
                                              let (es1,es2) = splitAt i es
                                              return (s, q, es1++[e]++es2, [])
@@ -246,7 +245,8 @@ redf2 s gs env a b ps                   = do (s',q,es,e,es') <- redf (subst s gs
 solve RFun (env,p) gs                   = do (s,q,es,[e]) <- red gs [(env, scheme' (F [scheme a] (R b)))]
                                              return (s, q, e:es)
   where (a,b)                           = subs p
-solve RUnif (env,p) gs                  = do s <- unify env [(a,b)]
+solve RUnif (env,p) gs                  = do -- tr ("unif: " ++ show p)
+                                             s <- unify env [(a,b)]
                                              (s',q,es,[]) <- red (subst s gs) []
                                              return (s'@@s, q, eVar (prim Refl) : es)
   where (a,b)                           = subs p
@@ -349,15 +349,12 @@ auTerms gs es1 es2                      = auZip auTerm gs es1 es2
     auSc _ _ _                          = error "Internal: auTerms"
 
 
-newHyp (env,c)                          = do --tr ("newHyp " ++ show c ++ "    ## tenv = " ++ show (typeEnv env))
+newHyp (env,c)                          = do -- tr ("newHyp " ++ render (prPScheme 0 p))
                                              v <- newName (sym env)
-                                             return ([(v,p)], eAp (eVar v) (map eVar vs))
+                                             return ([(v,p)], eAp (eVar (annotExplicit v)) (map eVar vs))
   where p                               = Scheme (R c) ps ke
-        tvs                             = tyvars c
-        tvs'                            = tvars c
-        useful p                        = all (`elem` tvs) (tyvars p) && all (`elem` tvs') (tvars p)
-        (vs,ps)                         = unzip (filter useful (predEnv env))
-        ke                              = filter ((`elem` tvs) . fst) (kindEnv env)
+        (vs,ps)                         = unzip (predEnv env)
+        ke                              = kindEnv env
         sym env
           | forced env                  = dummySym          -- unwanted garbage predicate, trap in resolve
           | ticked env                  = coercionSym       -- originates from a coercion predicate
@@ -410,6 +407,11 @@ isNull _                                = False
 
 -- Adding predicates to the environment -------------------------------------------------
 
+closePreds0 env pe                      = do (env1,pe1,eq1) <- closeTransitive env0 pe
+                                             (env2,pe2,eq2) <- closeSuperclass env1 pe
+                                             return (env2, pe1++pe2, eq1++eq2)
+  where env0                            = addPEnv0 pe env
+    
 closePreds env tvs pe ke                = do (env1,pe1,eq1) <- closeTransitive env0 pe
                                              (env2,pe2,eq2) <- closeSuperclass env1 pe
                                              return (thaw env2, pe1++pe2, eq1++eq2)
@@ -494,7 +496,7 @@ mkTrans env ((w1,p1), (w2,p2))          = do (pe1, R c1, e1) <- instantiate p1 (
                                              x  <- newName paramSym
                                              let e = ELam [(x,scheme (subst s' t))] (f (EAp e2 [EAp e1 [eVar x]]))
                                                  (e',p') = qual qe e (subst s' p)
-                                             sc <- gen env p'
+                                             sc <- gen (tevars env) p'
                                              w <- newName coercionSym
                                              return ((w,sc), (w, redTerm (insts env) e'))
 
@@ -517,7 +519,7 @@ mkSuper env (w1,p1) (w2,p2)             = do (pe1, R c1, e1) <- instantiate p1 (
                                              (s',qe,f) <- norm (protect p env) (subst s (pe1++pe2))
                                              let e = f (EAp e2 [e1])
                                                  (e',p') = qual qe e (subst s' p)
-                                             sc <- gen env p'
+                                             sc <- gen (tevars env) p'
                                              w <- newName witnessSym
                                              return ((w,sc), (w,e'))
                                              

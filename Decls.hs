@@ -27,18 +27,18 @@ import Reduce
 -- Return extended environment, transformed decls and added witness bindings
 
 typeDecls env (Types ke ds)             = do (ds,pe1,eq1) <- desub env0 ds
-                                             (env',pe2,eq2) <- closePreds env0 [] pe1 []
+                                             (env',pe2,eq2) <- closePreds0 env0 pe1
                                              let (pe3,eq3) = preferParams env' pe1 pe2 eq2
                                                  te0 = concatMap (tenvSelCon env') ds
                                              return (addTEnv0 te0 env', Types ke ds, Binds False (pe1++pe3) (eq1++eq3))
-  where env0                            = addClasses cs (addKEnv ke env)
+  where env0                            = addClasses cs (addKEnv0 ke env)
         cs                              = [ c | (c, DRec True _ _ _) <- ds ]
 
 
 -- Close the top-level instance delcarations
 -- Return the extended environment and the added witness bindings
 
-instancePreds env pe                    = do (env',qe,eq) <- closePreds env [] pe []
+instancePreds env pe                    = do (env',qe,eq) <- closePreds0 env pe
                                              let (qe',eq') = preferParams env' pe qe eq
                                              return (env', Binds False qe' eq')
 

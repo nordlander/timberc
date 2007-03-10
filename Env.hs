@@ -18,9 +18,11 @@ predOf                                  = snd
 --labelOf                                 = fst
 --witOf                                   = snd
 
-data Env = Env { kindEnv       :: KEnv,              -- Kind for each global tycon AND each local skolemized tyvar
+data Env = Env { kindEnv0      :: KEnv,              -- Kind for each global tycon
+                 kindEnv       :: KEnv,              -- Kind for each local skolemized tyvar
                  typeEnv0      :: TEnv,              -- Type scheme for each top-level def (no free tyvars)
                  typeEnv       :: TEnv,              -- Type scheme for each additional def
+                 predEnv0      :: PEnv,              -- Predicate scheme for each global witness def (no free tyvars)
                  predEnv       :: PEnv,              -- Predicate scheme for each local witness abstraction
 
                  tevars        :: [TVar],            -- The tvars free in typeEnv (cached)
@@ -48,9 +50,11 @@ instance Show Env where
     show env = "<env>"
 
 
-nullEnv                                 = Env { kindEnv    = [],
+nullEnv                                 = Env { kindEnv0   = [],
+                                                kindEnv    = [],
                                                 typeEnv0   = [],
                                                 typeEnv    = [],
+                                                predEnv0   = [],
                                                 predEnv    = [],
                                                 tevars     = [],
                                                 pevars     = [],
@@ -75,8 +79,12 @@ addTEnv te env                          = env { typeEnv    = te ++ typeEnv env,
                                                 tevars     = tvs `union` tevars env }
   where tvs                             = tvars te
 
+addKEnv0 ke env                         = env { kindEnv0   = ke ++ kindEnv0 env }
+
 addKEnv ke env                          = env { kindEnv    = ke ++ kindEnv env }
 
+
+addPEnv0 pe env                         = env { predEnv0    = pe ++ predEnv0 env }
 
 addPEnv pe env
   | null (tvars pe)                     = env { predEnv    = pe ++ predEnv env }
@@ -186,7 +194,7 @@ conservative (env,c)                    = not (forced env)
 
 
 findKind env (Tuple n _)                = foldr KFun Star (replicate n Star)
-findKind env c                          = case lookup c (kindEnv env) of
+findKind env c                          = case lookup c (kindEnv env ++ kindEnv0 env) of
                                             Just k  -> k
                                             Nothing -> Star  -- Hack!  This alternative is intended for the fresh type
                                                              -- constants introduced when type-checking templates with 
@@ -222,7 +230,7 @@ findExplType env x
   | otherwise                           = findType env x
   
 
-findPred env w                          = case lookup w (predEnv env ++ typeEnv0 env) of
+findPred env w                          = case lookup w (predEnv env ++ predEnv0 env) of
                                             Just p  -> p
                                             Nothing -> error ("Internal: Unknown witness identifier: " ++ show w)
 
@@ -442,11 +450,11 @@ instantiate sc f                = do r <- inst sc
 qual qe e (Scheme t ps ke)      = (eLam qe e, Scheme t (rng qe ++ ps) ke)
 
 
-gen env sc@(Scheme t ps ke)     = do ids <- newNames tyvarSym (length tvs)
+gen tvs0 sc@(Scheme t ps ke)    = do ids <- newNames tyvarSym (length tvs)
                                      let s = tvs `zip` map TId ids
                                          ke' = ids `zip` map tvKind tvs 
                                      return (Scheme (subst s t) (subst s ps) (ke' ++ ke))
-  where tvs                     = nub (filter (`notElem` tevars env) (tvars t ++ tvars ps))
+  where tvs                     = nub (filter (`notElem` tvs0) (tvars t ++ tvars ps))
 
 
 
@@ -540,7 +548,7 @@ instance Pr (Name,Name) where
 
 -- initEnv --------------------------------------------------------------------
 
-initEnv                 = nullEnv { kindEnv  = primKindEnv,
+initEnv                 = nullEnv { kindEnv0 = primKindEnv,
                                     typeEnv0 = primTypeEnv,
                                     aboveEnv = primAboveEnv,
                                     belowEnv = primBelowEnv,
