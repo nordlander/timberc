@@ -55,8 +55,8 @@ transFix e = push e [] []
                     error ("Operator ambiguity: " ++ show o ++ " with " ++ show o')
                 |prec<prec'||(prec==prec'&&ass==RightAss) ->
                     push (Cons l o (opApp r o' (head es))) os' (tail es)
-                         where Fixity ass  prec  = fixity (show o)
-                               Fixity ass' prec' = fixity (show o')
+                         where Fixity ass  prec  = fixity (str o)
+                               Fixity ass' prec' = fixity (str o')
               _ -> push l (o:os) (r:es)
         push (Nil e) os es = popAll os (e:es)
         opApp l o r = EAp (EAp (op2exp o) l) r
