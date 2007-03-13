@@ -28,9 +28,9 @@ import Reduce
 
 typeDecls env (Types ke ds)             = do (ds,pe1,eq1) <- desub env0 ds
                                              (env',pe2,eq2) <- closePreds0 env0 pe1
-                                             let (pe3,eq3) = preferParams env' pe1 pe2 eq2
+                                             let bss = preferParams env' pe1 pe2 eq2
                                                  te0 = concatMap (tenvSelCon env') ds
-                                             return (addTEnv0 te0 env', Types ke ds, Binds False (pe1++pe3) (eq1++eq3))
+                                             return (addTEnv0 te0 env', Types ke ds, concatBinds (Binds False pe1 eq1 : bss))
   where env0                            = addClasses cs (addKEnv0 ke env)
         cs                              = [ c | (c, DRec True _ _ _) <- ds ]
 
@@ -39,8 +39,8 @@ typeDecls env (Types ke ds)             = do (ds,pe1,eq1) <- desub env0 ds
 -- Return the extended environment and the added witness bindings
 
 instancePreds env pe                    = do (env',qe,eq) <- closePreds0 env pe
-                                             let (qe',eq') = preferParams env' pe qe eq
-                                             return (env', Binds False qe' eq')
+                                             let bss = preferParams env' pe qe eq
+                                             return (env', concatBinds bss)
 
 
 -- Computes the stand-alone type schemes associated with selectors and constructors

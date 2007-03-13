@@ -63,6 +63,8 @@ redExp env (ELet bs e)
   | rec                         = ELet bs' (redExp env e)
   | otherwise                   = redBeta env te e (map (lookup' eqs) (dom te))
   where bs'@(Binds rec te eqs)  = redBinds env bs
+redExp env e@(EVar (Prim {}) _) = e
+redExp env e@(EVar (Tuple {})_) = e
 redExp env e@(EVar x _)         = case lookup x env of
                                       Just e' -> e'
                                       Nothing -> e

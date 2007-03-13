@@ -5,6 +5,7 @@ import Common
 import Core
 import Env
 import Kind
+import Depend
 import Termred
 
 
@@ -55,9 +56,11 @@ simplify env pe                         = do -- tr ("SIMPLIFY " ++ show pe)
                                              cs <- newNames skolemSym (length tvs)
                                              r <- expose (closePreds env [] (subst (tvs`zip`map TId cs) pe) (cs`zip`ks))
                                              case r of
-                                               Right (env',qe,eq) -> return (nullSubst, pe', eLet qe' eq')
-                                                 where s = cs `zip` map TVar tvs
-                                                       (pe',qe',eq') = preferLocals env' pe (subst s qe) (subst s eq)
+                                               Right (env',qe,eq) -> 
+                                                 do tr ("RESULT: " ++ show qe ++ "\n    " ++ show eq ++ "\n    " ++ show (equalities env'))
+                                                    return (nullSubst, pe', eLet' (subst s bss))
+                                                 where (pe',bss) = preferLocals env' pe qe eq
+                                                       s = cs `zip` map TVar tvs
                                                Left s -> case decodeCircular s of
                                                  Nothing  -> fail s
 --                                               Just cs' -> return (nullSubst, pe, id)
@@ -190,14 +193,14 @@ red gs ((env, p@(Scheme (F [sc1] t2) ps2 ke2)):ps)
                                              let ps' = repeat (tick env' False) `zip` ps1
                                              (s,q,es,e,es') <- redf gs env' t1 t2 (ps'++ps)
                                              let (es1,es2) = splitAt (length ps') es'
-                                                 (qe',eq') = preferParams env' pe qe eq
-                                                 e' = eLet qe' eq' (EAp e [eAp (eVarT v ps1 t1) es1])
+                                                 bss = preferParams env' pe qe eq
+                                                 e' = eLet' bss (EAp e [eAp (eVarT v ps1 t1) es1])
                                              return (s, q, es, eLam pe (ELam [(v,sc1)] e') : es2)
 red gs ((env, Scheme (R t) ps' ke):ps)  = do pe <- newEnv assumptionSym ps'
                                              (env',qe,eq) <- closePreds env (tvars t ++ tvars ps') pe ke
                                              (s,q,e:es,es') <- red ((env',t) : gs) ps
-                                             let (qe',eq') = preferParams env' pe qe eq
-                                             return (s, q, es, eLam pe (eLet qe' eq' e) : es')
+                                             let bss = preferParams env' pe qe eq
+                                             return (s, q, es, eLam pe (eLet' bss e) : es')
 
 
 
@@ -422,41 +425,47 @@ closePreds env tvs pe ke                = do (env1,pe1,eq1) <- closeTransitive e
         env0                            = freeze (addPEnv pe (addSkolEnv se (addKEnv ke env)))
 
 
-preferLocals env pe qe eq               = walk [] [] [] (filter ((`elem` (vs0++dom qe)) . fst3) (equalities env))
-  where walk vs ws bs []                = (prune pe vs, prune qe ws, prune eq (dom bs++ws) ++ bs)
-        walk vs ws bs ((x,y,e):eqs)     = case (x `elem` vs0, y `elem` vs0) of
-                                            (True,  True)  -> walk (x:vs) ws bs eqs
-                                            (True,  False) -> walk (x:vs) ws bs eqs
-                                            (False, True)  -> walk vs ws ((y,e):bs) eqs
-                                            (False, False) -> walk vs (x:ws) bs eqs
+preferLocals env pe qe eq               = walk [] [] [] (equalities env)
+  where walk vs ws bs []                = (prune pe vs, groupBinds (Binds False (prune qe ws) (prune eq ws ++ bs)))
+        walk vs ws bs ((x,y,e,e'):eqs)
+          | x `notElem` vs1             = walk vs ws bs eqs
+          | otherwise                   = case (x `elem` vs0, y `elem` vs0) of
+                                            (True,  True)  -> walk (x:vs) ws ((x,e):bs) eqs
+                                            (True,  False) -> walk (x:vs) ws ((x,e):bs) eqs
+                                            (False, True)  -> walk vs (y:ws) ((y,e'):bs) eqs
+                                            (False, False) -> walk vs (x:ws) ((y,e'):bs) eqs
         vs0                             = dom pe
+        vs1                             = vs0 ++ dom qe
 
-preferParams env pe qe eq               = walk [] [] (filter ((`elem` (vs0++dom qe)) . fst3) (equalities env))
-  where walk ws bs []                   = (prune qe ws, bs ++ prune eq (dom bs++ws))
-        walk ws bs ((x,y,e):eqs)        = case (x `elem` vs0, y `elem` vs0) of
+preferParams env pe qe eq               = walk [] [] (equalities env)
+  where walk ws bs []                   = groupBinds (Binds False (prune qe ws) (prune eq ws ++ bs))
+        walk ws bs ((x,y,e,e'):eqs)
+          | x `notElem` vs1             = walk ws bs eqs
+          | otherwise                   = case (x `elem` vs0, y `elem` vs0) of
                                             (True,  True)  -> walk ws bs eqs
-                                            (True,  False) -> walk ws ((y,e):bs) eqs
+                                            (True,  False) -> walk (y:ws) ((y,e'):bs) eqs
                                             (False, True)  -> walk (x:ws) bs eqs
                                             (False, False) -> walk (x:ws) bs eqs
         vs0                             = dom pe
+        vs1                             = vs0 ++ dom qe
 
 {-
                                                               Top-level & local reduction:        Action during simplify:
 In (equalities env):  Meaning:                                (prefer parameters/constants)       (prefer local defs)
 
-    (v,v',e)          Two witness parameters equal,           Ignore equality info                Remove parameter v
-                      only v' is in use
+    (v,v',e,e')       Two witness parameters equal            Ignore equality info                Remove parameter v
+                                                              [only v' is in use]                 Add def "let v = e in ..."
 
-    (v,w',e)          Witness parameter is equal to a         Remove local def of w',             Remove parameter v
-                      local def, local def w' is in use       Add "let w' = e in ..."
+    (v,w',e,e')       Witness parameter is equal to a         Remove local def of w' [in use]     Remove parameter v
+                      local def                               Add "let w' = e' in ..."            Add "let v = e in ..."
 
-    (w,v',e)          Witness parameter is equal to a         Remove local def of w               Remove parameter v',
-                      local def, parameter v' is in use                                           Add def "let v' = e in ..."
+    (w,v',e,e')       Witness parameter is equal to a         Remove local def of w               Remove parameter v'
+                      local def                               [only parameter v' is in use]       Add def "let v' = e' in ..."
 
-    (w,w',e)          Two local witness definitions           Remove local def of w               Remove local def of w
-                      are equal, only w' is in use
+    (w,w',e,e')       Two local witness definitions           Remove local def of w               Remove local def of w'
+                      are equal                               [only w' is in use]                 Add def "let w' = e' in ..."
 
-    v and v' are witness parameters
+    v and v' are witness parameters (elements of (dom pe))
     w and w' are locally generated witnesses
 -}
 
@@ -535,8 +544,8 @@ addPreds env (n@(w,p):pe)
                                                r1 <- imply env n' n
                                                r2 <- imply env n n'
                                                case (r1,r2) of
-                                                 (Just _, Just e) -> addPreds (addEqs [(w,nameOf n',e)] env) pe
-                                                 _                -> fail "Ambiguous subtyping"
+                                                 (Just e', Just e) -> addPreds (addEqs [(w,nameOf n',e,e')] env) pe
+                                                 _                 -> fail "Ambiguous subtyping"
                                             Nothing -> do 
                                                addPreds (insertSubPred n env) pe
   where (a,b)                           = subsyms p
@@ -544,14 +553,14 @@ addPreds env (n@(w,p):pe)
   | isClass' p                          = do r <- cmpNode [] [] n (nodes (findClass env c))
                                              case r of
                                                 Right (pre,post) -> addPreds (insertClassPred pre n post env) pe
-                                                Left (w',e) -> addPreds (addEqs [(w,w',e)] env) pe
+                                                Left (w',e,e')   -> addPreds (addEqs [(w,w',e,e')] env) pe
   where c                               = headsym p
 
         cmpNode pre post n []           = return (Right (pre,post))
         cmpNode pre post n (n':pe')     = do r1 <- imply env n n'
                                              r2 <- imply env n' n
                                              case (r1,r2) of
-                                               (Just _,  Just e)  -> return (Left (nameOf n',e))
+                                               (Just e',  Just e) -> return (Left (nameOf n',e,e'))
                                                (Just _,  Nothing) -> cmpNode (nameOf n':pre) post n pe'
                                                (Nothing, Just _)  -> cmpNode pre (nameOf n':post) n pe'
                                                (Nothing, Nothing) -> cmpNode pre post n pe'
