@@ -44,18 +44,22 @@ match0 e alts                   = do w <- newName tempSym
 
 match ws eqs                    = fat (match1 ws eqs)
 
-
 match1 ws []                    = []
 match1 [] (([],rhs):eqs)        = matchRhs rhs : match1 [] eqs
+match1 (w:ws) eqs
+  | all isVarEq eqs             = match1 ws (map f eqs)
+  where f (EVar v : ps, rh)     = (ps, subst (v +-> EVar w) rh)
 match1 ws (eq:eqs)
-  | isVarEq eq                  = matchVar ws eq : match1 ws eqs
+  | isSigVarEq eq               = matchVar ws eq : match1 ws eqs
   | isLitEq eq                  = matchLits ws [eq] eqs
   | otherwise                   = matchCons ws [prepConEq eq] eqs
 
 
 isLitEq (p:ps,rh)               = isELit p
 
-isVarEq (p:ps,rh)               = isESigVar p
+isVarEq (p:ps,rh)               = isEVar p
+
+isSigVarEq (p:ps,rh)            = isESigVar p
 
 isConEq (p:ps,rh)               = isEConApp p
 
