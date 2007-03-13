@@ -42,6 +42,7 @@ nullSelf env                        = env { selfN = Nothing }
 
 findSel env l                       = head (Kindle.searchFields (decls env) l)
 
+findCon env k@(Tuple n _)           = (Kindle.TId k, Just (map name0 (take n abcSupply) `zip` repeat Kindle.TWild))
 findCon env k                       = case lookup k (decls env) of
                                         Just (Kindle.Struct te) -> (t0, Just (mapSnd valT te))
                                         _                       -> (t0, Nothing)
@@ -50,7 +51,7 @@ findCon env k                       = case lookup k (decls env) of
         valT (Kindle.FunT _ _)      = error "Internal: c2k.findCon"     -- can't happen, see cCon below
 
 
--- Convert a Core.Modul into a Kindle.Module
+-- Convert a Core.Module into a Kindle.Module
 cModule (Module m ds _ bs)          = do ds1  <- cDecls ds
                                          mapM_ addToStore (filter (isClosure . fst) ds1)
                                          bs  <- cBindsList (addDecls ds1 env) (groupBinds bs)
@@ -253,14 +254,16 @@ cAltT cBodyT env t0 e0 (PCon n, e)      = case findCon env n of
                                                               return (Kindle.ACon n c)
                                             (_,Nothing) -> do c <- cBodyT env t0 e
                                                               return (Kindle.ACon n c)
-  where cRhsT env t0 e [] []            = cBodyT env t0 e
-        cRhsT env t0 (ELam te e) ts es  = do te <- cATEnv te
+
+-- Convert a Core right-hand-side with an expected Kindle.AType into a Kindle.Cmd (with bindings)
+cRhsT env t0 e [] []                    = cBodyT env t0 e
+cRhsT env t0 (ELam te e) ts es          = do te <- cATEnv te
                                              let bs = mkBind te (zipWith3 match (rng te) ts1 es1)
                                              c <- cRhsT (addTEnv' te env) t0 e ts2 es2
                                              return (Kindle.cBind bs c)
           where (es1,es2)               = splitAt (length te) es
                 (ts1,ts2)               = splitAt (length te) ts
-        cRhsT env t0 e ts es            = do te <- newEnv paramSym ts
+cRhsT env t0 e ts es                    = do te <- newEnv paramSym ts
                                              let bs = mkBind te es
                                              c <- cBodyT (addTEnv' te env) t0 (EAp e (map eVar (dom te)))
                                              return (Kindle.cBind bs c)
@@ -270,6 +273,12 @@ cAltT cBodyT env t0 e0 (PCon n, e)      = case findCon env n of
 cBodyT env t0 (ELet bs e)               = do (te,bf) <- cBinds env bs
                                              c <- cBodyT (addTEnv te env) t0 e
                                              return (bf c)
+cBodyT env t0 (ECase e ((PCon n@(Tuple {}),e'):_) _)
+                                        = case findCon env n of
+                                             (_, Just te) -> do (bf,t,e0) <- cExp env e
+                                                                let (xs,ts) = unzip te
+                                                                c <- cRhsT env t0 e' ts (map (Kindle.ESel e0) xs)
+                                                                return (bf c)
 cBodyT env t0 (ECase e alts e')         = do (bf,t,e0) <- cExp env e
                                              alts <- mapM (cAltT cBodyT env t0 e0) alts
                                              c <- cBodyT env t0 e'
@@ -453,14 +462,16 @@ cAlt cBody env e0 (PCon n, e)           = case findCon env n of
                                                               return (t, Kindle.ACon n c)
                                             (_,Nothing) -> do (t,c) <- cBody env e
                                                               return (t, Kindle.ACon n c)
-  where cRhs env e [] []                = cBody env e
-        cRhs env (ELam te e) ts es      = do te <- cATEnv te
+
+-- Convert a Core right-hand-side into a Kindle.AType and a Kindle.Cmd (with bindings)
+cRhs env e [] []                        = cBody env e
+cRhs env (ELam te e) ts es              = do te <- cATEnv te
                                              let bs = mkBind te (zipWith3 match (rng te) ts1 es1)
                                              (t,c) <- cRhs (addTEnv' te env) e ts2 es2
                                              return (t, Kindle.cBind bs c)
           where (es1,es2)               = splitAt (length te) es
                 (ts1,ts2)               = splitAt (length te) ts
-        cRhs env e ts es                = do te <- newEnv paramSym ts
+cRhs env e ts es                        = do te <- newEnv paramSym ts
                                              let bs = mkBind te es
                                              (t,c) <- cBody (addTEnv' te env) (EAp e (map eVar (dom te)))
                                              return (t, Kindle.cBind bs c)
@@ -469,6 +480,12 @@ cAlt cBody env e0 (PCon n, e)           = case findCon env n of
 cBody env (ELet bs e)                   = do (te,bf) <- cBinds env bs
                                              (t,c) <- cBody (addTEnv te env) e
                                              return (t, bf c)
+cBody env (ECase e ((PCon n@(Tuple {}),e'):_) _)
+                                        = case findCon env n of
+                                             (_, Just te) -> do (bf,t,e0) <- cExp env e
+                                                                let (xs,ts) = unzip te
+                                                                (t1,c) <- cRhs env e' ts (map (Kindle.ESel e0) xs)
+                                                                return (t1, bf c)
 cBody env (ECase e (a:alts) e')         = do (bf,t,e0) <- cExp env e
                                              (t1,a) <- cAlt cBody env e0 a
                                              alts <- mapM (cAltT cBodyT env t1 e0) alts
