@@ -21,6 +21,7 @@ noreduce env eqs pe                     = do s0 <- unify env eqs
 fullreduce                              :: Env -> TEqs -> PEnv -> M s (TSubst, PEnv, Exp->Exp)
 fullreduce env eqs pe                   = do -- tr ("FULLREDUCE\n" ++ render (vpr pe))
                                              (s1,pe1,f1) <- normalize env eqs pe
+                                             -- tr ("Subst: " ++ show s1)
                                              let env1     = subst s1 env
                                              (s2,pe2,f2) <- resolve env1 pe1
                                              -- tr ("END FULLREDUCE " ++ show pe2)
@@ -50,7 +51,7 @@ reduce env pe                           = do -- tr ("###reduce " ++ show (tvars 
 
 -- Simplification ------------------------------------------------------------------------------
 
-simplify env pe                         = do -- tr ("SIMPLIFY ") -- ++ show pe)
+simplify env pe                         = do -- tr ("SIMPLIFY " ++ show pe)
                                              cs <- newNames skolemSym (length tvs)
                                              r <- expose (closePreds env [] (subst (tvs`zip`map TId cs) pe) (cs`zip`ks))
                                              case r of
@@ -96,6 +97,7 @@ a x < b x \\ x, a x < c x \\ x, b x < c Int \\ x
 -- Forced reduction ------------------------------------------------------------------------
 
 resolve env pe                          = do -- tr ("############### Before resolve: " ++ show pe)
+                                             -- tr ("tevars: " ++ show env_tvs ++ ",   reachable: " ++ show reachable_tvs)
                                              (s,q,[],es) <- red [] (map mkGoal pe)
                                              -- tr ("############### After resolve: " ++ show q)
                                              let q' = filter badDummy q
@@ -266,6 +268,7 @@ try r accum wg g gs
   | otherwise                           = do -- tr ("###Witness graph: " ++ show wg)
                                              res <- expose (hyp wit g gs)
                                              accum <- plus (g : gs) accum res
+                                             -- tr ("New accum: " ++ show accum)
                                              try r accum (wg2 res) g gs
   where (wit,wg1)                       = takeWG wg
         wg2 res                         = if mayPrune res r g then pruneWG (nameOf wit) wg1 else wg1
@@ -277,7 +280,7 @@ mayPrune _         _          _         = True
 
 
 hyp (w,p) (env,c) gs                    = do (R c',ps) <- inst p
-                                             -- tr ("hyp: " ++ show c ++ ", witness: " ++ show (w,p))
+                                             -- tr ("hyp: " ++ show c ) -- ++ ", witness: " ++ show (w,p))
                                              s <- unify env [(c,c')]
                                              -- tr ("**OK: " ++ show s)
                                              let ps' = repeat (subst s env) `zip` subst s ps
@@ -289,8 +292,8 @@ plus gs (Left a) b                      = return b
 plus gs a (Left b)                      = return a
 plus gs (Right (s1,_,es1)) (Right (s2,_,es2))   
                                         = do s <- auSubst env s1 s2
-                                             (q,es) <- auTerms (subst s gs) es1 es2
-                                             return (Right (s, q, es))
+                                             (s',q,es) <- auTerms (subst s gs) es1 es2
+                                             return (Right (s'@@s, q, es))
   where env                             = fst (head gs)
 
 
@@ -317,10 +320,10 @@ auSubst env ((v1,t1):s1) s2             = case lookup v1 s2 of
 
 auTerms gs es1 es2                      = auZip auTerm gs es1 es2
   where
-    auZip f [] [] []                    = return ([],[])
-    auZip f (g:gs) (e1:es1) (e2:es2)    = do (q,e) <- f g e1 e2
-                                             (q',es) <- auZip f gs es1 es2
-                                             return (q++q',e:es)
+    auZip f [] [] []                    = return ([],[],[])
+    auZip f (g:gs) (e1:es1) (e2:es2)    = do (s,q,e) <- f g e1 e2
+                                             (s',q',es) <- auZip f (subst s gs) es1 es2
+                                             return (s'@@s, subst s' q ++ q', e:es)
     auZip f gs es1 es2                  = error ("Internal: auZip " ++ show gs ++ "\n" ++ show es1 ++ "\n" ++ show es2)
     auTerm g@(env,c) e1 e2              = auTerm' g (eFlat e1) (eFlat e2)
 
@@ -328,23 +331,23 @@ auTerms gs es1 es2                      = auZip auTerm gs es1 es2
     auTerm' g@(env,c) (EVar v1 _, es1) (EVar v2 _, es2)
       | v1 == v2                        = do (R c',ps) <- inst (findPred env v1)
                                              let s = matchTs [(c,c')]
-                                                 ps' = subst s ps
-                                             (q,es) <- auZip auSc (repeat env `zip` ps') es1 es2
-                                             return (q, eAp (eVarT v1 ps' (R (subst s c'))) es)
+                                             (s',q,es) <- auZip auSc (repeat (subst s env) `zip` subst s ps) es1 es2
+                                             return (s'@@s, q, eAp (eVarT v1 ps (R c')) es)
     auTerm' g@(env,c) (ELam pe1 e1, es1) (ELam pe2 e2, es2)
-      | ps1 == ps2                      = do (q,e) <- auTerm g e1 (subst s e2)
-                                             (q',es) <- auZip auSc (repeat env `zip` ps1) es1 es2
-                                             return (q, eAp (ELam pe1 e) es)
+      | ps1 == ps2                      = do (s,q,e) <- auTerm g e1 (subst s0 e2)
+                                             (s',q',es) <- auZip auSc (repeat (subst s env) `zip` subst s ps1) es1 es2
+                                             return (s'@@s, subst s' q ++ q', eAp (ELam pe1 e) es)
       where (vs1,ps1)                   = unzip pe1
             (vs2,ps2)                   = unzip pe2
-            s                           = vs2 `zip` map EVar vs1
-    auTerm' g e1 e2                     = newHyp g
+            s0                          = vs2 `zip` map EVar vs1
+    auTerm' g e1 e2                     = do (q,e) <- newHyp g
+                                             return ([], q, e)
 
     auSc (env,Scheme (R c) [] ke) e1 e2 = auTerm (addKEnv ke env,c) e1 e2
     auSc (env,Scheme (R c) ps ke) (ELam pe1 e1) (ELam pe2 e2)     
-                                        = do (q,e) <- auTerm (env',c) e1 (subst s e2)
-                                             return (q, ELam pe1 e)
-      where s                           = dom pe2 `zip` map EVar (dom pe1)
+                                        = do (s,q,e) <- auTerm (env',c) e1 (subst s0 e2)
+                                             return (s, q, ELam pe1 e)
+      where s0                          = dom pe2 `zip` map EVar (dom pe1)
             env'                        = addPEnv pe1 (addKEnv ke env)
     auSc _ _ _                          = error "Internal: auTerms"
 
@@ -472,7 +475,7 @@ imply env n0 (w,p)                      = do res <- expose (red [] [(env0, p)])
 -- Handle subtype predicates
 closeTransitive env []                  = return (env, [], [])
 closeTransitive env ((w,p):pe)
-  | isSub' p                            = do assert (a /= b) "Illegal subtype predicate"
+  | isSub' p                            = do assert (a /= b) ("Illegal subtype predicate" ++ show p)
                                              (pe1,eq1) <- mapSuccess (mkTrans env) [ (n1,n2) | n1 <- below_a, n2 <- [(w,p)] ]
                                              (pe2,eq2) <- mapSuccess (mkTrans env) [ (n1,n2) | n1 <- (w,p):pe1, n2 <- above_b ]
                                              let cycles = filter (uncurry (==)) (map (subsyms . predOf) (pe1++pe2))

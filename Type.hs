@@ -81,8 +81,10 @@ tiBindsList env (bs:bss)        = do (ss1, pe1, bs') <- tiBinds env bs
 
                                      
 tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ show te ++ " rec: " ++ show rec)
+                                     -- tr ("tevars: " ++ show (tevars env))
                                      (s,pe,es1)   <- tiRhs0 env' explWits ts es
                                      (s',qe,f)    <- fullreduce (target te env) s pe
+                                     -- tr ("PREDICATES OBTAINED: " ++ show qe)
                                      let env1      = subst s' env
                                          (qe1,qe2) = partition (isFixed env1) qe
                                          (vs,qs)   = unzip qe2
