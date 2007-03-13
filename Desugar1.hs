@@ -56,8 +56,7 @@ haveSelf env                    = self env /= Nothing
 dsDecls env (DInst t bs : ds)   = do w <- newName instanceSym
                                      dsDecls env (DPSig w t : DBind (BEqn (LFun w []) (RWhere (RExp r) bs)) : ds)
   where r                       = ERec (Just (type2head t,True)) (map mkField (bvars bs))
-        mkField v | isId v      = Field v (EVar v)
-                  | otherwise   = error "Illegal symbol bindinging in instance declaration"
+        mkField v               = Field v (EVar v)
 dsDecls env (DBind b : ds)      = liftM (DBind (ds1 env b) :) (dsDecls env ds)
 dsDecls env (d : ds)            = liftM (d :) (dsDecls env ds)
 dsDecls env []                  = return []
