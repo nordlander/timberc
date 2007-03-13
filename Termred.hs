@@ -26,6 +26,7 @@ reallySimple (ELit _)           = True
 reallySimple (ESel e _ _)       = reallySimple e
 reallySimple (EAp (EVar (Prim _ _) _) [e1,e2])
                                 = reallySimple e1 && reallySimple e2
+reallySimple (ELam te e)        = reallySimple e && all (`elem` dom te) (evars e)
 reallySimple e                  = False
 
 simple (ELam _ e)               = simple e
