@@ -552,7 +552,8 @@ initEnv                 = nullEnv { kindEnv0 = primKindEnv,
                                     typeEnv0 = primTypeEnv,
                                     aboveEnv = primAboveEnv,
                                     belowEnv = primBelowEnv,
-                                    classEnv = primClassEnv  }
+                                    classEnv = primClassEnv,
+                                    predEnv0 = primPredEnv  }
 
 
 
@@ -705,6 +706,9 @@ subReqCmd       = (prim ReqToCmd,   scheme2 [] (tRequest a `sub` tCmd b a))
 subTemplCmd     = (prim TemplToCmd, scheme2 [] (tTemplate a `sub` tCmd b a))
 
 subRefPID       = (prim RefToPID,   scheme1 [] (tRef a `sub` tPID))
+
+
+primPredEnv     = [reflAll, subActCmd, subReqCmd, subTemplCmd, subRefPID]
 
 
 primClassEnv    = []
