@@ -56,9 +56,7 @@ simplify env pe                         = do -- tr ("SIMPLIFY " ++ show pe)
                                              cs <- newNames skolemSym (length tvs)
                                              r <- expose (closePreds env [] (subst (tvs`zip`map TId cs) pe) (cs`zip`ks))
                                              case r of
-                                               Right (env',qe,eq) -> 
-                                                 do tr ("RESULT: " ++ show qe ++ "\n    " ++ show eq ++ "\n    " ++ show (equalities env'))
-                                                    return (nullSubst, pe', eLet' (subst s bss))
+                                               Right (env',qe,eq) -> return (nullSubst, pe', eLet' (subst s bss))
                                                  where (pe',bss) = preferLocals env' pe qe eq
                                                        s = cs `zip` map TVar tvs
                                                Left s -> case decodeCircular s of
