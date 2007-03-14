@@ -141,6 +141,8 @@ primTEnv                                = map cv (Env.primTypeEnv `restrict` pri
     cv3 (Core.TId n)                    = TId n
 
 
+tupleSels (Tuple n _)                   = map name0 (take n abcSupply) `zip` repeat TWild
+
 searchFields ds x                       = [ (TId n, t) | (n, Struct te) <- ds, (x',t) <- te, x==x' ]
 
 searchCons ds x                         = [ TId n | (n, Enum xs) <- ds, x `elem` xs ]

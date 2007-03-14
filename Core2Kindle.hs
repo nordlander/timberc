@@ -42,8 +42,9 @@ nullSelf env                        = env { selfN = Nothing }
 
 findSel env l                       = head (Kindle.searchFields (decls env) l)
 
-findCon env k@(Tuple n _)           = (Kindle.TId k, Just (map name0 (take n abcSupply) `zip` repeat Kindle.TWild))
-findCon env k                       = case lookup k (decls env) of
+findCon env k
+  | isTuple k                       = (Kindle.TId k, Just (Kindle.tupleSels k))
+  | otherwise                       = case lookup k (decls env) of
                                         Just (Kindle.Struct te) -> (t0, Just (mapSnd valT te))
                                         _                       -> (t0, Nothing)
   where t0                          = Kindle.TId (substVar (cons env) k)
@@ -571,7 +572,8 @@ cHead env (ESel e l t')                 = do (bf,e) <- cExpT env t1 e
   where (t1,t2)                         = findSel env l
 cHead env (ECon k t')                   = case t2 of
                                              Just te 
-                                               | null te'  -> adjust t' id t1 (VHead (newK []))
+                                               | isTuple k -> adjust t' id t1 (FHead (Kindle.ENew k . mkBind te) (rng te))
+                                               | null te'  -> adjust t' id t1 (VHead (Kindle.ECast t1 (newK [])))
                                                | otherwise -> adjust t' id t1 (FHead (Kindle.ECast t1 . newK . mkBind te') (rng te'))
                                                where ((tag,tagT):te') = te
                                                      newK = Kindle.ENew k . ((tag, Kindle.Val tagT (Kindle.EVar k)):)

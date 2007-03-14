@@ -35,6 +35,11 @@ addVals te env                  = env { tenv = mapSnd ValT te ++ tenv env }
 
 setThis x t env                 = env { this = Just (x,t) }
 
+findDecl env n
+  | isTuple n                   = Struct (mapSnd ValT (tupleSels n))
+  | otherwise                   = lookup' (decls env) n
+
+
 pModule (Module m ds bs)        = do ds <- mapM pDecl ds
                                      (bs1,bs) <- pMap (pBind (addBinds bs (addDecls ds env0))) bs
                                      bs2 <- currentStore
@@ -109,18 +114,18 @@ pExp' env e@(ELit l)                = return ([], litType l, e)
 pExp' env (EThis)                   = return ([], t, EVar x)
   where (x,t)                       = fromJust (this env)
 pExp' env (ESel e l)                = do (bs,TId n,e) <- pExp' env e
-                                         let Struct te = lookup' (decls env) n
+                                         let Struct te = findDecl env n
                                          return (bs, rngType (lookup' te l), ESel e l)
 pExp' env (ECall f es)              = do (bs,es) <- pMap (pExp env) es
                                          return (bs, rngType (lookup' (tenv env) f), ECall f es)
 pExp' env (EEnter (EVar x) f es)    = do (bs1,TId n,e) <- pExp' env (EVar x)
                                          (bs2,es) <- pMap (pExp env) es
-                                         let Struct te = lookup' (decls env) n
+                                         let Struct te = findDecl env n
                                          return (bs1++bs2, rngType (lookup' te f), EEnter e f es)
 pExp' env (EEnter e f es)           = do (bs1,t@(TId n),e) <- pRhsExp env e
                                          (bs2,es) <- pMap (pExp env) es
                                          x <- newName tempSym
-                                         let Struct te = lookup' (decls env) n
+                                         let Struct te = findDecl env n
                                          return (bs1++bs2++[(x, Val t e)], rngType (lookup' te f), EEnter (EVar x) f es)
 pExp' env (ECast TWild e)           = do (bs,t',e) <- pExp' env e
                                          if mustBox env t' then do
@@ -141,7 +146,9 @@ pExp' env (ENew n bs)               = do (bs1,bs) <- pMap (pSBind env n) bs
 
 
 mustBox env TWild                   = False                             -- Already polymorphic
-mustBox env (TId n)                 = case lookup n (decls env) of
+mustBox env (TId n)
+  | isTuple n                       = False
+  | otherwise                       = case lookup n (decls env) of
                                          Just (Struct te) -> False      -- Already heap allocated
                                          Just (Enum cs)   -> False      -- Limited range, can't be confused with a pointer
                                          _ -> True                      -- In effect, integers and floats

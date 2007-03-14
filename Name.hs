@@ -183,6 +183,8 @@ prim p                          = Prim p noAnnot
 
 tuple n                         = Tuple n noAnnot
 
+isTuple (Tuple _ _)             = True
+isTuple _                       = False
 
 annotExplicit n                 = n { annot = a { explicit = True } }
   where a                       = annot n
@@ -255,7 +257,7 @@ prId i                          = if isSym i then parens (pr i) else pr i
 prOp i                          = if isSym i then pr i else backQuotes (pr i)
 
 prId2 (Prim p _)                = text (strRep2 p)
-prId2 (Tuple n _)               = text ("_TUP" ++ show n)
+prId2 (Tuple n _)               = text ("TUP" ++ show n)
 prId2 n                         = prId n
 
 prId3 (Name s n a)
