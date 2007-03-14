@@ -42,7 +42,7 @@ k2cBindStub (x, Val t e)        = text "extern" <+> k2cType t <+> k2cName x <> t
 
 -- Generate types
 k2cType (TId n)                 = k2cName n
-k2cType (TWild)                 = text "void*"
+k2cType (TWild)                 = text "POLY"
 
 
 -- ====================================================================================================
