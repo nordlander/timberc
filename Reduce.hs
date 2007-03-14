@@ -423,25 +423,26 @@ closePreds env tvs pe ke                = do (env1,pe1,eq1) <- closeTransitive e
         env0                            = freeze (addPEnv pe (addSkolEnv se (addKEnv ke env)))
 
 
-preferLocals env pe qe eq               = walk [] [] [] (equalities env)
-  where walk vs ws bs []                = (prune pe vs, groupBinds (Binds False (prune qe ws) (prune eq ws ++ bs)))
-        walk vs ws bs ((x,y,e,e'):eqs)
-          | x `notElem` vs1             = walk vs ws bs eqs
+preferLocals env pe qe eq               = walk [] (equalities env)
+  where walk bs []                      = let (pe1,pe2) = partition ((`elem` dom bs) . fst) pe
+                                          in  (pe2, groupBinds (Binds False (pe1++qe) (prune eq (dom bs) ++ bs)))
+        walk bs ((x,y,e,e'):eqs)
+          | x `notElem` vs1             = walk bs eqs
           | otherwise                   = case (x `elem` vs0, y `elem` vs0) of
-                                            (True,  True)  -> walk (x:vs) ws ((x,e):bs) eqs
-                                            (True,  False) -> walk (x:vs) ws ((x,e):bs) eqs
-                                            (False, True)  -> walk vs (y:ws) ((y,e'):bs) eqs
-                                            (False, False) -> walk vs (x:ws) ((y,e'):bs) eqs
+                                            (True,  True)  -> walk ((x,e):bs) eqs
+                                            (True,  False) -> walk ((x,e):bs) eqs
+                                            (False, True)  -> walk ((y,e'):bs) eqs
+                                            (False, False) -> walk ((y,e'):bs) eqs
         vs0                             = dom pe
         vs1                             = vs0 ++ dom qe
 
 preferParams env pe qe eq               = walk [] [] (equalities env)
-  where walk ws bs []                   = groupBinds (Binds False (prune qe ws) (prune eq ws ++ bs))
+  where walk ws bs []                   = groupBinds (Binds False (prune qe ws) (prune eq (ws ++ dom bs) ++ bs))
         walk ws bs ((x,y,e,e'):eqs)
           | x `notElem` vs1             = walk ws bs eqs
           | otherwise                   = case (x `elem` vs0, y `elem` vs0) of
                                             (True,  True)  -> walk ws bs eqs
-                                            (True,  False) -> walk (y:ws) ((y,e'):bs) eqs
+                                            (True,  False) -> walk ws ((y,e'):bs) eqs
                                             (False, True)  -> walk (x:ws) bs eqs
                                             (False, False) -> walk (x:ws) bs eqs
         vs0                             = dom pe
@@ -542,7 +543,7 @@ addPreds env (n@(w,p):pe)
                                                r1 <- imply env n' n
                                                r2 <- imply env n n'
                                                case (r1,r2) of
-                                                 (Just e', Just e) -> addPreds (addEqs [(w,nameOf n',e,e')] env) pe
+                                                 (Just e, Just e') -> addPreds (addEqs [(w,nameOf n',e,e')] env) pe
                                                  _                 -> fail "Ambiguous subtyping"
                                             Nothing -> do 
                                                addPreds (insertSubPred n env) pe
@@ -555,12 +556,12 @@ addPreds env (n@(w,p):pe)
   where c                               = headsym p
 
         cmpNode pre post n []           = return (Right (pre,post))
-        cmpNode pre post n (n':pe')     = do r1 <- imply env n n'
-                                             r2 <- imply env n' n
+        cmpNode pre post n (n':pe')     = do r1 <- imply env n' n
+                                             r2 <- imply env n n'
                                              case (r1,r2) of
-                                               (Just e',  Just e) -> return (Left (nameOf n',e,e'))
-                                               (Just _,  Nothing) -> cmpNode (nameOf n':pre) post n pe'
-                                               (Nothing, Just _)  -> cmpNode pre (nameOf n':post) n pe'
+                                               (Just e,  Just e') -> return (Left (nameOf n',e,e'))
+                                               (Just _,  Nothing) -> cmpNode pre (nameOf n':post) n pe'
+                                               (Nothing, Just _)  -> cmpNode (nameOf n':pre) post n pe'
                                                (Nothing, Nothing) -> cmpNode pre post n pe'
 
 {-
