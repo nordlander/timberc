@@ -143,12 +143,13 @@ isIdPrim p                      = p `notElem` primSyms
 
 primSyms                        = [LIST, NIL, CONS]
 
-primTypes                       = map primKeyValue [Action .. UNIT]
+primTypes                       = map primKeyValue [Action .. UNIT] ++ alreadyPrimed [UNIT,LIST]
 
-primTerms                       = map primKeyValue [UNIT .. Before]
+primTerms                       = map primKeyValue [UNIT .. Before] ++ alreadyPrimed [UNIT,NIL,CONS]
 
 primKeyValue p                  = (name0 (strRep p), prim p)
 
+alreadyPrimed ps                = map (\p -> (prim p, prim p)) ps
 
 strRep LIST                     = "[]"
 strRep UNIT                     = "()"
