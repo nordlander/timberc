@@ -4,7 +4,7 @@ import List(sort)
 import Monad
 import Common
 import Syntax
-
+import Depend
 
 desugar1 (Module c ds)          = do ds <- dsDecls (mkEnv ds) ds
                                      return (Module c ds)
@@ -19,13 +19,20 @@ desugar1 (Module c ds)          = do ds <- dsDecls (mkEnv ds) ds
     - Replaces prefix expression statement with dummy generator statement
     - Replaces if/case statements with corresponding expressions forms
     - Checks the restricted command syntax of template bodies
+    - Eliminates type synonyms
 -}
 
 -- The selector environment --------------------------------------------------------------------------------------
 
-data Env                        = Env { sels :: Map Name [Name], self :: Maybe Name }
+data Env                        = Env { sels :: Map Name [Name], 
+                                        self :: Maybe Name , 
+                                        tsyns :: Map Name ([Name],Type)} deriving Show
 
-mkEnv ds                        = Env { sels = map transClose recEnv, self = Nothing }
+
+env0                            = Env { sels = [], self = Nothing, tsyns = [] }
+
+
+mkEnv ds                        = (tsynE env0 tsynDecls) {sels = map transClose recEnv} 
   where recEnv                  = [ (c,(map type2head ts, sort (concat (map sels ss)))) | DRec _ c _ ts ss <- ds ]
         sels (Sig vs _)         = vs
         transClose (c,(cs,ss))  = (c, ss ++ concat (map (selectors recEnv [c]) cs))
@@ -34,6 +41,14 @@ mkEnv ds                        = Env { sels = map transClose recEnv, self = Not
           | otherwise           = case lookup c re of
                                     Just (cs,ss) -> ss ++ concat (map (selectors re (c:cs0)) cs)
                                     Nothing      -> error ("Unknown record constructor: " ++ show c)
+
+        tsynDecls               = topSort1 (tyCons . snd)  [(c,(vs,t)) | DType c vs t <- ds]
+        
+
+tsynE env []                    = env
+tsynE env ((c,(vs,t)) : ps) 
+    | c `elem` tyCons t         = error ("Type synonym "++show c++" is recursive")
+    | otherwise                 = tsynE env {tsyns = (c,(vs,ds1 env t)) : tsyns env} ps
 
 
 selsFromType env c              = case lookup c (sels env) of
@@ -50,6 +65,12 @@ typeFromSels env ss             = f (sels env) ss
 
 haveSelf env                    = self env /= Nothing
 
+tSubst env c ts                 = case lookup c (tsyns env) of
+                                     Nothing -> foldl TAp (TCon c) (ds1 env ts)
+                                     Just (vs,t)
+                                       | length vs == length ts -> subst (vs `zip` ds1 env ts) t
+                                       | otherwise -> error  ("Type synonym "++show c++" used with wrong arity")
+
 
 -- Desugaring -------------------------------------------------------------------------------------------
 
@@ -57,6 +78,10 @@ dsDecls env (DInst t bs : ds)   = do w <- newName instanceSym
                                      dsDecls env (DPSig w t : DBind (BEqn (LFun w []) (RWhere (RExp r) bs)) : ds)
   where r                       = ERec (Just (type2head t,True)) (map mkField (bvars bs))
         mkField v               = Field v (EVar v)
+dsDecls env (DType _ _ _ : ds)  = dsDecls env ds
+dsDecls env (DData c vs ss cs : ds) = liftM (DData c vs (ds1 env ss) (ds1 env cs) :) (dsDecls env ds)
+dsDecls env (DRec b c vs ss ss' : ds) = liftM (DRec b c vs (ds1 env ss) (ds1 env ss') :) (dsDecls env ds)
+dsDecls env (DPSig n t : ds)    = liftM (DPSig n (ds1 env t) :) (dsDecls env ds)
 dsDecls env (DBind b : ds)      = liftM (DBind (ds1 env b) :) (dsDecls env ds)
 dsDecls env (d : ds)            = liftM (d :) (dsDecls env ds)
 dsDecls env []                  = return []
@@ -68,13 +93,38 @@ class Desugar1 a where
 instance Desugar1 a => Desugar1 [a] where
     ds1 env                     = map (ds1 env)
 
+instance Desugar1 a => Desugar1 (Maybe a) where
+    ds1 env Nothing             = Nothing
+    ds1 env (Just a)            = Just (ds1 env a)
+
+instance Desugar1 Constr where
+    ds1 env (Constr c ts ps)    = Constr c (ds1 env ts) (ds1 env ps)
+
+instance Desugar1 Sig where
+    ds1 env (Sig vs t)          = Sig vs (ds1 env t)
+
+instance Desugar1 Type where
+    ds1 env t@(TAp t1 t2)       = case tFlat t of
+                                     (TCon c,ts) -> tSubst env c ts
+                                     _ -> TAp (ds1 env t1) (ds1 env t2)
+    ds1 env (TQual t ps)        = TQual (ds1 env t) (ds1 env ps)
+    ds1 env (TSub t1 t2)        = TSub (ds1 env t1) (ds1 env t2)
+    ds1 env (TList t)           = TList (ds1 env t)
+    ds1 env (TTup ts)           = TTup (ds1 env ts)
+    ds1 env (TFun ts t)         = TFun (ds1 env ts) (ds1 env t)
+    ds1 env (TCon c)            = tSubst env c []
+    ds1 env t                   = t
+
+instance Desugar1 Pred where
+    ds1 env (PType t)           = PType (ds1 env t)
+    ds1 env p                   = p
 instance Desugar1 Decl where
     ds1 env (DBind b)           = DBind (ds1 env b)
     ds1 env d                   = d
 
 instance Desugar1 Bind where
     ds1 env (BEqn lh rh)        = BEqn (ds1 env lh) (ds1 env rh)
-    ds1 env b                   = b
+    ds1 env (BSig vs t)         = BSig vs (ds1 env t)
 
 instance Desugar1 Lhs where
     ds1 env (LFun v ps)         = LFun v (ds1 env ps)
@@ -111,7 +161,7 @@ instance Desugar1 Exp where
     ds1 env (EAp e1 e2)            = EAp (ds1 env e1) (ds1 env e2)
     ds1 env (ETup es)              = ETup (ds1 env es)
     ds1 env (EList es)             = EList (ds1 env es)
-    ds1 env (ESig e t)             = ESig (ds1 env e) t
+    ds1 env (ESig e t)             = ESig (ds1 env e) (ds1 env t)
     ds1 env (ELam ps e)            = ELam (ds1 env ps) (ds1 env e)
     ds1 env (ECase e as)           = ECase (ds1 env e) (ds1 env as)
     ds1 env (EIf e1 e2 e3)         = EIf (ds1 env e1) (ds1 env e2) (ds1 env e3)
@@ -122,10 +172,10 @@ instance Desugar1 Exp where
     ds1 env (ESectL op e)          = ESectL op (ds1 env e)
     ds1 env (ESelect e s)          = ESelect (ds1 env e) s
 
-    ds1 env (ETempl Nothing t ss)  = ds1 env (ETempl (Just (name0 "self")) t ss)
+    ds1 env (ETempl Nothing t ss)  = ds1 env (ETempl (Just (name0 "self")) (ds1 env t) ss)
     ds1 env (EDo Nothing t ss)
-      | haveSelf env               = ds1 env (EDo (self env) t ss)
-      | otherwise                  = ds1 env (EDo (Just (name0 "self")) t ss)
+      | haveSelf env               = ds1 env (EDo (self env) (ds1 env t) ss)
+      | otherwise                  = ds1 env (EDo (Just (name0 "self")) (ds1 env t) ss)
     ds1 env (EAct Nothing ss)
       | haveSelf env               = ds1 env (EAct (self env) ss)
       | otherwise                  = error "Illegal action"
@@ -148,11 +198,6 @@ instance Desugar1 (Alt Exp) where
 
 instance Desugar1 Field where
     ds1 env (Field l e)          = Field l (ds1 env e)
-
-instance Desugar1 (Maybe Exp) where
-    ds1 env Nothing              = Nothing
-    ds1 env (Just e)             = Just (ds1 env e)
-
 
 ds1S env []                      = []
 ds1S env [SExp e]                = [SExp (ds1 env e)]

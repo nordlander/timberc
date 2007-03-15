@@ -11,9 +11,9 @@ data Module = Module  Name [Decl]
 data Decl   = DKSig   Name Kind
             | DData   Name [Name] [Type] [Constr]
             | DRec    Bool Name [Name] [Type] [Sig]
-            | DType   Name [Name] Type
-            | DInst   Type [Bind]  -- removed by desugaring
-            | DPSig   Name Type
+            | DType   Name [Name] Type   -- removed by desugaring
+            | DInst   Type [Bind]        --          -"-
+            | DPSig   Name Type    
             | DBind   Bind
             deriving  (Eq,Show)
 
@@ -159,6 +159,8 @@ isBSig _                        = False
 isPKind (PKind _ _)             = True
 isPKind _                       = False
 
+tAp isDType (DType _ _ _)           = True
+isDType _                       = False
 
 tupSize (ETup es)               = length es
 tupSize _                       = -1
@@ -181,6 +183,7 @@ eLet [] e                       = e
 eLet bs e                       = ELet bs e
 
 simpleEqn x e                   = BEqn (LFun x []) (RExp e)
+
 
 exp2lhs e                       = case eFlat e of
                                        (EVar v, ps) -> LFun v ps
@@ -210,6 +213,19 @@ type2head t                     = case tFlat t of
 stripSigs (ESig p _)            = p
 stripSigs p                     = p
 
+
+tyCons :: Type -> [Name]
+tyCons (TQual t ps)             = nub (tyCons t ++ concatMap tC ps)
+   where tC (PType t)           = tyCons t
+         tC _                   = []
+tyCons (TCon c)                 = [c]
+tyCons (TVar _)                 = []
+tyCons (TAp t1 t2)              = nub (tyCons t1 ++ tyCons t2)
+tyCons (TSub t1 t2)             = nub (tyCons t1 ++ tyCons t2)
+tyCons TWild                    = []
+tyCons (TList t)                = tyCons t
+tyCons (TTup ts)                = nub (concatMap tyCons ts)
+tyCons (TFun ts t)              = nub (concatMap tyCons (t : ts))
 
 -- Substitution --------------------------------------------------------------
 
@@ -289,8 +305,22 @@ instance Subst Stmt Name Exp where
     subst s (SCase e alts)      = SCase (subst s e) (subst s alts)
 
 
+instance Subst Type Name Type where
+    subst s (TQual t ps)        = TQual (subst s t) (subst s ps)
+    subst s (TCon c)            = TCon c
+    subst s (TVar a)            = case lookup a s of
+                                    Just t  -> t
+                                    Nothing -> TVar a
+    subst s (TAp t1 t2)         = TAp (subst s t1) (subst s t2)
+    subst s (TSub t1 t2)        = TSub (subst s t1) (subst s t2)
+    subst s TWild               = TWild
+    subst s (TList t)           = TList (subst s t)
+    subst s (TTup ts)           = TTup (subst s ts)
+    subst s (TFun ts t)         = TFun (subst s ts) (subst s t)
 
-
+instance Subst Pred Name Type where
+    subst s (PType t)           = PType (subst s t)
+    subst s p                   = p
 
 -- Printing ==================================================================
 
