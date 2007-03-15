@@ -123,6 +123,7 @@ dsBinds bs                      = f [] bs
 -- Equations -----------------------------------------------------------------
 
 dsEqns []                       = return []
+dsEqns ((LPat (EVar x),r):eqns) = dsEqns ((LFun x [], r):eqns)
 dsEqns ((LPat (ERec _ fs),RExp (EVar v)):eqns)
                                 = do let sels = map (sel (EVar v)) fs
                                      dsEqns (sels ++ eqns)
