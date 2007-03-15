@@ -66,7 +66,7 @@ llBind env (x, Val t e)                 = do e <- llExp env e
 
 -- Convert a command
 llCmd env (CBind r bs c)                = do vals' <- mapM (llBind env') vals
-                                             funs' <- mapM (llBind env') funs
+                                             funs' <- mapM (llBind (setThisVars [] env')) funs
                                              mapM_ liftFun funs'
                                              c' <- llCmd env2 c
                                              return (cBindR r vals' c')
