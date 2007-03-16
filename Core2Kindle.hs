@@ -53,9 +53,9 @@ findCon env k
 
 
 -- Convert a Core.Module into a Kindle.Module
-cModule (Module m ds _ bs)          = do ds1  <- cDecls ds
+cModule (Module m ds is bs)         = do ds1  <- cDecls ds
                                          mapM_ addToStore (filter (isClosure . fst) ds1)
-                                         bs  <- cBindsList (addDecls ds1 env) (groupBinds bs)
+                                         bs  <- cBindsList (addDecls ds1 env) (groupBinds (is `catBinds` bs))
                                          ds2 <- currentStore
                                          return (Kindle.Module m (ds1++reverse ds2) bs)
   where env                         = addCons (dataCons ds) env0
