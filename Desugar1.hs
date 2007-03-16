@@ -75,9 +75,16 @@ tSubst env c ts                 = case lookup c (tsyns env) of
 -- Desugaring -------------------------------------------------------------------------------------------
 
 dsDecls env (DInst t bs : ds)   = do w <- newName instanceSym
-                                     dsDecls env (DPSig w t : DBind (BEqn (LFun w []) (RWhere (RExp r) bs)) : ds)
-  where r                       = ERec (Just (type2head t,True)) (map mkField (bvars bs))
-        mkField v               = Field v (EVar v)
+                                     s <- renaming xs
+                                     let bs' = map (substB s) bs
+                                         r   = ERec (Just (type2head t,True)) (map mkField s)
+                                     dsDecls env (DPSig w t : DBind (BEqn (LFun w []) (RWhere (RExp r) bs')) : ds)
+  where mkField (x,x')          = Field x (EVar x')
+        xs                      = nub (bvars bs)
+        substB s (BSig vs t)    = BSig (substVars s vs) t
+        substB s (BEqn lh rh)   = BEqn (substL s lh) rh
+        substL s (LPat p)       = LPat (subst (mapSnd EVar s) p)
+        substL s (LFun v ps)    = LFun (substVar s v) ps
 dsDecls env (DType _ _ _ : ds)  = dsDecls env ds
 dsDecls env (DData c vs ss cs : ds) = liftM (DData c vs (ds1 env ss) (ds1 env cs) :) (dsDecls env ds)
 dsDecls env (DRec b c vs ss ss' : ds) = liftM (DRec b c vs (ds1 env ss) (ds1 env ss') :) (dsDecls env ds)

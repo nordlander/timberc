@@ -146,10 +146,11 @@ newName s                       = do n <- newNum
 newNames s n                    = mapM (const (newName s)) [1..n]
 
 
-renaming vs                     = do ns <- mapM (const newNum) vs
-                                     return (zipWith f vs ns)
-  where f v n                   = (v, v { tag = n })
-
+renaming vs                     = mapM f vs
+  where f v | tag v == 0        = do n <- newNum
+                                     return (v, v { tag = n })
+            | otherwise         = return (v, v)
+            
 
 assert e msg
   | e                           = return ()
