@@ -33,9 +33,9 @@ env0                            = Env { sels = [], self = Nothing, tsyns = [] }
 
 
 mkEnv ds                        = (tsynE env0 tsynDecls) {sels = map transClose recEnv} 
-  where recEnv                  = [ (c,(map type2head ts, sort (concat (map sels ss)))) | DRec _ c _ ts ss <- ds ]
+  where recEnv                  = [ (c,(map type2head ts, concat (map sels ss))) | DRec _ c _ ts ss <- ds ]
         sels (Sig vs _)         = vs
-        transClose (c,(cs,ss))  = (c, ss ++ concat (map (selectors recEnv [c]) cs))
+        transClose (c,(cs,ss))  = (c, sort (ss ++ nub (concat (map (selectors recEnv [c]) cs))))
         selectors re cs0 c
           | c `elem` cs0        = error ("Circular record dependecies: " ++ showids (c:cs0))
           | otherwise           = case lookup c re of
