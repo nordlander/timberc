@@ -6,8 +6,8 @@ import Common
 import Syntax
 import Depend
 
-desugar1 (Module c ds)          = do ds <- dsDecls (mkEnv ds) ds
-                                     return (Module c ds)
+desugar1 (Module c ds)         = do ds <- dsDecls (mkEnv ds) ds
+                                    return (Module c ds)
 
 {-
     This module performs desugaring transformations that must be performed before the renaming pass:
@@ -19,7 +19,7 @@ desugar1 (Module c ds)          = do ds <- dsDecls (mkEnv ds) ds
     - Replaces prefix expression statement with dummy generator statement
     - Replaces if/case statements with corresponding expressions forms
     - Checks the restricted command syntax of template bodies
-    - Eliminates type synonyms
+    - Unfolds use of type synonyms
 -}
 
 -- The selector environment --------------------------------------------------------------------------------------
@@ -33,17 +33,21 @@ env0                            = Env { sels = [], self = Nothing, tsyns = [] }
 
 
 mkEnv ds                        = (tsynE env0 tsynDecls) {sels = map transClose recEnv} 
-  where recEnv                  = [ (c,(map type2head ts, concat (map sels ss))) | DRec _ c _ ts ss <- ds ]
+  where recEnv                  = [ (c,(map type2head ts, sort (concat (map sels ss)))) | DRec _ c _ ts ss <- ds ]
         sels (Sig vs _)         = vs
-        transClose (c,(cs,ss))  = (c, sort (ss ++ nub (concat (map (selectors recEnv [c]) cs))))
+        transClose (c,(cs,ss))  = (c, ss ++ concat (map (selectors recEnv [c]) cs))
         selectors re cs0 c
           | c `elem` cs0        = error ("Circular record dependecies: " ++ showids (c:cs0))
           | otherwise           = case lookup c re of
                                     Just (cs,ss) -> ss ++ concat (map (selectors re (c:cs0)) cs)
                                     Nothing      -> error ("Unknown record constructor: " ++ show c)
 
-        tsynDecls               = topSort1 (tyCons . snd)  [(c,(vs,t)) | DType c vs t <- ds]
-        
+        tsynDecls                
+          | not (null dups)     = error ("Duplicate type synonym declarations for "++showids dups)
+          | otherwise           = topSort1 "Mutually recursive type synonyms " showids (tyCons . snd) syns
+        syns                    = [(c,(vs,t)) | DType c vs t <- ds]
+        dups                    = duplicates (map fst syns)
+
 
 tsynE env []                    = env
 tsynE env ((c,(vs,t)) : ps) 
@@ -68,9 +72,10 @@ haveSelf env                    = self env /= Nothing
 tSubst env c ts                 = case lookup c (tsyns env) of
                                      Nothing -> foldl TAp (TCon c) (ds1 env ts)
                                      Just (vs,t)
-                                       | length vs == length ts -> subst (vs `zip` ds1 env ts) t
-                                       | otherwise -> error  ("Type synonym "++show c++" used with wrong arity")
-
+                                       | length vs > length ts -> error ("Type synonym "++show c++" not fully applied")
+                                       | otherwise -> foldl TAp (subst (zip vs (take (length vs) ts1)) t) 
+                                                                (drop (length vs) ts1)
+  where ts1                     = ds1 env ts
 
 -- Desugaring -------------------------------------------------------------------------------------------
 
@@ -85,7 +90,7 @@ dsDecls env (DInst t bs : ds)   = do w <- newName instanceSym
         substB s (BEqn lh rh)   = BEqn (substL s lh) rh
         substL s (LPat p)       = LPat (subst (mapSnd EVar s) p)
         substL s (LFun v ps)    = LFun (substVar s v) ps
-dsDecls env (DType _ _ _ : ds)  = dsDecls env ds
+dsDecls env (DType c vs t : ds)  = liftM (DType c vs (ds1 env t) :) (dsDecls env ds)
 dsDecls env (DData c vs ss cs : ds) = liftM (DData c vs (ds1 env ss) (ds1 env cs) :) (dsDecls env ds)
 dsDecls env (DRec b c vs ss ss' : ds) = liftM (DRec b c vs (ds1 env ss) (ds1 env ss') :) (dsDecls env ds)
 dsDecls env (DPSig n t : ds)    = liftM (DPSig n (ds1 env t) :) (dsDecls env ds)
