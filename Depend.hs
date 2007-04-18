@@ -13,12 +13,12 @@ scc                             :: Eq a => Graph a -> [[a]]
 scc g                           = dfs g' (concat (dfs g (dom g)))
   where g'                      = [(i,[x | (x,ys) <- g, i `elem` ys]) | (i,_) <- g]
  
-topSort g
-  | all (null . tail) ns        = concat ns
-  | otherwise                   = error "Cyclic graph"
-  where ns                      = scc g
 
-topSort1 nbors ms               = order ms (topSort (graph nbors ms)) 
+topSort1 mess pr nbors ms       = order ms (topSort (graph nbors ms))
+  where topSort g               = case dropWhile (null . tail) ns of
+                                    []     -> concat ns
+                                    xs : _ -> error (mess ++ pr xs)
+          where ns              = scc g
 
 dfs g is                        = snd (dfs' ([],[]) is)
    where dfs' p []              = p
