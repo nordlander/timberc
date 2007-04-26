@@ -105,7 +105,7 @@ cDecls (Types ke ds)                = do dss <- mapM cDecl ds
                                          return (concat dss)
   where cDecl (n,DRec _ vs [] ss)   = do te <- cTEnv ss
                                          return [(n, Kindle.Struct te)]
-        cDecl (n,DType vs t)        = error ("Internal: cannot yet compile type synonyms ")
+        cDecl (n,DType vs t)        = return [] -- error ("Internal: cannot yet compile type synonyms ")
         cDecl (n,DData vs [] cs)
           | all simple cs           = return [(n, Kindle.Enum (dom cs))]
           | otherwise               = do tag <- newName tagSym
