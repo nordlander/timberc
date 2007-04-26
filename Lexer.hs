@@ -109,7 +109,7 @@ lexToken cont =
         '\'' -> (unPM $ lexChar cont)   s loc (x + 1)
         '\"' -> (unPM $ lexString cont) s loc (x + 1)
 
-        '_' | not (isIdent (head s)) -> special Wildcard
+        '_' | null s || not (isIdent (head s)) -> special Wildcard
         
         c | isDigit c ->
               case lexInt (c:s) of
@@ -151,11 +151,17 @@ lexToken cont =
                   sym             = c : symtail
                   l_sym           = 1 + length symtail
               in
-                  case lookup sym reserved_ops of
-                  Just t  -> forward l_sym t rest
-                  Nothing -> case c of
-                             ':' -> forward l_sym (ConSym sym) rest
-                             _   -> forward l_sym (VarSym sym) rest
+                  case rest of
+                  '\'' : _ -> let (qualtail,rest') = span isIdent rest
+                              in  case c of 
+                                   ':' -> forward (l_sym + length qualtail) (ConSym (sym ++ qualtail)) rest'
+                                   _  ->  forward (l_sym + length qualtail) (VarSym (sym ++ qualtail)) rest' 
+ 
+                  _        -> case lookup sym reserved_ops of
+                                Just t  -> forward l_sym t rest
+                                Nothing -> case c of
+                                 ':' -> forward l_sym (ConSym sym) rest
+                                 _   -> forward l_sym (VarSym sym) rest
 
           | otherwise ->
               (unPM $

@@ -40,9 +40,9 @@ tscope env                         = dom (rT env)
 
 
 renE env n@(Tuple _ _)             = n
-renE env v                         = case lookup v (rE env) of
+renE env v                         = case lookup (qualName v) (rE env) of
                                        Just n  -> n { annot = annot v }
-                                       Nothing -> error ("Undefined identifier: " ++ show v)
+                                       Nothing -> error ("Undefined identifier: " ++ show (qualName v))
 
 renS env n@(Tuple _ _)             = n
 renS env v                         = case lookup v (rS env) of
@@ -50,14 +50,14 @@ renS env v                         = case lookup v (rS env) of
                                        Nothing -> error ("Undefined identifier: " ++ show v)
   where a                          = annot v
 
-renL env v                         = case lookup v (rL env) of
+renL env v                         = case lookup (qualName v) (rL env) of
                                        Just n  -> n { annot = annot v }
-                                       Nothing -> error ("Undefined selector: " ++ show v)
+                                       Nothing -> error ("Undefined selector: " ++ show (qualName v))
 
 renT env n@(Tuple _ _)             = n
-renT env v                         = case lookup v (rT env) of
+renT env v                         = case lookup (qualName v) (rT env) of
                                        Just n  -> n { annot = annot v }
-                                       Nothing -> error ("Undefined type identifier: " ++ show v)
+                                       Nothing -> error ("Undefined type identifier: " ++ show (qualName v))
 
 extRenE m env vs
   | not (null shadowed)            = fail ("Illegal shadowing of state variable: " ++ showids shadowed)

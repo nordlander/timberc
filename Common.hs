@@ -157,17 +157,40 @@ renaming vs                     = mapM f vs
 
 renaming vs                     = renamingMod Nothing vs            
 
-renamingMod m vs                = mapM f vs
-  where f v | tag v == 0        = do n <- newNum
-                                     return (v, v { tag = n, fromMod = m})
-            | otherwise         = return (v, v)
- 
+renamingMod m vs                = do rs <- mapM f vs
+                                     return (concat rs)
+  where f v |qualified (str v)  = fail ("Illegal qualified name: " ++ str v)
+            | tag v == 0        = do n <- newNum
+                                     return ((v, v { tag = n, fromMod = m}) : if m == Nothing 
+                                                                              then [] 
+                                                                              else [(v {fromMod = m}, v { tag = n, fromMod = m})])
+            | otherwise         = return [(v, v)]
+        qualified s             = lsuf > 0 && lsuf < length s
+          where lsuf            = length (dropWhile (/= '\'') (reverse s))
+
 assert e msg
   | e                           = return ()
   | otherwise                   = fail msg
 
+splitString s                   = case break2 s of
+                                    (local,[])  -> [local]                                 
+                                    (local,suf) 
+                                        | all (isUpper . head) mods -> local : mods
+                                        | otherwise -> error ("Illegal module name in qualified name " ++ s)
+                                        where mods = splitString suf
+   where break2 xs              = move (break (== '\'') xs)
+         move (xs,y:z:ys)
+                 | z == '\''    = move (xs++[y],z : ys)
+                 | otherwise    = (xs, z : ys)
+         move (xs,ys)           = (xs ++ ys, [])
 
-
+joinString [x]                  = x
+joinString (x : xs)             = x ++ '\'' : joinString xs                             
+   
+qualName n@(Name s _ Nothing _) = case splitString s of
+                                    [x] -> n
+                                    (x : xs) -> n {str = x, fromMod = Just(joinString xs)}
+qualName n                      = n
 
 -- Poor man's exception datatype ------------------------------------------------------
 
