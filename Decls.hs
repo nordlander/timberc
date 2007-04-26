@@ -68,16 +68,17 @@ desub env ds                            = do (ds',pes,eqs) <- fmap unzip3 (mapM 
     desub' (i, DRec isC vs bs ss)       = do (pe,eq,ss') <- fmap unzip3 (mapM (sel (mkHead env i vs)) bs)
                                              return ((i, DRec isC vs [] (ss'++ss)), pe, eq)
     desub' (i, DType vs t)              = return ((i, DType vs t), [], [])
-    con (t0,ke0) (Scheme (R t) [] ke)   = do w <- newName coercionSym
-                                             k <- newName constrSym
-                                             x <- newName paramSym
+    m                                   = modName env
+    con (t0,ke0) (Scheme (R t) [] ke)   = do w <- newNameMod m coercionSym
+                                             k <- newNameMod m constrSym
+                                             x <- newNameMod m paramSym
                                              let p  = (w, Scheme (R (t `sub` t0)) [] (ke0++ke))
                                                  eq = (w, ELam [(x,scheme t)] (EAp (eCon k) [eVar x]))
                                                  c  = (k, Constr [scheme t] [] ke)
                                              return (p, eq, c)
-    sel (t0,ke0) (Scheme (R t) [] ke)   = do w <- newName coercionSym
-                                             l <- newName labelSym
-                                             x <- newName paramSym
+    sel (t0,ke0) (Scheme (R t) [] ke)   = do w <- newNameMod m coercionSym
+                                             l <- newNameMod m labelSym
+                                             x <- newNameMod m paramSym
                                              let p  = (w, Scheme (R (t0 `sub` t)) [] (ke0++ke))
                                                  eq = (w, ELam [(x,scheme t0)] (eSel (eVar x) l))
                                                  s  = (l, Scheme (R t) [] ke)

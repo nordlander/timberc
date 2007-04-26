@@ -6,7 +6,7 @@ import Char
 
 -- The type of names ---------------------------------------------------------------------
 
-data Name                       = Name  { str :: String, tag :: Int, annot :: Annot }
+data Name                       = Name  { str :: String, tag :: Int, fromMod :: Maybe String, annot :: Annot }
                                 | Prim  { con :: Prim, annot :: Annot }
                                 | Tuple { width :: Int, annot :: Annot }
 
@@ -176,9 +176,9 @@ noAnnot                         = Annot { location = Nothing, explicit = False, 
 loc l                           = noAnnot { location = Just l }
 
 
-name l s                        = Name s 0 (loc l)
+name l s                        = Name s 0 Nothing (loc l)
 
-name0 s                         = Name s 0 noAnnot
+name0 s                         = Name s 0 Nothing noAnnot
 
 prim p                          = Prim p noAnnot
 
@@ -196,20 +196,20 @@ annotState n                    = n { annot = a { stateVar = True } }
 
 -- Testing Names ----------------------------------------------------------------
 
-isId (Name s _ _)               = isIdent (head s)
+isId (Name s _ _ _)             = isIdent (head s)
 isId (Tuple _ _)                = True
 isId (Prim p _)                 = isIdPrim p
 
 isSym i                         = not (isId i)
 
 
-isCon (Name (c:_) _ _)          = isIdent c && isUpper c || c == ':'
+isCon (Name (c:_) _ _ _)        = isIdent c && isUpper c || c == ':'
 isCon (Tuple _ _)               = True
 isCon (Prim p _)                = isConPrim p
 
 isVar i                         = not (isCon i)
 
-isGenerated (Name _ _ a)        = location a == Nothing
+isGenerated (Name _ _ _ a)      = location a == Nothing
 isGenerated _                   = False
 
 isState n                       = stateVar (annot n)
@@ -218,8 +218,8 @@ isState n                       = stateVar (annot n)
 -- Equality & Order ----------------------------------------------------------------
 
 instance Eq Name where
-  Name a 0 _ == Name b 0 _      = a == b
-  Name _ a _ == Name _ b _      = a == b
+  Name a 0 m _ == Name b 0 n _  = a == b && m == n
+  Name _ a _ _ == Name _ b _ _  = a == b
   Tuple a _  == Tuple b _       = a == b
   Prim a _   == Prim b _        = a == b
   _          == _               = False
@@ -228,24 +228,28 @@ instance Ord Name where
   Prim a _   <= Prim b _        = a <= b
   Prim _ _   <= _               = True
   Tuple a _  <= Tuple b _       = a <= b
-  Tuple _ _  <= Name _ _ _      = True
-  Name a 0 _ <= Name b 0 _      = a <= b
-  Name _ a _ <= Name _ b _      = a <= b
+  Tuple _ _  <= Name _ _ _ _    = True
+  Name a 0 _ _ <= Name b 0 _ _  = a <= b
+  Name _ a _ _ <= Name _ b _ _  = a <= b
   _          <= _               = False
 
 
 -- Printing Names -----------------------------------------------------------------
 
 instance Show Name where
-  show (Name s 0 _)             = show s
-  show (Name s n _)             = show (s ++ "_" ++ show n)
+  show (Name s 0 Nothing _)     = show s
+  show (Name s n Nothing _)     = show (s ++ "_" ++ show n)
+  show (Name s n (Just m)_)     = show (s ++ "'" ++ m)
   show (Tuple n _)              = show ('(' : replicate (n-1) ',' ++ ")")
   show (Prim p _)               = show (strRep p)
 
 
 instance Pr Name where
-  pr (Name s 0 a)               = {- prExpl a <> -} text s
-  pr (Name s n a)               = {- prExpl a <> -} text (s ++ "_" ++ show n)
+  pr (Name s 0 Nothing a)       = {- prExpl a <> -} text s
+  pr (Name s n Nothing a)       = {- prExpl a <> -} text (s ++ "_" ++ show n)
+  pr (Name s n (Just m) a)      
+        |location a == Nothing  =  {- prExpl a <> -} text (s ++ "_" ++ show n ++ "'" ++ m)
+        |otherwise              =  {- prExpl a <> -} text (s ++ "'" ++ m)
   pr (Tuple n a)                = text ('(' : replicate (n-1) ',' ++ ")")
   pr (Prim p a)                 = text (strRep p)
 
@@ -261,10 +265,11 @@ prId2 (Prim p _)                = text (strRep2 p)
 prId2 (Tuple n _)               = text ("TUP" ++ show n)
 prId2 n                         = prId n
 
-prId3 (Name s n a)
+prId3 (Name s n m a)
   | n == 0                      = text s
-  | otherwise                   = pre <> text ('_' : show n)
+  | otherwise                   = pre <> text ('_' : show n) <> text post
   where pre                     = if isAlpha (head s) && all isAlphaNum (tail s) then text s else text "SYM"
+        post                    = maybe "" ("'" ++) m
 prId3 n                         = prId2 n
 
 

@@ -6,7 +6,7 @@ import Common
 import Syntax
 import Depend
 
-desugar1 (Module c ds)         = do ds <- dsDecls (mkEnv ds) ds
+desugar1 (Module c ds)         = do ds <- dsDecls (mkEnv c ds) ds
                                     return (Module c ds)
 
 {-
@@ -26,10 +26,11 @@ desugar1 (Module c ds)         = do ds <- dsDecls (mkEnv ds) ds
 
 data Env                        = Env { sels :: Map Name [Name], 
                                         self :: Maybe Name , 
+                                        modName :: Maybe String,
                                         tsyns :: Map Name ([Name],Type)} deriving Show
 
 
-env0                            = Env { sels = [], self = Nothing, tsyns = [] }
+env0                            = Env { sels = [], self = Nothing, modName = Nothing, tsyns = [] }
 
 
 mkEnv ds                        = (tsynE env0 tsynDecls) {sels = map transClose recEnv} 
@@ -79,7 +80,7 @@ tSubst env c ts                 = case lookup c (tsyns env) of
 
 -- Desugaring -------------------------------------------------------------------------------------------
 
-dsDecls env (DInst t bs : ds)   = do w <- newName instanceSym
+dsDecls env (DInst t bs : ds)   = do w <- newNameMod (modName env) instanceSym
                                      s <- renaming xs
                                      let bs' = map (substB s) bs
                                          r   = ERec (Just (type2head t,True)) (map mkField s)

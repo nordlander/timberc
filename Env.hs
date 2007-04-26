@@ -35,6 +35,7 @@ data Env = Env { kindEnv0      :: KEnv,              -- Kind for each global tyc
                  belowEnv      :: Map Name WGraph,   -- Overlap graph of all S < T for each T (closed under reflexivity & transitivity)
                  classEnv      :: Map Name WGraph,   -- Overlap graph of all instances for each type class (closed under subclassing)
 
+                 modName       :: Maybe String, 
                  -- The following fields are only used during constraint reduction:
                  history       :: [Pred],            -- Stack of predicates currently being reduced
                  skolEnv       :: Map Name [TVar],   -- For each skolemized tyvar T: a list of free tvars not unifiable with T
@@ -63,6 +64,7 @@ nullEnv                                 = Env { kindEnv0   = [],
                                                 aboveEnv   = [],
                                                 belowEnv   = [],
                                                 classEnv   = [],
+                                                modName    = Nothing,
                                                 history    = [],
                                                 skolEnv    = [],
                                                 pols       = ([],[]),

@@ -70,7 +70,7 @@ tiModule (Module v ds is bs)    = do (env1,ds1,bs1) <- typeDecls env0 ds
                                      assert (null (pe0++pe1++pe2)) "Internal: top-level type inference"
                                      s <- unify env2 (ss0++ss1++ss2)
                                      return (Module v ds1 (is0 `catBinds` subst s classInsts) (subst s bs))
-  where env0                    = initEnv
+  where env0                    = initEnv {modName = Just (str v)}
         (subInsts,classInsts)   = splitInsts is
 
 

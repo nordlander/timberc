@@ -139,19 +139,29 @@ localStore (M m)                = M $ \(n0,s0) ->
                                       Right ((n,s), x) -> Right ((n,s0), x)
                                       Left s           -> Left s
 
-newName s                       = do n <- newNum
-                                     return (Name s n ann)
+newNameMod m s                  = do n <- newNum
+                                     return (Name s n m ann)
   where ann                     = if s `elem` explicitSyms then noAnnot { explicit = True } else noAnnot
+
+newName s                       = newNameMod Nothing s
 
 newNames s n                    = mapM (const (newName s)) [1..n]
 
 
+{-
 renaming vs                     = mapM f vs
   where f v | tag v == 0        = do n <- newNum
                                      return (v, v { tag = n })
             | otherwise         = return (v, v)
-            
+-}
 
+renaming vs                     = renamingMod Nothing vs            
+
+renamingMod m vs                = mapM f vs
+  where f v | tag v == 0        = do n <- newNum
+                                     return (v, v { tag = n, fromMod = m})
+            | otherwise         = return (v, v)
+ 
 assert e msg
   | e                           = return ()
   | otherwise                   = fail msg
