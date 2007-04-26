@@ -701,7 +701,7 @@ reflAll         = (prim Refl,       scheme1 [] (a `sub` a))
 
 subActCmd       = (prim ActToCmd,   scheme1 [] (tAction `sub` tCmd a tMsg))
 
-subReqCmd       = (prim ReqToCmd,   scheme2 [] (tRequest a `sub` tCmd b a))
+subReqCmd       = (prim ReqToCmd,   scheme2 [] (tRequest a `sub` tCmd b a))
 
 subTemplCmd     = (prim TemplToCmd, scheme2 [] (tTemplate a `sub` tCmd b a))
 
