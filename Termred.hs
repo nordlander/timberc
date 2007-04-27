@@ -12,7 +12,7 @@ termred m                       = return (redModule m)
 redTerm env e                   = redExp env e
 
 
-redModule (Module m ds ie bs)   = Module m ds ie' (redBinds env1 bs)
+redModule (Module m ns ds ie bs)= Module m ns ds ie' (redBinds env1 bs)
   where env0                    = []
         ie'                     = redBinds env0 ie
         env1                    = f (groupBinds ie')

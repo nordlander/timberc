@@ -8,11 +8,11 @@ import Depend
 
 kindcheck m                             = kiModule m
 
-kiModule (Module v ds is bs)            = do ds <- kiDeclsList env (groupTypes ds)
+kiModule (Module v ns ds is bs)         = do ds <- kiDeclsList env (groupTypes ds)
                                              let env' = addKEnv0 (ksigsOf ds) env
                                              is <- kiBinds env' is
                                              bs <- kiBinds env' bs
-                                             return (Module v ds is bs)
+                                             return (Module v ns ds is bs)
   where env                             = initEnv
 
 

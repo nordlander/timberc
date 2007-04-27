@@ -5,8 +5,11 @@ import Lexer
 import PP
 import Data.Binary
 
-data Module = Module  Name [Decl]
-            deriving  (Eq,Show)
+data Module = Module Name [Import] [Decl]
+            deriving  (Show)
+
+data Import = Import Bool Name 
+            deriving (Show)
             
 data Decl   = DKSig   Name Kind
             | DData   Name [Name] [Type] [Constr]
@@ -327,8 +330,12 @@ instance Subst Pred Name Type where
 -- Modules -------------------------------------------------------------------
 
 instance Pr Module where
-    pr (Module c ds)            = text "module" <+> prId c <+> text "where"
-                                  $$ vpr ds
+    pr (Module c is ds)         = text "module" <+> prId c <+> text "where"
+                                  $$ vpr is $$ vpr ds 
+
+instance Pr Import where
+   pr (Import True n)           = text "import" <+> prId n
+   pr (Import False n)          = text "use" <+> prId n
 
 -- Declarations --------------------------------------------------------------
 
@@ -599,19 +606,12 @@ instance Ids Pred where
 -- Binary --------------------------------------
 
 instance Binary Module where
-  put (Module a b) = put a >> put b 
-  get = get >>= \a -> get >>= \b -> return (Module a b)
+  put (Module a b c) = put a >> put b >> put c
+  get = get >>= \a -> get >>= \b -> get >>= \c -> return (Module a b c)
 
-{-
 instance Binary Import where
-  put (Import n) = putWord8 0 >> put n
-  put (Open n)   = putWord8 1 >> put n
-  get = do
-    tag_ <- getWord8
-    case tag_ of
-      0 -> get >>= \n -> return (Import n) 
-      1 -> get >>= \n -> return (Open n) 
--}
+  put (Import a b) = put a >> put b
+  get = get >>= \a -> get >>= \b -> return (Import a b)
 
 instance Binary Decl where
   put (DKSig a b) = putWord8 0 >> put a >> put b

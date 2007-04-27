@@ -57,7 +57,7 @@ let f = \w0 v x -> e w0 (f w0 v 7)                                            ::
 -}
 
 
-tiModule (Module v ds is bs)    = do (env1,ds1,bs1) <- typeDecls env0 ds
+tiModule (Module v ns ds is bs) = do (env1,ds1,bs1) <- typeDecls env0 ds
                                      (env2,bs2) <- instancePreds env1 (tsigsOf is)
                                      (ss0,pe0,subInsts) <- tiBinds env2 (bs1 `catBinds` subInsts)
                                      -- Here it should be checked that the equation in subInsts follow the
@@ -69,7 +69,7 @@ tiModule (Module v ds is bs)    = do (env1,ds1,bs1) <- typeDecls env0 ds
                                      (ss2,pe2,classInsts) <- tiBinds (addTEnv0 (tsigsOf bs) env3) classInsts
                                      assert (null (pe0++pe1++pe2)) "Internal: top-level type inference"
                                      s <- unify env2 (ss0++ss1++ss2)
-                                     return (Module v ds1 (is0 `catBinds` subst s classInsts) (subst s bs))
+                                     return (Module v ns ds1 (is0 `catBinds` subst s classInsts) (subst s bs))
   where env0                    = initEnv {modName = Just (str v)}
         (subInsts,classInsts)   = splitInsts is
 

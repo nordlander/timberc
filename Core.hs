@@ -5,7 +5,7 @@ import PP
 import Data.Binary
 
 
-data Module     = Module Name Types Binds Binds
+data Module     = Module Name [Name] Types Binds Binds
                 deriving  (Eq,Show)
 
 data Types      = Types   KEnv Decls
@@ -503,9 +503,11 @@ instance BVars Binds where
 -- Modules -------------------------------------------------------------------
 
 instance Pr Module where
-    pr (Module i ds is bs)      = text "module" <+> prId i <+> text "where"
-                                  $$ pr ds $$ prInsts is $$ pr bs
+    pr (Module i ns ds is bs)    = text "module" <+> prId i <+> text "where"
+                                  $$ prImports ns $$ pr ds $$ prInsts is $$ pr bs
 
+prImports []                     = empty
+prImports ns                     = text "import" <+> hpr ',' ns
 
 -- Type declarations ---------------------------------------------------------
 
@@ -671,8 +673,8 @@ instance Pr Cmd where
 -- Binary --------------------------------------------------
 
 instance Binary Module where
-  put (Module a b c d) = put a >> put b >> put c >> put d
-  get = get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (Module a b c d)
+  put (Module a b c d e) = put a >> put b >> put c >> put d >> put e
+  get = get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> return (Module a b c d e)
 
 instance Binary Types where
   put (Types a b) = put a >> put b

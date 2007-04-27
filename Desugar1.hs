@@ -6,8 +6,8 @@ import Common
 import Syntax
 import Depend
 
-desugar1 (Module c ds)         = do ds <- dsDecls (mkEnv c ds) ds
-                                    return (Module c ds)
+desugar1 (Module c is ds)      = do ds <- dsDecls (mkEnv c ds) ds
+                                    return (Module c is ds)
 
 {-
     This module performs desugaring transformations that must be performed before the renaming pass:

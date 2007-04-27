@@ -117,10 +117,10 @@ instance Rename a => Rename (Maybe a) where
 
 
 instance Rename Module where
-  rename env (Module c ds)         = do env1 <- extRenT (Just (str c)) env ts
+  rename env (Module c is ds)      = do env1 <- extRenT (Just (str c)) env ts
                                         env2 <- extRenE (Just (str c)) env1 (cs++vs++vs')
                                         env3 <- extRenL (Just (str c)) env2 ss
-                                        liftM (Module c) (rename env3 ds')
+                                        liftM (Module c is) (rename env3 ds')
     where (ts,ss,cs,bs)            = renameD [] [] [] [] [] [] ds
           ds'                      = filter (not . isDBind) ds ++ map DBind (bs' ++ bs)
           vs                       = bvars bs

@@ -63,7 +63,8 @@ Reserved Ids
     | KW_Else   
     | KW_Elsif
     | KW_Forall
-    | KW_If       
+    | KW_If    
+    | KW_Import   
     | KW_In       
     | KW_Instance 
     | KW_Let
@@ -74,7 +75,8 @@ Reserved Ids
     | KW_Return
     | KW_Template
     | KW_Then     
-    | KW_Type     
+    | KW_Type  
+    | KW_Use   
     | KW_Where
     | KW_While
     | EOF
@@ -112,7 +114,8 @@ reserved_ids
         ( "else",      KW_Else ),
         ( "elsif",     KW_Elsif ),     
         ( "forall",    KW_Forall ),
-        ( "if",        KW_If ),       
+        ( "if",        KW_If ),
+        ( "import",    KW_Import ),       
         ( "in",        KW_In ),       
         ( "instance",  KW_Instance ), 
         ( "let",       KW_Let ),      
@@ -123,7 +126,8 @@ reserved_ids
         ( "request",   KW_Request ),
         ( "template",  KW_Template ),   
         ( "then",      KW_Then ),     
-        ( "type",      KW_Type ),     
+        ( "type",      KW_Type ),  
+        ( "use",       KW_Use ),   
         ( "where",     KW_Where ),
         ( "while",     KW_While )
       ]

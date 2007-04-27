@@ -74,6 +74,7 @@ Reserved Ids
         'elsif'		{ KW_Elsif }
         'forall'	{ KW_Forall }
         'if'		{ KW_If }
+        'import'        { KW_Import }
         'in'		{ KW_In }
         'instance'	{ KW_Instance }
         'let'		{ KW_Let }
@@ -85,6 +86,7 @@ Reserved Ids
         'template'      { KW_Template }
         'then'		{ KW_Then }
         'type'		{ KW_Type }
+        'use'           { KW_Use }
         'where'		{ KW_Where }
         'while'		{ KW_While }
 
@@ -97,15 +99,23 @@ Reserved Ids
 -- Module Header ------------------------------------------------------------
 
 module  :: { Module }
-        : 'module' conid 'where' body		{ Module $2 $4 }
+        : 'module' conid 'where' body		{ uncurry (Module $2) $4 }
 
-body    :: { [Decl] }
-        : '{' layout_off topdecls optsemi '}'	{ reverse $3 }
-        |     layout_on  topdecls optsemi close	{ reverse $2 }
+body    :: { ([Import],[Decl]) }
+        : '{' layout_off imports topdecls optsemi '}'	{ (reverse $3,reverse $4) }
+        |     layout_on  imports topdecls optsemi close	{ (reverse $2, reverse $3) }
 
 optsemi :: { () }
         : ';'					{ () }
         | {- empty -}				{ () }
+
+imports :: { [Import] }
+        : imports import ';'                    { $2 : $1 }
+        | {- empty -}                           { [] }
+
+import  :: { Import }
+        : 'import' conid                        { Import True $2 }
+        | 'use' conid                           { Import False $2 }
 
 
 -- Top-level declarations ---------------------------------------------------
