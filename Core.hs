@@ -2,6 +2,7 @@ module Core where
 
 import Common
 import PP
+import Data.Binary
 
 
 data Module     = Module Name Types Binds Binds
@@ -666,3 +667,119 @@ instance Pr Cmd where
                                   pr c
     pr (CRet e)                 = text "return" <+> pr e
     pr (CExp e)                 = pr e
+
+-- Binary --------------------------------------------------
+
+instance Binary Module where
+  put (Module a b c d) = put a >> put b >> put c >> put d
+  get = get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (Module a b c d)
+
+instance Binary Types where
+  put (Types a b) = put a >> put b
+  get = get >>= \a -> get >>= \b -> return (Types a b)
+
+instance Binary Binds where
+  put (Binds a b c) = put a >> put b >> put c
+  get = get >>= \a -> get >>= \b -> get >>= \c -> return (Binds a b c)
+
+instance Binary Decl where
+  put (DData a b c) = putWord8 0 >> put a >> put b >> put c
+  put (DRec a b c d) = putWord8 1 >> put a >> put b >> put c >> put d
+  put (DType a b) = putWord8 2 >> put a >> put b
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \a -> get >>= \b -> get >>= \c -> return (DData a b c)
+      1 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (DRec a b c d)
+      2 -> get >>= \a -> get >>= \b -> return (DType a b)
+      _ -> fail "no parse"
+
+instance Binary Scheme where
+  put (Scheme a b c) = put a >> put b >> put c
+  get = get >>= \a -> get >>= \b -> get >>= \c -> return (Scheme a b c)
+
+instance Binary Constr where
+  put (Constr a b c) = put a >> put b >> put c
+  get = get >>= \a -> get >>= \b -> get >>= \c -> return (Constr a b c)
+
+instance Binary Rho where
+  put (R a) = putWord8 0 >> put a
+  put (F a b) = putWord8 1 >> put a >> put b
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \a -> return (R a)
+      1 -> get >>= \a -> get >>= \b -> return (F a b)
+      _ -> fail "no parse"
+
+instance Binary Type where
+  put (TId a) = putWord8 0 >> put a
+  put (TVar a) = putWord8 1 >> put a
+  put (TFun a b) = putWord8 2 >> put a >> put b
+  put (TAp a b) = putWord8 3 >> put a >> put b
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \a -> return (TId a)
+      1 -> get >>= \a -> return (TVar a)
+      2 -> get >>= \a -> get >>= \b -> return (TFun a b)
+      3 -> get >>= \a -> get >>= \b -> return (TAp a b)
+      _ -> fail "no parse"
+
+instance Binary Pat where
+  put (PCon a) = putWord8 0 >> put a
+  put (PLit a) = putWord8 1 >> put a
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \a -> return (PCon a)
+      1 -> get >>= \a -> return (PLit a)
+      _ -> fail "no parse"
+
+instance Binary Exp where
+  put (ECon a b) = putWord8 0 >> put a >> put b
+  put (ESel a b c) = putWord8 1 >> put a >> put b >> put c
+  put (EVar a b) = putWord8 2 >> put a >> put b
+  put (ELam a b) = putWord8 3 >> put a >> put b
+  put (EAp a b) = putWord8 4 >> put a >> put b
+  put (ELet a b) = putWord8 5 >> put a >> put b
+  put (ECase a b c) = putWord8 6 >> put a >> put b >> put c
+  put (ERec a b) = putWord8 7 >> put a >> put b
+  put (ELit a) = putWord8 8 >> put a
+  put (EAct a b) = putWord8 9 >> put a >> put b
+  put (EReq a b) = putWord8 10 >> put a >> put b
+  put (ETempl a b c d) = putWord8 11 >> put a >> put b >> put c >> put d
+  put (EDo a b c) = putWord8 12 >> put a >> put b >> put c
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \a -> get >>= \b -> return (ECon a b)
+      1 -> get >>= \a -> get >>= \b -> get >>= \c -> return (ESel a b c)
+      2 -> get >>= \a -> get >>= \b -> return (EVar a b)
+      3 -> get >>= \a -> get >>= \b -> return (ELam a b)
+      4 -> get >>= \a -> get >>= \b -> return (EAp a b)
+      5 -> get >>= \a -> get >>= \b -> return (ELet a b)
+      6 -> get >>= \a -> get >>= \b -> get >>= \c -> return (ECase a b c)
+      7 -> get >>= \a -> get >>= \b -> return (ERec a b)
+      8 -> get >>= \a -> return (ELit a)
+      9 -> get >>= \a -> get >>= \b -> return (EAct a b)
+      10 -> get >>= \a -> get >>= \b -> return (EReq a b)
+      11 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (ETempl a b c d)
+      12 -> get >>= \a -> get >>= \b -> get >>= \c -> return (EDo a b c)
+      _ -> fail "no parse"
+
+instance Binary Cmd where
+  put (CGen a b c d) = putWord8 0 >> put a >> put b >> put c >> put d
+  put (CAss a b c) = putWord8 1 >> put a >> put b >> put c
+  put (CLet a b) = putWord8 2 >> put a >> put b
+  put (CRet a) = putWord8 3 >> put a
+  put (CExp a) = putWord8 4 >> put a
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (CGen a b c d)
+      1 -> get >>= \a -> get >>= \b -> get >>= \c -> return (CAss a b c)
+      2 -> get >>= \a -> get >>= \b -> return (CLet a b)
+      3 -> get >>= \a -> return (CRet a)
+      4 -> get >>= \a -> return (CExp a)
+      _ -> fail "no parse"

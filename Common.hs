@@ -5,7 +5,7 @@ import qualified List
 import qualified Maybe
 import Char
 import Name
-
+import Data.Binary
 import Debug.Trace
 
 
@@ -467,7 +467,36 @@ instance TVars a => TVars [a] where
 instance TVars a => TVars (Name,a) where
     tvars (v,a)                 = tvars a
 
+-- Binary --------------------------------------------
 
+instance Binary Lit where
+  put (LInt a) = putWord8 0 >> put a
+  put (LRat a) = putWord8 1 >> put a
+  put (LChr a) = putWord8 2 >> put a
+  put (LStr a) = putWord8 3 >> put a
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \a -> return (LInt a)
+      1 -> get >>= \a -> return (LRat a)
+      2 -> get >>= \a -> return (LChr a)
+      3 -> get >>= \a -> return (LStr a)
+      _ -> fail "no parse"
 
+instance Binary Kind where
+  put Star       = putWord8 0
+  put (KFun a b) = putWord8 1 >> put a >> put b
+  put KWild      = putWord8 2
+  put (KVar a)   = putWord8 3 >> put a
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> return Star
+      1 -> get >>= \a -> get >>= \b -> return (KFun a b)
+      2 -> return KWild
+      3 -> get >>= \a -> return (KVar a)
+      _ -> fail "no parse"
 
-
+instance Binary TVar where
+  put (TV a) = put a
+  get = get >>= \a -> return (TV a)

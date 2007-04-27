@@ -3,7 +3,7 @@ module Syntax where
 import Common
 import Lexer
 import PP
-
+import Data.Binary
 
 data Module = Module  Name [Decl]
             deriving  (Eq,Show)
@@ -595,3 +595,224 @@ instance Ids Pred where
   idents (PType (TVar v))       = []
   idents (PType t)              = idents t
   idents (PKind v k)            = []
+
+-- Binary --------------------------------------
+
+instance Binary Module where
+  put (Module a b) = put a >> put b 
+  get = get >>= \a -> get >>= \b -> return (Module a b)
+
+{-
+instance Binary Import where
+  put (Import n) = putWord8 0 >> put n
+  put (Open n)   = putWord8 1 >> put n
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \n -> return (Import n) 
+      1 -> get >>= \n -> return (Open n) 
+-}
+
+instance Binary Decl where
+  put (DKSig a b) = putWord8 0 >> put a >> put b
+  put (DData a b c d) = putWord8 1 >> put a >> put b >> put c >> put d
+  put (DRec a b c d e) = putWord8 2 >> put a >> put b >> put c >> put d >> put e
+  put (DType a b c) = putWord8 3 >> put a >> put b >> put c
+  put (DInst a b) = putWord8 4 >> put a >> put b
+  put (DPSig a b) = putWord8 5 >> put a >> put b
+  put (DBind a) = putWord8 6 >> put a
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \a -> get >>= \b -> return (DKSig a b)
+      1 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (DData a b c d)
+      2 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> return (DRec a b c d e)
+      3 -> get >>= \a -> get >>= \b -> get >>= \c -> return (DType a b c)
+      4 -> get >>= \a -> get >>= \b -> return (DInst a b)
+      5 -> get >>= \a -> get >>= \b -> return (DPSig a b)
+      6 -> get >>= \a -> return (DBind a)
+      _ -> fail "no parse"
+
+instance Binary Constr where
+  put (Constr a b c) = put a >> put b >> put c
+  get = get >>= \a -> get >>= \b -> get >>= \c -> return (Constr a b c)
+
+instance Binary Sig where
+  put (Sig a b) = put a >> put b
+  get = get >>= \a -> get >>= \b -> return (Sig a b)
+
+instance Binary Bind where
+  put (BSig a b) = putWord8 0 >> put a >> put b
+  put (BEqn a b) = putWord8 1 >> put a >> put b
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \a -> get >>= \b -> return (BSig a b)
+      1 -> get >>= \a -> get >>= \b -> return (BEqn a b)
+      _ -> fail "no parse"
+
+instance Binary Type where
+  put (TQual a b) = putWord8 0 >> put a >> put b
+  put (TCon a) = putWord8 1 >> put a
+  put (TVar a) = putWord8 2 >> put a
+  put (TAp a b) = putWord8 3 >> put a >> put b
+  put (TSub a b) = putWord8 4 >> put a >> put b
+  put TWild = putWord8 5
+  put (TList a) = putWord8 6 >> put a
+  put (TTup a) = putWord8 7 >> put a
+  put (TFun a b) = putWord8 8 >> put a >> put b
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \a -> get >>= \b -> return (TQual a b)
+      1 -> get >>= \a -> return (TCon a)
+      2 -> get >>= \a -> return (TVar a)
+      3 -> get >>= \a -> get >>= \b -> return (TAp a b)
+      4 -> get >>= \a -> get >>= \b -> return (TSub a b)
+      5 -> return TWild
+      6 -> get >>= \a -> return (TList a)
+      7 -> get >>= \a -> return (TTup a)
+      8 -> get >>= \a -> get >>= \b -> return (TFun a b)
+      _ -> fail "no parse"
+
+instance Binary Pred where
+  put (PType a) = putWord8 0 >> put a
+  put (PKind a b) = putWord8 1 >> put a >> put b
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \a -> return (PType a)
+      1 -> get >>= \a -> get >>= \b -> return (PKind a b)
+      _ -> fail "no parse"
+
+instance Binary Lhs where
+  put (LFun a b) = putWord8 0 >> put a >> put b
+  put (LPat a) = putWord8 1 >> put a
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \a -> get >>= \b -> return (LFun a b)
+      1 -> get >>= \a -> return (LPat a)
+      _ -> fail "no parse"
+
+instance Binary Exp where
+  put (EVar a) = putWord8 0 >> put a
+  put (EAp a b) = putWord8 1 >> put a >> put b
+  put (ECon a) = putWord8 2 >> put a
+  put (ESel a) = putWord8 3 >> put a
+  put (ELit a) = putWord8 4 >> put a
+  put (ETup a) = putWord8 5 >> put a
+  put (EList a) = putWord8 6 >> put a
+  put EWild = putWord8 7
+  put (ESig a b) = putWord8 8 >> put a >> put b
+  put (ERec a b) = putWord8 9 >> put a >> put b
+  put (ELam a b) = putWord8 10 >> put a >> put b
+  put (ELet a b) = putWord8 11 >> put a >> put b
+  put (ECase a b) = putWord8 12 >> put a >> put b
+  put (EIf a b c) = putWord8 13 >> put a >> put b >> put c
+  put (ENeg a) = putWord8 14 >> put a
+  put (ESeq a b c) = putWord8 15 >> put a >> put b >> put c
+  put (EComp a b) = putWord8 16 >> put a >> put b
+  put (ESectR a b) = putWord8 17 >> put a >> put b
+  put (ESectL a b) = putWord8 18 >> put a >> put b
+  put (ESelect a b) = putWord8 19 >> put a >> put b
+  put (EDo a b c) = putWord8 20 >> put a >> put b >> put c
+  put (ETempl a b c) = putWord8 21 >> put a >> put b >> put c
+  put (EAct a b) = putWord8 22 >> put a >> put b
+  put (EReq a b) = putWord8 23 >> put a >> put b
+  put (EAfter a b) = putWord8 24 >> put a >> put b
+  put (EBefore a b) = putWord8 25 >> put a >> put b
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \a -> return (EVar a)
+      1 -> get >>= \a -> get >>= \b -> return (EAp a b)
+      2 -> get >>= \a -> return (ECon a)
+      3 -> get >>= \a -> return (ESel a)
+      4 -> get >>= \a -> return (ELit a)
+      5 -> get >>= \a -> return (ETup a)
+      6 -> get >>= \a -> return (EList a)
+      7 -> return EWild
+      8 -> get >>= \a -> get >>= \b -> return (ESig a b)
+      9 -> get >>= \a -> get >>= \b -> return (ERec a b)
+      10 -> get >>= \a -> get >>= \b -> return (ELam a b)
+      11 -> get >>= \a -> get >>= \b -> return (ELet a b)
+      12 -> get >>= \a -> get >>= \b -> return (ECase a b)
+      13 -> get >>= \a -> get >>= \b -> get >>= \c -> return (EIf a b c)
+      14 -> get >>= \a -> return (ENeg a)
+      15 -> get >>= \a -> get >>= \b -> get >>= \c -> return (ESeq a b c)
+      16 -> get >>= \a -> get >>= \b -> return (EComp a b)
+      17 -> get >>= \a -> get >>= \b -> return (ESectR a b)
+      18 -> get >>= \a -> get >>= \b -> return (ESectL a b)
+      19 -> get >>= \a -> get >>= \b -> return (ESelect a b)
+      20 -> get >>= \a -> get >>= \b -> get >>= \c -> return (EDo a b c)
+      21 -> get >>= \a -> get >>= \b -> get >>= \c -> return (ETempl a b c)
+      22 -> get >>= \a -> get >>= \b -> return (EAct a b)
+      23 -> get >>= \a -> get >>= \b -> return (EReq a b)
+      24 -> get >>= \a -> get >>= \b -> return (EAfter a b)
+      25 -> get >>= \a -> get >>= \b -> return (EBefore a b)
+      _ -> fail "no parse"
+
+instance Binary Field where
+  put (Field a b) = put a >> put b
+  get = get >>= \a -> get >>= \b -> return (Field a b)
+
+instance (Binary a) => Binary (Rhs a) where
+  put (RExp a) = putWord8 0 >> put a
+  put (RGrd a) = putWord8 1 >> put a
+  put (RWhere a b) = putWord8 2 >> put a >> put b
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \a -> return (RExp a)
+      1 -> get >>= \a -> return (RGrd a)
+      2 -> get >>= \a -> get >>= \b -> return (RWhere a b)
+      _ -> fail "no parse"
+
+instance (Binary a) => Binary (GExp a) where
+  put (GExp a b) = put a >> put b
+  get = get >>= \a -> get >>= \b -> return (GExp a b)
+
+instance (Binary a) => Binary (Alt a) where
+  put (Alt a b) = put a >> put b
+  get = get >>= \a -> get >>= \b -> return (Alt a b)
+
+instance Binary Qual where
+  put (QExp a) = putWord8 0 >> put a
+  put (QGen a b) = putWord8 1 >> put a >> put b
+  put (QLet a) = putWord8 2 >> put a
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \a -> return (QExp a)
+      1 -> get >>= \a -> get >>= \b -> return (QGen a b)
+      2 -> get >>= \a -> return (QLet a)
+      _ -> fail "no parse"
+
+instance Binary Stmt where
+  put (SExp a) = putWord8 0 >> put a
+  put (SRet a) = putWord8 1 >> put a
+  put (SGen a b) = putWord8 2 >> put a >> put b
+  put (SBind a) = putWord8 3 >> put a
+  put (SAss a b) = putWord8 4 >> put a >> put b
+  put (SForall a b) = putWord8 5 >> put a >> put b
+  put (SWhile a b) = putWord8 6 >> put a >> put b
+  put (SIf a b) = putWord8 7 >> put a >> put b
+  put (SElsif a b) = putWord8 8 >> put a >> put b
+  put (SElse a) = putWord8 9 >> put a
+  put (SCase a b) = putWord8 10 >> put a >> put b
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \a -> return (SExp a)
+      1 -> get >>= \a -> return (SRet a)
+      2 -> get >>= \a -> get >>= \b -> return (SGen a b)
+      3 -> get >>= \a -> return (SBind a)
+      4 -> get >>= \a -> get >>= \b -> return (SAss a b)
+      5 -> get >>= \a -> get >>= \b -> return (SForall a b)
+      6 -> get >>= \a -> get >>= \b -> return (SWhile a b)
+      7 -> get >>= \a -> get >>= \b -> return (SIf a b)
+      8 -> get >>= \a -> get >>= \b -> return (SElsif a b)
+      9 -> get >>= \a -> return (SElse a)
+      10 -> get >>= \a -> get >>= \b -> return (SCase a b)
+      _ -> fail "no parse"
