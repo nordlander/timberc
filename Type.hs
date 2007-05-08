@@ -129,7 +129,7 @@ tiExpT' env (False, Scheme t0 ps [], e)
 tiExpT' env (explWit, Scheme t0 ps ke, e)
                                 = do (ss,qe,t,e)  <- tiExp env e
                                      -- tr ("INFERRED: " ++ show t ++ "   \\\\    " ++ show qe)
-                                     (s,qe,f)     <- normalize env ss qe
+                                     (s,qe,f)     <- normalize (target t env) ss qe
                                      c            <- newName coercionSym
                                      pe0          <- newEnv assumptionSym ps
                                      let env1      = subst s env
