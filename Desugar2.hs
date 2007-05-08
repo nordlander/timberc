@@ -97,15 +97,15 @@ dsKindQual (PType (TVar v))     = PKind v KWild
 dsKindQual _                    = error ("Bad qualifier")
 
 
-dsQualPred (TQual t ps)         = checkQual (dsSubPred t) (map dsQual ps)
-dsQualPred t                    = TQual (dsSubPred t) []
+dsQualPred (TQual t ps)         = checkQual (dsSubOrClassPred t) (map dsQual ps)
+dsQualPred t                    = TQual (dsSubOrClassPred t) []
 
-dsSubPred (TSub t t')           = dsType (TFun [t] t')
-dsSubPred t                     = dsPred t
+dsSubOrClassPred (TSub t t')    = TSub (dsType t) (dsType t')
+dsSubOrClassPred t              = dsClassPred t
 
-dsPred (TAp t t')               = TAp (dsPred t) (dsType t')
-dsPred (TCon c)                 = TCon c
-dsPred _                        = error ("Bad class predicate")
+dsClassPred (TAp t t')          = TAp (dsClassPred t) (dsType t')
+dsClassPred (TCon c)            = TCon c
+dsClassPred _                   = error ("Bad class predicate")
 
 
 -- Bindings ---------------------------------------------------------------

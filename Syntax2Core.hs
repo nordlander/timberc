@@ -117,6 +117,7 @@ s2cRhoType t                    = liftM Core.R (s2cType t)
 
 
 -- translate a monomorphic type
+s2cType (TSub t t')             = s2cType (TFun [t] t')
 s2cType (TFun ts t)             = do ts <- mapM s2cType ts
                                      t <- s2cType t
                                      return (Core.TFun ts t)
