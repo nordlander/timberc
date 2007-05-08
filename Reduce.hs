@@ -34,7 +34,7 @@ normalize env eqs pe                    = do s0 <- unify env eqs
                                              return (s1@@s0, pe1, f1)
                                              
 
-norm env pe                             = do -- tr ("NORMALIZE " ++ show pe)
+norm env pe                             = do -- tr ("NORMALIZE\n" ++ render (vpr pe))
                                              (s1, pe1, f1) <- reduce env pe
                                              (s2, pe2, f2) <- simplify (subst s1 env) pe1
                                              -- tr ("END NORMALIZE " ++ show pe2)
@@ -43,7 +43,7 @@ norm env pe                             = do -- tr ("NORMALIZE " ++ show pe)
 
 -- Conservative reduction ----------------------------------------------------------------------
 
-reduce env pe                           = do -- tr ("###reduce " ++ show (tvars (typeEnv env)))
+reduce env pe                           = do -- tr ("###reduce\n" ++ render (vpr pe) ) -- ++ "\n\n" ++ show (tvars (typeEnv env)))
                                              (s,q,[],es) <- red [] (map mkGoal pe)
                                              -- tr ("###result: " ++ show (dom pe `zip` es))
                                              return (s, q, eLet pe (dom pe `zip` es))
@@ -97,12 +97,14 @@ a x < b x \\ x, a x < c x \\ x, b x < c Int \\ x
 
 -- Forced reduction ------------------------------------------------------------------------
 
-resolve env pe                          = do -- tr ("############### Before resolve: " ++ show pe)
+resolve env pe                          = do -- tr "RESOLVING"
+                                             -- tr ("############### Before resolve: " ++ show pe)
                                              -- tr ("tevars: " ++ show env_tvs ++ ",   reachable: " ++ show reachable_tvs)
                                              (s,q,[],es) <- red [] (map mkGoal pe)
                                              -- tr ("############### After resolve: " ++ show q)
                                              let q' = filter badDummy q
                                              assert (null q') ("Cannot resolve predicates: " ++ show q')
+                                             -- tr "DONE RESOLVING"
                                              return (s, q, eLet pe (dom pe `zip` es))
   where env_tvs                         = tevars env
         reachable_tvs                   = vclose (map tvars pe) (ps ++ ns ++ env_tvs)
@@ -174,7 +176,10 @@ resolve env pe                          = do -- tr ("############### Before reso
 
 
 red [] []                               = return (nullSubst, [], [], [])
-red gs []                               = do -- tr ("%%%%%%%% solve " ++ show r ++ ",  info: " ++ show info)
+red gs []                               = do -- tr ("%%%%%%%% Simple goals:")
+                                             -- tr (render (vpr (map snd gs)))
+                                             -- let str = if forced (fst g) then "%%%%%%%% Force " else "%%%%%%%% Solve "
+                                             -- tr (str ++ show r ++ " : " ++ render (pr (snd g)) ++ ",  info: " ++ show info)
                                              (s,q,e:es) <- solve r g (gs1++gs2)
                                              let (es1,es2) = splitAt i es
                                              return (s, q, es1++[e]++es2, [])
@@ -259,7 +264,7 @@ solve r g gs
                                              (s,q,es,_) <- red gs []
                                              (q',e) <- newHyp g
                                              return (s, q'++q, e:es)
-  | otherwise                           = do -- tr ("Solving " ++ show r ++ " : " ++ show (snd g))
+  | otherwise                           = do -- tr ("Solving " ++ show r ++ " : " ++ render (pr (snd g)))
                                              try r (Left msg) (findWG r g) (logHistory g) gs
   where msg                             = "Cannot solve typing constraint " ++ render (prPred (snd g))
 

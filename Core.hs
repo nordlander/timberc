@@ -647,7 +647,8 @@ instance Pr Exp where
     prn 2 (ECon c _)            = prId c
     prn 2 (ESel e s _)          = prn 2 e <> text "." <> prId s
 --    prn 2 (EVar v (Just t))     = parens (prId v <+> text "::" <+> pr t)
-    prn 2 (EVar v _)            = prId v
+    prn 2 (EVar v (Just t))     = prId v
+    prn 2 (EVar v Nothing)      = prId v
     prn 2 (ELit l)              = pr l
     prn 2 (ERec c eqs)          = prId c <+> text "{" <+> hpr ',' eqs <+> text "}"
     prn 2 e                     = parens (prn 0 e)

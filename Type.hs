@@ -80,7 +80,7 @@ tiBindsList env (bs:bss)        = do (ss1, pe1, bs') <- tiBinds env bs
                                      return (ss1++ss2, pe1++pe2, bs' `catBinds` bss')
 
                                      
-tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ show te ++ " rec: " ++ show rec)
+tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ render (vpr te) ++ ",  rec: " ++ show rec)
                                      -- tr ("tevars: " ++ show (tevars env))
                                      (s,pe,es1)   <- tiRhs0 env' explWits ts es
                                      -- tr ("RESULT: " ++ render (vpr es1))
@@ -97,6 +97,7 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ show te ++ " rec
                                          (es',ts') = unzip (zipWith (qual qe2) es3 (subst s' ts))
                                      -- tr ("Witnesses returned: " ++ show qe1 ++ "   |   " ++ show qe2)
                                      ts'' <- mapM (gen (tevars env1 ++ tvars qe1)) ts'
+                                     -- tr ("DONE " ++ render (vpr (xs `zip` ts'')))
                                      return (mkEqns s', qe1, Binds rec (xs `zip` ts'') (xs `zip` es'))
   where ts                      = map (lookup' te) xs
         (xs,es)                 = unzip eqs
@@ -186,8 +187,10 @@ tiExp env (ELet bs e)           = do (s,pe,bs) <- tiBinds env bs
                                      return (s++s',pe++pe', t, ELet bs e)
 tiExp env (ERec c eqs)          = do alphas <- mapM newTVar (kArgs (findKind env c))
                                      (t,ts,sels')   <- tiLhs env (foldl TAp (TId c) alphas) tiX sels
-                                     -- tr ("record " ++ show t ++ ", selectors: " ++ show sels ++ "  :  " ++ show ts)
                                      (s,pe,es') <- tiRhs env ts es
+                                     -- tr ("RECORD " ++ render (pr t))
+                                     -- tr (render (vpr (sels `zip` ts)))
+                                     -- tr ("    pe :\n" ++ render (vpr pe))
                                      e <- mkRec env c (map flatSels sels' `zip` es')
                                      return (s, pe, R t, e)
   where (sels,es)               = unzip eqs
