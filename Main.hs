@@ -15,6 +15,7 @@ import Execution
 import PP
 import Common
 import Parser
+import Syntax (imports)
 import Desugar1
 import Rename
 import Desugar2
@@ -27,6 +28,8 @@ import Core2Kindle
 import Lambdalift
 import Prepare4C
 import Kindle2C
+import Data.Binary
+import ChaseImports
 
 {-
 
@@ -156,38 +159,41 @@ Yet unknown:
 -- | right now.
 
 
-compileTimber clo f = do putStrLn $ "[loading module " ++ show f ++ "]"
+compileTimber clo f = do putStrLn $ "[compiling " ++ show f ++ "]"
                          txt <-  catch (readFile f)
                                  (\e -> error $ "File " ++ f ++ " does not exist.")
-                         let (htxt, mtxt) = runM (passes txt)
-                         writeFile (rmSuffix ".t" f ++ ".c") mtxt
-                         -- XXX Make the filename static for now. Will break with modules.
-                         --- writeFile (rmSuffix ".t" f ++ ".h") htxt
-                         writeFile "defs.h" htxt
+                         let par = runM (pass parser Parser txt)
+                             m = rmSuffix ".t" f
+                         imps <- chaseImports m (imports par)
+                         let ((htxt,mtxt),rd) = runM (passes imps par)
+--                         let rd = runM (passes imps par)
+                         encodeFile (m ++ ".ti") (ifaceMod rd)
+                         writeFile (m ++ ".c") mtxt
+                         writeFile (m ++ ".h") htxt
 
-  where passes txt  = do par <- pass parser         Parser              txt
-                         d1  <- pass desugar1       Desugar1            par
-                         rn  <- pass renameM        Rename              d1
-                         d2  <- pass desugar2       Desugar2            rn
-                         co  <- pass syntax2core    S2C                 d2
-                         kc  <- pass kindcheck      KCheck              co
-                         tc  <- pass typecheck      TCheck              kc
-                         rd  <- pass termred        Termred             tc
-                         ki  <- pass core2kindle    C2K                 rd
-                         ll  <- pass lambdalift     LLift               ki
-                         pc  <- pass prepare4c      Prepare4C           ll
-                         c   <- pass kindle2c       K2C                 pc
-                         return c
-
-        pass        :: (Pr b) => (a -> M s b) -> Pass -> a -> M s b
-        pass m p a  = do -- tr ("Pass " ++ show p ++ "...")
+ where passes imps par = do
+                         (e0,e1,e2,e3,e4) <- initEnvs imps
+                         d1  <- pass (desugar1 e0)    Desugar1            par
+                         rn  <- pass (renameM e1)     Rename              d1
+                         d2  <- pass desugar2         Desugar2            rn
+                         co  <- pass syntax2core      S2C                 d2
+                         kc  <- pass (kindcheck e2)   KCheck              co
+                         tc  <- pass (typecheck e2)   TCheck              kc
+                         rd  <- pass termred          Termred             tc
+                         ki  <- pass (core2kindle e3) C2K                 rd
+                         ll  <- pass (lambdalift e4)  LLift               ki
+                         pc  <- pass (prepare4c e3)   Prepare4C           ll
+                         c   <- pass kindle2c         K2C                 pc
+                         return (c,rd)
+--                         return rd
+       pass        :: (Pr b) => (a -> M s b) -> Pass -> a -> M s b
+       pass m p a  = do -- tr ("Pass " ++ show p ++ "...")
                         r <- m a
                         Monad.when (dumpAfter clo p) 
                                  $ fail ("#### Result after " ++ show p ++ ":\n\n" ++ render (pr r))
                         if stopAfter clo p
                            then fail ("#### Terminated after " ++ show p ++ ".")
                            else return r                                  
-
 
 
 ------------------------------------------------------------------------------
@@ -197,19 +203,18 @@ main                = do args <- getArgs
 
 -- | We have the second entry point so ghci/hugs users can call
 -- | main2 directly with arguments.
--- | This replaces any perl driver.
 
 main2 args          = do (clo, files) <- Exception.catchDyn (cmdLineOpts args)
                                          fatalErrorHandler
                          cfg          <- Exception.catchDyn (readCfg clo)
                                          fatalErrorHandler
 
-                         let timber_files = [ file | file <- files, ".t" `isSuffixOf` file ]
-                         Monad.when (null timber_files) (do
-                                                         putStrLn "No files to compile found."
-                                                         abortCompiler)
+                         let timber_files = [ modToPath file | file <- files, ".t" `isSuffixOf` file ]
                          mapM (compileTimber clo) timber_files
+                         let iface_files =  [ modToPath file | file <- files, ".ti" `isSuffixOf` file ]
+                         mapM listIface iface_files
                          Monad.when (stopAtC clo) stopCompiler
+{-
                          let c_modules = [ rmSuffix ".c" file | file <- files, ".c" `isSuffixOf` file ]
 
                          -- all the timber modules should have produced c modules
@@ -219,6 +224,7 @@ main2 args          = do (clo, files) <- Exception.catchDyn (cmdLineOpts args)
 
                          -- finally, perform the last link
                          linkO cfg clo all_modules
+-}
                          return ()
 
 

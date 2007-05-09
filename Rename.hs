@@ -17,9 +17,10 @@ import Monad
 import Common
 import Syntax
 import List(sort)
+--import qualified Core
 
-renameM m                          = rename initEnv m
-
+renameM e1 m                       = rename (initEnv e1) m
+                                
 
 -- Syntax traversal environment --------------------------------------------------
 
@@ -31,8 +32,7 @@ data Env                           = Env { rE :: Map Name Name,
                                            void :: [Name]
                                          }
 
-initEnv                            = Env { rE = primTerms, rT = primTypes, rS = [], rL = [], self = [], void = [] }
-
+initEnv (rL',rT',rE')              = Env { rE = primTerms ++ rE', rT = primTypes ++ rT', rS = [], rL = rL', self = [], void = [] }
 
 stateVars env                      = dom (rS env)
 
@@ -40,9 +40,9 @@ tscope env                         = dom (rT env)
 
 
 renE env n@(Tuple _ _)             = n
-renE env v                         = case lookup (qualName v) (rE env) of
+renE env v                         = case lookup v (rE env) of
                                        Just n  -> n { annot = annot v }
-                                       Nothing -> error ("Undefined identifier: " ++ show (qualName v))
+                                       Nothing -> error ("Undefined identifier: " ++ show v)
 
 renS env n@(Tuple _ _)             = n
 renS env v                         = case lookup v (rS env) of
@@ -50,19 +50,19 @@ renS env v                         = case lookup v (rS env) of
                                        Nothing -> error ("Undefined identifier: " ++ show v)
   where a                          = annot v
 
-renL env v                         = case lookup (qualName v) (rL env) of
+renL env v                         = case lookup v (rL env) of
                                        Just n  -> n { annot = annot v }
-                                       Nothing -> error ("Undefined selector: " ++ show (qualName v))
+                                       Nothing -> error ("Undefined selector: " ++ show v)
 
 renT env n@(Tuple _ _)             = n
-renT env v                         = case lookup (qualName v) (rT env) of
+renT env v                         = case lookup v (rT env) of
                                        Just n  -> n { annot = annot v }
-                                       Nothing -> error ("Undefined type identifier: " ++ show (qualName v))
+                                       Nothing -> error ("Undefined type identifier: " ++ show v)
 
-extRenE m env vs
+extRenE env vs
   | not (null shadowed)            = fail ("Illegal shadowing of state variable: " ++ showids shadowed)
   | not (null shadowed')           = fail ("Illegal shadowing of state reference: " ++ showids shadowed')
-  | otherwise                      = do rE' <- renamingMod m (noDups vs)
+  | otherwise                      = do rE' <- renaming (noDups vs)
                                         return (env { rE = rE' ++ rE env })
   where shadowed                   = intersect vs (stateVars env)
         shadowed'                  = intersect vs (self env)
@@ -78,20 +78,36 @@ unvoid vs env                      = env { void = void env \\ vs }
 
 unvoidAll env                      = env { void = [] }
 
-extRenT m env vs                   = do rT' <- renamingMod m (noDups vs)
+extRenT env vs                     = do rT' <- renaming (noDups vs)
                                         return (env { rT = rT' ++ rT env })
-
-extRenL m env ss                   = do rL' <- renamingMod m ss
+{-
+extRenL env ss                     = do rL' <- renaming ss
                                         return (env { rL = rL' ++ rL env })
+-}
+extRenEMod pub m env vs            = do rE' <- extRenXMod pub m (rE env) vs
+                                        return (env {rE = rE'})
+
+extRenTMod pub m env vs            = do rT' <- extRenXMod pub m (rT env) vs
+                                        return (env {rT = rT'})
+
+extRenLMod pub m env vs            = do rL' <- extRenXMod pub m (rL env) vs
+                                        return (env {rL = rL'})
 
 extRenSelf env s                   = do rE' <- renaming [s]
                                         return (env { rE = rE' ++ rE env, self = [s] })
 
-noDups vs
-  | not (null dups)                = error ("Duplicate variables: " ++ showids dups)
-  | otherwise                      = vs
-  where dups                       = duplicates vs
+extRenXMod pub m rX vs             = do rX' <- renaming (map (mName (qual pub)) (noQual vs))
+                                        let rX'' = if pub 
+                                                   then (mergeRenamings1 (mapFst (mName Nothing) rX') rX) ++ rX'
+                                                   else mergeRenamings1 rX' rX
+                                        return (rX'') 
+  where qual True                  = Just (str m)
+        qual False                 = Nothing
 
+noQual vs                          = map checkQual vs
+  where checkQual v
+         | fromMod v == Nothing    = v
+         | otherwise               = error ("Binding occurrence may not be qualified: " ++ show v)
 
 -- Binding of overloaded names ------------------------------------------------------------------------
 
@@ -117,61 +133,76 @@ instance Rename a => Rename (Maybe a) where
 
 
 instance Rename Module where
-  rename env (Module c is ds)      = do env1 <- extRenT (Just (str c)) env ts
-                                        env2 <- extRenE (Just (str c)) env1 (cs++vs++vs')
-                                        env3 <- extRenL (Just (str c)) env2 ss
-                                        liftM (Module c is) (rename env3 ds')
-    where (ts,ss,cs,bs)            = renameD [] [] [] [] [] [] ds
-          ds'                      = filter (not . isDBind) ds ++ map DBind (bs' ++ bs)
-          vs                       = bvars bs
-          bs'                      = oloadBinds vs ds
-          vs'                      = bvars bs'
-
-
+  rename env (Module c is ds ps)   = do assert (null kDups) ("Duplicate kind signatures " ++ showids kDups)
+                                        assert (null tDups) ("Duplicate type constructors " ++ showids tDups)
+                                        assert (null sDups) ("Duplicate selectors " ++ showids sDups)
+                                        assert (null cDups) ("Duplicate constructors " ++ showids cDups)
+                                        assert (null wDups) ("Duplicate instance signatures " ++ showids wDups)
+                                        assert (null eDups) ("Duplicate top-level variable " ++ showids eDups)
+                                        assert (null dks)   ("Dangling kind signatures " ++ showids dks)
+                                        env1 <- extRenTMod True  c env  (ts1 ++ ks1')
+                                        env2 <- extRenEMod True  c env1 (cs1 ++ vs1 ++ vs1')
+                                        env3 <- extRenLMod True  c env2 ss1
+                                        env4 <- extRenTMod False c env3 ((ts2 \\ ks1') ++ ks2)
+                                        env5 <- extRenEMod False c env4 (cs2 ++ vs2 ++ vs2')
+                                        env6 <- extRenLMod False c env5 ss2
+                                        let bs = shuffleD ws (bs1 ++ bs2)
+                                        ds' <- rename env6 (filter (not . isDBind) (ds ++ ps) ++ map DBind (bs1' ++ bs2' ++ bs))
+                                        return (Module c is ds' [])
+   where (ks1,ts1,ss1,cs1,ws1,bs1) = renameD [] [] [] [] [] [] ds
+         (ks2,ts2,ss2,cs2,ws2,bs2) = renameD [] [] [] [] [] [] ps
+         vs1                       = bvars bs1
+         vs2                       = bvars bs2
+         vs                        = vs1 ++ vs2
+         ks                        = ks1 ++ ks2
+         ts                        = ts1 ++ ts2
+         ws                        = ws1 ++ ws2
+         bs1'                      = oloadBinds vs ds
+         bs2'                      = oloadBinds vs ps
+         vs1'                      = bvars bs1'
+         vs2'                      = bvars bs2'
+         ks1'                      = ks1 \\ ts1
+         dks                       = ks \\ ts
+         kDups                     = duplicates ks
+         tDups                     = duplicates ts
+         sDups                     = duplicates (ss1 ++ ss2)
+         cDups                     = duplicates (cs1 ++ cs2)
+         wDups                     = duplicates ws
+         eDups                     = duplicates vs
+         
 renameD ks ts ss cs ws bs (DKSig c k : ds)
-  | c `elem` ks                    = error ("Duplicated kind signature: " ++ show c)
-  | otherwise                      = renameD (c:ks) ts ss cs ws bs ds
+                                   = renameD (c:ks) ts ss cs ws bs ds
 renameD ks ts ss cs ws bs (DRec _ c _ _ sigs : ds)
-  | c `elem` ts                    = error ("Duplicated type constructor definition: " ++ show c)
-  | not (null dups)                = error ("Duplicated selectors: " ++ showids dups)
-  | otherwise                      = renameD (ks\\[c]) (c:ts) (sels++ss) cs ws bs ds
+                                   = renameD ks (c:ts) (sels++ss) cs ws bs ds
   where sels                       = concat [ vs | Sig vs t <- sigs ]
-        dups                       = duplicates sels ++ (ss `intersect` sels)
 renameD ks ts ss cs ws bs (DData c _ _ cdefs : ds)
-  | c `elem` ts                    = error ("Duplicated type constructor definition: " ++ show c)
-  | not (null dups)                = error ("Duplicated constructors: " ++ showids dups)
-  | otherwise                      = renameD (ks\\[c]) (c:ts) ss (cons++cs) ws bs ds
+                                   = renameD ks (c:ts) ss (cons++cs) ws bs ds
   where cons                       = [ c | Constr c _ _ <- cdefs ]
-        dups                       = duplicates cons ++ (cs `intersect` cons)
 renameD ks ts ss cs ws bs (DInst _ _ : ds)
                                    = renameD ks ts ss cs ws bs ds
 renameD ks ts ss cs ws bs (DType c _ _ : ds)
-  | c `elem` ts                    = error ("Duplicated type constructor definition: " ++ show c)
-  | otherwise                      = renameD (ks\\[c]) (c:ts) ss cs ws bs ds
+                                   = renameD ks (c:ts) ss cs ws bs ds
 renameD ks ts ss cs ws bs (DPSig v t : ds)
-  | v `elem` ws                    = error ("Duplicated instance signature: " ++ show v)
-  | otherwise                      = renameD ks ts ss cs (v:ws) bs ds
+                                   = renameD ks ts ss cs (v:ws) bs ds
 renameD ks ts ss cs ws bs (DBind b : ds)
                                    = renameD ks ts ss cs ws (b:bs) ds
-renameD ks ts ss cs ws bs []
-  | not (null ks)                  = error ("Dangling kind signatures: " ++ showids ks)
-  | otherwise                      = (ts, ss, cs, shuffleD ws (reverse bs))
+renameD ks ts ss cs ws bs []       = (ks, ts, ss, cs, ws, reverse bs)
 
 
 instance Rename Decl where
   rename env d@(DKSig _ _)         = return d
-  rename env (DData c vs ts cs)    = do env' <- extRenT Nothing env vs
+  rename env (DData c vs ts cs)    = do env' <- extRenT env vs
                                         liftM2 (DData (renT env c) (map (renT env') vs)) (renameQTs env' ts) (rename env' cs)
-  rename env (DRec isC c vs ts ss) = do env' <- extRenT Nothing env vs
+  rename env (DRec isC c vs ts ss) = do env' <- extRenT env vs
                                         liftM2 (DRec isC (renT env c) (map (renT env') vs)) (renameQTs env' ts) (rename env' ss)
-  rename env (DType c vs t)        = do env' <- extRenT Nothing env vs
+  rename env (DType c vs t)        = do env' <- extRenT env vs
                                         liftM (DType (renT env c) (map (renT env') vs)) (rename env' t)
   rename env (DInst t bs)          = liftM2 DInst (renameQT env t) (rename env bs)
   rename env (DPSig v t)           = liftM (DPSig (renE env v)) (renameQT env t)
   rename env (DBind b)             = liftM DBind (rename env b)
 
 instance Rename Constr where
-  rename env (Constr c ts ps)      = do env' <- extRenT Nothing env (bvars ps')
+  rename env (Constr c ts ps)      = do env' <- extRenT env (bvars ps')
                                         liftM2 (Constr (renE env c)) (rename env' ts) (rename env' ps')
    where ps'                       = completeP env ts ps
 
@@ -201,7 +232,7 @@ instance Rename Pred where
   rename env (PKind v k)           = return (PKind (renT env v) k)
 
 instance Rename Type where
-  rename env (TQual t ps)          = do env' <- extRenT Nothing env (bvars ps)
+  rename env (TQual t ps)          = do env' <- extRenT env (bvars ps)
                                         liftM2 TQual (rename env' t) (rename env' ps)
   rename env (TCon c)              = return (TCon (renT env c))
   rename env (TVar v)              = return (TVar (renT env v))
@@ -213,7 +244,7 @@ instance Rename Type where
   rename env (TFun t1 t2)          = liftM2 TFun (rename env t1) (rename env t2)
 
 instance Rename Bind where
-  rename env (BEqn lh rh)          = do env' <- extRenE Nothing env (bvars lh)
+  rename env (BEqn lh rh)          = do env' <- extRenE env (bvars lh)
                                         liftM2 BEqn (rename env' lh) (rename env' rh)
   rename env (BSig vs t)           = liftM (BSig (map (renE env) vs)) (renameQT env t)
 
@@ -235,9 +266,9 @@ instance Rename Exp where
   rename env EWild                 = return EWild
   rename env (ESig e t)            = liftM2 ESig (rename env e) (renameQT env t)
   rename env (ERec m fs)           = liftM (ERec (renRec env m)) (rename env fs)
-  rename env (ELam ps e)           = do env' <- extRenE Nothing env (pvars ps)
+  rename env (ELam ps e)           = do env' <- extRenE env (pvars ps)
                                         liftM2 ELam (rename env' ps) (rename env' e)
-  rename env (ELet bs e)           = do env' <- extRenE Nothing env (bvars bs)
+  rename env (ELet bs e)           = do env' <- extRenE env (bvars bs)
                                         liftM2 ELet (rename env' (shuffleB bs)) (rename env' e)
   rename env (ECase e as)          = liftM2 ECase (rename env e) (rename env as)
   rename env (EIf e1 e2 e3)        = liftM3 EIf (rename env e1) (rename env e2) (rename env e3)
@@ -270,7 +301,7 @@ instance Rename Field where
 instance Rename (Rhs Exp) where
   rename env (RExp e)              = liftM RExp (rename env e)
   rename env (RGrd gs)             = liftM RGrd (rename env gs)
-  rename env (RWhere e bs)         = do env' <- extRenE Nothing env (bvars bs)
+  rename env (RWhere e bs)         = do env' <- extRenE env (bvars bs)
                                         liftM2 RWhere (rename env' e) (rename env' (shuffleB bs))
 
 
@@ -285,27 +316,27 @@ renameQ env (QExp e : qs) e0       = do e <- rename env e
                                         (qs,e0) <- renameQ env qs e0
                                         return (QExp e : qs, e0)
 renameQ env (QGen p e : qs) e0     = do e <- rename env e
-                                        env' <- extRenE Nothing env (pvars p)
+                                        env' <- extRenE env (pvars p)
                                         p <- rename env' p
                                         (qs,e0) <- renameQ env' qs e0
                                         return (QGen p e : qs, e0)
-renameQq env (QLet bs : qs) e0     = do env' <- extRenE Nothing env (bvars bs)
+renameQq env (QLet bs : qs) e0     = do env' <- extRenE env (bvars bs)
                                         bs <- rename env' bs
                                         (qs,e0) <- renameQ env' qs e0
                                         return (QLet bs : qs, e0)
 
 
 instance Rename (Alt Exp) where
-  rename env (Alt  p rh)           = do env' <- extRenE Nothing env (pvars p)
+  rename env (Alt  p rh)           = do env' <- extRenE env (pvars p)
                                         liftM2 Alt (rename env' p) (rename env' rh) 
 
 
 renameS env []                     = return []
 renameS env [SRet e]               = liftM (:[]) (liftM SRet (rename env e))
 renameS env (SExp e : ss)          = liftM2 (:) (liftM SExp (rename env e)) (renameS env ss)
-renameS env (SGen p e : ss)        = do env' <- extRenE Nothing env (pvars p)
+renameS env (SGen p e : ss)        = do env' <- extRenE env (pvars p)
                                         liftM2 (:) (liftM2 SGen (rename env' p) (rename env e)) (renameS env' ss)
-renameS env ss@(SBind _ : _)       = do env' <- extRenE Nothing env (bvars ss1)
+renameS env ss@(SBind _ : _)       = do env' <- extRenE env (bvars ss1)
                                         liftM2 (++) (mapM (renameB env') ss1) (renameS env' ss2)
   where (ss1,ss2)                  = span isSBind ss
         renameB env (SBind b)      = liftM SBind (rename env b)
@@ -386,5 +417,4 @@ attachList sigs []                 = (sigs, [])
 attachList sigs (p:ps)             = (sigs2, p':ps')
   where (sigs1,p')                 = attach sigs p
         (sigs2,ps')                = attachList sigs1 ps
-
 

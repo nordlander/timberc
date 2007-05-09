@@ -80,6 +80,7 @@ Reserved Ids
         'let'		{ KW_Let }
         'module'	{ KW_Module }
         'of'		{ KW_Of }
+        'private'       { KW_Private }
         'record'        { KW_Record }
         'return'        { KW_Return }
         'request'       { KW_Request }
@@ -99,23 +100,37 @@ Reserved Ids
 -- Module Header ------------------------------------------------------------
 
 module  :: { Module }
-        : 'module' conid 'where' body		{ uncurry (Module $2) $4 }
+        : 'module' modid 'where' body		{ uncurry3 (Module $2) $4 }
 
-body    :: { ([Import],[Decl]) }
-        : '{' layout_off imports topdecls optsemi '}'	{ (reverse $3,reverse $4) }
-        |     layout_on  imports topdecls optsemi close	{ (reverse $2, reverse $3) }
+modid   :: { Name }
+        : CONID                             { name0 $1 }
+
+
+
+body    :: { ([Import],[Decl],[Decl]) }
+        : '{' layout_off imports topdecls optsemi '}' private	{ (reverse $3,reverse $4, $7) }
+        |     layout_on  imports topdecls optsemi close	private { (reverse $2, reverse $3, $6) }
+
+private :: { [Decl] }
+        : 'private' pbody			{ $2 }
+        | {- empty -}			        { [] }
+
 
 optsemi :: { () }
-        : ';'					{ () }
-        | {- empty -}				{ () }
+        : '}'                                   { () }
+        | {- empty -}                           { () }
+
+pbody    :: { [Decl] }
+        : '{' layout_off topdecls optsemi '}'	{ reverse $3 }
+        |     layout_on  topdecls optsemi close	{ reverse $2 }
 
 imports :: { [Import] }
         : imports import ';'                    { $2 : $1 }
         | {- empty -}                           { [] }
 
 import  :: { Import }
-        : 'import' conid                        { Import True $2 }
-        | 'use' conid                           { Import False $2 }
+        : 'import' modid                        { Import True $2 }
+        | 'use' modid                           { Import False $2 }
 
 
 -- Top-level declarations ---------------------------------------------------

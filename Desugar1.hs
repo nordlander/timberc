@@ -6,8 +6,8 @@ import Common
 import Syntax
 import Depend
 
-desugar1 (Module c is ds)      = do ds <- dsDecls (mkEnv c ds) ds
-                                    return (Module c is ds)
+desugar1 e0 (Module c is ds ps)  = do let env = mkEnv c (ds ++ ps) e0
+                                      liftM2 (Module c is) (dsDecls env ds) (dsDecls env ps)
 
 {-
     This module performs desugaring transformations that must be performed before the renaming pass:
@@ -26,21 +26,27 @@ desugar1 (Module c is ds)      = do ds <- dsDecls (mkEnv c ds) ds
 
 data Env                        = Env { sels :: Map Name [Name], 
                                         self :: Maybe Name , 
+                                        selSubst :: Map Name Name,
                                         modName :: Maybe String,
                                         tsyns :: Map Name ([Name],Type)} deriving Show
 
 
-env0                            = Env { sels = [], self = Nothing, modName = Nothing, tsyns = [] }
+env0 ss                       = Env { sels = [], self = Nothing, selSubst = [], modName = Nothing, tsyns = ss }
 
 
-mkEnv ds                        = (tsynE env0 tsynDecls) {sels = map transClose recEnv} 
-  where recEnv                  = [ (c,(map type2head ts, sort (concat (map sels ss)))) | DRec _ c _ ts ss <- ds ]
-        sels (Sig vs _)         = vs
-        transClose (c,(cs,ss))  = (c, ss ++ concat (map (selectors recEnv [c]) cs))
-        selectors re cs0 c
-          | c `elem` cs0        = error ("Circular record dependecies: " ++ showids (c:cs0))
-          | otherwise           = case lookup c re of
-                                    Just (cs,ss) -> ss ++ concat (map (selectors re (c:cs0)) cs)
+mkEnv c ds (rs,rn,ss)           = (tsynE (env0 ss) tsynDecls) {sels = map transClose recEnv, modName = Just(str c), selSubst = rnSels}
+  where recEnvLoc               = [ (c,(map type2head ts, concat (map sels ss))) | DRec _ c _ ts ss <- ds ] 
+        recEnvImp               = zip ns (zip (repeat []) ss) where (ns,ss) = unzip rs
+        recEnv                  = recEnvLoc ++ recEnvImp
+        selsLocQual             = concatMap (snd . snd) recEnvLoc
+        selsLoc                 = map (mName  Nothing) selsLocQual
+        rnSels                  = zip selsLoc selsLocQual ++ zip selsLocQual selsLocQual ++ rn
+        sels (Sig vs _)         = map (mName (Just (str c))) vs
+        transClose (c,(cs,ss))  = (c, sort (ss ++ nub(concat (map (selectors [c]) cs))))
+        selectors cs0 c
+          | c `elem` cs0        = error ("Circular record dependencies: " ++ showids (c:cs0))
+          | otherwise           = case lookup c recEnv of
+                                    Just (cs,ss) -> ss ++ concat (map (selectors (c:cs0)) cs)
                                     Nothing      -> error ("Unknown record constructor: " ++ show c)
 
         tsynDecls                
@@ -58,7 +64,9 @@ tsynE env ((c,(vs,t)) : ps)
 
 selsFromType env c              = case lookup c (sels env) of
                                     Just ss -> ss
-                                    Nothing -> error ("Unknown record constructor: " ++ show c)
+                                    Nothing -> if fromMod c == modName env
+                                               then selsFromType env (c {fromMod = Nothing})
+                                               else error ("Unknown record constructor: " ++ show c)
 
 
 typeFromSels env ss             = f (sels env) ss
@@ -78,9 +86,13 @@ tSubst env c ts                 = case lookup c (tsyns env) of
                                                                 (drop (length vs) ts1)
   where ts1                     = ds1 env ts
 
+ren env cs                      = map ren' cs     
+  where ren' c                  = case lookup c (selSubst env) of
+                                     Nothing -> error ("Unknown record selector: " ++ show c)
+                                     Just c' -> c'
 -- Desugaring -------------------------------------------------------------------------------------------
 
-dsDecls env (DInst t bs : ds)   = do w <- newNameMod (modName env) instanceSym
+dsDecls env (DInst t bs : ds)   = do w <- newName instanceSym
                                      s <- renaming xs
                                      let bs' = map (substB s) bs
                                          r   = ERec (Just (type2head t,True)) (map mkField s)
@@ -160,16 +172,18 @@ instance Desugar1 Exp where
     ds1 env (ERec Nothing fs)
       | not (null dups)            = error ("Duplicate field definitions in record: " ++ showids dups)
       | otherwise                  = ERec (Just (c,True)) (ds1 env fs)
-      where c                      = typeFromSels env (sort (bvars fs))
+      where c                      = typeFromSels env (sort (ren env (bvars fs)))
             dups                   = duplicates (bvars fs)
     ds1 env (ERec (Just (c,all)) fs)
       | not (null dups)            = error ("Duplicate field definitions in record: " ++ showids dups)
       | all && not (null miss)     = error ("Missing selectors in record: " ++ showids miss)
       | otherwise                  = ERec (Just (c,True)) (fs' ++ ds1 env fs)
-      where miss                   = selsFromType env c \\ bvars fs
-            dups                   = duplicates (bvars fs)
-            fs'                    = map (\s -> Field s (EVar s)) miss
- 
+      where miss                   =  ren env (selsFromType env c) \\ ren env (bvars fs)
+            dups                   = duplicates (ren env (bvars fs))
+            fs'                    = map (\s -> Field (tag0 (mkLocal s)) (EVar (mName Nothing (tag0 s)))) miss
+            mkLocal s
+              |fromMod s == modName env = mName Nothing s
+              |otherwise           = s
     ds1 env (ELet bs e)            = ELet (ds1 env bs) (ds1 env e)
     ds1 env (EAp e1 e2)            = EAp (ds1 env e1) (ds1 env e2)
     ds1 env (ETup es)              = ETup (ds1 env es)

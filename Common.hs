@@ -54,6 +54,12 @@ mapFst f xs                     = [ (f a, b) | (a,b) <- xs ]
 
 mapSnd f xs                     = [ (a, f b) | (a,b) <- xs ]
 
+noDups vs
+  | not (null dups)                = error ("Duplicate variables: " ++ showids dups)
+  | otherwise                      = vs
+  where dups                       = duplicates vs
+
+uncurry3 f (x,y,z)              = f x y z
 
 -- String manipulation -----------------------------------------------------
 
@@ -147,50 +153,39 @@ newName s                       = newNameMod Nothing s
 
 newNames s n                    = mapM (const (newName s)) [1..n]
 
-
-{-
 renaming vs                     = mapM f vs
   where f v | tag v == 0        = do n <- newNum
                                      return (v, v { tag = n })
             | otherwise         = return (v, v)
--}
 
-renaming vs                     = renamingMod Nothing vs            
+-- remove pairs from rn2 that are shadowed by rn1; return also shadowed names
+deleteRenamings [] rn2           = (rn2,[])
+deleteRenamings ((n,_):rn1) rn2
+  | fromMod n == Nothing        = (rn,if b then n:ns else ns)
+  | otherwise                   = (rn,ns)
+  where (rn,ns)                 = deleteRenamings rn1 rn2
+        (b,rn')                 = deleteName n rn
+        
+deleteName _ []                 = (False,[])
+deleteName n (p@(m,_):rn) 
+  | str m == str n && fromMod m == Nothing
+                                = (True,rn)
+  | otherwise                   = let (b,rn') = deleteName n rn
+                                  in  (b,p:rn')
 
-renamingMod m vs                = do rs <- mapM f vs
-                                     return (concat rs)
-  where f v |qualified (str v)  = fail ("Illegal qualified name: " ++ str v)
-            | tag v == 0        = do n <- newNum
-                                     return ((v, v { tag = n, fromMod = m}) : if m == Nothing 
-                                                                              then [] 
-                                                                              else [(v {fromMod = m}, v { tag = n, fromMod = m})])
-            | otherwise         = return [(v, v)]
-        qualified s             = lsuf > 0 && lsuf < length s
-          where lsuf            = length (dropWhile (/= '\'') (reverse s))
+mergeRenamings1 rn1 rn2         = rn1 ++ rn2' 
+  where (rn2',_)                = deleteRenamings rn1 rn2
+
+mergeRenamings2 rn1 rn2         = rn1' ++ rn2'
+  where (rn2',ns)               = deleteRenamings rn1 rn2
+        rn1'                    = deleteNames ns rn1
+        deleteNames [] rn       = rn
+        deleteNames (n:ns) rn   = deleteNames ns (snd (deleteName n rn))
 
 assert e msg
   | e                           = return ()
   | otherwise                   = fail msg
 
-splitString s                   = case break2 s of
-                                    (local,[])  -> [local]                                 
-                                    (local,suf) 
-                                        | all (isUpper . head) mods -> local : mods
-                                        | otherwise -> error ("Illegal module name in qualified name " ++ s)
-                                        where mods = splitString suf
-   where break2 xs              = move (break (== '\'') xs)
-         move (xs,y:z:ys)
-                 | z == '\''    = move (xs++[y],z : ys)
-                 | otherwise    = (xs, z : ys)
-         move (xs,ys)           = (xs ++ ys, [])
-
-joinString [x]                  = x
-joinString (x : xs)             = x ++ '\'' : joinString xs                             
-   
-qualName n@(Name s _ Nothing _) = case splitString s of
-                                    [x] -> n
-                                    (x : xs) -> n {str = x, fromMod = Just(joinString xs)}
-qualName n                      = n
 
 -- Poor man's exception datatype ------------------------------------------------------
 

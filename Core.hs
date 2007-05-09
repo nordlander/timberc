@@ -238,6 +238,11 @@ altRhss                         = map snd
 oplus eqs eqs'                  = filter ((`notElem` vs) . fst) eqs ++ eqs'
   where vs                      = dom eqs'
 
+isLocal m (n,_)                 = fromMod n == Just (str m)
+
+filterDecls m (Types ke ds)     = Types (filter (isLocal m) ke) (filter (isLocal m) ds)
+
+filterInsts m (Binds r ss es)   = Binds r (filter (isLocal m) ss) (filter (isLocal m) es)
 
 -- One-way matching -----------------------------------------------------
 -- Only apply when types are known to match!! ---------------------------

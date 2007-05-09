@@ -5,6 +5,7 @@ import Common
 import PP
 import qualified Core
 import qualified Env
+import Data.Binary
 
 -- Kindle is the main back-end intermediate language.  It is a typed imerative language with dynamic 
 -- memory allocation and garbage-collection, that can be described as a slightly extended version of
@@ -321,3 +322,50 @@ instance Pr Exp where
 
 prInit (x, Val t e)                     = prId2 x <+> text "=" <+> pr e
 prInit b                                = pr b
+
+-- Binary --------------------
+{-
+instance Binary Module where
+  put (Module a b c) = put a >> put b >> put c
+  get = get >>= \a -> get >>= \b -> get >>= \c -> return (Module a b c)
+-}
+instance Binary Decl where
+  put (Struct a) = putWord8 0 >> put a
+  put (Enum a) = putWord8 1 >> put a
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \a -> return (Struct a)
+      1 -> get >>= \a -> return (Enum a)
+      _ -> fail "no parse"
+{-
+instance Binary Bind where
+  put (Val a b) = putWord8 0 >> put a >> put b
+  put (Fun a b c) = putWord8 1 >> put a >> put b >> put c
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \a -> get >>= \b -> return (Val a b)
+      1 -> get >>= \a -> get >>= \b -> get >>= \c -> return (Fun a b c)
+      _ -> fail "no parse"
+-}
+instance Binary Type where
+  put (ValT a) = putWord8 0 >> put a
+  put (FunT a b) = putWord8 1 >> put a >> put b
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \a -> return (ValT a)
+      1 -> get >>= \a -> get >>= \b -> return (FunT a b)
+      _ -> fail "no parse"
+
+instance Binary AType where
+  put (TId a) = putWord8 0 >> put a
+  put TWild = putWord8 1
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \a -> return (TId a)
+      1 -> return TWild
+      _ -> fail "no parse"
+

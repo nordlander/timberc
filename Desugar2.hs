@@ -14,8 +14,8 @@ desugar2 m = dsModule m
 -- Modules ------------------------------------------------------------------
 
 dsModule :: Module -> M s Module
-dsModule (Module c is ds)       = do ds <- dsDecls ds
-                                     return (Module c is ds)
+dsModule (Module c is ds ps)    = do ds <- dsDecls ds
+                                     return (Module c is ds ps)
 
 
 -- Top level declarations ---------------------------------------------------

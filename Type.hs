@@ -13,8 +13,8 @@ import Termred
 import PP
 
 
-typecheck                       :: Module -> M s Module
-typecheck m                     = tiModule m
+--typecheck                       :: Module -> M s Module
+typecheck e2 m                     = tiModule e2 m
 
 
 {-
@@ -57,21 +57,27 @@ let f = \w0 v x -> e w0 (f w0 v 7)                                            ::
 -}
 
 
-tiModule (Module v ns ds is bs) = do (env1,ds1,bs1) <- typeDecls env0 ds
-                                     (env2,bs2) <- instancePreds env1 (tsigsOf is)
-                                     (ss0,pe0,subInsts) <- tiBinds env2 (bs1 `catBinds` subInsts)
+tiModule (ds',te,is') (Module v ns ds is bs) = 
+                                  do (env1,ds1,bs1) <- typeDecls env0 ds
+                                     (env2,ds2,bs2) <- typeDecls env1 ds'
+                                     (env3,bs3) <- instancePreds env2 (tsigsOf isTot)
+                                     (ss0,pe0,subInsts) <- tiBinds env3 (bs1 `catBinds` (bs2 `catBinds` subInsts))
                                      -- Here it should be checked that the equation in subInsts follow the
                                      -- retsricted rules for coercions, and that the equalities collected 
-                                     -- in env2 are actually met by the equations in is, bs1 and bs2
-                                     let is0  = bs2 `catBinds` subInsts
-                                         env3 = addInsts (eqnsOf is0) env2
-                                     (ss1,pe1,bs) <- tiBindsList (addTEnv0 (tsigsOf is) env3) (groupBinds bs)
-                                     (ss2,pe2,classInsts) <- tiBinds (addTEnv0 (tsigsOf bs) env3) classInsts
+                                     -- in env3 are actually met by the equations in is, bs1 and bs2
+                                     let is0  = bs3 `catBinds` subInsts
+                                         env4 = addInsts (eqnsOf is0) env3
+                                     (ss1,pe1,bs) <- tiBindsList (addTEnv0 (tsigsOf isTot) env4) (groupBinds bs)
+                                     (ss2,pe2,classInsts) <- tiBinds (addTEnv0 (tsigsOf bs) env4) classInsts
                                      assert (null (pe0++pe1++pe2)) "Internal: top-level type inference"
                                      s <- unify env2 (ss0++ss1++ss2)
-                                     return (Module v ns ds1 (is0 `catBinds` subst s classInsts) (subst s bs))
-  where env0                    = initEnv {modName = Just (str v)}
-        (subInsts,classInsts)   = splitInsts is
+                                     let dsRes = filterDecls v ds1
+                                         isRes = filterInsts v  (is0 `catBinds` subst s classInsts)
+                                     return (Module v ns ds1 isRes (subst s bs))
+  where env0                    = addTEnv0 te (initEnv {modName = Just (str v)})
+        dsTot                   = (ds' `catDecls` ds)
+        isTot                   = is `catBinds` is'
+        (subInsts,classInsts)   = splitInsts isTot
 
 
 tiBindsList env []              = return ([], [], nullBinds)

@@ -1,4 +1,4 @@
-module Core2Kindle(core2kindle) where
+module Core2Kindle(core2kindle,cDecls,cTEnv,dataCons) where
 {- -}
 import Common
 import Core
@@ -7,8 +7,8 @@ import Depend
 import qualified Kindle
 
 
-core2kindle                         :: Module -> M s Kindle.Module
-core2kindle m                       = localStore (cModule m)
+core2kindle                        :: (Kindle.Decls,Kindle.TEnv,Map Name Name) -> Module -> M s Kindle.Module
+core2kindle envI m                  = localStore (cModule envI m)
 
 -- Note: bound variables in the output from this pass are no longer guaranteed to be globally unique!
 -- This arises from the handling of orphaned state variables (see bindOrphans)
@@ -54,12 +54,14 @@ findCon env k
 
 -- Convert a Core.Module into a Kindle.Module
 -- Imports ignored so far
-cModule (Module m ns ds is bs)      = do ds1  <- cDecls ds
+cModule (dsi,tei,csi) (Module m ns ds is bs)      
+                                    = do ds1  <- cDecls ds
+                                         let env1 = addTEnv tei (addDecls dsi env)
                                          mapM_ addToStore (filter (isClosure . fst) ds1)
-                                         bs  <- cBindsList (addDecls ds1 env) (groupBinds (is `catBinds` bs))
+                                         bs  <- cBindsList (addDecls ds1 env1) (groupBinds (is `catBinds` bs))
                                          ds2 <- currentStore
                                          return (Kindle.Module m (ds1++reverse ds2) bs)
-  where env                         = addCons (dataCons ds) env0
+  where env                         = addCons (dataCons ds ++ csi) env0
 
 
 -- Build a mapping from constructor names to the corresponding datatype name
@@ -91,7 +93,7 @@ findClosureName ts t                = do ds <- currentStore
 findClosureDef n                    = do ds <- currentStore
                                          case lookup n ds of
                                             Just (Kindle.Struct [(Prim Code _, Kindle.FunT ts t)]) -> return (ts,t)
-                                            _ -> error "Internal: c2k.findClosureDef"
+                                            _ -> error ("Internal: c2k.findClosureDef; not found: " ++ show n)
 
 
 findClosureType (Kindle.TId n)      = findClosureDef n

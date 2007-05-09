@@ -1,5 +1,6 @@
 module Name where
 
+import List
 import PP
 import Token
 import Char
@@ -144,7 +145,7 @@ isIdPrim p                      = p `notElem` primSyms
 
 primSyms                        = [LIST, NIL, CONS]
 
-primTypes                       = map primKeyValue [Action .. UNIT] ++ alreadyPrimed [UNIT,LIST]
+primTypes                       = map primKeyValue [Action .. UNIT] ++ alreadyPrimed [Action .. UNIT]
 
 primTerms                       = map primKeyValue [UNIT .. Before] ++ alreadyPrimed [UNIT,NIL,CONS]
 
@@ -177,13 +178,39 @@ noAnnot                         = Annot { location = Nothing, explicit = False, 
 loc l                           = noAnnot { location = Just l }
 
 
-name l s                        = Name s 0 Nothing (loc l)
+name l s                        = qualName(Name s 0 Nothing (loc l))
 
 name0 s                         = Name s 0 Nothing noAnnot
+
+mName m c                       = c {fromMod = m}
 
 prim p                          = Prim p noAnnot
 
 tuple n                         = Tuple n noAnnot
+
+
+splitString s                   = case break2 s of
+                                    (local,[])  -> [local]                                 
+                                    (local,suf) 
+                                        | all (isUpper . head) mods -> local : mods
+                                        | otherwise -> error ("Illegal module name in qualified name " ++ s)
+                                        where mods = splitString suf
+   where break2 xs              = move (break (== '\'') xs)
+         move (xs,y:z:ys)
+                 | z == '\''    = move (xs++[y],z : ys)
+                 | otherwise    = (xs, z : ys)
+         move (xs,ys)           = (xs ++ ys, [])
+
+joinString [x]                  = x
+joinString (x : xs)             = x ++ '\'' : joinString xs                             
+   
+qualName n@(Name s _ Nothing _) = case splitString s of
+                                    [x] -> n
+                                    (x : xs) -> n {str = x, fromMod = Just(joinString xs)}
+qualName n                      = n
+
+tag0 (Name s t m a)             = Name s 0 m a
+tag0 n                          = n
 
 isTuple (Tuple _ _)             = True
 isTuple _                       = False
@@ -219,18 +246,25 @@ isState n                       = stateVar (annot n)
 -- Equality & Order ----------------------------------------------------------------
 
 instance Eq Name where
-  Name a 0 m _ == Name b 0 n _  = a == b && m == n
-  Name _ a _ _ == Name _ b _ _  = a == b
-  Tuple a _  == Tuple b _       = a == b
-  Prim a _   == Prim b _        = a == b
-  _          == _               = False
+  Name a 0 Nothing _  == Name b 0 Nothing _  = a == b
+  Name a m Nothing _  == Name b n Nothing _  = m == n
+  Name a 0 (Just m) _ == Name b _ (Just n) _ = a == b && m == n
+  Name a _ (Just m) _ == Name b 0 (Just n) _ = a == b && m == n
+  Name _ a (Just m) _ == Name _ b (Just n) _ = a == b && m == n
+  Tuple a _           == Tuple b _           = a == b
+  Prim a _            == Prim b _            = a == b
+  _                   == _                   = False
+
+-- BvS: I do not understand the use of the Ord instance for Name in Env (for deriving Ord for Rank)
+-- but I guess that the ordering of Names is arbitrary for that purpose. 
+-- The order below is what we want for sorting selectors in Desugar1.
 
 instance Ord Name where
   Prim a _   <= Prim b _        = a <= b
   Prim _ _   <= _               = True
   Tuple a _  <= Tuple b _       = a <= b
   Tuple _ _  <= Name _ _ _ _    = True
-  Name a 0 _ _ <= Name b 0 _ _  = a <= b
+  Name a _ (Just m) _ <= Name b _ (Just n) _  = a < b || ( a == b && m <= n )
   Name _ a _ _ <= Name _ b _ _  = a <= b
   _          <= _               = False
 
@@ -240,7 +274,9 @@ instance Ord Name where
 instance Show Name where
   show (Name s 0 Nothing _)     = show s
   show (Name s n Nothing _)     = show (s ++ "_" ++ show n)
-  show (Name s n (Just m)_)     = show (s ++ "'" ++ m)
+  show (Name s n (Just m) a) 
+     |location a == Nothing     = show (s ++ "_" ++ show n ++ "'" ++ m)
+     |otherwise                 = show (s ++ "'" ++ m)
   show (Tuple n _)              = show ('(' : replicate (n-1) ',' ++ ")")
   show (Prim p _)               = show (strRep p)
 
@@ -270,10 +306,10 @@ prId3 (Name s n m a)
   | n == 0                      = text s
   | otherwise                   = pre <> text ('_' : show n) <> text post
   where pre                     = if isAlpha (head s) && all isAlphaNum (tail s) then text s else text "SYM"
-        post                    = maybe "" ("'" ++) m
+        post                    = maybe "" ("_" ++) m
 prId3 n                         = prId2 n
 
-
+modToPath m                     = concat (List.intersperse "/" (splitString m))
 
 packName n                      = show n
 
@@ -294,6 +330,7 @@ instance Binary Name where
       1 -> get >>= \a -> get >>= \b -> return (Prim a b)
       2 -> get >>= \a -> get >>= \b -> return (Tuple a b)
       _ -> fail "no parse"
+
 
 instance Binary Annot where
   put (Annot a b c) = put a >> put b >> put c

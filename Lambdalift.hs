@@ -5,7 +5,7 @@ import Common
 import Kindle
 
 
-lambdalift m                            = localStore (llModule m)
+lambdalift ds m                         = localStore (llModule ds m)
 
 
 data Env                                = Env { decls      :: Decls,                -- global type declarations
@@ -30,11 +30,11 @@ addExpansions exps env                  = env { expansions = exps ++ expansions 
 
 
 -- Convert a module
-llModule (Module m ds bs)               = do bs <- mapM (llBind env0) bs
+llModule dsi (Module m ds bs)           = do bs <- mapM (llBind env0) bs
                                              s <- currentStore
                                              let (ds',bs') = splitStore [] [] s
                                              return (Module m (ds++ds') (bs++bs'))
-  where env0                            = addDecls ds nullEnv
+  where env0                            = addDecls (ds ++ dsi) nullEnv
         splitStore ds bs []             = (ds, bs)
         splitStore ds bs (Left d : s)   = splitStore (d:ds) bs s
         splitStore ds bs (Right b : s)  = splitStore ds (b:bs) s

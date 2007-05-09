@@ -69,7 +69,8 @@ Reserved Ids
     | KW_Instance 
     | KW_Let
     | KW_Module   
-    | KW_Of       
+    | KW_Of    
+    | KW_Private   
     | KW_Record
     | KW_Request
     | KW_Return
@@ -120,7 +121,8 @@ reserved_ids
         ( "instance",  KW_Instance ), 
         ( "let",       KW_Let ),      
         ( "module",    KW_Module ),   
-        ( "of",        KW_Of ),    
+        ( "of",        KW_Of ),
+        ( "private",   KW_Private ),
         ( "record",    KW_Record ),
         ( "return",    KW_Return ),
         ( "request",   KW_Request ),

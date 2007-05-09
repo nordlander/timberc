@@ -5,7 +5,7 @@ import Lexer
 import PP
 import Data.Binary
 
-data Module = Module Name [Import] [Decl]
+data Module = Module Name [Import] [Decl] [Decl]
             deriving  (Show)
 
 data Import = Import Bool Name 
@@ -118,6 +118,9 @@ data Stmt   = SExp    Exp
 
 -- Helper functions ----------------------------------------------------------------
 
+imports (Module c is _ _) 
+      | str c == "Prelude"      = is
+      | otherwise               = Import True (name0 "Prelude") : is
 
 newEVar v                       = do i <- newName v
                                      return (EVar i)
@@ -330,8 +333,9 @@ instance Subst Pred Name Type where
 -- Modules -------------------------------------------------------------------
 
 instance Pr Module where
-    pr (Module c is ds)         = text "module" <+> prId c <+> text "where"
+    pr (Module c is ds ps)      = text "module" <+> prId c <+> text "where"
                                   $$ vpr is $$ vpr ds 
+                                  $$ text "private" $$ vpr ps
 
 instance Pr Import where
    pr (Import True n)           = text "import" <+> prId n
@@ -606,8 +610,8 @@ instance Ids Pred where
 -- Binary --------------------------------------
 
 instance Binary Module where
-  put (Module a b c) = put a >> put b >> put c
-  get = get >>= \a -> get >>= \b -> get >>= \c -> return (Module a b c)
+  put (Module a b c d) = put a >> put b >> put c >> put d
+  get = get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (Module a b c d)
 
 instance Binary Import where
   put (Import a b) = put a >> put b
