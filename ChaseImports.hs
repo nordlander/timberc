@@ -139,7 +139,7 @@ ifaceMod (Module c ns ds is bs)
         bs1                       = Binds rec2 ts2' []
         vis                       = nub(localTypes [] (rng ts1' ++ rng ts2'))
         exported (n,y)            = fromMod n /= Nothing
-        exported' (n,d)           = fromMod n /= Nothing && (null (localTypes [] d)) --Constructors/selectors are exported
+        exported' p@(n,_)         = fromMod n /= Nothing && (not(isAbstract p)) --Constructors/selectors are exported
 
 listIface f                       = do m <- decodeFile f
                                        putStrLn (render(pr (m :: Core.Module)))
@@ -147,3 +147,6 @@ listIface f                       = do m <- decodeFile f
 isPrivate (Name _ _ Nothing _)    = True
 isPrivate _                       = False
 
+isAbstract (n,DData _ _ ((c,_):_)) = isPrivate c
+isAbstract (n,DRec _ _ _ ((c,_):_))= isPrivate c
+isAbstract (n,_)                   = False     -- this makes abstract types without selectors/constructors non-private...
