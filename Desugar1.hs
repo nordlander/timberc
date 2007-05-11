@@ -178,7 +178,7 @@ instance Desugar1 Exp where
       | not (null dups)            = error ("Duplicate field definitions in record: " ++ showids dups)
       | all && not (null miss)     = error ("Missing selectors in record: " ++ showids miss)
       | otherwise                  = ERec (Just (c,True)) (fs' ++ ds1 env fs)
-      where miss                   =  ren env (selsFromType env c) \\ ren env (bvars fs)
+      where miss                   = ren env (selsFromType env c) \\ ren env (bvars fs)
             dups                   = duplicates (ren env (bvars fs))
             fs'                    = map (\s -> Field (tag0 (mkLocal s)) (EVar (mName Nothing (tag0 s)))) miss
             mkLocal s

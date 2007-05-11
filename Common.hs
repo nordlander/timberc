@@ -158,24 +158,34 @@ renaming vs                     = mapM f vs
                                      return (v, v { tag = n })
             | otherwise         = return (v, v)
 
+
+-- Merging renamings ------------------------------------------------------
+
+-- Here we cannot use equality of names (Eq instance), since two unqualified
+-- imported names with the same string will have non-zero tags and hence not be compared
+-- for str equality.
+
 -- remove pairs from rn2 that are shadowed by rn1; return also shadowed names
 deleteRenamings [] rn2           = (rn2,[])
 deleteRenamings ((n,_):rn1) rn2
-  | fromMod n == Nothing        = (rn,if b then n:ns else ns)
+  | fromMod n == Nothing        = (rn',if b then n:ns else ns)
   | otherwise                   = (rn,ns)
   where (rn,ns)                 = deleteRenamings rn1 rn2
         (b,rn')                 = deleteName n rn
         
 deleteName _ []                 = (False,[])
-deleteName n (p@(m,_):rn) 
-  | str m == str n && fromMod m == Nothing
-                                = (True,rn)
-  | otherwise                   = let (b,rn') = deleteName n rn
+deleteName n ((Name s t Nothing a,_):rn) 
+  | str n == s                  = (True,rn)
+deleteName n (p:rn)             = let (b,rn') = deleteName n rn
                                   in  (b,p:rn')
 
+-- for merging renaming for locally bound names with ditto for imported names;
+-- removes unqualified form of imported name
 mergeRenamings1 rn1 rn2         = rn1 ++ rn2' 
   where (rn2',_)                = deleteRenamings rn1 rn2
 
+-- for merging renamings from two imported modules;
+-- removes both occurrences when two unqualified names clash
 mergeRenamings2 rn1 rn2         = rn1' ++ rn2'
   where (rn2',ns)               = deleteRenamings rn1 rn2
         rn1'                    = deleteNames ns rn1

@@ -607,6 +607,7 @@ instance Ids Pred where
   idents (PType t)              = idents t
   idents (PKind v k)            = []
 
+{-
 -- Binary --------------------------------------
 
 instance Binary Module where
@@ -820,3 +821,5 @@ instance Binary Stmt where
       9 -> get >>= \a -> return (SElse a)
       10 -> get >>= \a -> get >>= \b -> return (SCase a b)
       _ -> fail "no parse"
+
+-}

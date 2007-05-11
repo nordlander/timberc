@@ -238,7 +238,7 @@ altRhss                         = map snd
 oplus eqs eqs'                  = filter ((`notElem` vs) . fst) eqs ++ eqs'
   where vs                      = dom eqs'
 
-isLocal m (n,_)                 = fromMod n == Just (str m)
+isLocal m (n,_)                 = fromMod n == Just (str m) || fromMod n == Nothing
 
 filterDecls m (Types ke ds)     = Types (filter (isLocal m) ke) (filter (isLocal m) ds)
 

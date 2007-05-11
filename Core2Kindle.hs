@@ -56,12 +56,11 @@ findCon env k
 -- Imports ignored so far
 cModule (dsi,tei,csi) (Module m ns ds is bs)      
                                     = do ds1  <- cDecls ds
-                                         let env1 = addTEnv tei (addDecls dsi env)
                                          mapM_ addToStore (filter (isClosure . fst) ds1)
-                                         bs  <- cBindsList (addDecls ds1 env1) (groupBinds (is `catBinds` bs))
+                                         bs  <- cBindsList (addDecls ds1 env) (groupBinds (is `catBinds` bs))
                                          ds2 <- currentStore
                                          return (Kindle.Module m (ds1++reverse ds2) bs)
-  where env                         = addCons (dataCons ds ++ csi) env0
+  where env                         = addTEnv tei (addDecls dsi (addCons (dataCons ds ++ csi) env0))
 
 
 -- Build a mapping from constructor names to the corresponding datatype name

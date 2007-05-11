@@ -30,7 +30,7 @@ data Env                           = Env { rE :: Map Name Name,
                                            rL :: Map Name Name,
                                            self :: [Name],
                                            void :: [Name]
-                                         }
+                                         } deriving Show
 
 initEnv (rL',rT',rE')              = Env { rE = primTerms ++ rE', rT = primTypes ++ rT', rS = [], rL = rL', self = [], void = [] }
 
@@ -80,10 +80,6 @@ unvoidAll env                      = env { void = [] }
 
 extRenT env vs                     = do rT' <- renaming (noDups vs)
                                         return (env { rT = rT' ++ rT env })
-{-
-extRenL env ss                     = do rL' <- renaming ss
-                                        return (env { rL = rL' ++ rL env })
--}
 extRenEMod pub m env vs            = do rE' <- extRenXMod pub m (rE env) vs
                                         return (env {rE = rE'})
 
@@ -141,10 +137,10 @@ instance Rename Module where
                                         assert (null eDups) ("Duplicate top-level variable " ++ showids eDups)
                                         assert (null dks)   ("Dangling kind signatures " ++ showids dks)
                                         env1 <- extRenTMod True  c env  (ts1 ++ ks1')
-                                        env2 <- extRenEMod True  c env1 (cs1 ++ vs1 ++ vs1')
+                                        env2 <- extRenEMod True  c env1 (cs1 ++ vs1 ++ vs1' ++ vss)
                                         env3 <- extRenLMod True  c env2 ss1
                                         env4 <- extRenTMod False c env3 ((ts2 \\ ks1') ++ ks2)
-                                        env5 <- extRenEMod False c env4 (cs2 ++ vs2 ++ vs2')
+                                        env5 <- extRenEMod False c env4 (cs2 ++ (vs2 \\ vss) ++ vs2')
                                         env6 <- extRenLMod False c env5 ss2
                                         let bs = shuffleD ws (bs1 ++ bs2)
                                         ds' <- rename env6 (filter (not . isDBind) (ds ++ ps) ++ map DBind (bs1' ++ bs2' ++ bs))
@@ -153,6 +149,7 @@ instance Rename Module where
          (ks2,ts2,ss2,cs2,ws2,bs2) = renameD [] [] [] [] [] [] ps
          vs1                       = bvars bs1
          vs2                       = bvars bs2
+         vss                       = concat [ ss | BSig ss _ <- bs1 ] \\ vs1
          vs                        = vs1 ++ vs2
          ks                        = ks1 ++ ks2
          ts                        = ts1 ++ ts2

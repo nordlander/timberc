@@ -10,6 +10,8 @@ import Decls
 import PP
 import qualified Core2Kindle 
 
+-- Reading interface files following import chains --------------------------------------------
+
 chaseImports m imps             = do bms <- mapM readImport imps
                                      rms <- chaseRecursively (map impName imps) [] (concatMap recImps bms)
                                      return (bms ++ rms)
@@ -23,49 +25,68 @@ chaseImports m imps             = do bms <- mapM readImport imps
              | otherwise               = do m@(Module _ ns _ _ _) <- decodeFile (modToPath (str r) ++ ".ti")
                                             chaseRecursively (r : vs) ((False,False,m) : ms) (rs ++ ns)
 
-data IFace = IFace [Name]                       -- imported modules
-               (Map Name [Name])                -- exported record types and their selectors,
-               (Map Name ([Name],Syntax.Type))  -- type synonyms
-               KEnv                             -- kinds for exported tycons
-               TEnv                             -- types for exported values (including sels and cons)
-               PEnv                             -- 
-           deriving (Show)
 
+-- Building imported environments for various compiler passes -----------------------
 
--- record type name to selectors, renaming to qualified form for selectors, type synonym to type
-type DsEnv                = (Map Name [Name], Map Name Name, Map Name ([Name],Syntax.Type)) 
--- renaming for selector, type and term names
-type RnEnv                = (Map Name Name, Map Name Name, Map Name Name) 
--- kinds and types, types for terms, witnesses   
-type TcEnv                = (Types, TEnv, Binds)                             
+{- 
 
+The interface files contains the Core form of the respective module, stripped of equations in the two Binds parts.
 
+We need to merge info from these files to provide necessary data about imported modules. 
+
+mkEnv builds an 8-tuple with intermediate info from each interface file, using two Booleans indicating 
+ * whether the module is imported directly, i.e. mentioned in import/use clause in the importing module 
+   (exported terms can be used) or indirectly (so type signatures for terms are not in scope) 
+ * in the former case, whether we have import or use.
+
+mergeMod merges results from all imported modules.
+
+initEnvs uses the result to builds a 5-tuple (e0,e1,e2,e3,e4) where
+- e0 is info for Desugar1:
+  * a map from record type names to lists of selector names (for record stuffing)
+  * a renaming of selector names to correctly identify imported selectors (technical detail related to Name equality, tags, etc)
+  * a map from type synonym names to their Syntax.Type (for unfolding of synonyms)
+- e1 is Info for Rename
+  * three renamings of imported names, for types, labels and terms 
+- e2 is for Type
+  * The merged Types component of all imported modules. 
+  * Merged instance type signatures.
+  * Merged term type signatures.
+- e3 is for Core2Kindle and Prepare4C
+  * Kindle form of declarations and type signatures.
+  * Map of constructor names to the corresponding type.
+- e4 is for Lambdalift
+  * Kindle form of type declarations.
+
+initEnvs is called in Main after parsing and chasing of import files.
+
+-}
 
 initEnvs bms         = do ims <- mapM mkEnv bms
-                          let (rs,ss,rnL,rnT,rnE,ds,te,is) = foldr mergeMod ([],[],[],[],[],Types [] [],[],Binds True [] []) ims
+                          let (rs,ss,rnL,rnT,rnE,ds,ite,te) = foldr mergeMod ([],[],[],[],[],Types [] [],[],[]) ims
                           kds <- Core2Kindle.cDecls ds
-                          kte <- Core2Kindle.cTEnv (tsigsOf is ++ te)
+                          kte <- Core2Kindle.cTEnv (ite ++ te)
                           let cs = Core2Kindle.dataCons ds
-                          return ((rs,rnL,ss),(rnL,rnT,rnE),(ds,te,is),(kds,kte,cs),kds)
+                          return ((rs,rnL,ss),(rnL,rnT,rnE),(ds,ite,te),(kds,kte,cs),kds)
 
-mergeMod (rs1,ss1,rnL1,rnT1,rnE1,ds1,te1,is1)
-         (rs2,ss2,rnL2,rnT2,rnE2,ds2,te2,is2) =
+mergeMod (rs1,ss1,rnL1,rnT1,rnE1,ds1,ite1,te1)
+         (rs2,ss2,rnL2,rnT2,rnE2,ds2,ite2,te2) =
                                    (rs1 ++ rs2, ss1 ++ ss2, mergeRenamings2 rnL1 rnL2, 
                                     mergeRenamings2 rnT1 rnT2, mergeRenamings2 rnE1 rnE2,
-                                    catDecls ds1 ds2, te1 ++ te2,catBinds is1 is2)
+                                    catDecls ds1 ds2, ite1 ++ ite2, te1 ++ te2)
 
 mkEnv (unQual,direct,Module v ns ds is bs)  
                           = do ks  <- renaming (dom ke)
                                ts  <- renaming (dom te')
                                rs' <- renaming (concatMap snd rs)
-                               return (unMod unQual rs,unMod unQual ss, unMod unQual rs',unMod unQual ks,
-                                       unMod unQual ts,ds,te',is)
+                               return (unMod rs,unMod ss, unMod rs',unMod ks,
+                                       unMod ts,ds,tsigsOf is,te')
   where Types ke ds'      = ds
         Binds _ te _      = bs
         (rs,ts,ss)        = iDecls env [] [] [] ds'
-        te'               = if direct then ts ++ te else []
+        te'               = ts ++ if direct then te else []
         env               = addKEnv0 ke nullEnv
-        unMod b ps        = if b then [(tag0 (mName Nothing c),y) | (c,y) <- ps] ++ ps else ps
+        unMod ps          = if unQual then [(tag0 (mName Nothing c),y) | (c,y) <- ps] ++ ps else ps
  
 
 iDecls env rs ts ss []    = (rs,ts,ss)
@@ -87,7 +108,45 @@ c2sType (TFun ts t)       = Syntax.TFun (map c2sType ts) (c2sType t)
 c2sType (TAp t1 t2)       = Syntax.TAp (c2sType t1) (c2sType t2)
 c2sType (TVar _)          = error "Internal error: type synonym with TVar"
 
+-- Stripping a Core Module to interface form --------------------------------------------------
 
+{- 
+
+ifaceMod strips a Core module of all equations and of private declarations. 
+
+It also checks that the interface module is closed, i.e. does not mention 
+private (and therefore stripped) entities.
+
+-}
+
+ifaceMod (Module c ns ds is bs) 
+   | not(null vis)                = error ("Private types visible in interface: " ++ showids vis)
+   | otherwise                    = Module c ns ds1 is1 bs1
+  where Types ke te               = ds
+        Binds rec1 ts1 es1        = is
+        Binds rec2 ts2 _          = bs
+        ds1                       = Types (filter exported ke) (filter exported' te)
+        ts1'                      = filter exported ts1
+        ts2'                      = filter exported ts2
+        is1                       = Binds rec1 ts1' []
+        bs1                       = Binds rec2 ts2' []
+        vis                       = nub(localTypes [] (rng ts1' ++ rng ts2'))
+        exported (n,y)            = fromMod n /= Nothing
+        exported' p@(n,_)         = fromMod n /= Nothing && (not(isAbstract p)) --Constructors/selectors are exported
+
+listIface f                       = do m <- decodeFile f
+                                       putStrLn (render(pr (m :: Core.Module)))
+
+isPrivate (Name _ _ Nothing _)    = True
+isPrivate _                       = False
+
+isAbstract (n,DData _ _ ((c,_):_)) = isPrivate c
+isAbstract (n,DRec _ _ _ ((c,_):_))= isPrivate c
+isAbstract (n,_)                   = False     -- this makes abstract types without selectors/constructors non-private...
+
+-- LocalTypes ----------------------------------------------------------------------
+
+-- Auxiliary class used above when searching for (illegal) private types in interface module.
 
 class LocalTypes a where 
   localTypes :: [Name] -> a -> [Name]
@@ -126,27 +185,3 @@ instance LocalTypes Constr where
     where ns1                     = ns ++ dom ke
        
 
-ifaceMod (Module c ns ds is bs) 
-   | not(null vis)                = error ("Private types visible in interface: " ++ showids vis)
-   | otherwise                    = Module c ns ds1 is1 bs1
-  where Types ke te               = ds
-        Binds rec1 ts1 es1        = is
-        Binds rec2 ts2 _          = bs
-        ds1                       = Types (filter exported ke) (filter exported' te)
-        ts1'                      = filter exported ts1
-        ts2'                      = filter exported ts2
-        is1                       = Binds rec1 ts1' []
-        bs1                       = Binds rec2 ts2' []
-        vis                       = nub(localTypes [] (rng ts1' ++ rng ts2'))
-        exported (n,y)            = fromMod n /= Nothing
-        exported' p@(n,_)         = fromMod n /= Nothing && (not(isAbstract p)) --Constructors/selectors are exported
-
-listIface f                       = do m <- decodeFile f
-                                       putStrLn (render(pr (m :: Core.Module)))
-
-isPrivate (Name _ _ Nothing _)    = True
-isPrivate _                       = False
-
-isAbstract (n,DData _ _ ((c,_):_)) = isPrivate c
-isAbstract (n,DRec _ _ _ ((c,_):_))= isPrivate c
-isAbstract (n,_)                   = False     -- this makes abstract types without selectors/constructors non-private...
