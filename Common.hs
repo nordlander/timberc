@@ -168,7 +168,7 @@ renaming vs                     = mapM f vs
 -- remove pairs from rn2 that are shadowed by rn1; return also shadowed names
 deleteRenamings [] rn2           = (rn2,[])
 deleteRenamings ((n,_):rn1) rn2
-  | fromMod n == Nothing        = (rn',if b then n:ns else ns)
+  | not(isQualified n)          = (rn',if b then n:ns else ns)
   | otherwise                   = (rn,ns)
   where (rn,ns)                 = deleteRenamings rn1 rn2
         (b,rn')                 = deleteName n rn
@@ -236,6 +236,7 @@ isCoercion n                    = isGenerated n && str n == coercionSym
 isTemp n                        = isGenerated n && str n == tempSym
 isClosure n                     = isGenerated n && str n == closureSym
 isDummy n                       = isGenerated n && str n == dummySym
+isTag n                         = isGenerated n && str n == tagSym
 
 explicitSyms                    = [coercionSym, assumptionSym, witnessSym]
 

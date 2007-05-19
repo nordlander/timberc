@@ -118,9 +118,11 @@ data Stmt   = SExp    Exp
 
 -- Helper functions ----------------------------------------------------------------
 
-imports (Module c is _ _) 
-      | str c == "Prelude"      = is
+imports c is 
+      | str c == "Prelude"      = []
       | otherwise               = Import True (name0 "Prelude") : is
+
+mkModule c (is,ds,ps)           = Module c (imports c is) ds ps
 
 newEVar v                       = do i <- newName v
                                      return (EVar i)
@@ -607,7 +609,7 @@ instance Ids Pred where
   idents (PType t)              = idents t
   idents (PKind v k)            = []
 
-{-
+
 -- Binary --------------------------------------
 
 instance Binary Module where
@@ -822,4 +824,3 @@ instance Binary Stmt where
       10 -> get >>= \a -> get >>= \b -> return (SCase a b)
       _ -> fail "no parse"
 
--}

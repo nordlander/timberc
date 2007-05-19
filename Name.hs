@@ -242,6 +242,7 @@ isGenerated _                   = False
 
 isState n                       = stateVar (annot n)
 
+isQualified n                   = fromMod n /= Nothing
 
 -- Equality & Order ----------------------------------------------------------------
 
@@ -306,10 +307,12 @@ prId3 (Name s n m a)
   | n == 0                      = text s
   | otherwise                   = pre <> text ('_' : show n) <> text post
   where pre                     = if isAlpha (head s) && all isAlphaNum (tail s) then text s else text "SYM"
-        post                    = maybe "" ("_" ++) m
+        post                    = maybe "" (('_' :) . modToundSc) m
 prId3 n                         = prId2 n
 
 modToPath m                     = concat (List.intersperse "/" (splitString m))
+
+modToundSc m                    = concat (List.intersperse "_" (splitString m))
 
 packName n                      = show n
 

@@ -7,8 +7,11 @@ import Depend
 import qualified Kindle
 
 
-core2kindle                        :: (Kindle.Decls,Kindle.TEnv,Map Name Name) -> Module -> M s Kindle.Module
-core2kindle envI m                  = localStore (cModule envI m)
+--core2kindle                        :: (Kindle.Decls,Kindle.TEnv,Map Name Name) -> Module -> (M s Kindle.Module,Decls)
+core2kindle envI m                  = do m <- localStore (cModule envI m)
+                                         let Kindle.Module n ns ds bs = m
+                                             te = map Kindle.mkSig bs
+                                         return (m,(ds,te))
 
 -- Note: bound variables in the output from this pass are no longer guaranteed to be globally unique!
 -- This arises from the handling of orphaned state variables (see bindOrphans)
@@ -53,13 +56,13 @@ findCon env k
 
 
 -- Convert a Core.Module into a Kindle.Module
--- Imports ignored so far
+
 cModule (dsi,tei,csi) (Module m ns ds is bs)      
                                     = do ds1  <- cDecls ds
                                          mapM_ addToStore (filter (isClosure . fst) ds1)
                                          bs  <- cBindsList (addDecls ds1 env) (groupBinds (is `catBinds` bs))
                                          ds2 <- currentStore
-                                         return (Kindle.Module m (ds1++reverse ds2) bs)
+                                         return (Kindle.Module m ns (ds1++reverse ds2) bs)
   where env                         = addTEnv tei (addDecls dsi (addCons (dataCons ds ++ csi) env0))
 
 

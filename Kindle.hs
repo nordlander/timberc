@@ -25,7 +25,7 @@ import Data.Binary
 -- a named value of atomic type.  Both binding forms are immutable.  All type declarations are 
 -- mutually recursive, whereas term-level recursion is only supported within groups of adjacent 
 -- function bindings.  Otherwise bound names scope over subsequent bindings.
-data Module     = Module  Name Decls Binds
+data Module     = Module  Name [Name] Decls Binds
                 deriving (Eq,Show)
 
 -- A type declaration either introduces a struct type that defines the layout of heap-allocated 
@@ -187,6 +187,10 @@ protect'' e0 t (ACon y c)               = liftM (ACon y) (protect' e0 t c)
 protect'' e0 t (ALit l c)               = liftM (ALit l) (protect' e0 t c)
 
 
+mkSig (n,Val at _)                      = (n,ValT at)
+mkSig (n,Fun at ats _)                  = (n,FunT (map snd ats) at)
+
+
 sensitive (ESel e n)                    = True
 sensitive (ECall n es)                  = True
 sensitive (EEnter e n es)               = True
@@ -241,11 +245,14 @@ instance Ids Bind where
 -- Tentative concrete syntax ------------------------------------------------------------------------------
 
 instance Pr Module where
-    pr (Module m ds bs)                 = text "module" <+> prId2 m <+> text "where" $$
+    pr (Module m ns ds bs)              = text "module" <+> prId2 m <+> text "where" $$
+                                          text "import" <+> hpr ',' ns $$
                                           vpr ds $$ 
                                           vpr bs
 
 
+instance Pr (Module,a) where
+    pr (m,_)                            = pr m
 instance Pr (Name, Decl) where
     pr (c, Struct te)                   = text "struct" <+> prId2 c <+> text "{" $$
                                           nest 4 (vpr te) $$
@@ -326,8 +333,8 @@ prInit b                                = pr b
 -- Binary --------------------
 {-
 instance Binary Module where
-  put (Module a b c) = put a >> put b >> put c
-  get = get >>= \a -> get >>= \b -> get >>= \c -> return (Module a b c)
+  put (Module a b c d) = put a >> put b >> put c >> put d
+  get = get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (Module a b c d)
 -}
 instance Binary Decl where
   put (Struct a) = putWord8 0 >> put a

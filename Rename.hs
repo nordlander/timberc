@@ -273,8 +273,8 @@ instance Rename Exp where
   rename env (ESeq e1 e2 e3)       = liftM3 ESeq (rename env e1) (rename env e2) (rename env e3)
   rename env (EComp e qs)          = do (qs,e) <- renameQ env qs e
                                         return (EComp e qs)
-  rename env (ESectR e op)         = liftM (flip ESectR op) (rename env e) 
-  rename env (ESectL op e)         = liftM (ESectL op) (rename env e)
+  rename env (ESectR e op)         = liftM (flip ESectR (renE env op)) (rename env e) 
+  rename env (ESectL op e)         = liftM (ESectL (renE env op)) (rename env e)
   rename env (ESelect e l)         = liftM (flip ESelect (renL env l)) (rename env e) 
   rename env (EAct v ss)           = liftM (EAct (fmap (renE env) v)) (renameS (unvoidAll env) (shuffleS ss))
   rename env (EReq v ss)           = liftM (EReq (fmap (renE env) v)) (renameS (unvoidAll env) (shuffleS ss))

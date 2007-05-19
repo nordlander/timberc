@@ -5,7 +5,6 @@ import Core
 import Env
 import Reduce
 
-
 -- Declaration processing ---------------------------------------------------------------------
 
 {-
@@ -26,14 +25,18 @@ import Reduce
 -- Close subtyping graph under transitivity (report cyclic and ambiguity errors)
 -- Return extended environment, transformed decls and added witness bindings
 
+
 typeDecls env (Types ke ds)             = do (ds,pe1,eq1) <- desub env0 ds
-                                             (env',pe2,eq2) <- closePreds0 env0 pe1
-                                             let bss = preferParams env' pe1 pe2 eq2
-                                                 te0 = concatMap (tenvSelCon env') ds
-                                             return (addTEnv0 te0 env', Types ke ds, concatBinds (Binds False pe1 eq1 : bss))
+                                             (env',bs) <- instancePreds env0 pe1
+                                             let te0 = concatMap (tenvSelCon env') ds
+                                             return (addTEnv0 te0 env', Types ke ds, catBinds (Binds False pe1 eq1)  bs)
   where env0                            = addClasses cs (addKEnv0 ke env)
         cs                              = [ c | (c, DRec True _ _ _) <- ds ]
 
+impDecls env (Types ke ds)              =  env1
+  where 
+        env1                            = addClasses cs (addKEnv0 ke env)
+        cs                              = [ c | (c, DRec True _ _ _) <- ds ]
 
 -- Close the top-level instance delcarations
 -- Return the extended environment and the added witness bindings

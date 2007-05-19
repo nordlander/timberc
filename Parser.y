@@ -100,10 +100,10 @@ Reserved Ids
 -- Module Header ------------------------------------------------------------
 
 module  :: { Module }
-        : 'module' modid 'where' body		{ uncurry3 (Module $2) $4 }
+        : 'module' modid 'where' body		{ mkModule $2 $4 }
 
 modid   :: { Name }
-        : CONID                             { name0 $1 }
+        : CONID                                 { name0 $1 }
 
 
 
@@ -297,7 +297,7 @@ kind1	:: { Kind }
 -- Expressions -------------------------------------------------------------
 
 exp     :: { Exp }
-        : exp0a '::' type                       { ESig $1 $3 }
+        : exp0a '::' btype                      { ESig $1 $3 }
         | exp0                                  { $1}
 
 exp0    :: { Exp }
@@ -328,6 +328,7 @@ opExpb  :: { OpExp }
 	  
 exp10a  :: { Exp }
         : 'case' exp 'of' altslist              { ECase $2 $4 }
+        | '{'  layout_off recbinds '}'          { ERec Nothing (reverse $3) } 
         | exp10as                               { $1 }
 
 exp10as :: { Exp }
@@ -335,7 +336,6 @@ exp10as :: { Exp }
         | loc 'template' stmtlist               { ETempl Nothing Nothing $3 }
         | loc 'action' stmtlist                 { EAct Nothing $3 }
         | loc 'request' stmtlist                { EReq Nothing $3 }
-        | '{'  layout_off recbinds '}'          { ERec Nothing (reverse $3) } 
         | con '{'  layout_off recbinds '}'      { ERec (Just ($1,True)) (reverse $4) } 
         | con '{'  layout_off recbinds '..' '}' { ERec (Just ($1,False)) (reverse $4) } 
         | con '{'  layout_off '..' '}'          { ERec (Just ($1,False)) [] } 

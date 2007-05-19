@@ -40,11 +40,11 @@ findDecl env n
   | otherwise                   = lookup' (decls env) n
 
 
-pModule (dsi,tei,_) (Module m ds bs)      
+pModule (dsi,tei,_) (Module m ns ds bs)      
                                 = do ds <- mapM pDecl ds
                                      (bs1,bs) <- pMap (pBind (addBinds bs (addDecls ds env))) bs
                                      bs2 <- currentStore
-                                     return (Module m ds (bs1 ++ bs ++ reverse bs2))
+                                     return (Module m ns ds (bs1 ++ bs ++ reverse bs2))
   where env                     = addDecls dsi (env0 {tenv = tei ++ tenv env0})
 
 

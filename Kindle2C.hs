@@ -14,31 +14,49 @@ kindle2c m                      = return (render h, render c)
 -- Generate .h file
 -- ====================================================================================================
 
-k2hModule (Module n ds bs)      = hHeader n $$$
+k2hModule (Module n ns ds bs)   = hHeader n ns $$$
                                   vcat (map k2cStructStub [ n | (n, Struct te) <- ds ]) $$$
                                   vcat (map k2cDecl ds) $$$
-                                  vcat (map k2cBindStub bs) $$$
+                                  vcat (map k2cHBind bs) $$$
                                   hFooter n
+  
+k2cImport n                     = text "#include \"" <> text (modToundSc (str n)) <> text ".h\""
 
-hHeader n                       = empty
-hFooter n                       = empty
+
+hHeader n []                    = includeGuard n $$ text "#include \"timber.h\""
+hHeader n ns                    = includeGuard n $$ vcat (map k2cImport ns)
+
+includeGuard n                  = text ("#ifndef " ++ g) $$
+	                          text ("#define " ++ g)
+  where g                       = map toUpper (modToundSc (str n)) ++ "_H_"
+                         
+hFooter n                       = text "#endif"
 
 k2cStructStub n                 = text "struct" <+> k2cName n <> text ";"
 
-k2cDecl (n, Enum cs)            = text "enum" <+> braces (commasep k2cName cs) <> text ";"
-k2cDecl (n, Struct te)          = text "struct" <+> text "{" $$
-                                    nest 4 (vcat (map k2cSig te)) $$
-                                  text "}" <+> k2cName n <> text ";" $$
-                                  text "typedef" <+> text "struct" <+> k2cName n <+> text "*" <> k2cName n <> text ";"
+k2cDecl (n, Enum cs)            = text "enum" <+> k2cName n <+> braces (commasep k2cTag cs) <> text ";" $$
+                                  text "typedef" <+> text "enum" <+> k2cName n <+> k2cName n <> text ";"
+k2cDecl (n, Struct te)          = text "typedef" <+> text "struct" <+> k2cName n <+> text "*" <> k2cName n <> text ";"
+                                  $$ text "struct"  <+> k2cName n <+> text "{" $$
+                                     nest 4 (vcat (map (k2cSig n) te)) $$
+                                     text "}" <> text ";" 
+                                  
 
-k2cSig (x, FunT ts t)           = k2cType t <+> parens (text "*" <> k2cName x) <+> parens (commasep k2cType ts) <> text";"
-k2cSig (x, ValT t)              = k2cType t <+> k2cName x <> text ";"
+k2cSig n (x, FunT ts t)         = k2cType t <+> parens (text "*" <> k2cName x) <+> parens (commasep k2cType (TId n : ts)) <> text";"
+k2cSig _ (x, ValT t)            = k2cType t <+> k2cName x <> text ";"
 
 k2cSig' (x, t)                  = k2cType t <+> k2cName x
 
 k2cBindStub (x, Fun t te c)     = k2cType t <+> k2cName x <+> parens (commasep k2cSig' te) <> text";"
-k2cBindStub (x, Val t e)        = text "extern" <+> k2cType t <+> k2cName x <> text ";"
+k2cBindStub (x, Val t e)        = k2cType t <+> k2cName x <> text ";"
 
+k2cHBind b@(x,_) 
+  | not(isQualified x)          = empty
+  | k2cIsSimple b               = k2cBind b
+  | otherwise                   = k2cBindStub b
+
+k2cIsSimple (x,Val _ (ELit _))  = True
+k2cIsSimple _                   = False
 
 -- Generate types
 k2cType (TId n)                 = k2cName n
@@ -49,29 +67,54 @@ k2cType (TWild)                 = text "POLY"
 -- Generate .c file
 -- ====================================================================================================
 
-k2cModule (Module n ds bs)      = cHeader n $$$
-                                  vcat (map k2cBind bs) $$$
-                                  cFooter n
+{- 
+  Here we need
+  - stubs for private functions and values (i.e., non-functions) with non-constant initializer
+  - bindings for all functions and private values with constant initializer
+  - initialization procedure for all values with non-constant initializer
+  "Constant initializer" is presently interpreted as literals only for lack of better understanding.
+-}
 
-cHeader n                       = empty
+k2cModule (Module n ns ds bs)   = cHeader n $$$
+                                  vcat (map k2cBindStub [ b | b@(n,_) <- bs, not(isQualified n), not(k2cIsSimple b) || isFun b ]) $$$
+                                  vcat (map k2cBind     [ b | b@(n,_) <- bs, isFun b || (not(isQualified n) && k2cIsSimple b)]) $$$
+                                  k2cInitProc n         [ b | b@(n,_) <- bs, not(isFun b) && not(k2cIsSimple b)] $$$
+                                  cFooter n
+  where isFun (_,Fun _ _ _)     = True
+        isFun _                 = False
+      
+k2cBindStubLocal b@(x,_)
+  | fromMod x /= Nothing        = empty
+  | otherwise                   = k2cBindStub b
+
+
+cHeader n                       = k2cImport n 
 cFooter n                       = empty
 
 
+k2cInitProc n bs                = text "void _init_" <> text (modToundSc (str n)) <+> text "() {" $$
+	                          nest 4 (vcat (map k2cInit bs)) $$
+                                  text "}"
+
                                   -- temporary, only works for non-recursive values
-k2cBind (x, Val t (ENew n bs))  = k2cType t <+> k2cName x <+> text "=" <+> newCall n $$
+k2cInit (x, Val t (ENew n bs))  = k2cName x <+> text "=" <+> newCall n $$
                                   vcat (map (k2cSBind (EVar x)) bs)
-k2cBind (x, Val t e)            = k2cType t <+> k2cName x <+> text "=" <+> k2cExp e <> text ";"
+k2cInit (x, Val t e)            = k2cName x <+> text "=" <+> k2cExp e <> text ";"
+
+
+k2cBind p@(_,Val t _)           = k2cType t <+> k2cInit p
 k2cBind (x, Fun t te c)         = k2cType t <+> k2cName x <+> parens (commasep k2cSig' te) <+> text "{" $$
                                     nest 4 (k2cCmd c) $$
                                   text "}"
 
-newCall n                       = k2cName (prim NEW) <+> parens (text "sizeof" <> parens (text "*" <> k2cName n))
-
+newCall n                       = k2cName (prim NEW) <+> parens (text "sizeof" <> parens (text "struct" <+> k2cName n))<> text ";"
 
 k2cSBind e0 (x, Val t (ENew n bs))
-                                = k2cExp (ESel e0 x) <+> text "=" <+> newCall n $$
+                                = k2cExp (ESel e0 x) <+> text "=" <+> newCall n  <> text ";" $$
                                   vcat (map (k2cSBind (ESel e0 x)) bs)
-k2cSBind e0 (x, Val t e)        = k2cExp (ESel e0 x) <+> text "=" <+> k2cExp e <> text ";"
+k2cSBind e0 (x, Val t e)
+          | isTag x             = k2cExp (ESel e0 x) <+> text "=" <+> text "_" <> k2cExp e <> text ";"     ----- HACK!!!!  
+          | otherwise           = k2cExp (ESel e0 x) <+> text "=" <+> k2cExp e <> text ";"
 k2cSBind e0 (x, Fun t te (CRet (ECall f es)))
                                 = k2cExp (ESel e0 x) <+> text "=" <+> k2cName f <> text ";"
 k2cSBind e0 (x, _)              = error "Internal: k2cSBind"
@@ -93,8 +136,8 @@ k2cCmd (CSeq c c')              = k2cCmd c $$
 k2cCmd (CBreak)                 = text "break;"
 
 
-k2cAlt (ACon n c)               = k2cName n <> text ":" <+> k2cNestCmd c
-k2cAlt (ALit l c)               = pr l <> text ":" <+> k2cNestCmd c
+k2cAlt (ACon n c)               = text "case" <+> k2cTag n <> text ":" <+> k2cNestCmd c
+k2cAlt (ALit l c)               = text "case" <+> pr l <> text ":" <+> k2cNestCmd c
 
 
 k2cNestCmd (CRet e)             = text "return" <+> k2cExp e <> text ";"
@@ -121,6 +164,7 @@ k2cExp' e                       = parens (k2cExp e)
 k2cName (Prim p _)              = k2cPrim p
 k2cName n                       = prId3 n
 
+k2cTag n                        = char '_' <> prId3 n
 
 isInfix (Prim p _)              = p `elem` [IntPlus .. TimeGT] \\ ([IntNeg, FloatNeg, CharToInt, IntToChar] ++ [Sec .. Infinity])
 isInfix _                       = False

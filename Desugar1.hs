@@ -5,9 +5,13 @@ import Monad
 import Common
 import Syntax
 import Depend
+import PP
 
-desugar1 e0 (Module c is ds ps)  = do let env = mkEnv c (ds ++ ps) e0
-                                      liftM2 (Module c is) (dsDecls env ds) (dsDecls env ps)
+desugar1 e0 (Module c is ds ps)  = do let (env,expInfo) = mkEnv c (ds ++ ps) e0
+--                                      tr show(sels env))
+                                      ds' <- dsDecls env ds
+                                      ps' <- dsDecls env ps
+                                      return (Module c is ds' ps',expInfo)
 
 {-
     This module performs desugaring transformations that must be performed before the renaming pass:
@@ -34,9 +38,14 @@ data Env                        = Env { sels :: Map Name [Name],
 env0 ss                       = Env { sels = [], self = Nothing, selSubst = [], modName = Nothing, tsyns = ss }
 
 
-mkEnv c ds (rs,rn,ss)           = (tsynE (env0 ss) tsynDecls) {sels = map transClose recEnv, modName = Just(str c), selSubst = rnSels}
-  where recEnvLoc               = [ (c,(map type2head ts, concat (map sels ss))) | DRec _ c _ ts ss <- ds ] 
+mkEnv c ds (rs,rn,ss)           = (env {sels = map transClose recEnv, modName = Just(str c), selSubst = rnSels },
+                                   (closeRecEnvLoc,tsynsLoc))
+  where (env,ssLoc)             = tsynE (env0 ss) [] tsynDecls
+        tsynsLoc                = map (\(n,y) -> (n {fromMod = Just (str c)},y)) ssLoc
+        recEnvLoc               = [ (c,(map type2head ts, concat (map sels ss))) | DRec _ c _ ts ss <- ds ] 
         recEnvImp               = zip ns (zip (repeat []) ss) where (ns,ss) = unzip rs
+        closeRecEnvLoc          = map transClose recEnvLoc
+        closeRecEnvImp          = map transClose recEnvImp
         recEnv                  = recEnvLoc ++ recEnvImp
         selsLocQual             = concatMap (snd . snd) recEnvLoc
         selsLoc                 = map (mName  Nothing) selsLocQual
@@ -56,11 +65,11 @@ mkEnv c ds (rs,rn,ss)           = (tsynE (env0 ss) tsynDecls) {sels = map transC
         dups                    = duplicates (map fst syns)
 
 
-tsynE env []                    = env
-tsynE env ((c,(vs,t)) : ps) 
+tsynE env ls []                 = (env,ls)
+tsynE env ls ((c,(vs,t)) : ps) 
     | c `elem` tyCons t         = error ("Type synonym "++show c++" is recursive")
-    | otherwise                 = tsynE env {tsyns = (c,(vs,ds1 env t)) : tsyns env} ps
-
+    | otherwise                 = tsynE env {tsyns =p : tsyns env} (p:ls) ps
+ where p                        =  (c,(vs,ds1 env t))
 
 selsFromType env c              = case lookup c (sels env) of
                                     Just ss -> ss
@@ -255,3 +264,9 @@ ds1T env (SBind b : ss)          = SBind (ds1 env b) : ds1T env ss
 ds1T env (SAss p e : ss)         = SAss (ds1 env p) (ds1 env e) : ds1T env ss
 ds1T env (SGen p e : ss)         = SGen (ds1 env p) (ds1 env e) : ds1T env ss           -- temporary
 ds1T env ss                      = error ("Illegal statement in template: " ++ show ss)
+
+-- Printing --------
+
+instance Pr (Module,([(Name, [Name])], [(Name, ([Name], Type))])) where
+ 
+   pr (m,_) = pr m

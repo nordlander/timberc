@@ -238,7 +238,7 @@ altRhss                         = map snd
 oplus eqs eqs'                  = filter ((`notElem` vs) . fst) eqs ++ eqs'
   where vs                      = dom eqs'
 
-isLocal m (n,_)                 = fromMod n == Just (str m) || fromMod n == Nothing
+isLocal m (n,_)                 = not (isQualified n) || fromMod n == Just (str m) 
 
 filterDecls m (Types ke ds)     = Types (filter (isLocal m) ke) (filter (isLocal m) ds)
 
@@ -513,6 +513,9 @@ instance Pr Module where
 
 prImports []                     = empty
 prImports ns                     = text "import" <+> hpr ',' ns
+
+instance Pr (Module,a) where
+  pr (m,_)                       = pr m
 
 -- Type declarations ---------------------------------------------------------
 
