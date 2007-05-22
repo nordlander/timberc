@@ -17,20 +17,18 @@ redModule (Module m ns ds ie bs)= Module m ns ds ie' (redBinds env1 bs)
         ie'                     = redBinds env0 ie
         env1                    = f (groupBinds ie')
         f []                    = []
-        f (Binds r te eqs : bs) = if r then f bs else eqs ++ f bs
+        f (Binds r te eqs : bs) = if r then f bs else filter (simple . snd) eqs ++ f bs
 
 
-reallySimple (EVar _ _)         = True
-reallySimple (ECon _ _)         = True
-reallySimple (ELit _)           = True
-reallySimple (ESel e _ _)       = reallySimple e
-reallySimple (EAp (EVar (Prim _ _) _) [e1,e2])
-                                = reallySimple e1 && reallySimple e2
-reallySimple (ELam te e)        = reallySimple e && all (`elem` dom te) (evars e)
-reallySimple e                  = False
+simple (EVar _ _)               = True
+simple (ECon _ _)               = True
+simple (ELit _)                 = True
+simple (ESel e _ _)             = simple e
+simple (EAp (EVar (Prim _ _) _) [e1,e2])
+                                = simple e1 && simple e2
+simple (ELam te e)              = simple e && all (`elem` dom te) (evars e)
+simple e                        = False
 
-simple (ELam _ e)               = simple e
-simple e                        = reallySimple e
 
 value (EVar _ _)                = True
 value (ECon _ _)                = True
@@ -46,7 +44,7 @@ redBinds env (Binds r te eqns)  = Binds r te (redEqns env eqns)
 
 redEqns env []                  = []
 redEqns env ((x,e):eqns)
-  | reallySimple e'             = (x,e') : redEqns ((x,e'):env) eqns
+  | simple e'                   = (x,e') : redEqns ((x,e'):env) eqns
   | otherwise                   = (x,e') : redEqns env eqns
   where e'                      = redExp env e
 
@@ -106,7 +104,7 @@ redBeta env [] b []             = redExp env b
 
 
 redSel env (ERec c eqs) s t
-  | all simple (rng eqs)        = case lookup s eqs of
+  | all value (rng eqs)         = case lookup s eqs of
                                     Just e -> e
                                     Nothing -> error "Internal: redSel"
 redSel env e s t                = ESel e s t
@@ -120,7 +118,7 @@ redCase env (e,es) alts d        = ECase (eAp e es) (mapSnd (redExp env) alts) (
 
 findCon env k es [] d           = redExp env d
 findCon env k es ((PCon k',e):_) d
-  | k == k'                     = redExp env e
+  | k == k'                     = redExp env (eAp e es)
 findCon env k es (_:alts) d     = findCon env k es alts d
 
 
