@@ -108,21 +108,16 @@ modid   :: { Name }
 
 
 body    :: { ([Import],[Decl],[Decl]) }
-        : '{' layout_off imports topdecls optsemi '}' private	{ (reverse $3,reverse $4, $7) }
-        |     layout_on  imports topdecls optsemi close	private { (reverse $2, reverse $3, $6) }
+        : '{' layout_off imports topdecls '}' private	{ (reverse $3,reverse $4, $6) }
+        |     layout_on  imports topdecls close	private { (reverse $2, reverse $3, $5) }
 
 private :: { [Decl] }
         : 'private' pbody			{ $2 }
         | {- empty -}			        { [] }
 
-
-optsemi :: { () }
-        : '}'                                   { () }
-        | {- empty -}                           { () }
-
 pbody    :: { [Decl] }
-        : '{' layout_off topdecls optsemi '}'	{ reverse $3 }
-        |     layout_on  topdecls optsemi close	{ reverse $2 }
+        : '{' layout_off topdecls '}'	        { reverse $3 }
+        |     layout_on  topdecls close	        { reverse $2 }
 
 imports :: { [Import] }
         : imports import ';'                    { $2 : $1 }
@@ -409,8 +404,8 @@ qual    :: { Qual }
 -- Case alternatives ------------------------------------------------------------
 
 altslist :: { [Alt Exp] }
-        : '{' layout_off alts optsemi '}'       { reverse $3 }
-        |     layout_on  alts optsemi close     { reverse $2 }
+        : '{' layout_off alts '}'               { reverse $3 }
+        |     layout_on  alts close             { reverse $2 }
 
 
 alts    :: { [Alt Exp] }
@@ -436,8 +431,8 @@ gdcaserhs :: { GExp Exp }
 -- Case statement alternatives ------------------------------------------------------------
 
 saltslist :: { [Alt [Stmt]] }
-        : '{' layout_off salts optsemi '}'      { reverse $3 }
-        |     layout_on  salts optsemi close    { reverse $2 }
+        : '{' layout_off salts  '}'             { reverse $3 }
+        |     layout_on  salts close            { reverse $2 }
 
 
 salts   :: { [Alt [Stmt]] }
