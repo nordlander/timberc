@@ -22,7 +22,7 @@ desugar1 e0 (Module c is ds ps)  = do let (env,expInfo) = mkEnv c (ds ++ ps) e0
     - Checks validity of return statement
     - Replaces prefix expression statement with dummy generator statement
     - Replaces if/case statements with corresponding expressions forms
-    - Checks the restricted command syntax of template bodies
+     - Checks the restricted command syntax of template bodies
     - Unfolds use of type synonyms
 -}
 
@@ -32,10 +32,11 @@ data Env                        = Env { sels :: Map Name [Name],
                                         self :: Maybe Name , 
                                         selSubst :: Map Name Name,
                                         modName :: Maybe String,
+                                        isPat :: Bool,
                                         tsyns :: Map Name ([Name],Type)} deriving Show
 
 
-env0 ss                       = Env { sels = [], self = Nothing, selSubst = [], modName = Nothing, tsyns = ss }
+env0 ss                       = Env { sels = [], self = Nothing, selSubst = [], modName = Nothing, isPat = False, tsyns = ss }
 
 
 mkEnv c ds (rs,rn,ss)           = (env {sels = map transClose recEnv, modName = Just(str c), selSubst = rnSels },
@@ -99,6 +100,8 @@ ren env cs                      = map ren' cs
   where ren' c                  = case lookup c (selSubst env) of
                                      Nothing -> error ("Unknown record selector: " ++ show c)
                                      Just c' -> c'
+
+patEnv env = env {isPat = True}
 -- Desugaring -------------------------------------------------------------------------------------------
 
 dsDecls env (DInst t bs : ds)   = do w <- newName instanceSym
@@ -161,8 +164,8 @@ instance Desugar1 Bind where
     ds1 env (BSig vs t)         = BSig vs (ds1 env t)
 
 instance Desugar1 Lhs where
-    ds1 env (LFun v ps)         = LFun v (ds1 env ps)
-    ds1 env (LPat p)            = LPat (ds1 env p)
+    ds1 env (LFun v ps)         = LFun v (ds1 (patEnv env) ps)
+    ds1 env (LPat p)            = LPat (ds1 (patEnv env) p)
 
 instance Desugar1 (Rhs Exp) where
     ds1 env (RExp e)            = RExp (ds1 env e)
@@ -174,7 +177,7 @@ instance Desugar1 (GExp Exp) where
 
 instance Desugar1 Qual where
     ds1 env (QExp e)            = QExp (ds1 env e)
-    ds1 env (QGen p e)          = QGen (ds1 env p) (ds1 env e)
+    ds1 env (QGen p e)          = QGen (ds1 (patEnv env) p) (ds1 env e)
     ds1 env (QLet bs)           = QLet (ds1 env bs)
 
 instance Desugar1 Exp where
@@ -198,7 +201,7 @@ instance Desugar1 Exp where
     ds1 env (ETup es)              = ETup (ds1 env es)
     ds1 env (EList es)             = EList (ds1 env es)
     ds1 env (ESig e t)             = ESig (ds1 env e) (ds1 env t)
-    ds1 env (ELam ps e)            = ELam (ds1 env ps) (ds1 env e)
+    ds1 env (ELam ps e)            = ELam (ds1 (patEnv env) ps) (ds1 env e)
     ds1 env (ECase e as)           = ECase (ds1 env e) (ds1 env as)
     ds1 env (EIf e1 e2 e3)         = EIf (ds1 env e1) (ds1 env e2) (ds1 env e3)
     ds1 env (ENeg e)               = ENeg (ds1 env e)
@@ -207,6 +210,10 @@ instance Desugar1 Exp where
     ds1 env (ESectR e op)          = ESectR (ds1 env e) op
     ds1 env (ESectL op e)          = ESectL op (ds1 env e)
     ds1 env (ESelect e s)          = ESelect (ds1 env e) s
+    ds1 env e@(ELit (LInt n))
+      | isPat env                  = e
+      | otherwise                  = EAp (EVar (name (0,0) "fromInt")) e 
+     -- need a location to avoid being considered generated when C identifiers are rendered.
 
     ds1 env (ETempl Nothing t ss)  = ds1 env (ETempl (Just (name0 "self")) (ds1 env t) ss)
     ds1 env (EDo Nothing t ss)
@@ -230,7 +237,7 @@ instance Desugar1 Exp where
     ds1 env e                    = e
 
 instance Desugar1 (Alt Exp) where
-    ds1 env (Alt p rh)           = Alt (ds1 env p) (ds1 env rh)
+    ds1 env (Alt p rh)           = Alt (ds1 (patEnv env) p) (ds1 env rh)
 
 instance Desugar1 Field where
     ds1 env (Field l e)          = Field l (ds1 env e)
@@ -240,11 +247,11 @@ ds1S env [SExp e]                = [SExp (ds1 env e)]
 ds1S env (SExp e : ss)           = SGen EWild (ds1 env e) : ds1S env ss
 ds1S env [SRet e]                = [SRet (ds1 env e)]
 ds1S env (SRet e : ss)           = error "Illegal return"
-ds1S env (SGen p e : ss)         = SGen (ds1 env p) (ds1 env e) : ds1S env ss
+ds1S env (SGen p e : ss)         = SGen (ds1 (patEnv env) p) (ds1 env e) : ds1S env ss
 ds1S env (SBind b : ss)          = SBind (ds1 env b) : ds1S env ss
-ds1S env (SAss p e : ss)         = SAss (ds1 env p) (ds1 env e) : ds1S env ss
+ds1S env (SAss p e : ss)         = SAss (ds1 (patEnv env) p) (ds1 env e) : ds1S env ss
 ds1S env (SCase e as : ss)       = ds1S env (SExp (ECase e (map doAlt as)) : ss)
-  where doAlt (Alt p r)          = Alt p (doRhs r)
+  where doAlt (Alt p r)          = Alt (ds1 (patEnv env) p) (doRhs r)
         doRhs (RExp ss)          = RExp (EDo (self env) Nothing ss)
         doRhs (RGrd gs)          = RGrd (map doGrd gs)
         doRhs (RWhere r bs)      = RWhere (doRhs r) bs
@@ -261,8 +268,8 @@ ds1S env (SWhile e ss' : ss)     = error "while stmt not yet implemented"
 
 ds1T env [SRet e]                = [SRet (ds1 env e)]
 ds1T env (SBind b : ss)          = SBind (ds1 env b) : ds1T env ss
-ds1T env (SAss p e : ss)         = SAss (ds1 env p) (ds1 env e) : ds1T env ss
-ds1T env (SGen p e : ss)         = SGen (ds1 env p) (ds1 env e) : ds1T env ss           -- temporary
+ds1T env (SAss p e : ss)         = SAss (ds1 (patEnv env) p) (ds1 env e) : ds1T env ss
+ds1T env (SGen p e : ss)         = SGen (ds1 (patEnv env) p) (ds1 env e) : ds1T env ss           -- temporary
 ds1T env ss                      = error ("Illegal statement in template: " ++ show ss)
 
 -- Printing --------
