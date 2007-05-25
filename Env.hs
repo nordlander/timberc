@@ -620,6 +620,9 @@ primTypeEnv             = [ (prim UNIT,         scheme0 [] tUnit),
                             (prim FloatGE,      scheme0 [tFloat,tFloat] tBool),
                             (prim FloatGT,      scheme0 [tFloat,tFloat] tBool),
 
+                            (prim IntToFloat,   scheme0 [tInt] tFloat),
+                            (prim FloatToInt,   scheme0 [tFloat] tInt),
+
                             (prim CharToInt,    scheme0 [tChar] tInt),
                             (prim IntToChar,    scheme0 [tInt] tChar),
 

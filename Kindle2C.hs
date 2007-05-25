@@ -166,7 +166,7 @@ k2cName n                       = prId3 n
 
 k2cTag n                        = char '_' <> prId3 n
 
-isInfix (Prim p _)              = p `elem` [IntPlus .. TimeGT] \\ ([IntNeg, FloatNeg, CharToInt, IntToChar] ++ [Sec .. Infinity])
+isInfix (Prim p _)              = p `elem` [IntPlus .. TimeGT] \\ ([IntNeg, FloatNeg ,IntToFloat, FloatToInt, CharToInt, IntToChar] ++ [Sec .. Infinity])
 isInfix _                       = False
 
 
@@ -196,6 +196,9 @@ k2cPrim FloatLT                 = text "<"
 k2cPrim FloatLE                 = text "<="
 k2cPrim FloatGE                 = text ">="
 k2cPrim FloatGT                 = text ">"
+
+k2cPrim IntToFloat              = text "(float)"
+k2cPrim FloatToInt              = text "(int)"
 
 k2cPrim CharToInt               = text "(int)"
 k2cPrim IntToChar               = text "(char)"

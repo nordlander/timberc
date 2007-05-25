@@ -86,6 +86,9 @@ data Prim                       =
                                 | FloatGE
                                 | FloatGT
 
+                                | IntToFloat
+                                | FloatToInt
+
                                 | CharToInt
                                 | IntToChar
 
@@ -387,42 +390,44 @@ instance Binary Prim where
   put FloatLE = putWord8 44
   put FloatGE = putWord8 45
   put FloatGT = putWord8 46
-  put CharToInt = putWord8 47
-  put IntToChar = putWord8 48
-  put MsgEQ = putWord8 49
-  put MsgNE = putWord8 50
-  put PidEQ = putWord8 51
-  put PidNE = putWord8 52
-  put Sec = putWord8 53
-  put MilliSec = putWord8 54
-  put MicroSec = putWord8 55
-  put NanoSec = putWord8 56
-  put Infinity = putWord8 57
-  put TimePlus = putWord8 58
-  put TimeMinus = putWord8 59
-  put TimeMin = putWord8 60
-  put TimeEQ = putWord8 61
-  put TimeNE = putWord8 62
-  put TimeLT = putWord8 63
-  put TimeLE = putWord8 64
-  put TimeGE = putWord8 65
-  put TimeGT = putWord8 66
-  put Fail = putWord8 67
-  put Commit = putWord8 68
-  put Match = putWord8 69
-  put Fatbar = putWord8 70
-  put After = putWord8 71
-  put Before = putWord8 72
-  put ASYNC = putWord8 73
-  put LOCK = putWord8 74
-  put UNLOCK = putWord8 75
-  put NEW = putWord8 76
-  put Code = putWord8 77
-  put Baseline = putWord8 78
-  put Deadline = putWord8 79
-  put Box = putWord8 80
-  put Value = putWord8 81
-  put LISTtags = putWord8 82
+  put IntToFloat = putWord8 47
+  put FloatToInt = putWord8 48
+  put CharToInt = putWord8 49
+  put IntToChar = putWord8 50
+  put MsgEQ = putWord8 51
+  put MsgNE = putWord8 52
+  put PidEQ = putWord8 53
+  put PidNE = putWord8 54
+  put Sec = putWord8 55
+  put MilliSec = putWord8 56
+  put MicroSec = putWord8 57
+  put NanoSec = putWord8 58
+  put Infinity = putWord8 59
+  put TimePlus = putWord8 60
+  put TimeMinus = putWord8 61
+  put TimeMin = putWord8 62
+  put TimeEQ = putWord8 63
+  put TimeNE = putWord8 64
+  put TimeLT = putWord8 65
+  put TimeLE = putWord8 66
+  put TimeGE = putWord8 67
+  put TimeGT = putWord8 68
+  put Fail = putWord8 69
+  put Commit = putWord8 70
+  put Match = putWord8 71
+  put Fatbar = putWord8 72
+  put After = putWord8 73
+  put Before = putWord8 74
+  put ASYNC = putWord8 75
+  put LOCK = putWord8 76
+  put UNLOCK = putWord8 77
+  put NEW = putWord8 78
+  put Code = putWord8 79
+  put Baseline = putWord8 80
+  put Deadline = putWord8 81
+  put Box = putWord8 82
+  put Value = putWord8 83
+  put LISTtags = putWord8 84
   get = do
     tag_ <- getWord8
     case tag_ of
@@ -473,40 +478,42 @@ instance Binary Prim where
       44 -> return FloatLE
       45 -> return FloatGE
       46 -> return FloatGT
-      47 -> return CharToInt
-      48 -> return IntToChar
-      49 -> return MsgEQ
-      50 -> return MsgNE
-      51 -> return PidEQ
-      52 -> return PidNE
-      53 -> return Sec
-      54 -> return MilliSec
-      55 -> return MicroSec
-      56 -> return NanoSec
-      57 -> return Infinity
-      58 -> return TimePlus
-      59 -> return TimeMinus
-      60 -> return TimeMin
-      61 -> return TimeEQ
-      62 -> return TimeNE
-      63 -> return TimeLT
-      64 -> return TimeLE
-      65 -> return TimeGE
-      66 -> return TimeGT
-      67 -> return Fail
-      68 -> return Commit
-      69 -> return Match
-      70 -> return Fatbar
-      71 -> return After
-      72 -> return Before
-      73 -> return ASYNC
-      74 -> return LOCK
-      75 -> return UNLOCK
-      76 -> return NEW
-      77 -> return Code
-      78 -> return Baseline
-      79 -> return Deadline
-      80 -> return Box
-      81 -> return Value
-      82 -> return LISTtags
+      47 -> return IntToFloat
+      48 -> return FloatToInt
+      49 -> return CharToInt
+      50 -> return IntToChar
+      51 -> return MsgEQ
+      52 -> return MsgNE
+      53 -> return PidEQ
+      54 -> return PidNE
+      55 -> return Sec
+      56 -> return MilliSec
+      57 -> return MicroSec
+      58 -> return NanoSec
+      59 -> return Infinity
+      60 -> return TimePlus
+      61 -> return TimeMinus
+      62 -> return TimeMin
+      63 -> return TimeEQ
+      64 -> return TimeNE
+      65 -> return TimeLT
+      66 -> return TimeLE
+      67 -> return TimeGE
+      68 -> return TimeGT
+      69 -> return Fail
+      70 -> return Commit
+      71 -> return Match
+      72 -> return Fatbar
+      73 -> return After
+      74 -> return Before
+      75 -> return ASYNC
+      76 -> return LOCK
+      77 -> return UNLOCK
+      78 -> return NEW
+      79 -> return Code
+      80 -> return Baseline
+      81 -> return Deadline
+      82 -> return Box
+      83 -> return Value
+      84 -> return LISTtags
       _ -> fail "no parse"
