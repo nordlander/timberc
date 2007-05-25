@@ -6,6 +6,7 @@ import Syntax
 import Monad
 import Depend
 import qualified Core
+import PP
 
 
 syntax2core m = s2c m
@@ -188,8 +189,9 @@ s2cBinds env sigs eqs                   = do (ts,es) <- fmap unzip (mapM s2cEqn 
         env'                            = addSigs sigs env
         s2cEqn (v,e)                    = case lookup v sigs of
                                             Nothing -> s2cEi env' e
-                                            Just t  -> do e <- s2cEc env' (peel t) e
+                                            Just t  -> do e <- s2cEc env' t' e
                                                           return (t,e)
+                                              where t' = if explicit (annot v) then expl t else peel t
 
 
 -- Expressions, inherit mode ===============================================================
@@ -352,19 +354,28 @@ lookupT x env                   = case lookup x (sigs env) of
 
 
 -- peel off the outermost qualifiers of a type, replacing all bound variables with _
-peel (TQual t ps)               = g (bvars ps) t
-  where g vs (TQual t ps)       = TQual (g vs' t) (map (h vs') ps)
-          where vs'             = vs \\ bvars ps
-        g vs (TAp t t')         = TAp (g vs t) (g vs t')
-        g vs (TFun ts t)        = TFun (map (g vs) ts) (g vs t)
-        g vs (TSub t t')        = TSub (g vs t) (g vs t')
-        g vs (TList t)          = TList (g vs t)
-        g vs (TTup ts)          = TTup (map (g vs) ts)
-        g vs (TVar v)
-          | v `elem` vs         = TWild
-        g vs t                  = t
-        h vs (PType t)          = PType (g vs t)
-        h vs p                  = p
+peel (TQual t ps)               = mkWild (bvars ps) t
 peel t                          = t
 
 
+-- turn class and subtype predicates into explicit function arguments, and peel off the quantifiers
+expl (TQual t ps)               = mkWild (bvars ps) (TFun ts t)
+  where ts                      = [ t | PType t <- ps ]
+
+
+-- replace all variables vs in a type by _
+mkWild vs (TQual t ps)          = TQual (mkWild vs' t) (map (mkWild' vs') ps)
+  where vs'                     = vs \\ bvars ps
+mkWild vs (TAp t t')            = TAp (mkWild vs t) (mkWild vs t')
+mkWild vs (TFun ts t)           = TFun (map (mkWild vs) ts) (mkWild vs t)
+mkWild vs (TSub t t')           = TSub (mkWild vs t) (mkWild vs t')
+mkWild vs (TList t)             = TList (mkWild vs t)
+mkWild vs (TTup ts)             = TTup (map (mkWild vs) ts)
+mkWild vs (TVar v)
+          | v `elem` vs         = TWild
+mkWild vs t                     = t
+
+
+-- replace all variables vs in a predicate by _
+mkWild' vs (PType t)          = PType (mkWild vs t)
+mkWild' vs p                  = p
