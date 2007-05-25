@@ -174,16 +174,16 @@ compileTimber clo f = do putStrLn $ "[compiling " ++ show f ++ "]"
                          writeFile (map f m ++ ".h") htxt
 
  where passes imps par = do
-                         (e0,e1,e2,e3,e4) <- initEnvs imps
+                         (e0,e1,e2,e3) <- initEnvs imps
                          (d1,a0) <- pass (desugar1 e0)    Desugar1            par
                          rn      <- pass (renameM e1)     Rename              d1
                          d2      <- pass desugar2         Desugar2            rn
                          co      <- pass syntax2core      S2C                 d2
                          kc      <- pass (kindcheck e2)   KCheck              co
-                         (tc)    <- pass (typecheck e2)   TCheck              kc
-                         rd      <- pass termred          Termred             tc
+                         tc      <- pass (typecheck e2)   TCheck              kc
+                         rd      <- pass (termred e2)     Termred             tc
                          (ki,a2) <- pass (core2kindle e3) C2K                 rd
-                         ll      <- pass (lambdalift e4)  LLift               ki
+                         ll      <- pass (lambdalift e3)  LLift               ki
                          pc      <- pass (prepare4c e3)   Prepare4C           ll
                          c       <- pass kindle2c         K2C                 pc
                          ifc     <- ifaceMod (a0,rd,a2)

@@ -6,15 +6,16 @@ import Env
 import Depend
 import PP
 
-termred m                       = return (redModule m)
+termred (_,_,impIe) m           = return (redModule impIe m)
 
 
 redTerm env e                   = redExp env e
 
 
-redModule (Module m ns ds ie bs)= Module m ns ds ie' (redBinds env1 bs)
+redModule impIe (Module m ns ds ie bs) 
+                                = Module m ns ds (redBinds env0 ie) (redBinds env1 bs)
   where env0                    = []
-        ie'                     = redBinds env0 ie
+        ie'                     = redBinds env0 (impIe `catBinds` ie)
         env1                    = f (groupBinds ie')
         f []                    = []
         f (Binds r te eqs : bs) = if r then f bs else filter (simple . snd) eqs ++ f bs

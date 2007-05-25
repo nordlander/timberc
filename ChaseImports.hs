@@ -69,8 +69,8 @@ chaseImports m imps             = do bms <- mapM readImport imps
 
 initEnvs bms         = do ims <- mapM mkEnv bms
                           let (rs,ss,rnL,rnT,rnE,ds,is,te,kds,kte,cs) 
-                                = foldr mergeMod ([],[],[],[],[],Types [] [],Binds True [] [],[],[],[],[]) ims
-                          return ((rs,rnL,ss),(rnL,rnT,rnE),(ds,te,is),(kds,kte,cs),kds)
+                                = foldr mergeMod ([],[],[],[],[],Types [] [],Binds False [] [],[],[],[],[]) ims
+                          return ((rs,rnL,ss),(rnL,rnT,rnE),(ds,te,is),(kds,kte,cs))
 
 mergeMod (rs1,ss1,rnL1,rnT1,rnE1,ds1,is1,te1,kds1,kte1,cs1)
          (rs2,ss2,rnL2,rnT2,rnE2,ds2,is2,te2,kds2,kte2,cs2) =
