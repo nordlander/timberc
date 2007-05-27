@@ -2,39 +2,52 @@ module Fixity where
 
 import Common
 import Syntax
+import List(sort)
 
-type Precedence = Int
-data Associativity = LeftAss | RightAss | NonAss deriving (Eq,Show)
+type Precedence         = Int
+data Associativity      = LeftAss | RightAss | NonAss deriving (Eq,Show)
 
-data Fixity = Fixity Associativity Precedence deriving (Eq,Show)
+data Fixity             = Fixity Associativity Precedence deriving (Eq,Show)
 
-data OpExp = Nil Exp | Cons OpExp Name Exp 
+data OpExp              = Nil Exp | Cons OpExp Name Exp 
 
 fixity :: String -> Fixity
-fixity op = maybe (Fixity LeftAss 9) id (lookup op fixTable)
-   where fixTable = 
-           [(":",  Fixity RightAss 5),
-            ("++", Fixity RightAss 5),
-            ("+",  Fixity LeftAss  6),
-            ("-",  Fixity LeftAss  6),
-            ("*",  Fixity LeftAss  7),
-            ("/",  Fixity LeftAss  7),
-            ("div",Fixity LeftAss  7),
-            ("mod",Fixity LeftAss  7),
-            (".",  Fixity RightAss 9),
-            ("^",  Fixity RightAss 8),
-            ("==", Fixity NonAss   4),
-            ("/=", Fixity NonAss   4),
-            ("<",  Fixity NonAss   4),
-            ("<=", Fixity NonAss   4),
-            (">",  Fixity NonAss   4),
-            (">=", Fixity NonAss   4),
-            ("&&", Fixity RightAss 3),
-            ("||", Fixity RightAss 2),
-            (">>", Fixity LeftAss  1),
-            (">>=",Fixity LeftAss  1),
-            ("$",  Fixity RightAss 0)
-           ]
+fixity op               = case lookup op fixTable of
+                            Just f  -> f
+                            Nothing -> fixFromChars op
+  where fixTable        = [(":",  Fixity RightAss 5),
+                           ("++", Fixity RightAss 5),
+                           ("+",  Fixity LeftAss  6),
+                           ("-",  Fixity LeftAss  6),
+                           ("*",  Fixity LeftAss  7),
+                           ("/",  Fixity LeftAss  7),
+                           ("div",Fixity LeftAss  7),
+                           ("mod",Fixity LeftAss  7),
+--                           (".",  Fixity RightAss 9),
+                           ("^",  Fixity RightAss 8),
+                           ("==", Fixity NonAss   4),
+                           ("/=", Fixity NonAss   4),
+                           ("<",  Fixity NonAss   4),
+                           ("<=", Fixity NonAss   4),
+                           (">",  Fixity NonAss   4),
+                           (">=", Fixity NonAss   4),
+                           ("&&", Fixity RightAss 3),
+                           ("||", Fixity RightAss 2),
+                           (">>", Fixity LeftAss  1),
+                           (">>=",Fixity LeftAss  1),
+                           ("$",  Fixity RightAss 0)
+                          ]
+        fixFromChars op = case sort (nub (intersect op "+-*/<>")) of
+                            "+"  -> Fixity LeftAss 6
+                            "-"  -> Fixity LeftAss 6
+                            "+-" -> Fixity LeftAss 6
+                            "*"  -> Fixity LeftAss 7
+                            "/"  -> Fixity LeftAss 7
+                            "*/" -> Fixity LeftAss 7
+                            "<"  -> Fixity NonAss  4
+                            ">"  -> Fixity NonAss  4
+                            "<>" -> Fixity NonAss  4
+                            _    -> Fixity LeftAss 9
 
 {-
 Transforms a tree of infix expressions as produced by the parser 
@@ -47,7 +60,7 @@ the same length.
 -}
 
 transFix :: OpExp -> Exp
-transFix e = push e [] []
+transFix e              = push e [] []
   where push (Cons l o r) os es =
            case os of
               o':os' 
