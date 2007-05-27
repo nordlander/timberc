@@ -6,9 +6,9 @@ import Kindle
 import PP
 import Char
 
-kindle2c m                      = return (render h, render c)
+kindle2c is m                   = return (render h, render c)
   where h                       = k2hModule m
-        c                       = k2cModule m
+        c                       = k2cModule is m
 
 -- ====================================================================================================
 -- Generate .h file
@@ -75,10 +75,11 @@ k2cType (TWild)                 = text "POLY"
   "Constant initializer" is presently interpreted as literals only for lack of better understanding.
 -}
 
-k2cModule (Module n ns ds bs)   = cHeader n $$$
+k2cModule is (Module n ns ds bs)= cHeader n $$$
                                   vcat (map k2cBindStub [ b | b@(n,_) <- bs, not(isQualified n), not(k2cIsSimple b) || isFun b ]) $$$
                                   vcat (map k2cBind     [ b | b@(n,_) <- bs, isFun b || (not(isQualified n) && k2cIsSimple b)]) $$$
                                   k2cInitProc n         [ b | b@(n,_) <- bs, not(isFun b) && not(k2cIsSimple b)] $$$
+                                  maybeMain n is bs $$$ 
                                   cFooter n
   where isFun (_,Fun _ _ _)     = True
         isFun _                 = False
@@ -91,6 +92,17 @@ k2cBindStubLocal b@(x,_)
 cHeader n                       = k2cImport n 
 cFooter n                       = empty
 
+maybeMain n is bs               = case findMain bs of
+                                    Just (m,Fun _ te _) -> text "int main() {" $$
+                                      nest 4 (vcat (map f (is ++ [n])) $$ 
+                                              k2cName m <> char '(' <> commasep k2cName (map fst te) <> text");") $$
+                                      char '}'
+                                    Nothing -> empty
+  where f i                     = text "_init_" <> text (modToundSc (str i)) <> text "();" 
+        findMain []             = Nothing
+        findMain ((m,b):bs)
+           | str m == "main"    = Just (m,b)
+           | otherwise          = findMain bs                                   
 
 k2cInitProc n bs                = text "void _init_" <> text (modToundSc (str n)) <+> text "() {" $$
 	                          nest 4 (vcat (map k2cInit bs)) $$

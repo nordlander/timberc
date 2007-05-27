@@ -10,6 +10,7 @@ import Decls
 import PP
 import qualified Core2Kindle 
 import qualified Kindle 
+import Depend
 
 -- Data type of interface file -----------------------------------------------
 
@@ -52,20 +53,20 @@ isAbstract (n,_)                   = False     -- this makes abstract types with
 -- Getting import info ---------------------------------------------------------
 
 chaseImports m imps             = do bms <- mapM readImport imps
-                                     rms <- chaseRecursively (map impName imps) [] (concatMap recImps bms)
+                                     rms <- chaseRecursively (map impName imps) [] (concatMap (recImps . snd) bms)
                                      return (bms ++ rms)
   where readImport (Syntax.Import b c) = do ifc <- decodeFile (modToPath(str c) ++ ".ti")
-                                            return (c,b,True,ifc)
-        recImps (_,_,_,IFace ns _ _ _ _ _ _ _ _)= ns
+                                            return (c,(b,True,ifc))
         impName (Syntax.Import b c)    = c
         chaseRecursively vs ms []      = return ms
         chaseRecursively vs ms (r : rs)
              | elem r vs               = chaseRecursively vs ms rs
              | otherwise               = do ifc@(IFace ns _ _ _ _ _ _ _ _)  <- decodeFile (modToPath (str r) ++ ".ti")
-                                            chaseRecursively (r : vs) ((r,False,False,ifc) : ms) (rs ++ ns)
+                                            chaseRecursively (r : vs) ((r,(False,False,ifc)) : ms) (rs ++ ns)
 
+recImps (_,_,IFace ns _ _ _ _ _ _ _ _) = ns
 
-
+init_order imps                        = map fst (topSort1 "Mutually recursive modules " showids recImps imps)
 
 initEnvs bms         = do ims <- mapM mkEnv bms
                           let (rs,ss,rnL,rnT,rnE,ds,is,te,kds,kte,cs) 
@@ -79,7 +80,7 @@ mergeMod (rs1,ss1,rnL1,rnT1,rnE1,ds1,is1,te1,kds1,kte1,cs1)
                                     catDecls ds1 ds2, catBinds is1 is2, te1 ++ te2,
                                     kds1 ++ kds2,kte1 ++ kte2, cs1 ++ cs2)
 
-mkEnv (m,unQual,direct,IFace ns rs ss ds tsi te kds kte cs) 
+mkEnv (m,(unQual,direct,IFace ns rs ss ds tsi te kds kte cs)) 
                           = do ks  <- renaming (dom ke)
                                ts  <- renaming (dom te')
                                ls' <- renaming ls -- (concatMap snd rs)

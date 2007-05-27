@@ -172,7 +172,6 @@ compileTimber clo f = do putStrLn $ "[compiling " ++ show f ++ "]"
                          encodeFile (m ++ ".ti") ifc
                          writeFile (map f m ++ ".c") mtxt
                          writeFile (map f m ++ ".h") htxt
-
  where passes imps par = do
                          (e0,e1,e2,e3) <- initEnvs imps
                          (d1,a0) <- pass (desugar1 e0)    Desugar1            par
@@ -185,7 +184,7 @@ compileTimber clo f = do putStrLn $ "[compiling " ++ show f ++ "]"
                          (ki,a2) <- pass (core2kindle e3) C2K                 rd
                          ll      <- pass (lambdalift e3)  LLift               ki
                          pc      <- pass (prepare4c e3)   Prepare4C           ll
-                         c       <- pass kindle2c         K2C                 pc
+                         c       <- pass (kindle2c (init_order imps)) K2C     pc
                          ifc     <- ifaceMod (a0,rd,a2)
                          return (c,ifc)
        pass        :: (Pr b) => (a -> M s b) -> Pass -> a -> M s b
