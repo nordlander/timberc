@@ -576,10 +576,10 @@ primKindEnv             = [ (prim Action,       Star),
                             (prim Bool,         Star),
 
                             (prim LIST,         KFun Star Star),
-                            (prim UNIT,         Star) ]
+                            (prim UNITTYPE,     Star) ]
 
 
-primTypeEnv             = [ (prim UNIT,         scheme0 [] tUnit),
+primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
                             (prim NIL,          scheme1 [] (tList a)),
                             (prim CONS,         scheme1 [a,tList a] (tList a)),
 
@@ -625,6 +625,9 @@ primTypeEnv             = [ (prim UNIT,         scheme0 [] tUnit),
 
                             (prim CharToInt,    scheme0 [tChar] tInt),
                             (prim IntToChar,    scheme0 [tInt] tChar),
+
+                            (prim LazyOr,       scheme0 [tBool,tBool] tBool),
+                            (prim LazyAnd,      scheme0 [tBool,tBool] tBool),
 
                             (prim MsgEQ,        scheme0 [tMsg,tMsg] tBool),
                             (prim MsgNE,        scheme0 [tMsg,tMsg] tBool),
@@ -673,7 +676,7 @@ tFloat                  = TId (prim Float)
 tChar                   = TId (prim Char)
 tBool                   = TId (prim Bool)
 tList a                 = TAp (TId (prim LIST)) a
-tUnit                   = TId (prim UNIT)
+tUnit                   = TId (prim UNITTYPE)
         
 a                       = TId (name0 "a")
 b                       = TId (name0 "b")

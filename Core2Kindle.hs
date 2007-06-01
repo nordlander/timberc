@@ -372,7 +372,7 @@ bindOrphans env bf e
         ts                              = map (Kindle.rngType . snd . findSel env) vs
         mkSelBind v t                   = (v, Kindle.Val t (Kindle.ESel (Kindle.EVar (self env)) v))
  
-bindOrphans' env bf                     = bindOrphans env bf (Kindle.EVar (prim UNIT))
+bindOrphans' env bf                     = bindOrphans env bf (Kindle.EVar (prim UNITTERM))
  
 
 -- Cast Kindle.Exp e into Kindle.AType t (if necessary)

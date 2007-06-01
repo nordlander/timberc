@@ -68,8 +68,8 @@ transFix e              = push e [] []
                     error ("Operator ambiguity: " ++ show o ++ " with " ++ show o')
                 |prec<prec'||(prec==prec'&&ass==RightAss) ->
                     push (Cons l o (opApp r o' (head es))) os' (tail es)
-                         where Fixity ass  prec  = fixity (str o)
-                               Fixity ass' prec' = fixity (str o')
+                         where Fixity ass  prec  = fixity (str' o)
+                               Fixity ass' prec' = fixity (str' o')
               _ -> push l (o:os) (r:es)
         push (Nil e) os es = popAll os (e:es)
         opApp l o r = EAp (EAp (op2exp o) l) r
@@ -77,3 +77,7 @@ transFix e              = push e [] []
         popAll (o:os) (e1:e2:es) = popAll os (opApp e1 o e2:es)
         popAll [] es = head es
 
+        str' (Name s _ _ _) = s
+        str' (Prim LazyOr _) = "||"
+        str' (Prim LazyAnd _) = "&&"
+        str' (Prim p _) = error ("Internal: unknown predefined op: "++ strRep p)

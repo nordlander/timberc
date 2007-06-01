@@ -258,7 +258,7 @@ s2cE env e                              = error ("Internal s2cE " ++ show e)
 -- Statements ==================================================================================
 
 -- translate a statement list
-s2cS env []                             = return (Core.CRet (Core.eCon (prim UNIT)))
+s2cS env []                             = return (Core.CRet (Core.eCon (prim UNITTERM)))
 s2cS env [SRet e]                       = do (t,e') <- s2cEi env e
                                              return (Core.CRet e')
 s2cS env [SExp e]                       = do (t,e') <- s2cEi env e

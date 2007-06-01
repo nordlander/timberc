@@ -41,7 +41,7 @@ data Prim                       =
                                 -- Constructor symbols (special syntax)
 
                                 | LIST                  -- Type
-                                | UNIT                  -- Type,term
+                                | UNITTYPE              -- Type
                                 | NIL                   -- Term
                                 | CONS                  -- Term
 
@@ -49,6 +49,7 @@ data Prim                       =
 
                                 | FALSE                 -- Terms
                                 | TRUE
+                                | UNITTERM 
 
                                 -- Variable identifiers
 
@@ -91,6 +92,9 @@ data Prim                       =
 
                                 | CharToInt
                                 | IntToChar
+
+                                | LazyOr
+                                | LazyAnd
 
                                 | MsgEQ
                                 | MsgNE
@@ -140,7 +144,7 @@ data Prim                       =
                                 | LISTtags              -- The Kindle Enum for built-in LIST tags
                                 deriving (Eq,Ord,Enum,Bounded,Show)
 
-isConPrim p                     = p <= TRUE
+isConPrim p                     = p <= UNITTERM
 
 invisible p                     = p >= ASYNC
 
@@ -148,20 +152,21 @@ isIdPrim p                      = p `notElem` primSyms
 
 primSyms                        = [LIST, NIL, CONS]
 
-primTypes                       = map primKeyValue [Action .. UNIT] ++ alreadyPrimed [Action .. UNIT]
+primTypes                       = map primKeyValue [Action .. UNITTYPE] ++ alreadyPrimed [Action .. UNITTYPE]
 
-primTerms                       = map primKeyValue [UNIT .. Before] ++ alreadyPrimed [UNIT,NIL,CONS]
+primTerms                       = map primKeyValue [NIL .. Before] ++ alreadyPrimed [UNITTERM,NIL,CONS,LazyAnd,LazyOr]
 
 primKeyValue p                  = (name0 (strRep p), prim p)
 
 alreadyPrimed ps                = map (\p -> (prim p, prim p)) ps
 
 strRep LIST                     = "[]"
-strRep UNIT                     = "()"
+strRep UNITTYPE                 = "()"
 strRep NIL                      = "[]"
 strRep CONS                     = ":"
 strRep TRUE                     = "True"
 strRep FALSE                    = "False"
+strRep UNITTERM                 = "()"
 strRep Sec                      = "sec"
 strRep MilliSec                 = "millisec"
 strRep MicroSec                 = "microsec"
@@ -182,6 +187,11 @@ loc l                           = noAnnot { location = Just l }
 
 
 name l s                        = qualName(Name s 0 Nothing (loc l))
+
+
+opName l "||"                   = prim LazyOr
+opName l "&&"                   = prim LazyAnd
+opName l s                      = name l s
 
 name0 s                         = Name s 0 Nothing noAnnot
 
@@ -258,10 +268,6 @@ instance Eq Name where
   Tuple a _           == Tuple b _           = a == b
   Prim a _            == Prim b _            = a == b
   _                   == _                   = False
-
--- BvS: I do not understand the use of the Ord instance for Name in Env (for deriving Ord for Rank)
--- but I guess that the ordering of Names is arbitrary for that purpose. 
--- The order below is what we want for sorting selectors in Desugar1.
 
 instance Ord Name where
   Prim a _   <= Prim b _        = a <= b
@@ -357,77 +363,80 @@ instance Binary Prim where
   put Char = putWord8 11
   put Bool = putWord8 12
   put LIST = putWord8 13
-  put UNIT = putWord8 14
+  put UNITTYPE = putWord8 14
   put NIL = putWord8 15
   put CONS = putWord8 16
   put FALSE = putWord8 17
   put TRUE = putWord8 18
-  put Refl = putWord8 19
-  put ActToCmd = putWord8 20
-  put ReqToCmd = putWord8 21
-  put TemplToCmd = putWord8 22
-  put RefToPID = putWord8 23
-  put IntPlus = putWord8 24
-  put IntMinus = putWord8 25
-  put IntTimes = putWord8 26
-  put IntDiv = putWord8 27
-  put IntMod = putWord8 28
-  put IntNeg = putWord8 29
-  put IntEQ = putWord8 30
-  put IntNE = putWord8 31
-  put IntLT = putWord8 32
-  put IntLE = putWord8 33
-  put IntGE = putWord8 34
-  put IntGT = putWord8 35
-  put FloatPlus = putWord8 36
-  put FloatMinus = putWord8 37
-  put FloatTimes = putWord8 38
-  put FloatDiv = putWord8 39
-  put FloatNeg = putWord8 40
-  put FloatEQ = putWord8 41
-  put FloatNE = putWord8 42
-  put FloatLT = putWord8 43
-  put FloatLE = putWord8 44
-  put FloatGE = putWord8 45
-  put FloatGT = putWord8 46
-  put IntToFloat = putWord8 47
-  put FloatToInt = putWord8 48
-  put CharToInt = putWord8 49
-  put IntToChar = putWord8 50
-  put MsgEQ = putWord8 51
-  put MsgNE = putWord8 52
-  put PidEQ = putWord8 53
-  put PidNE = putWord8 54
-  put Sec = putWord8 55
-  put MilliSec = putWord8 56
-  put MicroSec = putWord8 57
-  put NanoSec = putWord8 58
-  put Infinity = putWord8 59
-  put TimePlus = putWord8 60
-  put TimeMinus = putWord8 61
-  put TimeMin = putWord8 62
-  put TimeEQ = putWord8 63
-  put TimeNE = putWord8 64
-  put TimeLT = putWord8 65
-  put TimeLE = putWord8 66
-  put TimeGE = putWord8 67
-  put TimeGT = putWord8 68
-  put Fail = putWord8 69
-  put Commit = putWord8 70
-  put Match = putWord8 71
-  put Fatbar = putWord8 72
-  put After = putWord8 73
-  put Before = putWord8 74
-  put ASYNC = putWord8 75
-  put LOCK = putWord8 76
-  put UNLOCK = putWord8 77
-  put NEW = putWord8 78
-  put Code = putWord8 79
-  put Baseline = putWord8 80
-  put Deadline = putWord8 81
-  put Box = putWord8 82
-  put Value = putWord8 83
-  put LISTtags = putWord8 84
+  put UNITTERM = putWord8 19
+  put Refl = putWord8 20
+  put ActToCmd = putWord8 21
+  put ReqToCmd = putWord8 22
+  put TemplToCmd = putWord8 23
+  put RefToPID = putWord8 24
+  put IntPlus = putWord8 25
+  put IntMinus = putWord8 26
+  put IntTimes = putWord8 27
+  put IntDiv = putWord8 28
+  put IntMod = putWord8 29
+  put IntNeg = putWord8 30
+  put IntEQ = putWord8 31
+  put IntNE = putWord8 32
+  put IntLT = putWord8 33
+  put IntLE = putWord8 34
+  put IntGE = putWord8 35
+  put IntGT = putWord8 36
+  put FloatPlus = putWord8 37
+  put FloatMinus = putWord8 38
+  put FloatTimes = putWord8 39
+  put FloatDiv = putWord8 40
+  put FloatNeg = putWord8 41
+  put FloatEQ = putWord8 42
+  put FloatNE = putWord8 43
+  put FloatLT = putWord8 44
+  put FloatLE = putWord8 45
+  put FloatGE = putWord8 46
+  put FloatGT = putWord8 47
+  put IntToFloat = putWord8 48
+  put FloatToInt = putWord8 49
+  put CharToInt = putWord8 50
+  put IntToChar = putWord8 51
+  put LazyOr = putWord8 52
+  put LazyAnd = putWord8 53
+  put MsgEQ = putWord8 54
+  put MsgNE = putWord8 55
+  put PidEQ = putWord8 56
+  put PidNE = putWord8 57
+  put Sec = putWord8 58
+  put MilliSec = putWord8 59
+  put MicroSec = putWord8 60
+  put NanoSec = putWord8 61
+  put Infinity = putWord8 62
+  put TimePlus = putWord8 63
+  put TimeMinus = putWord8 64
+  put TimeMin = putWord8 65
+  put TimeEQ = putWord8 66
+  put TimeNE = putWord8 67
+  put TimeLT = putWord8 68
+  put TimeLE = putWord8 69
+  put TimeGE = putWord8 70
+  put TimeGT = putWord8 71
+  put Fail = putWord8 72
+  put Commit = putWord8 73
+  put Match = putWord8 74
+  put Fatbar = putWord8 75
+  put After = putWord8 76
+  put Before = putWord8 77
+  put ASYNC = putWord8 78
+  put LOCK = putWord8 79
+  put UNLOCK = putWord8 80
+  put NEW = putWord8 81
+  put Code = putWord8 82
+  put Baseline = putWord8 83
+  put Deadline = putWord8 84
+  put Box = putWord8 85
+  put Value = putWord8 86
+  put LISTtags = putWord8 87
   get = do
     tag_ <- getWord8
     case tag_ of
@@ -445,75 +454,78 @@ instance Binary Prim where
       11 -> return Char
       12 -> return Bool
       13 -> return LIST
-      14 -> return UNIT
+      14 -> return UNITTYPE
       15 -> return NIL
       16 -> return CONS
       17 -> return FALSE
       18 -> return TRUE
-      19 -> return Refl
-      20 -> return ActToCmd
-      21 -> return ReqToCmd
-      22 -> return TemplToCmd
-      23 -> return RefToPID
-      24 -> return IntPlus
-      25 -> return IntMinus
-      26 -> return IntTimes
-      27 -> return IntDiv
-      28 -> return IntMod
-      29 -> return IntNeg
-      30 -> return IntEQ
-      31 -> return IntNE
-      32 -> return IntLT
-      33 -> return IntLE
-      34 -> return IntGE
-      35 -> return IntGT
-      36 -> return FloatPlus
-      37 -> return FloatMinus
-      38 -> return FloatTimes
-      39 -> return FloatDiv
-      40 -> return FloatNeg
-      41 -> return FloatEQ
-      42 -> return FloatNE
-      43 -> return FloatLT
-      44 -> return FloatLE
-      45 -> return FloatGE
-      46 -> return FloatGT
-      47 -> return IntToFloat
-      48 -> return FloatToInt
-      49 -> return CharToInt
-      50 -> return IntToChar
-      51 -> return MsgEQ
-      52 -> return MsgNE
-      53 -> return PidEQ
-      54 -> return PidNE
-      55 -> return Sec
-      56 -> return MilliSec
-      57 -> return MicroSec
-      58 -> return NanoSec
-      59 -> return Infinity
-      60 -> return TimePlus
-      61 -> return TimeMinus
-      62 -> return TimeMin
-      63 -> return TimeEQ
-      64 -> return TimeNE
-      65 -> return TimeLT
-      66 -> return TimeLE
-      67 -> return TimeGE
-      68 -> return TimeGT
-      69 -> return Fail
-      70 -> return Commit
-      71 -> return Match
-      72 -> return Fatbar
-      73 -> return After
-      74 -> return Before
-      75 -> return ASYNC
-      76 -> return LOCK
-      77 -> return UNLOCK
-      78 -> return NEW
-      79 -> return Code
-      80 -> return Baseline
-      81 -> return Deadline
-      82 -> return Box
-      83 -> return Value
-      84 -> return LISTtags
+      19 -> return UNITTERM
+      20 -> return Refl
+      21 -> return ActToCmd
+      22 -> return ReqToCmd
+      23 -> return TemplToCmd
+      24 -> return RefToPID
+      25 -> return IntPlus
+      26 -> return IntMinus
+      27 -> return IntTimes
+      28 -> return IntDiv
+      29 -> return IntMod
+      30 -> return IntNeg
+      31 -> return IntEQ
+      32 -> return IntNE
+      33 -> return IntLT
+      34 -> return IntLE
+      35 -> return IntGE
+      36 -> return IntGT
+      37 -> return FloatPlus
+      38 -> return FloatMinus
+      39 -> return FloatTimes
+      40 -> return FloatDiv
+      41 -> return FloatNeg
+      42 -> return FloatEQ
+      43 -> return FloatNE
+      44 -> return FloatLT
+      45 -> return FloatLE
+      46 -> return FloatGE
+      47 -> return FloatGT
+      48 -> return IntToFloat
+      49 -> return FloatToInt
+      50 -> return CharToInt
+      51 -> return IntToChar
+      52 -> return LazyOr
+      53 -> return LazyAnd
+      54 -> return MsgEQ
+      55 -> return MsgNE
+      56 -> return PidEQ
+      57 -> return PidNE
+      58 -> return Sec
+      59 -> return MilliSec
+      60 -> return MicroSec
+      61 -> return NanoSec
+      62 -> return Infinity
+      63 -> return TimePlus
+      64 -> return TimeMinus
+      65 -> return TimeMin
+      66 -> return TimeEQ
+      67 -> return TimeNE
+      68 -> return TimeLT
+      69 -> return TimeLE
+      70 -> return TimeGE
+      71 -> return TimeGT
+      72 -> return Fail
+      73 -> return Commit
+      74 -> return Match
+      75 -> return Fatbar
+      76 -> return After
+      77 -> return Before
+      78 -> return ASYNC
+      79 -> return LOCK
+      80 -> return UNLOCK
+      81 -> return NEW
+      82 -> return Code
+      83 -> return Baseline
+      84 -> return Deadline
+      85 -> return Box
+      86 -> return Value
+      87 -> return LISTtags
       _ -> fail "no parse"

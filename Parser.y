@@ -256,7 +256,7 @@ atype   :: { Type }
         | '[' ']'				{ TCon (prim LIST) }
 --	| '(' '->' ')'	                	{ TCon (prim ARROW) }
 	| '(' commas ')'			{ TCon (tuple ($2+1)) }
-        | '(' ')'				{ TCon (prim UNIT) }
+        | '(' ')'				{ TCon (prim UNITTYPE) }
         | '(' type ')'                          { $2 }
 	| '(' types ')'				{ TTup (reverse $2) }
 	| '[' type ']'				{ TList $2 }
@@ -359,7 +359,7 @@ bexp    :: { Exp }
         | '_'                                   { EWild }
         | con                                   { ECon $1 }
         | lit                                   { ELit $1 }
-        | '(' ')'                               { ECon (prim UNIT) }
+        | '(' ')'                               { ECon (prim UNITTERM) }
         | '(' '.' var ')'                       { ESel $3 }
         | '(' exp ')'                           { $2 }
         | '(' exps ')'                          { ETup (reverse $2) } 
@@ -560,7 +560,7 @@ conid   :: { Name }
         : loc CONID                             { name $1 $2 }
 
 varsym  :: { Name }
-        : VARSYM1                               {% do l <- getSrcLoc; return (name l $1) }
+        : VARSYM1                               {% do l <- getSrcLoc; return (opName l $1) }
 
 consym  :: { Name }
         : loc CONSYM                            { name $1 $2 }

@@ -216,6 +216,8 @@ k2cPrim FloatToInt              = text "(int)"
 k2cPrim CharToInt               = text "(int)"
 k2cPrim IntToChar               = text "(char)"
 
+k2cPrim LazyOr                  = text "||"
+k2cPrim LazyAnd                 = text "&&"
 k2cPrim MsgEQ                   = text "=="
 k2cPrim MsgNE                   = text "!="
 
