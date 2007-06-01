@@ -211,21 +211,25 @@ main2 args          = do (clo, files) <- Exception.catchDyn (cmdLineOpts args)
                                          fatalErrorHandler
 
                          let timber_files = [ modToPath file | file <- files, ".t" `isSuffixOf` file ]
+                             c_files = [ map f (rmSuffix ".t" file) | file <- files, ".t" `isSuffixOf` file ]
+                             f '/' = '_'
+                             f x = x
+
                          mapM (compileTimber clo) timber_files
                          let iface_files =  [ modToPath file | file <- files, ".ti" `isSuffixOf` file ]
                          mapM listIface iface_files
                          Monad.when (stopAtC clo) stopCompiler
-{-
+
                          let c_modules = [ rmSuffix ".c" file | file <- files, ".c" `isSuffixOf` file ]
 
                          -- all the timber modules should have produced c modules
-                         let all_modules = map t2mName timber_files ++ c_modules
+                         let all_modules = c_files ++ c_modules
                          mapM_ (compileC cfg clo) all_modules
                          Monad.when (stopAtO clo) stopCompiler
 
                          -- finally, perform the last link
                          linkO cfg clo all_modules
--}
+
                          return ()
 
 
