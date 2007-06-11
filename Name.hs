@@ -138,7 +138,9 @@ data Prim                       =
                                 | Baseline
                                 | Deadline
                                 
-                                | Box                   -- The Kindle Struct for boxed values
+                                | CharBox                   -- The Kindle Struct for boxed values
+                                | FloatBox                
+                                | IntBox                  
                                 | Value                 -- selector of struct Box
                                 
                                 | LISTtags              -- The Kindle Enum for built-in LIST tags
@@ -434,9 +436,11 @@ instance Binary Prim where
   put Code = putWord8 82
   put Baseline = putWord8 83
   put Deadline = putWord8 84
-  put Box = putWord8 85
-  put Value = putWord8 86
-  put LISTtags = putWord8 87
+  put CharBox = putWord8 85
+  put FloatBox = putWord8 86
+  put IntBox = putWord8 87
+  put Value = putWord8 88
+  put LISTtags = putWord8 89
   get = do
     tag_ <- getWord8
     case tag_ of
@@ -525,7 +529,9 @@ instance Binary Prim where
       82 -> return Code
       83 -> return Baseline
       84 -> return Deadline
-      85 -> return Box
-      86 -> return Value
-      87 -> return LISTtags
+      85 -> return CharBox
+      86 -> return FloatBox
+      87 -> return IntBox
+      88 -> return Value
+      89 -> return LISTtags
       _ -> fail "no parse"

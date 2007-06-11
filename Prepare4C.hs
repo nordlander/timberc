@@ -132,14 +132,14 @@ pExp' env (EEnter e f es)           = do (bs1,t@(TId n),e) <- pRhsExp env e
 pExp' env (ECast TWild e)           = do (bs,t',e) <- pExp' env e
                                          if mustBox env t' then do
                                              x <- newName tempSym
-                                             let bs1 = [(x, Val (TId (prim Box)) (ENew (prim Box) bs2))]
-                                                 bs2 = [(prim Value, Val TWild (ECast TWild e))]
+                                             let bs1 = [(x, Val (TId (box t')) (ENew (box t') bs2))]
+                                                 bs2 = [(prim Value, Val t' e)]
                                              return (bs++bs1, TWild, ECast TWild (EVar x))
                                           else
                                              return (bs, TWild, ECast TWild e)
 pExp' env (ECast t e)               = do (bs,t',e) <- pExp' env e
                                          if t'==TWild && mustBox env t then
-                                             return (bs, t, ECast t (ESel (ECast (TId (prim Box)) e) (prim Value)))
+                                             return (bs, t, ECast t (ESel (ECast (TId (box t)) e) (prim Value)))
                                           else
                                              return (bs, t, ECast t e)
 pExp' env (ENew n bs)               = do (bs1,bs) <- pMap (pSBind env n) bs
@@ -154,3 +154,8 @@ mustBox env (TId n)
                                          Just (Struct te) -> False      -- Already heap allocated
                                          Just (Enum cs)   -> False      -- Limited range, can't be confused with a pointer
                                          _ -> True                      -- In effect, integers and floats
+
+box (TId (Prim Char _))             = prim CharBox
+box (TId (Prim Float _))            = prim FloatBox
+box (TId (Prim Int _))              = prim IntBox
+box t                               = prim IntBox   -- ****** Temporary; what about PID, Time, Ref, Action, ....
