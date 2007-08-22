@@ -13,13 +13,6 @@ scc                             :: Eq a => Graph a -> [[a]]
 scc g                           = dfs g' (concat (dfs g (dom g)))
   where g'                      = [(i,[x | (x,ys) <- g, i `elem` ys]) | (i,_) <- g]
  
-
-topSort1 mess pr nbors ms       = order ms (topSort (graph nbors ms))
-  where topSort g               = case dropWhile (null . tail) ns of
-                                    []     -> concat ns
-                                    xs : _ -> error (mess ++ pr xs)
-          where ns              = scc g
-
 dfs g is                        = snd (dfs' ([],[]) is)
    where dfs' p []              = p
          dfs' p@(vs,ns) (x:xs)
@@ -31,6 +24,12 @@ dfs g is                        = snd (dfs' ([],[]) is)
 order ms ns                     = ns `zip` map (fromJust . flip lookup ms) ns
   
 group ms nss                    = map (order ms) nss
+
+topSort                         :: Eq a  => (b -> [a]) -> [(a,b)] -> Either [a] [(a,b)]
+topSort nbors ms                = case dropWhile (null . tail) ns of
+                                    []     -> Right (order ms (concat ns))
+                                    xs : _ -> Left xs
+          where ns              = scc (graph nbors ms)
 
 groupBinds (Binds _ te es)      = zipWith f tes ess
   where gs                      = scc (graph evars es)

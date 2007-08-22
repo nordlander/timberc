@@ -61,7 +61,9 @@ mkEnv c ds (rs,rn,ss)           = (env {sels = map transClose recEnv, modName = 
 
         tsynDecls                
           | not (null dups)     = error ("Duplicate type synonym declarations for "++showids dups)
-          | otherwise           = topSort1 "Mutually recursive type synonyms " showids (tyCons . snd) syns
+          | otherwise           = case topSort (tyCons . snd) syns of
+                                    Left ns     -> error ("Mutually recursive type synonyms: " ++  showids ns)
+                                    Right syns' -> syns'
         syns                    = [(c,(vs,t)) | DType c vs t <- ds]
         dups                    = duplicates (map fst syns)
 

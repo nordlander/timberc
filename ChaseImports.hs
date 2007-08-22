@@ -66,7 +66,10 @@ chaseImports m imps             = do bms <- mapM readImport imps
 
 recImps (_,_,IFace ns _ _ _ _ _ _ _ _) = ns
 
-init_order imps                        = map fst (topSort1 "Mutually recursive modules " showids recImps imps)
+init_order imps                        = case topSort recImps imps of
+                                           Left ms  -> error ("Mutually recursive modules: " ++ showids ms)
+                                           Right is -> map fst is
+
 
 initEnvs bms         = do ims <- mapM mkEnv bms
                           let (rs,ss,rnL,rnT,rnE,ds,is,te,kds,kte,cs) 
