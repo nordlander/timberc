@@ -58,7 +58,7 @@ findCon env k
 -- Convert a Core.Module into a Kindle.Module
 
 cModule (dsi,tei,csi) (Module m ns ds is bs)      
-                                    = do ds1  <- cDecls ds
+                                    = do ds1  <- cDecls (Just (str m)) ds
                                          mapM_ addToStore (filter (isClosure . fst) ds1)
                                          bs  <- cBindsList (addDecls ds1 env) (groupBinds (is `catBinds` bs))
                                          ds2 <- currentStore
@@ -106,7 +106,7 @@ simple (c,Constr ts ps _)           = null ts && null ps
 
 
 -- Convert a Core.Types into a Kindle.Decls
-cDecls (Types ke ds)                = do dss <- mapM cDecl ds
+cDecls m (Types ke ds)              = do dss <- mapM cDecl ds
                                          return (concat dss)
   where cDecl (n,DRec _ vs [] ss)   = do te <- cTEnv ss
                                          return [(n, Kindle.Struct te)]
@@ -114,7 +114,7 @@ cDecls (Types ke ds)                = do dss <- mapM cDecl ds
         cDecl (n,DData vs [] cs)
 --          | all simple cs           = return [(n, Kindle.Enum (dom cs))]
           | otherwise               = do tag <- newName tagSym
-                                         n' <- newName typeSym
+                                         n' <- newNameMod m typeSym
                                          let te0 = [(tag, Kindle.ValT (Kindle.TId n'))]
                                          ds <- mapM (cCon te0) cs
                                          return ((n', Kindle.Enum (dom cs)) : (n, Kindle.Struct te0) : ds)
