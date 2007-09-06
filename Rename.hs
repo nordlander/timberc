@@ -17,7 +17,6 @@ import Monad
 import Common
 import Syntax
 import List(sort)
---import qualified Core
 
 renameM e1 m                       = rename (initEnv e1) m
                                 
@@ -47,7 +46,7 @@ renE env v                         = case lookup v (rE env) of
 renS env n@(Tuple _ _)             = n
 renS env v                         = case lookup v (rS env) of
                                        Just n  -> n { annot = a { stateVar = True} }
-                                       Nothing -> error ("Undefined identifier: " ++ show v)
+                                       Nothing -> error ("Undefined state variable: " ++ show v)
   where a                          = annot v
 
 renL env v                         = case lookup v (rL env) of
