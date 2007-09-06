@@ -57,6 +57,10 @@ tenvSelCon env (c,DData vs _ cs)        = map (f t ke) cs
         f t ke (k, Constr ts ps ke')    = (k, Scheme (tFun' ts t) ps (ke++ke'))
 tenvSelCon env _                        = []
 
+tenvCon env (c,DData vs _ cs)           = map (f t ke) cs
+  where (t,ke)                          = mkHead env c vs
+        f t ke (k, Constr ts ps ke')    = (k, Scheme (tFun' ts t) ps (ke++ke'))
+tenvCon env _                           = []
 
 mkHead env i vs                         = (tAp' i vs, vs `zip` kArgs (findKind env i))
 

@@ -85,12 +85,13 @@ mergeMod (rs1,ss1,rnL1,rnT1,rnE1,ds1,is1,te1,kds1,kte1,cs1)
 
 mkEnv (m,(unQual,direct,IFace ns rs ss ds tsi te kds kte cs)) 
                           = do ks  <- renaming (dom ke)
-                               ts  <- renaming (dom te')
+                               ts  <- renaming (dom te'')
                                ls' <- renaming ls -- (concatMap snd rs)
                                return (unMod unQual rs,unMod unQual ss, unMod unQual ls',unMod unQual ks,
                                        unMod unQual ts,ds,tsi,te',kds,kte,cs)
   where Types ke ds'      = ds
         te'               = if direct then te ++ concatMap (tenvSelCon env) ds' else []
+        te''              = if direct then te ++ concatMap (tenvCon env) ds' else []
         env               = addKEnv0 ke nullEnv
         ls                = [ s | (_,DRec _ _ _ cs) <- ds', (s,_) <- cs, not (isGenerated s) ]
         unMod b ps        = if b then [(tag0 (mName Nothing c),y) | (c,y) <- ps] ++ ps else ps
