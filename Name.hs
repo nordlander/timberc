@@ -263,10 +263,10 @@ isQualified n                   = fromMod n /= Nothing
 
 instance Eq Name where
   Name a 0 Nothing _  == Name b 0 Nothing _  = a == b
-  Name a m Nothing _  == Name b n Nothing _  = m == n
+  Name a s Nothing _  == Name b t Nothing _  = s == t
   Name a 0 (Just m) _ == Name b _ (Just n) _ = a == b && m == n
   Name a _ (Just m) _ == Name b 0 (Just n) _ = a == b && m == n
-  Name _ a (Just m) _ == Name _ b (Just n) _ = a == b && m == n
+  Name _ s (Just m) _ == Name _ t (Just n) _ = s == t && m == n
   Tuple a _           == Tuple b _           = a == b
   Prim a _            == Prim b _            = a == b
   _                   == _                   = False
