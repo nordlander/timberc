@@ -9,7 +9,7 @@ import Char
 termred (_,_,impIe) m           = return (redModule impIe m)
 
 
-redTerm insts e                 = redExp (Env {eqns = insts, args = []}) e
+redTerm insts e                 = redExp (Env {eqns = insts, args = []}) e      -- must change, should only use coercions in insts
 
 data Env                        = Env { eqns :: Map Name Exp,
                                         args :: [Name]
@@ -21,7 +21,7 @@ addEqns env eqs                 = env { eqns = eqs ++ eqns env }
 
 
 redModule impIe (Module m ns ds ie bs) 
-                                = Module m ns ds (redBinds env0 ie) (redBinds env1 bs)
+                                = Module m ns ds ie' (redBinds env1 bs)
   where env0                    = Env { eqns = eqnsOf impIe, args = [] }
         ie'                     = redBinds env0 ie
         env1                    = addEqns env0 (f (groupBinds ie'))
