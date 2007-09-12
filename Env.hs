@@ -40,7 +40,7 @@ data Env = Env { kindEnv0      :: KEnv,              -- Kind for each global tyc
                  history       :: [Pred],            -- Stack of predicates currently being reduced
                  skolEnv       :: Map Name [TVar],   -- For each skolemized tyvar T: a list of free tvars not unifiable with T
                  pols          :: ([TVar],[TVar]),   -- Pair of tvars occurring in (positive,negative) position in reduction target
-                 equalities    :: [(Name,Name,Exp,Exp)], -- List of witness names that must be equivalent (and their equations)
+                 equalities    :: [(Name,Name)],     -- List of witness names that must be equivalent
 
                  ticked        :: Bool,              -- Root constraint is an automatically generated coercion (must be removed!)
                  forced        :: Bool,              -- Non-conservative reduction turned on

@@ -420,7 +420,7 @@ closePreds0 env pe                      = do (env1,pe1,eq1) <- closeTransitive e
                                              (env2,pe2,eq2) <- closeSuperclass env1 pe
                                              return (env2, pe1++pe2, eq1++eq2)
   where env0                            = addPEnv0 pe env
-    
+
 closePreds env tvs pe ke                = do (env1,pe1,eq1) <- closeTransitive env0 pe
                                              (env2,pe2,eq2) <- closeSuperclass env1 pe
                                              return (thaw env2, pe1++pe2, eq1++eq2)
@@ -430,44 +430,44 @@ closePreds env tvs pe ke                = do (env1,pe1,eq1) <- closeTransitive e
 
 preferLocals env pe qe eq               = walk [] (equalities env)
   where walk bs []                      = let (pe1,pe2) = partition ((`elem` dom bs) . fst) pe
-                                          in  (pe2, groupBinds (Binds False (pe1++qe) (prune eq (dom bs) ++ bs)))
-        walk bs ((x,y,e,e'):eqs)
+                                          in  (pe2, groupBinds (Binds False (pe1++qe) (prune eq (dom bs) ++ mapSnd eVar bs)))
+        walk bs ((x,y):eqs)
           | x `notElem` vs1             = walk bs eqs
           | otherwise                   = case (x `elem` vs0, y `elem` vs0) of
-                                            (True,  True)  -> walk ((x,e):bs) eqs
-                                            (True,  False) -> walk ((x,e):bs) eqs
-                                            (False, True)  -> walk ((y,e'):bs) eqs
-                                            (False, False) -> walk ((y,e'):bs) eqs
+                                            (True,  True)  -> walk ((x,y):bs) eqs
+                                            (True,  False) -> walk ((x,y):bs) eqs
+                                            (False, True)  -> walk ((y,x):bs) eqs
+                                            (False, False) -> walk ((y,x):bs) eqs
         vs0                             = dom pe
         vs1                             = vs0 ++ dom qe
 
 preferParams env pe qe eq               = walk [] [] (equalities env)
-  where walk ws bs []                   = groupBinds (Binds False (prune qe ws) (prune eq (ws ++ dom bs) ++ bs))
-        walk ws bs ((x,y,e,e'):eqs)
+  where walk ws bs []                   = groupBinds (Binds False (prune qe ws) (prune eq (ws ++ dom bs) ++ mapSnd eVar bs))
+        walk ws bs ((x,y):eqs)
           | x `notElem` vs1             = walk ws bs eqs
           | otherwise                   = case (x `elem` vs0, y `elem` vs0) of
                                             (True,  True)  -> walk ws bs eqs
-                                            (True,  False) -> walk ws ((y,e'):bs) eqs
+                                            (True,  False) -> walk ws ((y,x):bs) eqs
                                             (False, True)  -> walk (x:ws) bs eqs
                                             (False, False) -> walk (x:ws) bs eqs
         vs0                             = dom pe
         vs1                             = vs0 ++ dom qe
 
 {-
-                                                              Top-level & local reduction:        Action during simplify:
-In (equalities env):  Meaning:                                (prefer parameters/constants)       (prefer local defs)
+                                                        Top-level & local reduction:        Action during simplify:
+In (equalities env):  Meaning:                          (prefer parameters/constants)       (prefer local defs)
 
-    (v,v',e,e')       Two witness parameters equal            Ignore equality info                Remove parameter v
-                                                              [only v' is in use]                 Add def "let v = e in ..."
+    (v,v')      Two witness parameters equal            Ignore equality info                Remove parameter v
+                                                        [only v' is in use]                 Add def "let v = v' in ..."
 
-    (v,w',e,e')       Witness parameter is equal to a         Remove local def of w' [in use]     Remove parameter v
-                      local def                               Add "let w' = e' in ..."            Add "let v = e in ..."
+    (v,w')      Witness parameter is equal to a         Remove local def of w' [in use]     Remove parameter v
+                local def                               Add "let w' = v in ..."             Add def "let v = w' in ..."
 
-    (w,v',e,e')       Witness parameter is equal to a         Remove local def of w               Remove parameter v'
-                      local def                               [only parameter v' is in use]       Add def "let v' = e' in ..."
+    (w,v')      Witness parameter is equal to a         Remove local def of w               Remove parameter v'
+                local def                               [only parameter v' is in use]       Add def "let v' = w in ..."
 
-    (w,w',e,e')       Two local witness definitions           Remove local def of w               Remove local def of w'
-                      are equal                               [only w' is in use]                 Add def "let w' = e' in ..."
+    (w,w')      Two local witness definitions           Remove local def of w               Remove local def of w'
+                are equal                               [only w' is in use]                 Add def "let w' = w in ..."
 
     v and v' are witness parameters (elements of (dom pe))
     w and w' are locally generated witnesses
@@ -476,13 +476,6 @@ In (equalities env):  Meaning:                                (prefer parameters
 
 mapSuccess f xs                         = do xs' <- mapM (expose . f) xs
                                              return (unzip [ x | Right x <- xs' ])
-
-
-imply env n0 (w,p)                      = do res <- expose (red [] [(env0, p)])
-                                             case res of
-                                               Right (s,[],[],[e]) -> return (Just (subst s e))
-                                               _                   -> return Nothing
-  where env0                            = singleWitness env n0
 
 
 -- Handle subtype predicates
@@ -500,6 +493,7 @@ closeTransitive env ((w,p):pe)
         below_a                         = nodes (findBelow env a)
         above_b                         = nodes (findAbove env b)
 closeTransitive env (_:pe)              = closeTransitive env pe
+
 
 mkTrans env ((w1,p1), (w2,p2))          = do (pe1, R c1, e1) <- instantiate p1 (EVar w1)
                                              (pe2, R c2, e2) <- instantiate p2 (EVar w2)
@@ -544,50 +538,46 @@ mkSuper env (w1,p1) (w2,p2)             = do (pe1, R c1, e1) <- instantiate p1 (
 addPreds env []                         = return env
 addPreds env (n@(w,p):pe)
   | isSub' p                            = case findCoercion env a b of
-                                            Just n' -> do 
-                                               r1 <- imply env n' n
-                                               r2 <- imply env n n'
-                                               case (r1,r2) of
-                                                 (Just e, Just e') -> addPreds (addEqs [(w,nameOf n',e,e')] env) pe
-                                                 _                 -> fail "Ambiguous subtyping"
-                                            Nothing -> do 
-                                               addPreds (insertSubPred n env) pe
-  where (a,b)                           = subsyms p
-addPreds env (n@(w,p):pe)
-  | isClass' p                          = do r <- cmpNode [] [] n (nodes (findClass env c))
+                                             Just n' -> do 
+                                                r <- implications env (predOf n') p
+                                                case r of
+                                                   Equal -> addPreds (addEqs [(w,nameOf n')] env) pe
+                                                   _     -> fail "Ambiguous subtyping"
+                                             Nothing -> do 
+                                                addPreds (insertSubPred n env) pe
+  | isClass' p                          = do r <- cmpNode [] [] (nodes (findClass env c))
                                              case r of
                                                 Right (pre,post) -> addPreds (insertClassPred pre n post env) pe
-                                                Left (w',e,e')   -> addPreds (addEqs [(w,w',e,e')] env) pe
-  where c                               = headsym p
+                                                Left w'          -> addPreds (addEqs [(w,w')] env) pe
+  where (a,b)                           = subsyms p
+        c                               = headsym p
 
-        cmpNode pre post n []           = return (Right (pre,post))
-        cmpNode pre post n (n':pe')     = do r1 <- imply env n' n
-                                             r2 <- imply env n n'
+        cmpNode pre post []             = return (Right (pre,post))
+        cmpNode pre post (n':pe')       = do r <- implications env (predOf n') p
+                                             case r of
+                                                Equal      -> return (Left (nameOf n'))
+                                                Similar    -> fail "Ambiguous instances"
+                                                ImplyRight -> cmpNode pre (nameOf n':post) pe'
+                                                ImplyLeft  -> cmpNode (nameOf n':pre) post pe'
+                                                Unrelated  -> cmpNode pre post pe'
+
+
+data Implications                       = Equal | Similar | ImplyRight | ImplyLeft | Unrelated
+
+implications env p1 p2                  = do (R c1,ps1) <- inst p1
+                                             (R c2,ps2) <- inst p2
+                                             r1 <- expose (unify env [(c1,pbody p2)])
+                                             r2 <- expose (unify env [(pbody p1,c2)])
                                              case (r1,r2) of
-                                               (Just e,  Just e') -> return (Left (nameOf n',e,e'))
-                                               (Just _,  Nothing) -> cmpNode pre (nameOf n':post) n pe'
-                                               (Nothing, Just _)  -> cmpNode (nameOf n':pre) post n pe'
-                                               (Nothing, Nothing) -> cmpNode pre post n pe'
+                                                (Right s, Right _) 
+                                                  | subst s ps1 == pctxt p2 -> return Equal
+                                                  | otherwise               -> return Similar
+                                                (Right _, Left _)           -> return ImplyRight
+                                                (Left _, Right _)           -> return ImplyLeft
+                                                (Left _, Left _)            -> return Unrelated
 
-{-
-closeWGs env eqs []                     = return (thaw env, eqs)
-closeWGs env eqs (n@(w,p) : ns)
-  | isSub' p                            = do ns' <- mapSuccess (mkTrans (noClasses env) n) nodePairs
-                                             let cycles = filter (uncurry (==)) (map (subsyms . predOf) ns')
-                                             assert (null cycles) (encodeCircular (nub (a:b:map fst cycles)))
-                                             (env1,eqs1) <- subGraphs env eqs ns'
-                                             closeWGs env1 eqs1 ns
-  | otherwise                           = do ns' <- mapSuccess (mkSup (noClasses env) n) nodeSups
-                                             (env1,eqs1) <- classGraph env eqs ns'
-                                             closeWGs env1 eqs1 ns
-  where c                               = headsym p
-        (a,b)                           = subsyms p
-        nodesBelow_a                    = nodes (findBelow env a)
-        nodesAbove_b                    = nodes (findAbove env b)
-        nodePairs                       = [ (n0,n2) | n0 <- nodesBelow_a, n2 <- nodesAbove_b ]
-        nodesAbove_c                    = nodes (findAbove env c)
-        nodeSups                        = [ n | n <- nodesAbove_c, uppersym (predOf n) `elem` dom (classEnv env) ]
--}
+
+
 
 {-
 
