@@ -130,7 +130,7 @@ pExp' env (EEnter e f es)           = do (bs1,t@(TId n),e) <- pRhsExp env e
                                          let Struct te = findDecl env n
                                          return (bs1++bs2++[(x, Val t e)], rngType (lookup' te f), EEnter (EVar x) f es)
 pExp' env (ECast TWild e)           = do (bs,t',e) <- pExp' env e
-                                         if mustBox env t' then do
+                                         if mustBox t' then do
                                              x <- newName tempSym
                                              let bs1 = [(x, Val (TId (box t')) (ENew (box t') bs2))]
                                                  bs2 = [(prim Value, Val t' e)]
@@ -138,7 +138,7 @@ pExp' env (ECast TWild e)           = do (bs,t',e) <- pExp' env e
                                           else
                                              return (bs, TWild, ECast TWild e)
 pExp' env (ECast t e)               = do (bs,t',e) <- pExp' env e
-                                         if t'==TWild && mustBox env t then
+                                         if t'==TWild && mustBox t then
                                              return (bs, t, ECast t (ESel (ECast (TId (box t)) e) (prim Value)))
                                           else
                                              return (bs, t, ECast t e)
@@ -147,15 +147,14 @@ pExp' env (ENew n bs)               = do (bs1,bs) <- pMap (pSBind env n) bs
                                          return (bs1++[(x, Val (TId n) (ENew n bs))], TId n, EVar x)
 
 
-mustBox env TWild                   = False                             -- Already polymorphic
-mustBox env (TId n)
-  | isTuple n                       = False
-  | otherwise                       = case lookup n (decls env) of
-                                         Just (Struct te) -> False      -- Already heap allocated
-                                         Just (Enum cs)   -> False      -- Limited range, can't be confused with a pointer
-                                         _ -> True                      -- In effect, integers and floats
+mustBox (TId (Prim Time _))         = True
+mustBox (TId (Prim Int _))          = True
+mustBox (TId (Prim Float _))        = True
+mustBox (TId (Prim Char _))         = True          -- really box chars?
+mustBox _                           = False
 
-box (TId (Prim Char _))             = prim CharBox
-box (TId (Prim Float _))            = prim FloatBox
+
+box (TId (Prim Time _))             = prim TimeBox
 box (TId (Prim Int _))              = prim IntBox
-box t                               = prim IntBox   -- ****** Temporary; what about PID, Time, Ref, Action, ....
+box (TId (Prim Float _))            = prim FloatBox
+box (TId (Prim Char _))             = prim CharBox

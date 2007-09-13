@@ -42,6 +42,8 @@ data Prim                       =
 
                                 | LIST                  -- Type
                                 | UNITTYPE              -- Type
+                                
+                                | UNITTERM              -- Term
                                 | NIL                   -- Term
                                 | CONS                  -- Term
 
@@ -49,7 +51,6 @@ data Prim                       =
 
                                 | FALSE                 -- Terms
                                 | TRUE
-                                | UNITTERM 
 
                                 -- Variable identifiers
 
@@ -138,15 +139,16 @@ data Prim                       =
                                 | Baseline
                                 | Deadline
                                 
-                                | CharBox                   -- The Kindle Struct for boxed values
+                                | CharBox               -- The Kindle Struct for boxed values
                                 | FloatBox                
-                                | IntBox                  
+                                | IntBox                 
+                                | TimeBox 
                                 | Value                 -- selector of struct Box
                                 
                                 | LISTtags              -- The Kindle Enum for built-in LIST tags
                                 deriving (Eq,Ord,Enum,Bounded,Show)
 
-isConPrim p                     = p <= UNITTERM
+isConPrim p                     = p <= TRUE
 
 invisible p                     = p >= ASYNC
 
@@ -164,11 +166,11 @@ alreadyPrimed ps                = map (\p -> (prim p, prim p)) ps
 
 strRep LIST                     = "[]"
 strRep UNITTYPE                 = "()"
+strRep UNITTERM                 = "()"
 strRep NIL                      = "[]"
 strRep CONS                     = ":"
 strRep TRUE                     = "True"
 strRep FALSE                    = "False"
-strRep UNITTERM                 = "()"
 strRep Sec                      = "sec"
 strRep MilliSec                 = "millisec"
 strRep MicroSec                 = "microsec"
@@ -188,7 +190,7 @@ noAnnot                         = Annot { location = Nothing, explicit = False, 
 loc l                           = noAnnot { location = Just l }
 
 
-name l s                        = qualName(Name s 0 Nothing (loc l))
+name l s                        = qualName (Name s 0 Nothing (loc l))
 
 
 opName l "||"                   = prim LazyOr
@@ -366,11 +368,11 @@ instance Binary Prim where
   put Bool = putWord8 12
   put LIST = putWord8 13
   put UNITTYPE = putWord8 14
-  put NIL = putWord8 15
-  put CONS = putWord8 16
-  put FALSE = putWord8 17
-  put TRUE = putWord8 18
-  put UNITTERM = putWord8 19
+  put UNITTERM = putWord8 15
+  put NIL = putWord8 16
+  put CONS = putWord8 17
+  put FALSE = putWord8 18
+  put TRUE = putWord8 19
   put Refl = putWord8 20
   put ActToCmd = putWord8 21
   put ReqToCmd = putWord8 22
@@ -459,11 +461,11 @@ instance Binary Prim where
       12 -> return Bool
       13 -> return LIST
       14 -> return UNITTYPE
-      15 -> return NIL
-      16 -> return CONS
-      17 -> return FALSE
-      18 -> return TRUE
-      19 -> return UNITTERM
+      15 -> return UNITTERM
+      16 -> return NIL
+      17 -> return CONS
+      18 -> return FALSE
+      19 -> return TRUE
       20 -> return Refl
       21 -> return ActToCmd
       22 -> return ReqToCmd
