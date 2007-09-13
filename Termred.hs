@@ -6,27 +6,30 @@ import Depend
 import PP
 import Char
 
-termred (_,_,impIe) m           = return (redModule impIe m)
+termred (_,_,impIe) m           = return (redModule (eqnsOf impIe) m)
 
 
-redTerm insts e                 = redExp (Env {eqns = insts, args = []}) e      -- must change, should only use coercions in insts
+redTerm coercions e             = redExp (Env {eqns = coercions, args = []}) e
 
 data Env                        = Env { eqns :: Map Name Exp,
                                         args :: [Name]
                                       }
+
+env0                            = Env { eqns = [], args = [] }
 
 addArgs env vs                  = env { args = vs ++ args env }
 
 addEqns env eqs                 = env { eqns = eqs ++ eqns env }
 
 
-redModule impIe (Module m ns ds ie bs) 
-                                = Module m ns ds ie' (redBinds env1 bs)
-  where env0                    = Env { eqns = eqnsOf impIe, args = [] }
-        ie'                     = redBinds env0 ie
-        env1                    = addEqns env0 (f (groupBinds ie'))
-        f []                    = []
-        f (Binds r te eqs : bs) = if r then f bs else filter (finite env0 . snd) eqs ++ f bs
+redModule impEqs (Module m ns ds ie bs) 
+                                = Module m ns ds ie' (redBinds env2 bs)
+  where env1                    = addEqns env0 (finiteEqns env0 impEqs)
+        ie'                     = redBinds env1 ie
+        env2                    = addEqns env1 (finiteEqns env1 (eqnsOf ie'))
+
+
+finiteEqns env eq               = filter (finite env . snd) eq
 
 
 -- can be safely ignored without changing cbv semantics
@@ -118,8 +121,8 @@ redBeta env ((x,t):te) (EVar y _) (e:es)
   | x == y                      = redBeta env te e es                      -- trivial body
 redBeta env ((x,t):te) b (e:es)
   | isGenerated x               = redBeta (addEqns env [(x,e)]) te b es    -- must be a witness, is a value & appears only once
-  | finite env e && value e     = tr' ("Safe: " ++ show x) $ redBeta (addEqns env [(x,e)]) te b es  -- can be safely ignored
-  | otherwise                   = tr' ("Unsafe: " ++ show x ++ show e) $ ELet (Binds False [(x,t)] [(x,e)]) (redBeta env te b es)
+  | finite env e && value e     = redBeta (addEqns env [(x,e)]) te b es    -- can be safely ignored
+  | otherwise                   = ELet (Binds False [(x,t)] [(x,e)]) (redBeta env te b es)
 redBeta env [] b []             = redExp env b
 
 
@@ -136,7 +139,7 @@ redSel env e@(EVar x _) s t     = case lookup x (eqns env) of
                                     Nothing -> ESel e s t
 redSel env (ERec c eqs) s t
   | all value (rng eqs)         = case lookup s eqs of
-                                    Just e -> e
+                                    Just e  -> e
                                     Nothing -> error "Internal: redSel"
 redSel env e s t                = ESel e s t
 

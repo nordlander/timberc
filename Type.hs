@@ -57,28 +57,25 @@ let f = \w0 v x -> e w0 (f w0 v 7)                                            ::
 -}
 
 
-tiModule (ds',te,is') (Module v ns ds is bs) = 
-                                  do let env1 = impDecls env0 ds'
-                                     (env2,ds2,bs2) <- typeDecls env1 ds
-                                     (env3,bs3) <- instancePreds env2 (tsigsOf isTot)
-                                     (ss0,pe0,subInsts) <- tiBinds env3 (concatBinds [bs2, subInsts,subInsts'])
-                                     -- Here it should be checked that the equation in subInsts follow the
+tiModule (ds',te',is') (Module v ns ds is bs) = 
+                                  do (env1,ds1,bs1) <- typeDecls env0 ds
+                                     (env2,bs2) <- instancePreds env1 ieTot
+                                     (ss0,pe0,subInsts) <- tiBinds env2 subInsts
+                                     -- Here it should be checked that the equations in subInsts follow the
                                      -- restricted rules for coercions, and that the equalities collected 
-                                     -- in env3 are actually met by the equations in is, bs1 and bs2
-                                     let is0  = concatBinds [bs3, subInsts, subInsts']
-                                         env4 = addInsts (eqnsOf is0) env3
-                                     (ss1,pe1,bs) <- tiBindsList (addTEnv0 (tsigsOf isTot) env4) (groupBinds bs)
+                                     -- in env2 are actually met by the equations in is, bs1 and bs2
+                                     let is0  = concatBinds [bs1, bs2, subInsts]
+                                         env4 = addCoercions (eqnsOf is' ++ eqnsOf is0) env2
+                                     (ss1,pe1,bs) <- tiBindsList (addTEnv0 ieTot env4) (groupBinds bs)
                                      (ss2,pe2,classInsts) <- tiBinds (addTEnv0 (tsigsOf bs) env4) classInsts
                                      assert (null (pe0++pe1++pe2)) "Internal: top-level type inference"
-                                     s <- unify env3 (ss0++ss1++ss2)
-                                     let isRes = filterInsts v (is0 `catBinds` subst s classInsts)
-                                         dsRes = filterDecls v ds2
-                                         bsRes = subst s bs
-                                     return (Module v ns dsRes isRes bsRes)
-  where env0                    = addTEnv0 te (initEnv {modName = Just (str v)})
-        isTot                   = is' `catBinds` is
+                                     s <- unify env4 (ss0++ss1++ss2)
+                                     let is1 = is0 `catBinds` subst s classInsts
+                                     return (Module v ns ds1 is1 (subst s bs))
+  where env0                    = addTEnv0 te' (impDecls (initEnv { modName = Just (str v) }) ds')
+        ieTot                   = tsigsOf is' ++ tsigsOf is
         (subInsts,classInsts)   = splitInsts is
-        (subInsts',classInsts') = splitInsts is'
+
 
 tiBindsList env []              = return ([], [], nullBinds)
 tiBindsList env (bs:bss)        = do (ss1, pe1, bs') <- tiBinds env bs
@@ -89,7 +86,7 @@ tiBindsList env (bs:bss)        = do (ss1, pe1, bs') <- tiBinds env bs
 tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ render (vpr te) ++ ",  rec: " ++ show rec)
                                      -- tr ("tevars: " ++ show (tevars env))
                                      (s,pe,es1)   <- tiRhs0 env' explWits ts es
-                                     -- tr ("RESULT: " ++ render (vpr es1))
+                                     -- tr ("RESULT: " ++ render (vpr pe))
                                      (s',qe,f)    <- fullreduce (target te env) s pe
                                      -- tr ("PREDICATES OBTAINED: " ++ show qe)
                                      let env1      = subst s' env
@@ -135,7 +132,7 @@ tiExpT' env (False, Scheme t0 ps [], e)
                                      return (ss, (c, Scheme (F [scheme' t] t0) ps []) : qe, e1)
 tiExpT' env (explWit, Scheme t0 ps ke, e)
                                 = do (ss,qe,t,e)  <- tiExp env e
-                                     -- tr ("INFERRED: " ++ show t ++ "   \\\\    " ++ show qe)
+                                     -- tr ("INFERRED: " ++ show e ++ "   ::  " ++ render (pr t) ++ "\n" ++ render (vpr qe))
                                      (s,qe,f)     <- normalize (target t env) ss qe
                                      c            <- newName coercionSym
                                      pe0          <- newEnv assumptionSym ps
@@ -266,7 +263,7 @@ tiLhs env alpha tiX xs          = do x <- newName tempSym
                                          pes1 = subst s (map (filter (not . isCoercion . fst)) pes) -- preserve non-coercions for each alt
                                          (es2,ts2) = unzip (zipWith3 qual pes1 es1 ts1)
                                      ts3 <- mapM (gen (tevars (subst s env'))) ts2
-                                     return (subst s alpha, ts3, map (redTerm (insts env)) es2)
+                                     return (subst s alpha, ts3, map (redTerm (coercions env)) es2)
 
 
 -- Build record fields -----------------------------------------------------------------------------------------------------------

@@ -29,7 +29,7 @@ data Env = Env { kindEnv0      :: KEnv,              -- Kind for each global tyc
                  pevars        :: [TVar],            -- The tvars free in predEnv (cached)
                  stateT        :: Maybe Type,        -- Type of current state scope (invariant: included in typeEnv as well)
                  
-                 insts         :: Eqns,              -- Top-level 
+                 coercions     :: Eqns,              -- Defs of top-level subtype coercions
 
                  aboveEnv      :: Map Name WGraph,   -- Overlap graph of all S > T for each T (closed under reflexivity & transitivity)
                  belowEnv      :: Map Name WGraph,   -- Overlap graph of all S < T for each T (closed under reflexivity & transitivity)
@@ -60,7 +60,7 @@ nullEnv                                 = Env { kindEnv0   = [],
                                                 tevars     = [],
                                                 pevars     = [],
                                                 stateT     = Nothing,
-                                                insts      = [],
+                                                coercions  = [],
                                                 aboveEnv   = [],
                                                 belowEnv   = [],
                                                 classEnv   = [],
@@ -102,7 +102,7 @@ noClasses env                           = env { classEnv = [] }
 setSelf x t env                         = env' { stateT = Just t }
   where env'                            = addTEnv [(x,scheme (tRef t))] env
 
-addInsts eqs env                        = env { insts = eqs ++ insts env }
+addCoercions eqs env                    = env { coercions = filter (isCoercion . fst) eqs ++ coercions env }
 
 addSkolEnv se env                       = env { skolEnv  = se ++ skolEnv env }
 

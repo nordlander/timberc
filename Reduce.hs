@@ -507,8 +507,8 @@ mkTrans env ((w1,p1), (w2,p2))          = do (pe1, R c1, e1) <- instantiate p1 (
                                              let e = ELam [(x,scheme (subst s' t))] (f (EAp e2 [EAp e1 [eVar x]]))
                                                  (e',p') = qual qe e (subst s' p)
                                              sc <- gen (tevars env) p'
-                                             w <- newName coercionSym
-                                             return ((w,sc), (w, redTerm (insts env) e'))
+                                             w <- newNameMod (modName env) coercionSym
+                                             return ((w,sc), (w, redTerm (coercions env) e'))
 
 -- Handle class predicates
 closeSuperclass env []                  = return (env, [], [])
