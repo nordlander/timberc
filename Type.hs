@@ -69,10 +69,9 @@ tiModule (xs',ds',te',is') (Module v ns xs ds is bs) =
                                          env4 = addCoercions (eqnsOf is' ++ eqnsOf is0) env3
                                      (ss1,pe1,bs) <- tiBindsList (addTEnv0 ieTot env4) (groupBinds bs)
                                      (ss2,pe2,classInsts) <- tiBinds (addTEnv0 (tsigsOf bs) env4) classInsts
-                                     assert (null (pe0++pe1++pe2)) "Internal: top-level type inference"
-                                     s <- unify env4 (ss0++ss1++ss2)
-                                     let is1 = is0 `catBinds` subst s classInsts
-                                     return (Module v ns ds1 is1 (subst s bs))
+                                     assert (null (ss0++ss1++ss2)) "Internal: top-level type inference 1"
+                                     assert (null (pe0++pe1++pe2)) "Internal: top-level type inference 2"
+                                     return (Module v ns xs ds1 (is0 `catBinds` classInsts) bs)
   where env0                    = addTEnv0 te' (impDecls (initEnv { modName = Just (str v) }) ds')
         ieTot                   = tsigsOf is' ++ tsigsOf is
         (subInsts,classInsts)   = splitInsts is
