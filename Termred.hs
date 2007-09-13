@@ -6,7 +6,7 @@ import Depend
 import PP
 import Char
 
-termred (_,_,impIe) m           = return (redModule (eqnsOf impIe) m)
+termred (_,_,_,impIe) m         = return (redModule (eqnsOf impIe) m)
 
 
 redTerm coercions e             = redExp (Env {eqns = coercions, args = []}) e
@@ -22,8 +22,8 @@ addArgs env vs                  = env { args = vs ++ args env }
 addEqns env eqs                 = env { eqns = eqs ++ eqns env }
 
 
-redModule impEqs (Module m ns ds ie bs) 
-                                = Module m ns ds ie' (redBinds env2 bs)
+redModule impEqs (Module m ns xs ds ie bs) 
+                                = Module m ns xs ds ie' (redBinds env2 bs)
   where env1                    = addEqns env0 (finiteEqns env0 impEqs)
         ie'                     = redBinds env1 ie
         env2                    = addEqns env1 (finiteEqns env1 (eqnsOf ie'))

@@ -129,6 +129,37 @@ insertClassPred pre n@(w,p) post env    = env { classEnv = insert c wg' (classEn
         wg'                             = WG { nodes = insertBefore n post (nodes wg),
                                                arcs  = pre `zip` ws ++ ws `zip` post ++ arcs wg }
 
+insertDefault (i1,i2) env                 
+  |c1 /= c2                             = error "Defaulting between instances of distinct classes"
+  |otherwise                            = env { classEnv = insert c1 wg' (classEnv env) }
+  where c1                              = headsym (snd i1)
+        c2                              = headsym (snd i2)
+        wg                              = findClass env c1
+        n1                              = findInst wg i1
+        n2                              = findInst wg i2
+        wg'                             = wg { arcs = (n1,n2) : arcs wg }
+        findInst wg (i,p)               = case lookup p [(p,n) | (n,p) <- nodes wg] of
+                                            Nothing -> error ("No instance " ++ render(pr p))
+                                            Just n ->  case i of
+                                                         Just n'
+                                                          |n /= n' -> error ("Wrong instance name "++show n')
+                                                         _         -> n
+insertDefaults env ds                   = env2
+  where env1                            = foldr insertDefault env ds
+        env2                            = env1 {classEnv = reorderWG (classEnv env1)}
+        reorderWG []                    = []
+        reorderWG ((n,wg) : ps)         = (n,tsort wg) : reorderWG ps
+        tsort (WG ns as)                = case dropWhile (null . tail) is of
+                                            [] -> WG (order ns is1) (closeTrans g')
+                                            xs : _ -> error ("Cyclic default decls: " ++ render(hpr ',' (map (fromJust . flip lookup ns) xs)))
+                                          where g = [(n,[m | (a,m) <- as, a==n]) | n <- dom ns]
+                                                is = scc g
+                                                is1 = reverse (concat is)
+                                                g' = order g is1
+                                          
+        closeTrans []                   = []
+        closeTrans ((a,bs):as)          = map (\b -> (a,b)) bs ++ [(a,d) | (c,d) <- cs, c `elem` bs] ++ cs
+                                          where cs = closeTrans as
 insertSubPred n@(w,p) env               = env { aboveEnv = insert a wg_a (aboveEnv env),
                                                 belowEnv = insert b wg_b (belowEnv env) }
   where (a,b)                           = subsyms p

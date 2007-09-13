@@ -5,7 +5,7 @@ import PP
 import Data.Binary
 
 
-data Module     = Module Name [Name] Types Binds Binds
+data Module     = Module Name [Name] [Defaults] Types Binds Binds
                 deriving  (Eq,Show)
 
 data Types      = Types   KEnv Decls
@@ -13,6 +13,10 @@ data Types      = Types   KEnv Decls
 
 data Binds      = Binds   Bool TEnv Eqns
                 deriving  (Eq,Show)
+
+type Defaults   = (Inst,Inst)
+
+type Inst       = (Maybe Name,Scheme)
 
 type PEnv       = TEnv
 
@@ -508,8 +512,14 @@ instance BVars Binds where
 -- Modules -------------------------------------------------------------------
 
 instance Pr Module where
-    pr (Module i ns ds is bs)    = text "module" <+> prId i <+> text "where"
-                                  $$ prImports ns $$ pr ds $$ prInsts is $$ pr bs
+    pr (Module i ns xs ds is bs)  = text "module" <+> prId i <+> text "where"
+                                  $$ prImports ns $$ prDefault xs $$ pr ds $$ prInsts is $$ pr bs
+
+prDefault []                     = empty
+prDefault ((i1,i2) : is)         = text "default" <+> prNode i1 <+> text "<" <+> prNode i2 $$ prDefault is
+
+prNode (Nothing,t)               = pr t
+prNode (Just v,t)                = prId v <+> text "::" <+> pr t
 
 prImports []                     = empty
 prImports ns                     = text "import" <+> hpr ',' ns
@@ -681,8 +691,8 @@ instance Pr Cmd where
 -- Binary --------------------------------------------------
 
 instance Binary Module where
-  put (Module a b c d e) = put a >> put b >> put c >> put d >> put e
-  get = get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> return (Module a b c d e)
+  put (Module a b c d e f) = put a >> put b >> put c >> put d >> put e >> put f
+  get = get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> get>>= \f -> return (Module a b c d e f)
 
 instance Binary Types where
   put (Types a b) = put a >> put b

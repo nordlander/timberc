@@ -28,6 +28,7 @@ dsDecls (DData c vs bs cs : ds) = liftM (DData c vs (map dsQualBaseType bs) (map
 dsDecls (DRec i c vs bs ss:ds)  = liftM (DRec i c vs (map dsQualBaseType bs) (map dsSig ss) :) (dsDecls ds)
 dsDecls (DType c vs t : ds)     = liftM (DType c vs (dsType t) :) (dsDecls ds)
 dsDecls (DPSig v t : ds)        = liftM (DPSig v (dsQualPred t) :) (dsDecls ds)
+dsDecls (DDefault ts : ds)      = liftM (DDefault (map dsDefault ts) :) (dsDecls ds) 
 dsDecls (DBind b : ds)          = do bs' <- dsBinds bs
                                      liftM (map DBind bs' ++) (dsDecls ds2)
   where (ds1,ds2)               = span isDBind ds
@@ -38,6 +39,9 @@ dsConstr (Constr c ts ps)       = Constr c (map dsQualType ts) (map dsQual ps)
 
 dsSig (Sig vs t)                = Sig vs (dsQualType t)
 
+dsDefault (Default a b)         = Default (dsInst a) (dsInst b)
+
+dsInst (Inst v t)               = Inst v (dsQualType t)
 
 -- Types ----------------------------------------------------------------------
 
@@ -53,7 +57,7 @@ dsType (TList t)                = TAp (TCon (prim LIST)) (dsType t)
 dsType (TTup ts)                = foldl TAp (TCon (tuple (length ts))) (map dsType ts)
 dsType (TCon c)                 = TCon c
 dsType (TVar v)                 = TVar v
-dsType _                        = error ("Bad type expression")
+dsType t                        = error ("Bad type expression: " ++ show t)
 
 
 -- Types with wildcards ---------------------------------------------------------------
@@ -71,7 +75,7 @@ dsWildType (TTup ts)            = foldl TAp (TCon (tuple (length ts))) (map dsWi
 dsWildType (TCon c)             = TCon c
 dsWildType (TVar v)             = TVar v
 dsWildType (TWild)              = TWild
-dsWildType _                    = error ("Bad type expression")
+dsWildType t                    = error ("Bad type expression: " ++ show t)
 
 
 -- Base types -------------------------------------------------------------

@@ -69,6 +69,7 @@ Reserved Ids
         'case'		{ KW_Case }
         'class'		{ KW_Class }
         'data'		{ KW_Data }
+        'default'       { KW_Default }
         'do'		{ KW_Do }
         'else'		{ KW_Else }
         'elsif'		{ KW_Elsif }
@@ -142,6 +143,7 @@ topdecl :: { Decl }
 	| 'class' conid tyvars optsups optsigs	        { DRec True $2 (reverse $3) $4 $5 }
 	| 'instance' type '=' bindlist			{ DInst $2 $4 }
         | 'instance' varid '::' type                    { DPSig $2 $4 }  
+        | 'default' defs                                { DDefault (reverse $2) }
         | vars '::' type		                { DBind (BSig (reverse $1) $3) }
         | lhs rhs 					{ DBind (BEqn $1 $2) }
 
@@ -158,6 +160,19 @@ optsubs :: { [Type] }
 tyvars  :: { [Name] }
         : tyvars varid				{ $2 : $1 }
         | {- empty -}				{ [] }
+
+-- Default declarations ---------------------------------------------------
+
+defs    :: { [Default] }
+        : defs ',' def                          { $3 : $1 }
+        | def                                   { [$1] }
+
+def     :: { Default }
+        : inst '<' inst                         { Default $1 $3 }
+
+inst     :: { Inst }
+        : var '::' btype                        { Inst (Just $1) $3 }
+        | btype                                 { Inst Nothing $1 }
 
 
 -- Datatype declarations ---------------------------------------------------

@@ -15,6 +15,7 @@ import Depend
 -- Data type of interface file -----------------------------------------------
 
 data IFace = IFace [Name]                       -- imported modules
+               [Defaults]                       --
                (Map Name [Name])                -- exported record types and their selectors,
                (Map Name ([Name],Syntax.Type))  -- type synonyms
                Types                            --
@@ -28,11 +29,11 @@ data IFace = IFace [Name]                       -- imported modules
 -- Building interface info from data collected during compilation of a module ---------------------------------
 
 --ifaceMod :: ((Map Name [Name],Map Name ([Name],Syntax.Type)),([Name],Types,Binds,TEnv)) -> M s IFace
-ifaceMod ((rs,ss),Module _ ns ds is bs,(kds,kte)) 
+ifaceMod ((rs,ss),Module _ ns xs ds is bs,(kds,kte)) 
    | not(null vis)                = error ("Private types visible in interface: " ++ showids vis)
    | otherwise                    = do 
                                        let cs = Core2Kindle.dataCons ds
-                                       return (IFace ns rs ss ds1 is' ts2' kds kte cs) 
+                                       return (IFace ns xs rs ss ds1 is' ts2' kds kte cs) 
   where Types ke te               = ds
         Binds r ts1 es1           = is
         ds1                       = Types (filter exported ke) (filter exported' te)
@@ -61,10 +62,10 @@ chaseImports m imps             = do bms <- mapM readImport imps
         chaseRecursively vs ms []      = return ms
         chaseRecursively vs ms (r : rs)
              | elem r vs               = chaseRecursively vs ms rs
-             | otherwise               = do ifc@(IFace ns _ _ _ _ _ _ _ _)  <- decodeFile (modToPath (str r) ++ ".ti")
+             | otherwise               = do ifc@(IFace ns _ _ _ _ _ _ _ _ _)  <- decodeFile (modToPath (str r) ++ ".ti")
                                             chaseRecursively (r : vs) ((r,(False,False,ifc)) : ms) (rs ++ ns)
 
-recImps (_,_,IFace ns _ _ _ _ _ _ _ _) = ns
+recImps (_,_,IFace ns _ _ _ _ _ _ _ _ _) = ns
 
 init_order imps                        = case topSort recImps imps of
                                            Left ms  -> error ("Mutually recursive modules: " ++ showids ms)
@@ -72,22 +73,22 @@ init_order imps                        = case topSort recImps imps of
 
 
 initEnvs bms         = do ims <- mapM mkEnv bms
-                          let (rs,ss,rnL,rnT,rnE,ds,is,te,kds,kte,cs) 
-                                = foldr mergeMod ([],[],[],[],[],Types [] [],Binds False [] [],[],[],[],[]) ims
-                          return ((rs,rnL,ss),(rnL,rnT,rnE),(ds,te,is),(kds,kte,cs))
+                          let (rs,xs,ss,rnL,rnT,rnE,ds,is,te,kds,kte,cs) 
+                                = foldr mergeMod ([],[],[],[],[],[],Types [] [],Binds False [] [],[],[],[],[]) ims
+                          return ((rs,rnL,ss),(rnL,rnT,rnE),(xs,ds,te,is),(kds,kte,cs))
 
-mergeMod (rs1,ss1,rnL1,rnT1,rnE1,ds1,is1,te1,kds1,kte1,cs1)
-         (rs2,ss2,rnL2,rnT2,rnE2,ds2,is2,te2,kds2,kte2,cs2) =
-                                   (rs1 ++ rs2, ss1 ++ ss2, mergeRenamings2 rnL1 rnL2, 
+mergeMod (rs1,xs1,ss1,rnL1,rnT1,rnE1,ds1,is1,te1,kds1,kte1,cs1)
+         (rs2,xs2,ss2,rnL2,rnT2,rnE2,ds2,is2,te2,kds2,kte2,cs2) =
+                                   (rs1 ++ rs2, xs1 ++ xs2, ss1 ++ ss2, mergeRenamings2 rnL1 rnL2, 
                                     mergeRenamings2 rnT1 rnT2, mergeRenamings2 rnE1 rnE2,
                                     catDecls ds1 ds2, catBinds is1 is2, te1 ++ te2,
                                     kds1 ++ kds2,kte1 ++ kte2, cs1 ++ cs2)
 
-mkEnv (m,(unQual,direct,IFace ns rs ss ds tsi te kds kte cs)) 
+mkEnv (m,(unQual,direct,IFace ns xs rs ss ds tsi te kds kte cs)) 
                           = do ks  <- renaming (dom ke)
                                ts  <- renaming (dom te'')
                                ls' <- renaming ls -- (concatMap snd rs)
-                               return (unMod unQual rs,unMod unQual ss, unMod unQual ls',unMod unQual ks,
+                               return (unMod unQual rs, xs, unMod unQual ss, unMod unQual ls',unMod unQual ks,
                                        unMod unQual ts,ds,tsi,te',kds,kte,cs)
   where Types ke ds'      = ds
         te'               = if direct then te ++ concatMap (tenvSelCon env) ds' else []
@@ -137,15 +138,16 @@ instance LocalTypes Constr where
 -- Binary -------------------------------------------------------------------------------
 
 instance Binary IFace  where
-  put (IFace a b c d e f g h i) = put a >> put b >> put c >> put d >> put e >> put f >> put g >> put h >> put i
+  put (IFace a b c d e f g h i j) = put a >> put b >> put c >> put d >> put e >> put f >> put g >> put h >> put i >> put j
   get = get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> get >>= \f ->  
-        get >>= \g -> get >>= \h -> get >>= \i -> return (IFace a b c d e f g h i)
+        get >>= \g -> get >>= \h -> get >>= \i -> get >>= \j -> return (IFace a b c d e f g h i j)
 
 -- Printing -----------------------------------------------------------------------------
 
 instance Pr IFace where
-  pr (IFace ns rs ss ds1 is ts2' kds kte cs) =
+  pr (IFace ns xs rs ss ds1 is ts2' kds kte cs) =
                                   text "Imported/used modules: " <+> hsep (map prId ns) $$
+                                  text "Default declarations: " <+> prDefault xs $$
                                   text ("Record types and their selectors: "++show rs) $$
                                   text "Type synonyms: " <+> hsep (map (prId . fst) ss) $$ 
                                   pr ds1 $$ pr is  $$ vcat (map prPair ts2') 
@@ -154,6 +156,7 @@ instance Pr IFace where
                                   $$$ text "Kindle type environment" $$$ vcat (map pr kte)
                                   
 prPair (n,t)                      = prId n <+> text "::" <+> pr t
+
 
 listIface f                       = do ifc <- decodeFile f
                                        putStrLn (render(pr (ifc :: IFace)))

@@ -121,6 +121,7 @@ dsDecls env (DType c vs t : ds)  = liftM (DType c vs (ds1 env t) :) (dsDecls env
 dsDecls env (DData c vs ss cs : ds) = liftM (DData c vs (ds1 env ss) (ds1 env cs) :) (dsDecls env ds)
 dsDecls env (DRec b c vs ss ss' : ds) = liftM (DRec b c vs (ds1 env ss) (ds1 env ss') :) (dsDecls env ds)
 dsDecls env (DPSig n t : ds)    = liftM (DPSig n (ds1 env t) :) (dsDecls env ds)
+dsDecls env (DDefault ts : ds) = liftM (DDefault (ds1 env ts) :) (dsDecls env ds)
 dsDecls env (DBind b : ds)      = liftM (DBind (ds1 env b) :) (dsDecls env ds)
 dsDecls env (d : ds)            = liftM (d :) (dsDecls env ds)
 dsDecls env []                  = return []
@@ -135,6 +136,12 @@ instance Desugar1 a => Desugar1 [a] where
 instance Desugar1 a => Desugar1 (Maybe a) where
     ds1 env Nothing             = Nothing
     ds1 env (Just a)            = Just (ds1 env a)
+
+instance Desugar1 Default where
+   ds1 env (Default a b)        = Default (ds1 env a) (ds1 env b)
+
+instance Desugar1 Inst where
+   ds1 env (Inst v t)           = Inst v (ds1 env t)
 
 instance Desugar1 Constr where
     ds1 env (Constr c ts ps)    = Constr c (ds1 env ts) (ds1 env ps)

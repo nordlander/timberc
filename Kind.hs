@@ -8,11 +8,13 @@ import Depend
 
 kindcheck m                             = kiModule m
 
-kiModule (ds',_,_) (Module v ns ds is bs)= do ds <- kiDeclsList env (groupTypes ds)
+kiModule (_,ds',_,_) (Module v ns xs ds is bs)
+                                         = do ds <- kiDeclsList env (groupTypes ds)
                                               let env' = addKEnv0 (ksigsOf ds) env
+                                              xs <- mapM (kiDefault env') xs
                                               is <- kiBinds env' is
                                               bs <- kiBinds env' bs
-                                              return (Module v ns ds is bs)
+                                              return (Module v ns xs ds is bs)
   where env                             = addKEnv0 (ksigsOf ds') initEnv 
 
 
@@ -65,6 +67,14 @@ kiTExp env (TAp t t')                   = do (cs,k) <- kiTExp env t
                                              kv <- newKVar
                                              return ((k,KFun k' kv):cs++cs', kv)
 
+
+kiDefault env (i1,i2)                    = do i1' <- kiInst env i1
+                                              i2' <- kiInst env i2
+                                              return (i1',i2')
+
+kiInst env (v,t)                         = do cs <- kiScheme env t
+                                              s <- kindUnify cs
+                                              return (v,subst s t)
 
 -- Handle type declarations ----------------------------------------------------
 

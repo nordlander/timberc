@@ -180,6 +180,8 @@ renameD ks ts ss cs ws bs (DType c _ _ : ds)
                                    = renameD ks (c:ts) ss cs ws bs ds
 renameD ks ts ss cs ws bs (DPSig v t : ds)
                                    = renameD ks ts ss cs (v:ws) bs ds
+renameD ks ts ss cs ws bs (DDefault _ : ds)
+                                   = renameD ks ts ss cs ws bs ds
 renameD ks ts ss cs ws bs (DBind b : ds)
                                    = renameD ks ts ss cs ws (b:bs) ds
 renameD ks ts ss cs ws bs []       = (ks, ts, ss, cs, ws, reverse bs)
@@ -195,7 +197,15 @@ instance Rename Decl where
                                         liftM (DType (renT env c) (map (renT env') vs)) (rename env' t)
   rename env (DInst t bs)          = liftM2 DInst (renameQT env t) (rename env bs)
   rename env (DPSig v t)           = liftM (DPSig (renE env v)) (renameQT env t)
+  rename env (DDefault ts)         = liftM DDefault (rename env ts)
   rename env (DBind b)             = liftM DBind (rename env b)
+
+instance Rename Default where
+  rename env (Default a b)         = liftM2 Default (rename env a) (rename env b)
+
+instance Rename Inst where
+  rename env (Inst Nothing t)      = liftM (Inst Nothing) (renameQT env t)
+  rename env (Inst (Just v) t)     = liftM (Inst (Just (renE env v))) (renameQT env t)
 
 instance Rename Constr where
   rename env (Constr c ts ps)      = do env' <- extRenT env (bvars ps')
