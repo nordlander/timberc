@@ -68,10 +68,9 @@ tiModule (ds',te',is') (Module v ns ds is bs) =
                                          env4 = addCoercions (eqnsOf is' ++ eqnsOf is0) env2
                                      (ss1,pe1,bs) <- tiBindsList (addTEnv0 ieTot env4) (groupBinds bs)
                                      (ss2,pe2,classInsts) <- tiBinds (addTEnv0 (tsigsOf bs) env4) classInsts
-                                     assert (null (pe0++pe1++pe2)) "Internal: top-level type inference"
-                                     s <- unify env4 (ss0++ss1++ss2)
-                                     let is1 = is0 `catBinds` subst s classInsts
-                                     return (Module v ns ds1 is1 (subst s bs))
+                                     assert (null (ss0++ss1++ss2)) "Internal: top-level type inference 1"
+                                     assert (null (pe0++pe1++pe2)) "Internal: top-level type inference 2"
+                                     return (Module v ns ds1 (is0 `catBinds` classInsts) bs)
   where env0                    = addTEnv0 te' (impDecls (initEnv { modName = Just (str v) }) ds')
         ieTot                   = tsigsOf is' ++ tsigsOf is
         (subInsts,classInsts)   = splitInsts is
@@ -83,10 +82,12 @@ tiBindsList env (bs:bss)        = do (ss1, pe1, bs') <- tiBinds env bs
                                      return (ss1++ss2, pe1++pe2, bs' `catBinds` bss')
 
                                      
+tiBinds env (Binds _ [] [])     = return ([], [], nullBinds)
 tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ render (vpr te) ++ ",  rec: " ++ show rec)
                                      -- tr ("tevars: " ++ show (tevars env))
                                      (s,pe,es1)   <- tiRhs0 env' explWits ts es
                                      -- tr ("RESULT: " ++ render (vpr pe))
+                                     -- tr ("    " ++ render (vpr es1))
                                      (s',qe,f)    <- fullreduce (target te env) s pe
                                      -- tr ("PREDICATES OBTAINED: " ++ show qe)
                                      let env1      = subst s' env
@@ -101,7 +102,8 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ render (vpr te) 
                                      -- tr ("Witnesses returned: " ++ show qe1 ++ "   |   " ++ show qe2)
                                      ts'' <- mapM (gen (tevars env1 ++ tvars qe1)) ts'
                                      -- tr ("DONE " ++ render (vpr (xs `zip` ts'')))
-                                     return (mkEqns s', qe1, Binds rec (xs `zip` ts'') (xs `zip` es'))
+                                     -- tr ("EXPS " ++ render (vpr (xs `zip` es')))
+                                     return (mkEqns env s', qe1, Binds rec (xs `zip` ts'') (xs `zip` subst s' es'))
   where ts                      = map (lookup' te) xs
         (xs,es)                 = unzip eqs
         explWits                = map (explicit . annot) xs
@@ -143,10 +145,10 @@ tiExpT' env (explWit, Scheme t0 ps ke, e)
                                          (ws',ps') = if explWit then (ws, ps) else ([], [])
                                          e1        = eLam pe0 (eAp (EAp (eAp (eVar c) ws) [e']) ws')
                                      sc           <- gen (tevars env1 ++ tvars qe1) t'
-                                     return (mkEqns s, (c, Scheme (F [sc] (tFun ps' t0)) ps ke) : qe1, e1)
+                                     return (mkEqns env1 s, (c, Scheme (F [sc] (tFun ps' t0)) ps ke) : qe1, subst s e1)
 
 
-mkEqns s                        = mapFst TVar s
+mkEqns env s                    = mapFst TVar (restrict s (tevars env))
 
 isFixed env (w,p)               = isDummy w || all (`elem` tvs) (tvars p)
   where tvs                     = tevars env

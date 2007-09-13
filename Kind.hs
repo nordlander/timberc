@@ -39,11 +39,8 @@ kvarBind n k cs
 
 
 kindUnify cs                            = do s <- kunify cs
-                                             return (map defaultMap s)
-  where defaultMap (n,k)                = (n, defaultKind k)
-        defaultKind Star                = Star
-        defaultKind (KVar _)            = Star
-        defaultKind (KFun k1 k2)        = KFun (defaultKind k1) (defaultKind k2)
+                                             return (freeVars s `zip` repeat Star @@ s)
+  where freeVars s                      = nub (concat (map kvars (rng s)))
 
 
 kiRho env (R t)                         = kiType env t
