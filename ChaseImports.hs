@@ -15,7 +15,7 @@ import Depend
 -- Data type of interface file -----------------------------------------------
 
 data IFace = IFace [Name]                       -- imported modules
-               [Defaults]                       --
+               [Default]                        --
                (Map Name [Name])                -- exported record types and their selectors,
                (Map Name ([Name],Syntax.Type))  -- type synonyms
                Types                            --
@@ -31,17 +31,24 @@ data IFace = IFace [Name]                       -- imported modules
 --ifaceMod :: ((Map Name [Name],Map Name ([Name],Syntax.Type)),([Name],Types,Binds,TEnv)) -> M s IFace
 ifaceMod ((rs,ss),Module _ ns xs ds is bs,(kds,kte)) 
    | not(null vis)                = error ("Private types visible in interface: " ++ showids vis)
+   | not(null ys)                 = error ("Public default declaration mention private instance: "++ render(prDefault ys))
    | otherwise                    = do 
                                        let cs = Core2Kindle.dataCons ds
-                                       return (IFace ns xs rs ss ds1 is' ts2' kds kte cs) 
+                                       return (IFace ns xs' rs ss ds1 is' ts2' kds kte cs) 
   where Types ke te               = ds
         Binds r ts1 es1           = is
+        xs'                       = [d | d@(True,i1,i2) <- xs]
+        ys                        = [d | d <- xs', localInst [(b,a) | (a,b) <- ts1] d]
         ds1                       = Types (filter exported ke) (filter exported' te)
         is'                       = Binds r (filter exported ts1) (filter exported es1)
         ts2'                      = filter exported (tsigsOf bs)
         vis                       = nub(localTypes [] (rng (tsigsOf is') ++ rng ts2'))
         exported (n,_)            = isQualified n
         exported' p@(n,_)         = isQualified n && (not(isAbstract p)) --Constructors/selectors are exported
+
+localInst ts (_,i1,i2)            = isPrivate (instName i1) || isPrivate(instName i2)
+  where instName (Just n,_)       = n
+        instName (Nothing,t)      = fromJust (lookup t ts)
 
 isPrivate (Name _ _ Nothing _)    = True
 isPrivate _                       = False

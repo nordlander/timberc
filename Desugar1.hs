@@ -10,7 +10,7 @@ import PP
 desugar1 e0 (Module c is ds ps)  = do let (env,expInfo) = mkEnv c (ds ++ ps) e0
 --                                      tr show(sels env))
                                       ds' <- dsDecls env ds
-                                      ps' <- dsDecls env ps
+                                      ps' <- dsDecls env {isPublic = False} ps
                                       return (Module c is ds' ps',expInfo)
 
 {-
@@ -33,10 +33,11 @@ data Env                        = Env { sels :: Map Name [Name],
                                         selSubst :: Map Name Name,
                                         modName :: Maybe String,
                                         isPat :: Bool,
+                                        isPublic :: Bool,
                                         tsyns :: Map Name ([Name],Type)} deriving Show
 
 
-env0 ss                       = Env { sels = [], self = Nothing, selSubst = [], modName = Nothing, isPat = False, tsyns = ss }
+env0 ss                       = Env { sels = [], self = Nothing, selSubst = [], modName = Nothing, isPat = False, isPublic = True, tsyns = ss }
 
 
 mkEnv c ds (rs,rn,ss)           = (env {sels = map transClose recEnv, modName = Just(str c), selSubst = rnSels },
@@ -103,7 +104,8 @@ ren env cs                      = map ren' cs
                                      Nothing -> error ("Unknown record selector: " ++ show c)
                                      Just c' -> c'
 
-patEnv env = env {isPat = True}
+patEnv env                      = env {isPat = True}
+
 -- Desugaring -------------------------------------------------------------------------------------------
 
 dsDecls env (DInst t bs : ds)   = do w <- newName instanceSym
@@ -138,7 +140,7 @@ instance Desugar1 a => Desugar1 (Maybe a) where
     ds1 env (Just a)            = Just (ds1 env a)
 
 instance Desugar1 Default where
-   ds1 env (Default a b)        = Default (ds1 env a) (ds1 env b)
+   ds1 env (Default _ a b)        = Default (isPublic env) (ds1 env a) (ds1 env b)
 
 instance Desugar1 Inst where
    ds1 env (Inst v t)           = Inst v (ds1 env t)
@@ -213,8 +215,11 @@ instance Desugar1 Exp where
     ds1 env (ELam ps e)            = ELam (ds1 (patEnv env) ps) (ds1 env e)
     ds1 env (ECase e as)           = ECase (ds1 env e) (ds1 env as)
     ds1 env (EIf e1 e2 e3)         = EIf (ds1 env e1) (ds1 env e2) (ds1 env e3)
-    ds1 env (ENeg e)               = ENeg (ds1 env e)
-    ds1 env (ESeq e1 e2 e3)        = ESeq (ds1 env e1) (ds1 env e2) (ds1 env e3)
+    ds1 env (ENeg (ELit (LInt i))) = ELit (LInt (-i))
+    ds1 env (ENeg (ELit (LRat r))) = ELit (LRat (-r))
+    ds1 env (ENeg e)               = EAp (EVar (name (0,0) "negate")) (ds1 env e)
+    ds1 env (ESeq e1 Nothing e3)   = EAp (EAp (EVar (name (0,0) "enumFromTo")) (ds1 env e1)) (ds1 env e3)
+    ds1 env (ESeq e1 (Just e2) e3) = EAp (EAp (EAp (EVar (name (0,0) "enumFromThenTo")) (ds1 env e1)) (ds1 env e2)) (ds1 env e3)
     ds1 env (EComp e qs)           = EComp (ds1 env e) (ds1 env qs)
     ds1 env (ESectR e op)          = ESectR (ds1 env e) op
     ds1 env (ESectL op e)          = ESectL op (ds1 env e)
@@ -271,9 +276,13 @@ ds1S env (SIf e ss' : ss)        = doIf (EIf e (EDo (self env) Nothing ss')) ss
         doIf f ss                = ds1S env (SExp (f (EDo (self env) Nothing [])) : ss)
 ds1S env (SElsif e ss : _)       = error "Illegal elsif"
 ds1S env (SElse ss : _)          = error "Illegal else"
-ds1S env (SForall q ss' : ss)    = error "forall stmt not yet implemented"
+ds1S env (SForall q ss' : ss)    = ds1S env (SExp (ds1Forall env q ss') : ss) -- error "forall stmt not yet implemented"
 ds1S env (SWhile e ss' : ss)     = error "while stmt not yet implemented"
 
+ds1Forall env [] ss              = EDo (self env) Nothing ss
+ds1Forall env (QLet bs : qs) ss  = ELet bs (EDo (self env) Nothing [SForall qs ss])
+ds1Forall env (QGen p e : qs) ss = EAp (EAp (EVar (name (0,0) "forallDo")) (ELam [p] (EDo (self env) Nothing [SForall qs ss]))) e
+ds1Forall env (QExp e : qs) ss   = EIf e (EDo (self env) Nothing [])  (EDo (self env) Nothing [SForall qs ss])
 
 ds1T env [SRet e]                = [SRet (ds1 env e)]
 ds1T env (SBind b : ss)          = SBind (ds1 env b) : ds1T env ss

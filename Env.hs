@@ -129,8 +129,8 @@ insertClassPred pre n@(w,p) post env    = env { classEnv = insert c wg' (classEn
         wg'                             = WG { nodes = insertBefore n post (nodes wg),
                                                arcs  = pre `zip` ws ++ ws `zip` post ++ arcs wg }
 
-insertDefault (i1,i2) env                 
-  |c1 /= c2                             = error "Defaulting between instances of distinct classes"
+insertDefault (_,i1,i2) env                 
+  |c1 /= c2                             = error ("Illegal defaulting; heads "++str c1++" and "++str c2++".")
   |otherwise                            = env { classEnv = insert c1 wg' (classEnv env) }
   where c1                              = headsym (snd i1)
         c2                              = headsym (snd i2)

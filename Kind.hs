@@ -68,9 +68,9 @@ kiTExp env (TAp t t')                   = do (cs,k) <- kiTExp env t
                                              return ((k,KFun k' kv):cs++cs', kv)
 
 
-kiDefault env (i1,i2)                    = do i1' <- kiInst env i1
+kiDefault env (t,i1,i2)                  = do i1' <- kiInst env i1
                                               i2' <- kiInst env i2
-                                              return (i1',i2')
+                                              return (t,i1',i2')
 
 kiInst env (v,t)                         = do cs <- kiScheme env t
                                               s <- kindUnify cs

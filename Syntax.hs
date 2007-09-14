@@ -31,7 +31,7 @@ data Bind   = BSig    [Name] Type
             | BEqn    Lhs (Rhs Exp)
             deriving  (Eq,Show)
 
-data Default = Default Inst Inst
+data Default = Default Bool Inst Inst
              deriving (Eq, Show)
 
 data Inst    = Inst (Maybe Name) Type
@@ -375,7 +375,7 @@ prEq bs                         = text "="
 prSigs ss                       = nest 4 (vpr ss)
 
 instance Pr Default where
-  pr (Default a b)              = pr a <+> text "<" <+> pr b
+  pr (Default _ a b)            = pr a <+> text "<" <+> pr b
 
 instance Pr Inst where
   pr (Inst (Just v) t)          = prId v <+> text "::" <+> pr t
@@ -658,8 +658,8 @@ instance Binary Decl where
       _ -> fail "no parse"
 
 instance Binary Default where
-  put (Default a b) = put a >> put b
-  get = get >>= \a -> get >>= \b -> return (Default a b)
+  put (Default a b c) = put a >> put b >> put c
+  get = get >>= \a -> get >>= \b -> get >>= \c -> return (Default a b c)
 
 instance Binary Inst where
   put (Inst a b) = put a >> put b

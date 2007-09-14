@@ -68,7 +68,7 @@ s2cDecls env (DBind b : ds) ke ts pe bs xs
                                 = s2cDecls env ds ke ts pe (b:bs) xs
 
 
-s2cDefault (Default a b)        = liftM2 (,) (s2cInst a) (s2cInst b)
+s2cDefault (Default t a b)        = liftM2 (\a b -> (t,a,b)) (s2cInst a) (s2cInst b)
 
 s2cInst (Inst v t)              = do t' <- s2cQualType t
                                      return (v,t')

@@ -39,7 +39,7 @@ dsConstr (Constr c ts ps)       = Constr c (map dsQualType ts) (map dsQual ps)
 
 dsSig (Sig vs t)                = Sig vs (dsQualType t)
 
-dsDefault (Default a b)         = Default (dsInst a) (dsInst b)
+dsDefault (Default t a b)         = Default t (dsInst a) (dsInst b)
 
 dsInst (Inst v t)               = Inst v (dsQualType t)
 
@@ -213,9 +213,6 @@ dsExp (ESel s)                  = do x <- newName paramSym
 dsExp (EWild)                   = fail "Illegal expression syntax"
 dsExp (EVar v)                  = return (EVar v)
 dsExp (ECon c)                  = return (ECon c)
-dsExp (ENeg (ELit (LInt i)))    = return (ELit (LInt (-i)))
-dsExp (ENeg (ELit (LRat r)))    = return (ELit (LRat (-r)))
---dsExp (ENeg e)                        = dsExp (EAp (EVar Prim.negate) e)
 dsExp (ELit l)                  = dsLit l
 dsExp (ERec m fs)               = liftM (ERec m) (mapM dsF fs)
   where dsF (Field s e)         = liftM (Field s) (dsExp e)
@@ -227,7 +224,7 @@ dsExp (EAfter e e')             = dsExp (EAp (EAp (EVar (prim After)) e) e')
 dsExp (EBefore e e')            = dsExp (EAp (EAp (EVar (prim Before)) e) e')
 dsExp (ETup es)                 = dsExp (foldl EAp (ECon (tuple (length es))) es)
 dsExp (EList es)                = dsExp (foldr cons nil es)
-dsExp (ESeq _ _ _)              = fail "Sequences not yet implemented"
+-- dsExp (ESeq _ _ _)              = fail "Sequences not yet implemented"
 dsExp (EComp e qs)              = do e <- comp2exp e qs nil
                                      dsExp e
 

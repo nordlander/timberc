@@ -168,7 +168,7 @@ defs    :: { [Default] }
         | def                                   { [$1] }
 
 def     :: { Default }
-        : inst '<' inst                         { Default $1 $3 }
+        : inst '<' inst                         { Default True $1 $3 }
 
 inst     :: { Inst }
         : var '::' btype                        { Inst (Just $1) $3 }

@@ -5,7 +5,7 @@ import PP
 import Data.Binary
 
 
-data Module     = Module Name [Name] [Defaults] Types Binds Binds
+data Module     = Module Name [Name] [Default] Types Binds Binds
                 deriving  (Eq,Show)
 
 data Types      = Types   KEnv Decls
@@ -14,7 +14,7 @@ data Types      = Types   KEnv Decls
 data Binds      = Binds   Bool TEnv Eqns
                 deriving  (Eq,Show)
 
-type Defaults   = (Inst,Inst)
+type Default    = (Bool,Inst,Inst)
 
 type Inst       = (Maybe Name,Scheme)
 
@@ -506,7 +506,7 @@ instance Pr Module where
                                   $$ prImports ns $$ prDefault xs $$ pr ds $$ prInsts is $$ pr bs
 
 prDefault []                     = empty
-prDefault ((i1,i2) : is)         = text "default" <+> prNode i1 <+> text "<" <+> prNode i2 $$ prDefault is
+prDefault ((_,i1,i2) : is)       = text "default" <+> prNode i1 <+> text "<" <+> prNode i2 $$ prDefault is
 
 prNode (Nothing,t)               = pr t
 prNode (Just v,t)                = prId v <+> text "::" <+> pr t

@@ -148,7 +148,7 @@ instance Rename Module where
          (ks2,ts2,ss2,cs2,ws2,bs2) = renameD [] [] [] [] [] [] ps
          vs1                       = bvars bs1
          vs2                       = bvars bs2
-         vss                       = concat [ ss | BSig ss _ <- bs1 ] \\ vs1
+         vss                       = concat [ ss | BSig ss _ <- bs1 ] \\ vs1 ++ ws1
          vs                        = vs1 ++ vs2
          ks                        = ks1 ++ ks2
          ts                        = ts1 ++ ts2
@@ -175,7 +175,7 @@ renameD ks ts ss cs ws bs (DData c _ _ cdefs : ds)
                                    = renameD ks (c:ts) ss (cons++cs) ws bs ds
   where cons                       = [ c | Constr c _ _ <- cdefs ]
 renameD ks ts ss cs ws bs (DInst _ _ : ds)
-                                   = renameD ks ts ss cs ws bs ds
+                                   = error "Internal: DInst remaining in rename" -- renameD ks ts ss cs ws bs ds
 renameD ks ts ss cs ws bs (DType c _ _ : ds)
                                    = renameD ks (c:ts) ss cs ws bs ds
 renameD ks ts ss cs ws bs (DPSig v t : ds)
@@ -201,7 +201,7 @@ instance Rename Decl where
   rename env (DBind b)             = liftM DBind (rename env b)
 
 instance Rename Default where
-  rename env (Default a b)         = liftM2 Default (rename env a) (rename env b)
+  rename env (Default t a b)         = liftM2 (Default t) (rename env a) (rename env b)
 
 instance Rename Inst where
   rename env (Inst Nothing t)      = liftM (Inst Nothing) (renameQT env t)
