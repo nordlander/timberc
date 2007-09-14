@@ -201,6 +201,8 @@ name0 s                         = Name s 0 Nothing noAnnot
 
 mName m c                       = c {fromMod = m}
 
+qName m n                       = mName (Just m) (name0 n)
+
 prim p                          = Prim p noAnnot
 
 tuple n                         = Tuple n noAnnot
@@ -220,7 +222,11 @@ splitString s                   = case break2 s of
 
 joinString [x]                  = x
 joinString (x : xs)             = x ++ '\'' : joinString xs                             
-   
+
+splitQual s def                 = case splitString s of
+                                    [x]    -> (x, def)
+                                    (x:xs) -> (x, joinString xs)
+
 qualName n@(Name s _ Nothing _) = case splitString s of
                                     [x] -> n
                                     (x : xs) -> n {str = x, fromMod = Just(joinString xs)}
@@ -322,6 +328,8 @@ prId3 (Name s n m a)
   where pre                     = if isAlpha (head s) && all isAlphaNum (tail s) then text s else text "SYM"
         post                    = maybe "" (('_' :) . modToundSc) m
 prId3 n                         = prId2 n
+
+name2str n                      = render (prId3 n)
 
 modToPath m                     = concat (List.intersperse "/" (splitString m))
 

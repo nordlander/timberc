@@ -16,6 +16,7 @@ import PP
 import Common
 import Parser
 import qualified Syntax
+import qualified Core
 import Desugar1
 import Rename
 import Desugar2
@@ -229,8 +230,11 @@ main2 args          = do (clo, files) <- Exception.catchDyn (cmdLineOpts args)
                          let o_modules = [ rmSuffix ".o" file | file <- files, ".o" `isSuffixOf` file ]
                              -- all the c modules should have produced o modules
                              all_o_modules = all_c_modules ++ o_modules
+                         Monad.when (null all_o_modules) (fail "Nothing to link!")
+                         -- time to check the root options
+                         r <- checkRoot clo (head all_o_modules)
                          -- finally, perform the last link
-                         linkO cfg clo all_o_modules
+                         linkO cfg clo r all_o_modules
 
                          return ()
 
@@ -242,18 +246,36 @@ test pass           = compileTimber clo "Test.t"
                                     cfgDir    = "../etc",
                                     target    = "default",
                                     doGc      = False,
-                                    root      = "main",
-                                    rootMod   = "Main",
+                                    root      = "root",
                                     stopAtC   = False,
                                     stopAtO   = False,
                                     dumpAfter = (==pass),
                                     stopAfter = const False }
                                         
 
-t2mName nm 
- | ".t" `isSuffixOf` nm = rmSuffix ".t" nm
- | otherwise            = error $ "bad timber file name: " ++ nm
 
+checkRoot clo def           = do (IFace _ _ _ _ _ _ te _ _ _) <- decodeFile (modToPath rootMod ++ ".ti")
+                                 (IFace _ _ _ _ ts _ _ _ _ _) <- decodeFile (modToPath rtsMod ++ ".ti")
+                                 let ke = Core.ksigsOf ts
+                                     ds = Core.tdefsOf ts
+                                 case lookup rootT ke of
+                                     Nothing   -> fail ("Cannot locate RootType in module " ++ rtsMod)
+                                     Just Star -> case lookup rootT ds of
+                                        Nothing                -> error "Internal: checkRoot"
+                                        Just (Core.DType _ t') -> checkRoot' te t'
+                                        Just _                 -> checkRoot' te (Core.TId rootT)
+                                     Just _    -> fail ("Bad RootType in module " ++ rtsMod)
+                                         
+  where rtsMod              = target clo
+        (r,rootMod)         = splitQual (root clo) def
+        rootN               = qName rootMod r
+        rootT               = qName rtsMod "RootType"
+        checkRoot' te t0    = case ns of
+                                [] -> fail ("Cannot locate root " ++ (root clo) ++ " in module " ++ rootMod)
+                                [(n,t)]  -> if t /= Core.scheme t0
+                                            then fail ("Incorrect root type: " ++ render (pr t))
+                                            else return n
+          where ns          = [ (n,t) | (n,t) <- te, n == rootN ]
 
 ------------------------------------------------------------------------------
 

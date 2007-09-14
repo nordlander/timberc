@@ -54,7 +54,6 @@ data CmdLineOpts     = CmdLineOpts { isVerbose :: Bool,
                                      target    :: String,
                                      doGc      :: Bool,
                                      root      :: String,
-                                     rootMod   :: String,
                                      stopAtC   :: Bool,
                                      stopAtO   :: Bool,
                                      dumpAfter :: Pass -> Bool,
@@ -84,12 +83,8 @@ options              = [ Option ['v']
                                 "Enable garbage collector",
                          Option []
                                 ["root"]
-                                (ReqArg Root "DEF")
-                                "Build executable from root definition DEF",
-                         Option []
-                                ["module"]
-                                (ReqArg RootMod "MODULE")
-                                "Locate root definition in module MODULE",
+                                (ReqArg Root "NAME['MODULE]")
+                                "Define root of executable program",
                          Option ['C'] 
                                 ["stop-at-c"]
                                 (NoArg StopAtC)
@@ -170,10 +165,8 @@ mkCmdLineOpts flags  =  do cfg <- System.getEnv "TIMBER_CFG" `catch`
                                     target    = first "default"
                                                 [ target | (Target target) <- flags ],
                                     doGc      = find DoGc,
-                                    root      = first "main"
+                                    root      = first "root"
                                                 [ root | (Root root) <- flags ],
-                                    rootMod   = first "Main"
-                                                [ root | (RootMod root) <- flags ],
                                     stopAtC   = find StopAtC,
                                     stopAtO   = find StopAtO,
                                     dumpAfter = find . DumpAfter,

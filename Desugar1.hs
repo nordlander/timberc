@@ -91,7 +91,7 @@ typeFromSels env ss             = f (sels env) ss
 haveSelf env                    = self env /= Nothing
 
 tSubst env c ts                 = case lookup c (tsyns env) of
-                                     Nothing -> foldl TAp (TCon c) (ds1 env ts)
+                                     Nothing -> foldl TAp (TCon c) ts1
                                      Just (vs,t)
                                        | length vs > length ts -> error ("Type synonym "++show c++" not fully applied")
                                        | otherwise -> foldl TAp (subst (zip vs (take (length vs) ts1)) t) 

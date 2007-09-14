@@ -19,6 +19,7 @@ import qualified Monad
 
 -- Timber compiler
 import Config
+import Name
 
 
 -- | Compile a C-file. 
@@ -32,10 +33,12 @@ compileC cfg clo mod  = do let cfile file = file ++ ".c"
                            execCmd clo cmd
 
 -- | Link together a bunch of object files.
-linkO cfg clo mods    = do let ofile file = file ++ ".o"
-                               rname = root clo ++ "_" ++ map f (rootMod clo)
-                               f '/'  = '_'
-                               f x    = x
+linkO cfg clo r mods  = do let ofile file = file ++ ".o"
+                               Just rmod  = fromMod r
+                               initId     = "_init_" ++ map f rmod
+                               rootId     = name2str r
+                               f '/'      = '_'
+                               f x        = x
                            let cmd = defaultCompiler cfg ++
                                      (if (doGc clo)
                                       then " -DENABLE_GC "
@@ -43,9 +46,11 @@ linkO cfg clo mods    = do let ofile file = file ++ ".o"
                                      ++ includePath cfg ++  " -o "
                                      ++ binTarget clo ++ " "
                                      ++ unwords (map ofile mods) ++ " "
-                                     ++ " -DROOT=" ++ rname ++ " "
-                                     ++ rtsDir cfg clo ++ "main.c "
-                                     ++ rtsDir cfg clo ++ "rts.o"
+                                     ++ " -DROOT=" ++ rootId ++ " "
+                                     ++ " -DROOTINIT=" ++ initId ++ " "
+                                     ++ rtsDir cfg clo ++ "/main.c "
+                                     ++ rtsDir cfg clo ++ "/rts.o "
+                                     ++ "Prelude.o"
                            execCmd clo cmd
 
 
