@@ -33,6 +33,9 @@ compileC cfg clo mod  = do let cfile file = file ++ ".c"
 
 -- | Link together a bunch of object files.
 linkO cfg clo mods    = do let ofile file = file ++ ".o"
+                               rname = root clo ++ "_" ++ map f (rootMod clo)
+                               f '/'  = '_'
+                               f x    = x
                            let cmd = defaultCompiler cfg ++
                                      (if (doGc clo)
                                       then " -DENABLE_GC "
@@ -40,7 +43,9 @@ linkO cfg clo mods    = do let ofile file = file ++ ".o"
                                      ++ includePath cfg ++  " -o "
                                      ++ binTarget clo ++ " "
                                      ++ unwords (map ofile mods) ++ " "
-                                     ++ rtsFile cfg
+                                     ++ " -DROOT=" ++ rname ++ " "
+                                     ++ rtsDir cfg clo ++ "main.c "
+                                     ++ rtsDir cfg clo ++ "rts.o"
                            execCmd clo cmd
 
 

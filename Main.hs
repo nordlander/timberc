@@ -214,21 +214,23 @@ main2 args          = do (clo, files) <- Exception.catchDyn (cmdLineOpts args)
                              c_files = [ map f (rmSuffix ".t" file) | file <- files, ".t" `isSuffixOf` file ]
                              f '/' = '_'
                              f x = x
-
                          mapM (compileTimber clo) timber_files
+
                          let iface_files =  [ modToPath file | file <- files, ".ti" `isSuffixOf` file ]
                          mapM listIface iface_files
                          Monad.when (stopAtC clo) stopCompiler
 
-                         let c_modules = [ rmSuffix ".c" file | file <- files, ".c" `isSuffixOf` file ]
-
-                         -- all the timber modules should have produced c modules
-                         let all_modules = c_files ++ c_modules
-                         mapM_ (compileC cfg clo) all_modules
+                         let c_modules     = [ rmSuffix ".c" file | file <- files, ".c" `isSuffixOf` file ]
+                             -- all the timber modules should have produced c modules
+                             all_c_modules = c_files ++ c_modules
+                         mapM_ (compileC cfg clo) all_c_modules
                          Monad.when (stopAtO clo) stopCompiler
 
+                         let o_modules = [ rmSuffix ".o" file | file <- files, ".o" `isSuffixOf` file ]
+                             -- all the c modules should have produced o modules
+                             all_o_modules = all_c_modules ++ o_modules
                          -- finally, perform the last link
-                         linkO cfg clo all_modules
+                         linkO cfg clo all_o_modules
 
                          return ()
 
@@ -240,12 +242,12 @@ test pass           = compileTimber clo "Test.t"
                                     cfgDir    = "../etc",
                                     target    = "default",
                                     doGc      = False,
-                                    rootFun   = "root",
+                                    root      = "main",
+                                    rootMod   = "Main",
                                     stopAtC   = False,
                                     stopAtO   = False,
-                                    dumpAfter = f,
+                                    dumpAfter = (==pass),
                                     stopAfter = const False }
-        f p             = p == pass
                                         
 
 t2mName nm 

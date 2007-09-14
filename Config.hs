@@ -18,8 +18,8 @@ module Config (
                -- Query about our options from flags.
                cmdLineOpts,
                           
-               -- Path of main RTS file.
-               rtsFile,
+               -- Path to target-dependent RTS files.
+               rtsDir,
                       
                -- Pass data. XXX Does not belong here?
                Pass(..),
@@ -44,7 +44,7 @@ import CompileConfig          ( timberRoot )
 data CfgOpts         = CfgOpts { defaultCompiler :: FilePath,
                                  compilerFlags   :: FilePath,
                                  includePath     :: String,
-                                 rootDir        :: FilePath
+                                 rootDir         :: FilePath
                                } deriving (Show, Eq, Read)
 
 -- | Command line options.
@@ -53,7 +53,8 @@ data CmdLineOpts     = CmdLineOpts { isVerbose :: Bool,
                                      cfgDir    :: String,
                                      target    :: String,
                                      doGc      :: Bool,
-                                     rootFun   :: String,
+                                     root      :: String,
+                                     rootMod   :: String,
                                      stopAtC   :: Bool,
                                      stopAtO   :: Bool,
                                      dumpAfter :: Pass -> Bool,
@@ -64,48 +65,52 @@ options              :: [OptDescr Flag]
 options              = [ Option ['v'] 
                                 ["verbose"] 
                                 (NoArg Verbose)
-                                "be verbose",
+                                "Be verbose",
                          Option ['o'] 
                                 ["output"]  
-                                (ReqArg BinTarget "TARGET")     
-                                "binary target",
+                                (ReqArg BinTarget "FILE")     
+                                "Name of binary target",
                          Option []    
                                 ["cfg"]
-                                (ReqArg TimberCfg "Config DIR")
+                                (ReqArg TimberCfg "DIR")
                                 "Config directory of compiler",
                          Option []
                                 ["target"]
-                                (ReqArg Target "Target")
-                                "Target architecture",
+                                (ReqArg Target "TARGET")
+                                "Target platform",
                          Option []
                                 ["enable-gc"]
                                 (NoArg DoGc)
                                 "Enable garbage collector",
                          Option []
                                 ["root"]
-                                (ReqArg RootFun "[[File:]Module.]function")
-                                "Root function",
+                                (ReqArg Root "DEF")
+                                "Build executable from root definition DEF",
+                         Option []
+                                ["module"]
+                                (ReqArg RootMod "MODULE")
+                                "Locate root definition in module MODULE",
                          Option ['C'] 
                                 ["stop-at-c"]
                                 (NoArg StopAtC)
-                                "stop compile at .c file",
+                                "Stop compiler after .c file generation",
                          Option ['c'] 
                                 ["stop-at-o"] 
                                 (NoArg StopAtO)
-                                "stop compile at .o file" 
+                                "Stop compiler after .o file generation" 
                        ]
                        ++ 
                        [ Option []
                                 ["ddump-" ++ map Char.toLower (show pass)]
                                 (NoArg $ DumpAfter pass)
-                                ("dump " ++ show pass ++ " output to stdout")
+                                ("Dump " ++ show pass ++ " output to stdout")
                        | pass <- allPasses 
                        ] 
                        ++ 
                        [ Option []
                                 ["stop-after-" ++ map Char.toLower (show pass)]
                                 (NoArg $ StopAfter pass)
-                                ("dump " ++ show pass ++ " output to stdout")
+                                ("Stop compiler after pass " ++ show pass)
                        | pass <- allPasses 
                        ]
 
@@ -116,7 +121,8 @@ data Flag            = Verbose
                      | TimberCfg String
                      | Target String
                      | DoGc
-                     | RootFun String
+                     | Root String
+                     | RootMod String
                      | StopAtC
                      | StopAtO
                      | DumpAfter Pass
@@ -164,8 +170,10 @@ mkCmdLineOpts flags  =  do cfg <- System.getEnv "TIMBER_CFG" `catch`
                                     target    = first "default"
                                                 [ target | (Target target) <- flags ],
                                     doGc      = find DoGc,
-                                    rootFun   = first "root"
-                                                [ target | (Target target) <- flags ],
+                                    root      = first "main"
+                                                [ root | (Root root) <- flags ],
+                                    rootMod   = first "Main"
+                                                [ root | (RootMod root) <- flags ],
                                     stopAtC   = find StopAtC,
                                     stopAtO   = find StopAtO,
                                     dumpAfter = find . DumpAfter,
@@ -225,7 +233,5 @@ data Pass            = Parser
 allPasses            :: [Pass]
 allPasses            = [Parser .. K2C]
 
-rtsFile cfg          = rtsDir cfg ++ "/rts.c"
-
-rtsDir cfg           = rootDir cfg ++ "/rts"
+rtsDir cfg clo       = rootDir cfg ++ "/rts" ++ target clo
 
