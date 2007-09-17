@@ -91,9 +91,8 @@ mkEnv (m,(unQual,direct,IFace ns xs rs ss ds tsi te kds kte cs))
                                return (unMod unQual rs, xs, unMod unQual ss, unMod unQual ls',unMod unQual ks,
                                        unMod unQual ts,ds,tsi,te',kds,kte,cs)
   where Types ke ds'      = ds
-        te'               = if direct then te ++ concatMap (tenvSelCon env) ds' else []
-        te''              = if direct then te ++ concatMap (tenvCon env) ds' else []
-        env               = addKEnv0 ke nullEnv
+        te'               = if direct then te ++ concatMap (tenvSelCon ke) ds' else []
+        te''              = if direct then te ++ concatMap (tenvCon ke) ds' else []
         ls                = [ s | (_,DRec _ _ _ cs) <- ds', (s,_) <- cs, not (isGenerated s) ]
         unMod b ps        = if b then [(tag0 (mName Nothing c),y) | (c,y) <- ps] ++ ps else ps
 

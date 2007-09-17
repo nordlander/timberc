@@ -225,9 +225,8 @@ logHistory (env,c)                      = (env { history = c : history env }, c)
 
 conservative (env,c)                    = not (forced env)
 
-
-findKind env (Tuple n _)                = foldr KFun Star (replicate n Star)
-findKind env c                          = case lookup c (kindEnv env ++ kindEnv0 env) of
+findKind0 ke (Tuple n _)                = foldr KFun Star (replicate n Star)
+findKind0 ke c                          = case lookup c ke of
                                             Just k  -> k
                                             Nothing -> Star  -- Hack!  This alternative is intended for the fresh type
                                                              -- constants introduced when type-checking templates with 
@@ -248,16 +247,21 @@ findKind env c                          = case lookup c (kindEnv env ++ kindEnv0
                                                              -- here.  Note also that unknown type constructor names have
                                                              -- already been trapped and reported during renaming.
                                                     -- error ("Internal: Unknown type constructor: " ++ show c)
+                                            
+findKind env c                          = findKind0 (kindEnv env ++ kindEnv0 env) c
 
 
-findType env (Tuple n _)                = Scheme (tFun' (map scheme ts) t) [] (vs `zip` repeat Star)
+findType0 te (Tuple n _)                = Scheme (tFun' (map scheme ts) t) [] (vs `zip` repeat Star)
   where vs                              = map name0 (take n abcSupply)
         ts                              = map TId vs
         t                               = tAp (TId (tuple n)) ts
-findType env v                          = case lookup v (typeEnv env ++ typeEnv0 env) of
+findType0 te v                          = case lookup v te of
                                             Just sc -> sc
                                             Nothing -> error ("Internal: Unknown identifier: " ++ show v)
- 
+
+findType env v                         = findType0 (typeEnv env ++ typeEnv0 env) v
+
+
 findExplType env x
   | explicit (annot x)                  = let Scheme t ps ke = findType env x in Scheme (tFun ps t) [] ke
   | otherwise                           = findType env x

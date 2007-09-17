@@ -28,7 +28,7 @@ import Reduce
 
 typeDecls env (Types ke ds)             = do (ds,pe1,eq1) <- desub env0 ds
                                              (env',bs) <- instancePreds env0 pe1
-                                             let te0 = concatMap (tenvSelCon env') ds
+                                             let te0 = tenvSelsCons env' ds
                                              return (addTEnv0 te0 env', Types ke ds, catBinds (Binds False pe1 eq1)  bs)
   where env0                            = addClasses cs (addKEnv0 ke env)
         cs                              = [ c | (c, DRec True _ _ _) <- ds ]
@@ -49,20 +49,22 @@ instancePreds env pe                    = do (env',qe,eq) <- closePreds0 env pe
 -- Computes the stand-alone type schemes associated with selectors and constructors
 -- Note: these constants have no corresponding definition (i.e., no rhs)
 
-tenvSelCon env (c,DRec _ vs _ ss)       = map (f t ke) ss
-  where (t,ke)                          = mkHead env c vs
+tenvSelsCons env ds                     = concatMap (tenvSelCon (kindEnv0 env)) ds
+
+tenvSelCon ke0 (c,DRec _ vs _ ss)       = map (f t ke) ss
+  where (t,ke)                          = mkHead ke0 c vs
         f t ke (l, Scheme rh ps ke')    = (l, Scheme (F [scheme t] rh) ps (ke++ke'))
-tenvSelCon env (c,DData vs _ cs)        = map (f t ke) cs
-  where (t,ke)                          = mkHead env c vs
+tenvSelCon ke0 (c,DData vs _ cs)        = map (f t ke) cs
+  where (t,ke)                          = mkHead ke0 c vs
         f t ke (k, Constr ts ps ke')    = (k, Scheme (tFun' ts t) ps (ke++ke'))
-tenvSelCon env _                        = []
+tenvSelCon ke0 _                        = []
 
-tenvCon env (c,DData vs _ cs)           = map (f t ke) cs
-  where (t,ke)                          = mkHead env c vs
+tenvCon ke0 (c,DData vs _ cs)           = map (f t ke) cs
+  where (t,ke)                          = mkHead ke0 c vs
         f t ke (k, Constr ts ps ke')    = (k, Scheme (tFun' ts t) ps (ke++ke'))
-tenvCon env _                           = []
+tenvCon ke0 _                           = []
 
-mkHead env i vs                         = (tAp' i vs, vs `zip` kArgs (findKind env i))
+mkHead ke0 i vs                         = (tAp' i vs, vs `zip` kArgs (findKind0 ke0 i))
 
 
 -- Decomposition of type declarations ---------------------------------------------------------
@@ -70,12 +72,13 @@ mkHead env i vs                         = (tAp' i vs, vs `zip` kArgs (findKind e
 desub env ds                            = do (ds',pes,eqs) <- fmap unzip3 (mapM desub' ds)
                                              return (ds', concat pes, concat eqs)
   where 
-    desub' (i, DData vs bs cs)          = do (pe,eq,cs') <- fmap unzip3 (mapM (con (mkHead env i vs)) bs)
+    desub' (i, DData vs bs cs)          = do (pe,eq,cs') <- fmap unzip3 (mapM (con (mkHead ke0 i vs)) bs)
                                              return ((i, DData vs [] (cs'++cs)), pe, eq)
-    desub' (i, DRec isC vs bs ss)       = do (pe,eq,ss') <- fmap unzip3 (mapM (sel (mkHead env i vs)) bs)
+    desub' (i, DRec isC vs bs ss)       = do (pe,eq,ss') <- fmap unzip3 (mapM (sel (mkHead ke0 i vs)) bs)
                                              return ((i, DRec isC vs [] (ss'++ss)), pe, eq)
     desub' (i, DType vs t)              = return ((i, DType vs t), [], [])
     m                                   = modName env
+    ke0                                 = kindEnv0 env
     con (t0,ke0) (Scheme (R t) [] ke)   = do w <- newNameMod m coercionSym
                                              k <- newNameMod m constrSym
                                              x <- newNameMod m paramSym
