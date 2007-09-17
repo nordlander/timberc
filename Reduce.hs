@@ -375,7 +375,6 @@ newHyp (env,c)                          = do -- tr ("newHyp " ++ render (prPSche
 unify env []                            = return nullSubst
 unify env ((TVar n,t):eqs)
   | mayBind env n                       = tvarBind env n t eqs
-  | t == TVar n                         = unify env eqs
 unify env ((t,TVar n):eqs)
   | mayBind env n                       = tvarBind env n t eqs
 unify env ((TAp t u,TAp t' u'):eqs)     = unify env ((t,t'):(u,u'):eqs)
