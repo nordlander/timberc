@@ -33,19 +33,19 @@ finiteEqns env eq               = filter (finite env . snd) eq
 
 
 -- can be safely ignored without changing cbv semantics
-value (EVar _ _)                = True
-value (ECon _ _)                = True
+value (EVar _)                  = True
+value (ECon _)                  = True
 value (ELit _)                  = True
-value (ESel e _ _)              = value e
-value (EAp (EVar (Prim IntDiv _) _) [e1,e2])
+value (ESel e _)                = value e
+value (EAp (EVar (Prim IntDiv _)) [e1,e2])
                                 = value e1 && nonzero e2
-value (EAp (EVar (Prim FloatDiv _) _) [e1,e2])
+value (EAp (EVar (Prim FloatDiv _)) [e1,e2])
                                 = value e1 && nonzero e2
-value (EAp (EVar (Prim _ _) _) es)
+value (EAp (EVar (Prim _ _)) es)
                                 = all value es
-value (EAp (EVar (Tuple _ _) _) es)
+value (EAp (EVar (Tuple _ _)) es)
                                 = all value es
-value (EAp (ECon c _) es)       = all value es
+value (EAp (ECon c) es)         = all value es
 value (ELam _ _)                = True
 value (ERec _ eqs)              = all (value . snd) eqs
 value e                         = False
@@ -56,12 +56,12 @@ nonzero _                       = False
 
 
 -- may be safely inlined (can't lead to infinite expansion even if part of a recursive binding group)
-finite env (EVar (Prim _ _) _)  = True
-finite env (EVar (Tuple _ _) _) = True
-finite env (EVar x _)           = x `elem` args env
-finite env (ECon _ _)           = True
+finite env (EVar (Prim _ _))    = True
+finite env (EVar (Tuple _ _))   = True
+finite env (EVar x)             = x `elem` args env
+finite env (ECon _)             = True
 finite env (ELit _)             = True
-finite env (ESel e _ _)         = finite env e
+finite env (ESel e _)           = finite env e
 finite env (ELam te e)          = finite (addArgs env (dom te)) e
 finite env (ERec _ eqs)         = all (finite env) (rng eqs)
 finite env (EAp e es)           = all (finite env) (e:es)
@@ -88,15 +88,15 @@ redExp env (EAct e e')          = EAct (redExp env e) (redExp env e')
 redExp env (EReq e e')          = EReq (redExp env e) (redExp env e')
 redExp env (EDo x t c)          = EDo x t (redCmd env c)
 redExp env (ELam te e)          = redEta env te (redExp env e)
-redExp env (ESel e s t)         = redSel env (redExp env e) s t
+redExp env (ESel e s)           = redSel env (redExp env e) s
 redExp env (ECase e alts d)     = redCase env (redExp env e) alts d
 redExp env (ELet bs e)
   | rec                         = ELet bs' (redExp env e)
   | otherwise                   = redBeta env te e (map (lookup' eqs) (dom te))
   where bs'@(Binds rec te eqs)  = redBinds env bs
-redExp env e@(EVar (Prim {}) _) = e
-redExp env e@(EVar (Tuple {})_) = e
-redExp env e@(EVar x _)         = case lookup x (eqns env) of
+redExp env e@(EVar (Prim {}))   = e
+redExp env e@(EVar (Tuple {}))  = e
+redExp env e@(EVar x)           = case lookup x (eqns env) of
                                       Just e' -> e'
                                       _       -> e
 redExp env (EAp e es)           = redApp env (redExp env e) (map (redExp env) es)
@@ -104,9 +104,9 @@ redExp env e                    = e
 
 
 -- reduce an application e es (head and args already individually reduced)
-redApp env (EVar (Prim p a) _) es 
+redApp env (EVar (Prim p a)) es 
                                 = redPrim env p a es
-redApp env e@(EVar x _) es      = case lookup x (eqns env) of
+redApp env e@(EVar x) es        = case lookup x (eqns env) of
                                        Just e' -> redApp env e' es      -- SHOULD REALLY ALPHA-CONVERT HERE!!!
                                        Nothing -> EAp e es
 redApp env (ELam te e) es       = redBeta env te e es
@@ -117,7 +117,7 @@ redApp env e es                 = EAp e es
 
 
 -- perform beta reduction (if possible)
-redBeta env ((x,t):te) (EVar y _) (e:es)
+redBeta env ((x,t):te) (EVar y) (e:es)
   | x == y                      = redBeta env te e es                      -- trivial body
 redBeta env ((x,t):te) b (e:es)
   | isGenerated x               = redBeta (addEqns env [(x,e)]) te b es    -- must be a witness, is a value & appears only once
@@ -128,29 +128,29 @@ redBeta env [] b []             = redExp env b
 
 redEta env te (EAp e es)
   | ok e                        = redExp env e
-  where ok (ECon _ _)           = False
-        ok (EVar (Prim _ _) _)  = False
-        ok _                    = map (redExp env) es == map eVar (dom te)
+  where ok (ECon _)             = False
+        ok (EVar (Prim _ _))    = False
+        ok _                    = map (redExp env) es == map EVar (dom te)
 redEta env te e                 = ELam te (redExp (addArgs env (dom te)) e)
 
 
-redSel env e@(EVar x _) s t     = case lookup x (eqns env) of
-                                    Just e' -> redSel env e' s t
-                                    Nothing -> ESel e s t
-redSel env (ERec c eqs) s t
+redSel env e@(EVar x) s         = case lookup x (eqns env) of
+                                    Just e' -> redSel env e' s
+                                    Nothing -> ESel e s
+redSel env (ERec c eqs) s
   | all value (rng eqs)         = case lookup s eqs of
                                     Just e  -> e
                                     Nothing -> error "Internal: redSel"
-redSel env e s t                = ESel e s t
+redSel env e s                  = ESel e s
 
 
-redCase env e@(EVar x _) alts d = case lookup x (eqns env) of
+redCase env e@(EVar x) alts d   = case lookup x (eqns env) of
                                     Just e' -> redCase env e' alts d
                                     Nothing -> ECase e (mapSnd (redExp env) alts) (redExp env d)
 redCase env (ELit l) alts d     = findLit env l alts d
 redCase env e alts d            = case eFlat e of
-                                    (ECon k _, es) -> findCon env k es alts d
-                                    _              -> ECase e (mapSnd (redExp env) alts) (redExp env d)
+                                    (ECon k, es) -> findCon env k es alts d
+                                    _            -> ECase e (mapSnd (redExp env) alts) (redExp env d)
 
 
 findCon env k es [] d           = redExp env d
@@ -175,12 +175,12 @@ redPrim env IntToChar _ [ELit (LInt x)]         = ELit (LChr (chr (fromInteger x
 redPrim env FloatNeg _ [ELit (LRat x)]          = ELit (LRat (-x))
 redPrim env FloatToInt _ [ELit (LRat x)]        = ELit (LInt (truncate x))
 redPrim env CharToInt _ [ELit (LChr x)]         = ELit (LInt (toInteger (ord x)))
-redPrim env p a es                              = eAp (eVar (Prim p a)) es
+redPrim env p a es                              = eAp (EVar (Prim p a)) es
 
 
-redFat env (EVar (Prim Fail _) _) e             = e
-redFat env (EAp (EVar (Prim Commit _) _) [e]) _ = e
-redFat env e e'                                 = EAp (eVar (prim Fatbar)) [e,e']
+redFat env (EVar (Prim Fail _)) e               = e
+redFat env (EAp (EVar (Prim Commit _)) [e]) _   = e
+redFat env e e'                                 = EAp (EVar (prim Fatbar)) [e,e']
 
 
 redInt IntPlus a b              = ELit (LInt (a + b))
@@ -210,8 +210,8 @@ redRat FloatGT a b              = eBool (a > b)
 redRat p _ _                    = error ("Internal: redRat " ++ show p)
 
 
-eBool True                      = eVar (prim TRUE)
-eBool False                     = eVar (prim FALSE)
+eBool True                      = EVar (prim TRUE)
+eBool False                     = EVar (prim FALSE)
 
 
 redCmd env (CRet e)             = CRet (redExp env e)

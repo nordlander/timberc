@@ -164,7 +164,7 @@ s2cKSig (v,k)                   = do k <- s2cKind k
 -- Expressions and bindings ============================================================
 
 -- the translated default case alternative
-dflt                                    = Core.eVar (prim Fail)
+dflt                                    = Core.EVar (prim Fail)
 
 
 -- translate a case alternative, inheriting type signature t top-down
@@ -222,10 +222,10 @@ s2cEc env t (ECase e alts)      = do e <- s2cEc env TWild e
                                      alts <- mapM (s2cA env t) alts
                                      return (Core.ECase e alts dflt)
 s2cEc env t (ESelect e s)       = do e <- s2cEc env (peel t1) e
-                                     return (Core.eSel e s)
+                                     return (Core.ESel e s)
   where (t1,_)                  = splitT (lookupT s env)
-s2cEc env t (ECon c)            = return (Core.eCon c)
-s2cEc env t (EVar v)            = return (Core.eVar v)
+s2cEc env t (ECon c)            = return (Core.ECon c)
+s2cEc env t (EVar v)            = return (Core.EVar v)
 s2cEc env t (ELit l)            = return (Core.ELit l)
 s2cEc env _ e                   = s2cE env e
 
@@ -237,9 +237,9 @@ s2cEc env _ e                   = s2cE env e
 s2cE env (ERec (Just (c,_)) eqs)        = do eqs <- mapM (s2cF env) eqs
                                              return (Core.ERec c eqs)
 s2cE env (EAct (Just x) [SExp e])       = do (_,e) <- s2cEi env e
-                                             return (Core.EAct (Core.eVar x) e)
+                                             return (Core.EAct (Core.EVar x) e)
 s2cE env (EReq (Just x) [SExp e])       = do (_,e) <- s2cEi env e
-                                             return (Core.EReq (Core.eVar x) e)
+                                             return (Core.EReq (Core.EVar x) e)
 s2cE env (EDo (Just x) Nothing ss)      = do c <- s2cS env ss
                                              t <- s2cType TWild
                                              return (Core.EDo x t c)
@@ -267,7 +267,7 @@ s2cE env e                              = error ("Internal s2cE " ++ show e)
 -- Statements ==================================================================================
 
 -- translate a statement list
-s2cS env []                             = return (Core.CRet (Core.eCon (prim UNITTERM)))
+s2cS env []                             = return (Core.CRet (Core.ECon (prim UNITTERM)))
 s2cS env [SRet e]                       = do (t,e') <- s2cEi env e
                                              return (Core.CRet e')
 s2cS env [SExp e]                       = do (t,e') <- s2cEi env e
@@ -314,10 +314,10 @@ s2cEi env (ECase e alts)        = do e <- s2cEc env TWild e
                                      alts <- mapM (s2cA env TWild) alts
                                      return (TWild, Core.ECase e alts dflt)
 s2cEi env (ESelect e s)         = do e <- s2cEc env (peel t1) e
-                                     return (t2, Core.eSel e s)
+                                     return (t2, Core.ESel e s)
   where (t1,t2)                 = splitT (lookupT s env)
-s2cEi env (ECon c)              = return (lookupT c env, Core.eCon c)
-s2cEi env (EVar v)              = return (lookupT v env, Core.eVar v)
+s2cEi env (ECon c)              = return (lookupT c env, Core.ECon c)
+s2cEi env (EVar v)              = return (lookupT v env, Core.EVar v)
 s2cEi env (ELit l)              = return (TWild, Core.ELit l)
 s2cEi env e                     = do e' <- s2cE env e
                                      return (TWild, e')

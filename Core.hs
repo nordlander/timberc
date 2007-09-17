@@ -59,9 +59,9 @@ data Pat        = PCon    Name
                 | PLit    Lit
                 deriving (Eq,Show)
 
-data Exp        = ECon    Name (Maybe Rho)
-                | ESel    Exp Name (Maybe Rho)
-                | EVar    Name (Maybe Rho)
+data Exp        = ECon    Name
+                | ESel    Exp Name
+                | EVar    Name
                 | ELam    TEnv Exp
                 | EAp     Exp [Exp]
                 | ELet    Binds Exp
@@ -120,12 +120,6 @@ eLam te e                       = ELam te e
 
 eAbs (ELam te e)                = (te,e)
 eAbs e                          = ([],e)
-
-eVarT n ts t                    = EVar n (Just (tFun ts t))
-
-eVar n                          = EVar n Nothing
-eCon k                          = ECon k Nothing
-eSel e l                        = ESel e l Nothing
 
 eAp e []                        = e
 eAp e es                        = EAp e es
@@ -283,8 +277,8 @@ instance Ids Binds where
       | otherwise               = idents eqns
 
 instance Ids Exp where
-    idents (EVar v _)           = [v]
-    idents (ESel e l _)         = idents e
+    idents (EVar v)             = [v]
+    idents (ESel e l)           = idents e
     idents (ELam te e)          = idents e \\ dom te
     idents (EAp e e')           = idents e ++ idents e'
     idents (ELet bs e)          = idents bs ++ (idents e \\ bvars bs)
@@ -313,15 +307,15 @@ instance Ids Cmd where
 -- Note! This substitution algorithm does not alpha convert!
 -- Only use when variables are known not to clash
 
-instance Subst Binds Name (Maybe Rho -> Exp) where
+instance Subst Binds Name Exp where
     subst s (Binds r te eqns)   = Binds r te (subst s eqns)
     
-instance Subst Exp Name (Maybe Rho -> Exp) where
+instance Subst Exp Name Exp where
     subst [] e                  = e
-    subst s (EVar v t)          = case lookup v s of
-                                      Just e  -> e t
-                                      Nothing -> EVar v t
-    subst s (ESel e l t)        = ESel (subst s e) l t
+    subst s (EVar v)            = case lookup v s of
+                                      Just e  -> e
+                                      Nothing -> EVar v
+    subst s (ESel e l)          = ESel (subst s e) l
     subst s (ELam te e)         = ELam te (subst s e)
     subst s (EAp e e')          = EAp (subst s e) (subst s e')
     subst s (ELet bs e)         = ELet (subst s bs) (subst s e)
@@ -333,7 +327,7 @@ instance Subst Exp Name (Maybe Rho -> Exp) where
     subst s (EDo x t c)         = EDo x t (subst s c)
     subst s e                   = e
 
-instance Subst Cmd Name (Maybe Rho -> Exp) where
+instance Subst Cmd Name Exp where
     subst s (CLet bs c)         = CLet (subst s bs) (subst s c)
     subst s (CAss x e c)        = CAss x (subst s e) (subst s c)
     subst s (CGen x t e c)      = CGen x t (subst s e) (subst s c)
@@ -350,9 +344,7 @@ instance Subst Binds TVar Type where
 
 instance Subst Exp TVar Type where
     subst [] e                  = e
-    subst s (EVar n t)          = EVar n (subst s t)
-    subst s (ESel e l t)        = ESel (subst s e) l (subst s t)
-    subst s (ECon k t)          = ECon k (subst s t)
+    subst s (ESel e l)          = ESel (subst s e) l
     subst s (ELam te e)         = ELam (subst s te) (subst s e)
     subst s (EAp e e')          = EAp (subst s e) (subst s e')
     subst s (ELet bs e)         = ELet (subst s bs) (subst s e)
@@ -378,9 +370,7 @@ instance Subst Binds Name Type where
 
 instance Subst Exp Name Type where
     subst [] e                  = e
-    subst s (EVar n t)          = EVar n (subst s t)
-    subst s (ESel e l t)        = ESel (subst s e) l (subst s t)
-    subst s (ECon k t)          = ECon k (subst s t)
+    subst s (ESel e l)          = ESel (subst s e) l
     subst s (ELam te e)         = ELam (subst s te) (subst s e)
     subst s (EAp e e')          = EAp (subst s e) (subst s e')
     subst s (ELet bs e)         = ELet (subst s bs) (subst s e)
@@ -665,11 +655,9 @@ instance Pr Exp where
 
     prn 1 e                     = prn 2 e
         
-    prn 2 (ECon c _)            = prId c
-    prn 2 (ESel e s _)          = prn 2 e <> text "." <> prId s
---    prn 2 (EVar v (Just t))     = parens (prId v <+> text "::" <+> pr t)
-    prn 2 (EVar v (Just t))     = prId v
-    prn 2 (EVar v Nothing)      = prId v
+    prn 2 (ECon c)              = prId c
+    prn 2 (ESel e s)            = prn 2 e <> text "." <> prId s
+    prn 2 (EVar v)              = prId v
     prn 2 (ELit l)              = pr l
     prn 2 (ERec c eqs)          = prId c <+> text "{" <+> hpr ',' eqs <+> text "}"
     prn 2 e                     = parens (prn 0 e)
@@ -757,9 +745,9 @@ instance Binary Pat where
       _ -> fail "no parse"
 
 instance Binary Exp where
-  put (ECon a b) = putWord8 0 >> put a >> put b
-  put (ESel a b c) = putWord8 1 >> put a >> put b >> put c
-  put (EVar a b) = putWord8 2 >> put a >> put b
+  put (ECon a) = putWord8 0 >> put a
+  put (ESel a b) = putWord8 1 >> put a >> put b
+  put (EVar a) = putWord8 2 >> put a
   put (ELam a b) = putWord8 3 >> put a >> put b
   put (EAp a b) = putWord8 4 >> put a >> put b
   put (ELet a b) = putWord8 5 >> put a >> put b
@@ -773,9 +761,9 @@ instance Binary Exp where
   get = do
     tag_ <- getWord8
     case tag_ of
-      0 -> get >>= \a -> get >>= \b -> return (ECon a b)
-      1 -> get >>= \a -> get >>= \b -> get >>= \c -> return (ESel a b c)
-      2 -> get >>= \a -> get >>= \b -> return (EVar a b)
+      0 -> get >>= \a -> return (ECon a)
+      1 -> get >>= \a -> get >>= \b -> return (ESel a b)
+      2 -> get >>= \a -> return (EVar a)
       3 -> get >>= \a -> get >>= \b -> return (ELam a b)
       4 -> get >>= \a -> get >>= \b -> return (EAp a b)
       5 -> get >>= \a -> get >>= \b -> return (ELet a b)

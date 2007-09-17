@@ -197,7 +197,7 @@ red gs ((env, p@(Scheme (F [sc1] t2) ps2 ke2)):ps)
                                              (s,q,es,e,es') <- redf gs env' t1 t2 (ps'++ps)
                                              let (es1,es2) = splitAt (length ps') es'
                                                  bss = preferParams env' pe qe eq
-                                                 e' = eLet' bss (EAp e [eAp (eVarT v ps1 t1) es1])
+                                                 e' = eLet' bss (EAp e [eAp (EVar v) es1])
                                              return (s, q, es, eLam pe (ELam [(v,sc1)] e') : es2)
 red gs ((env, Scheme (R t) ps' ke):ps)  = do pe <- newEnv assumptionSym ps'
                                              (env',qe,eq) <- closePreds env (tvars t ++ tvars ps') pe ke
@@ -213,9 +213,9 @@ redf gs env (F ts t) (F ts' t') ps      = do te1' <- newEnv assumptionSym ts1'
                                              v    <- newName coercionSym
                                              (s,q,es,e,es1,es2) <- redf1 gs env t (tFun ts2' t') ts1' ts1 ps
                                              let e0  = ELam [(v,scheme' (F ts t))] (ELam (te1'++te2') e1)
-                                                 e1  = eAp (EAp e [eLam te2 e2]) (map eVar (dom te2'))
-                                                 e2  = EAp (eVar v) (es3 ++ map eVar (dom te2))
-                                                 es3 = zipWith eAp1 es1 (map eVar (dom te1'))
+                                                 e1  = eAp (EAp e [eLam te2 e2]) (map EVar (dom te2'))
+                                                 e2  = EAp (EVar v) (es3 ++ map EVar (dom te2))
+                                                 es3 = zipWith eAp1 es1 (map EVar (dom te1'))
                                              return (s, q, es, e0, es2)
   where (ts1 ,ts2 )                     = splitAt (length ts') ts
         (ts1',ts2')                     = splitAt (length ts ) ts'
@@ -256,7 +256,7 @@ solve RFun (env,p) gs                   = do (s,q,es,[e]) <- red gs [(env, schem
 solve RUnif (env,p) gs                  = do -- tr ("unif: " ++ show p)
                                              s <- unify env [(a,b)]
                                              (s',q,es,[]) <- red (subst s gs) []
-                                             return (s'@@s, q, eVar (prim Refl) : es)
+                                             return (s'@@s, q, EVar (prim Refl) : es)
   where (a,b)                           = subs p
 solve r g gs
   | mayLoop g                           = do assert (conservative g) "Recursive constraint"
@@ -291,7 +291,7 @@ hyp (w,p) (env,c) gs                    = do (R c',ps) <- inst p
                                              -- tr ("**OK: " ++ show s)
                                              let ps' = repeat (subst s env) `zip` subst s ps
                                              (s',q,es,es') <- red (subst s gs) ps'
-                                             return (s'@@s, q, eAp (eVarT w ps (R c')) es' : es)
+                                             return (s'@@s, q, eAp (EVar w) es' : es)
 
 
 plus gs (Left a) b                      = return b
@@ -334,11 +334,11 @@ auTerms gs es1 es2                      = auZip auTerm gs es1 es2
     auTerm g@(env,c) e1 e2              = auTerm' g (eFlat e1) (eFlat e2)
 
 
-    auTerm' g@(env,c) (EVar v1 _, es1) (EVar v2 _, es2)
+    auTerm' g@(env,c) (EVar v1, es1) (EVar v2, es2)
       | v1 == v2                        = do (R c',ps) <- inst (findPred env v1)
                                              let s = matchTs [(c,c')]
                                              (s',q,es) <- auZip auSc (repeat (subst s env) `zip` subst s ps) es1 es2
-                                             return (s'@@s, q, eAp (eVarT v1 ps (R c')) es)
+                                             return (s'@@s, q, eAp (EVar v1) es)
     auTerm' g@(env,c) (ELam pe1 e1, es1) (ELam pe2 e2, es2)
       | ps1 == ps2                      = do (s,q,e) <- auTerm g e1 (subst s0 e2)
                                              (s',q',es) <- auZip auSc (repeat (subst s env) `zip` subst s ps1) es1 es2
@@ -360,7 +360,7 @@ auTerms gs es1 es2                      = auZip auTerm gs es1 es2
 
 newHyp (env,c)                          = do -- tr ("newHyp " ++ render (prPScheme 0 p))
                                              v <- newName (sym env)
-                                             return ([(v,p)], eAp (eVar (annotExplicit v)) (map eVar vs))
+                                             return ([(v,p)], eAp (EVar (annotExplicit v)) (map EVar vs))
   where p                               = Scheme (R c) ps ke
         (vs,ps)                         = unzip (predEnv env)
         ke                              = kindEnv env
@@ -407,7 +407,7 @@ isNull (Right ([],q,es))
   | all varTerm es                      = True
   where varTerm (EAp e es)              = varTerm e
         varTerm (ELam pe e)             = varTerm e
-        varTerm (EVar v _)              = v `elem` vs
+        varTerm (EVar v)                = v `elem` vs
         varTerm _                       = False
         vs                              = dom q
 isNull _                                = False
@@ -430,7 +430,7 @@ closePreds env tvs pe ke                = do (env1,pe1,eq1) <- closeTransitive e
 
 preferLocals env pe qe eq               = walk [] (equalities env)
   where walk bs []                      = let (pe1,pe2) = partition ((`elem` dom bs) . fst) pe
-                                          in  (pe2, groupBinds (Binds False (pe1++qe) (prune eq (dom bs) ++ mapSnd eVar bs)))
+                                          in  (pe2, groupBinds (Binds False (pe1++qe) (prune eq (dom bs) ++ mapSnd EVar bs)))
         walk bs ((x,y):eqs)
           | x `notElem` vs1             = walk bs eqs
           | otherwise                   = case (x `elem` vs0, y `elem` vs0) of
@@ -442,7 +442,7 @@ preferLocals env pe qe eq               = walk [] (equalities env)
         vs1                             = vs0 ++ dom qe
 
 preferParams env pe qe eq               = walk [] [] (equalities env)
-  where walk ws bs []                   = groupBinds (Binds False (prune qe ws) (prune eq (ws ++ dom bs) ++ mapSnd eVar bs))
+  where walk ws bs []                   = groupBinds (Binds False (prune qe ws) (prune eq (ws ++ dom bs) ++ mapSnd EVar bs))
         walk ws bs ((x,y):eqs)
           | x `notElem` vs1             = walk ws bs eqs
           | otherwise                   = case (x `elem` vs0, y `elem` vs0) of
@@ -504,7 +504,7 @@ mkTrans env ((w1,p1), (w2,p2))          = do (pe1, R c1, e1) <- instantiate p1 (
                                                  p = scheme (t `sub` subst s t2)
                                              (s',qe,f) <- norm (protect p env) (subst s (pe1++pe2))
                                              x  <- newName paramSym
-                                             let e = ELam [(x,scheme (subst s' t))] (f (EAp e2 [EAp e1 [eVar x]]))
+                                             let e = ELam [(x,scheme (subst s' t))] (f (EAp e2 [EAp e1 [EVar x]]))
                                                  (e',p') = qual qe e (subst s' p)
                                              sc <- gen (tevars env) p'
                                              w <- newNameMod (modName env) coercionSym

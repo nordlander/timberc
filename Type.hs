@@ -96,9 +96,7 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ render (vpr te) 
                                          (vs,qs)   = unzip qe2
                                          es2       = map f es1
                                          es3       = if rec then map (subst sat) es2 else es2
-                                         sat       = let es = map eVar vs in map (\x -> (x, \t -> eAp (h x t) es)) xs
-                                         h x (Just t) = eVarT x qs t
-                                         h x _        = eVar x
+                                         sat       = let es = map EVar vs in map (\x -> (x, eAp (EVar x) es)) xs
                                          (es',ts') = unzip (zipWith (qual qe2) es3 (subst s' ts))
                                      -- tr ("Witnesses returned: " ++ show qe1 ++ "   |   " ++ show qe2)
                                      ts'' <- mapM (gen (tevars env1 ++ tvars qe1)) ts'
@@ -125,13 +123,13 @@ tiExpT env t e                  = tiExpT' env (False, t, e)
 tiExpT' env (False, Scheme t0 [] [], e)
                                 = do (ss,pe,t,e)  <- tiExp env e
                                      c            <- newName coercionSym
-                                     return (ss, (c, Scheme (F [scheme' t] t0) [] []) : pe, EAp (eVar c) [e])
+                                     return (ss, (c, Scheme (F [scheme' t] t0) [] []) : pe, EAp (EVar c) [e])
 tiExpT' env (False, Scheme t0 ps [], e) 
                                 = do (ss,qe,t,e)  <- tiExp env e
                                      c            <- newName coercionSym
                                      pe0          <- newEnv assumptionSym ps
-                                     let ws        = map eVar (dom pe0)
-                                         e1        = eLam pe0 (EAp (eAp (eVar c) ws) [e])
+                                     let ws        = map EVar (dom pe0)
+                                         e1        = eLam pe0 (EAp (eAp (EVar c) ws) [e])
                                      return (ss, (c, Scheme (F [scheme' t] t0) ps []) : qe, e1)
 tiExpT' env (explWit, Scheme t0 ps ke, e)
                                 = do (ss,qe,t,e)  <- tiExp env e
@@ -142,9 +140,9 @@ tiExpT' env (explWit, Scheme t0 ps ke, e)
                                      let env1      = subst s env
                                          (qe1,qe2) = partition (isFixed env1) (subst s qe)
                                          (e',t')   = qual qe2 (f e) (scheme' (subst s t))
-                                         ws        = map eVar (dom pe0)
+                                         ws        = map EVar (dom pe0)
                                          (ws',ps') = if explWit then (ws, ps) else ([], [])
-                                         e1        = eLam pe0 (eAp (EAp (eAp (eVar c) ws) [e']) ws')
+                                         e1        = eLam pe0 (eAp (EAp (eAp (EVar c) ws) [e']) ws')
                                      sc           <- gen (tevars env1 ++ tvars qe1) t'
                                      return (mkEqns env1 s, (c, Scheme (F [sc] (tFun ps' t0)) ps ke) : qe1, subst s e1)
 
@@ -158,7 +156,7 @@ isFixed env (w,p)               = isDummy w || all (`elem` tvs) (tvars p)
 tiAp env s pe (F scs rho) e es
   | len_scs >= len_es           = do (s',pe',es') <- tiRhs env scs1 es
                                      te <- newEnv paramSym scs2
-                                     return (s++s', pe++pe', tFun scs2 rho, eLam te (EAp e (es'++map eVar (dom te))))
+                                     return (s++s', pe++pe', tFun scs2 rho, eLam te (EAp e (es'++map EVar (dom te))))
   | otherwise                   = do (s',pe',es') <- tiRhs env scs es1
                                      tiAp env (s++s') (pe++pe') rho (EAp e es') es2
   where len_scs                 = length scs
@@ -171,14 +169,14 @@ tiAp env s pe rho e es          = do t <- newTVar Star
                                      c <- newName coercionSym
                                      (ss,pes,ts,es) <- fmap unzip4 (mapM (tiExp env) es)
                                      let p = Scheme (F [scheme' rho] (F (map scheme' ts) (R t))) [] []
-                                     return (s++concat ss, (c,p):pe++concat pes, R t, EAp (EAp (eVar c) [e]) es)
+                                     return (s++concat ss, (c,p):pe++concat pes, R t, EAp (EAp (EVar c) [e]) es)
 
 tiExp env (ELit l)              = return ([], [], R (litType l), ELit l)
-tiExp env (EVar x _)            = do (pe,t,e) <- instantiate (findExplType env x) (EVar (annotExplicit x))
+tiExp env (EVar x)              = do (pe,t,e) <- instantiate (findExplType env x) (EVar (annotExplicit x))
                                      return ([], pe, t, e)
-tiExp env (ECon k _)            = do (pe,t,e) <- instantiate (findExplType env k) (ECon (annotExplicit k))
+tiExp env (ECon k)              = do (pe,t,e) <- instantiate (findExplType env k) (ECon (annotExplicit k))
                                      return ([], pe, t, e)
-tiExp env (ESel e l _)          = do (F [t0] t, ps) <- inst (findType env l)
+tiExp env (ESel e l)            = do (F [t0] t, ps) <- inst (findType env l)
                                      (s,pe,e) <- tiExpT env t0 e
                                      let r = if explicit (annot l) then (tFun ps t,[]) else (t,ps)
                                      (pe',t',e') <- saturate r (ESel e (annotExplicit l))
@@ -199,21 +197,21 @@ tiExp env (ERec c eqs)          = do alphas <- mapM newTVar (kArgs (findKind env
                                      e <- mkRec env c (map flatSels sels' `zip` es')
                                      return (s, pe, R t, e)
   where (sels,es)               = unzip eqs
-        tiX env x l             = tiExp env (eSel (eVar x) l)
+        tiX env x l             = tiExp env (ESel (EVar x) l)
 tiExp env (ECase e alts d)      = do alpha <- newTVar Star
                                      (t,ts,pats') <- tiLhs env alpha tiX pats
                                      (s,pe,es')   <- tiRhs env ts es
                                      let TFun [t0] t1 = t
                                      (s1,pe1,e')  <- tiExpT env (scheme t0) e
                                      (s2,pe2,d')  <- tiExpT env (scheme t1) d
-                                     e <- mkCase env e' (map flatCons pats' `zip` es') d'
+                                     e <- mkCase env e' t0 (map flatCons pats' `zip` es') d'
                                      return (s++s1++s2, pe++pe1++pe2, R t1, e)
   where (pats,es)               = unzip alts
-        tiX env x (PLit l)      = tiExp env (EAp (eVar x) [ELit l])
+        tiX env x (PLit l)      = tiExp env (EAp (EVar x) [ELit l])
         tiX env x (PCon k)      = do (t,_) <- inst (findType env k)
                                      te <- newEnv paramSym (fArgs t)
                                      tiExp env (eLam te (e (dom te)))
-          where e vs            = EAp (eVar x) [eAp (eCon k) (map eVar vs)]
+          where e vs            = EAp (EVar x) [eAp (ECon k) (map EVar vs)]
                 fArgs (F ts t)  = ts
                 fArgs t         = []
 tiExp env (EReq e e')           = do alpha <- newTVar Star
@@ -277,7 +275,7 @@ tiLhs env alpha tiX xs          = do x <- newName tempSym
 flatSels (ELam _ e)             = flatSels e
 flatSels (EAp e _)              = flatSels e
 flatSels e                      = flat e []
-  where flat (ESel e l _) sels  = flat e (l:sels) 
+  where flat (ESel e l) sels    = flat e (l:sels) 
         flat _ sels             = sels
 
 -- Construct record field definitions on basis of the original rhs terms and the flattened list of selectors computed by tiLhs
@@ -296,24 +294,25 @@ mkRec env c eqs                 = liftM (ERec c) (mapM mkEqn ls)
 -- Extract a list of constructors from the lhs term computed by tiLhs
 -- \xs -> x (k xs)  ===>  \ws -> \xs -> x (w (k ws xs))   ===>  \ws -> \xs -> x (k1 (... kn (k ws xs)))  ==>  k1, ... , kn, k
 flatCons (ELam _ e)             = flatCons e
-flatCons (EAp (EVar x _) [e])   = flatCons e
+flatCons (EAp (EVar x) [e])     = flatCons e
 flatCons e                      = flat e
   where flat (EAp e es)         = flat e ++ flat (head es)      -- if e is a coercion, es will all be variables except for the head
-        flat (ECon k t)         = [(PCon k, t)]
-        flat (ELit l)           = [(PLit l, Nothing)]
+        flat (ECon k)           = [PCon k]
+        flat (ELit l)           = [PLit l]
         flat _                  = []
 
 -- Construct case alternatives on basis of the original rhs terms and the flattened list of constructors computed by tiLhs
-mkCase env e alts d             = liftM (\a -> ECase e a d) (mapM mkAlt ps)
+mkCase env e t0 alts d          = liftM (\a -> ECase e a d) (mapM mkAlt ps)
   where ps                      = nub (map (head . fst) alts)
         mkAlt p                 = case [ (ps,e) | (p':ps,e) <- alts, p==p' ] of
-                                    ([],e):_ -> return (fst p, e)
+                                    ([],e):_ -> return (p, e)
                                     alts_p   -> do x <- newName tempSym
-                                                   e' <- mkCase env (eVar x) alts_p (eVar (prim Fail))
-                                                   return (fst p, ELam [(x,t)] e')
-                                      where F [t] _ = fromJust (snd p)
-
-
+                                                   (R (TFun [t1] t2),_) <- inst (findType env (let PCon k = p in k))
+                                                   let s = matchTs [(t0,t2)]
+                                                       tx = subst s t1
+                                                   e' <- mkCase env (EVar x) tx alts_p (EVar (prim Fail))
+                                                   tx' <- gen (tvars t0) (scheme tx)
+                                                   return (p, ELam [(x,tx')] e')
 
 
 -- data Pack m a = Pack (m a) \\ Eq a

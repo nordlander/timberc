@@ -472,12 +472,12 @@ inst (Scheme t ps ke)           = do ts <- mapM newTVar ks
   where (vs,ks)                 = unzip ke
 
 
-saturate (t,ps) f               = do pe <- newEnv assumptionSym ps
-                                     return (pe, t, eAp (f (Just (tFun ps t))) (map eVar (dom pe)))
+saturate (t,ps) e               = do pe <- newEnv assumptionSym ps
+                                     return (pe, t, eAp e (map EVar (dom pe)))
 
 
-instantiate sc f                = do r <- inst sc
-                                     saturate r f
+instantiate sc e                = do r <- inst sc
+                                     saturate r e
 
 
 qual qe e (Scheme t ps ke)      = (eLam qe e, Scheme t (rng qe ++ ps) ke)
