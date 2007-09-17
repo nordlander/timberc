@@ -96,7 +96,7 @@ options              = [ Option ['v']
                        ]
                        ++ 
                        [ Option []
-                                ["ddump-" ++ map Char.toLower (show pass)]
+                                ["dump-" ++ map Char.toLower (show pass)]
                                 (NoArg $ DumpAfter pass)
                                 ("Dump " ++ show pass ++ " output to stdout")
                        | pass <- allPasses 

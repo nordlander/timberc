@@ -11,7 +11,7 @@ void putStr(LIST xs) {
     case _CONS: 
       x = ((CONS)xs)->hd;
       xs = ((CONS)xs)->tl;
-      putchar(((charbox)x)->Value);
+      putchar(((CharBox)x)->Value);
       break;
     default: 
       putchar('\n');
