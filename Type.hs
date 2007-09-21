@@ -57,7 +57,7 @@ let f = \w0 v x -> e w0 (f w0 v 7)                                            ::
 -}
 
 
-tiModule (xs',ds',te',is') (Module v ns xs ds is bs) = 
+tiModule (xs',ds',bs',is') (Module v ns xs ds is bs) = 
                                   do (env1,ds1,bs1) <- typeDecls env0 ds
                                      (env2,bs2) <- instancePreds env1 ieTot
                                      let env3 = insertDefaults env2 (xs' ++ xs)
@@ -72,7 +72,7 @@ tiModule (xs',ds',te',is') (Module v ns xs ds is bs) =
                                      assert (null (ss0++ss1++ss2)) "Internal: top-level type inference 1"
                                      assert (null (pe0++pe1++pe2)) "Internal: top-level type inference 2"
                                      return (Module v ns xs ds1 (is0 `catBinds` classInsts) bs)
-  where env0                    = addTEnv0 te' (impDecls (initEnv { modName = Just (str v) }) ds')
+  where env0                    = addTEnv0 (tsigsOf bs') (impDecls (initEnv { modName = Just (str v) }) ds')
         ieTot                   = tsigsOf is' ++ tsigsOf is
         (subInsts,classInsts)   = splitInsts is
 

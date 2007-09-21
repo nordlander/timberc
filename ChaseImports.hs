@@ -11,6 +11,7 @@ import PP
 import qualified Core2Kindle 
 import qualified Kindle 
 import Depend
+import Termred
 
 -- Data type of interface file -----------------------------------------------
 
@@ -20,7 +21,7 @@ data IFace = IFace [Name]                       -- imported modules
                (Map Name ([Name],Syntax.Type))  -- type synonyms
                Types                            --
                Binds                            -- types for instances
-               TEnv                             -- types for exported values (including sels and cons)
+               Binds                            -- types for exported values (including sels and cons) and some finite eqns
                Kindle.Decls                     -- Kindle form of declarations
                Kindle.TEnv                      -- Kindle type env
                (Map Name Name)                  -- Constructors to their datatype
@@ -28,24 +29,24 @@ data IFace = IFace [Name]                       -- imported modules
 
 -- Building interface info from data collected during compilation of a module ---------------------------------
 
---ifaceMod :: ((Map Name [Name],Map Name ([Name],Syntax.Type)),([Name],Types,Binds,TEnv)) -> M s IFace
 ifaceMod ((rs,ss),Module _ ns xs ds is bs,(kds,kte)) 
    | not(null vis)                = error ("Private types visible in interface: " ++ showids vis)
    | not(null ys)                 = error ("Public default declaration mention private instance: "++ render(prDefault ys))
    | otherwise                    = do 
                                        let cs = Core2Kindle.dataCons ds
-                                       return (IFace ns xs' rs ss ds1 is' ts2' kds kte cs) 
+                                       return (IFace ns xs' rs ss ds1 is' bs' kds kte cs) 
   where Types ke te               = ds
-        Binds r ts1 es1           = is
+        Binds r1 ts1 es1          = is
+        Binds r2 ts2 es2          = bs
         xs'                       = [d | d@(True,i1,i2) <- xs]
         ys                        = [d | d <- xs', localInst [(b,a) | (a,b) <- ts1] d]
         ds1                       = Types (filter exported ke) (filter exported' te)
-        is'                       = Binds r (filter exported ts1) (filter exported es1)
-        ts2'                      = filter exported (tsigsOf bs)
-        vis                       = nub(localTypes [] (rng (tsigsOf is') ++ rng ts2'))
+        is'                       = Binds r1 (filter exported ts1) (filter exported es1)
+        bs'                       = Binds r2 (filter exported ts2) (filter (\ eqn -> fin eqn &&  exported eqn) es2)
+        vis                       = nub(localTypes [] (rng (tsigsOf is') ++ rng (tsigsOf bs')))
         exported (n,_)            = isQualified n
         exported' p@(n,_)         = isQualified n && (not(isAbstract p)) --Constructors/selectors are exported
-
+        fin (_,e)                 = finite env0 e
 localInst ts (_,i1,i2)            = isPrivate (instName i1) || isPrivate(instName i2)
   where instName (Just n,_)       = n
         instName (Nothing,t)      = fromJust (lookup t ts)
@@ -80,24 +81,25 @@ init_order imps                        = case topSort recImps imps of
 
 
 initEnvs bms         = do ims <- mapM mkEnv bms
-                          let (rs,xs,ss,rnL,rnT,rnE,ds,is,te,kds,kte,cs) 
-                                = foldr mergeMod ([],[],[],[],[],[],Types [] [],Binds False [] [],[],[],[],[]) ims
-                          return ((rs,rnL,ss),(rnL,rnT,rnE),(xs,ds,te,is),(kds,kte,cs))
+                          let (rs,xs,ss,rnL,rnT,rnE,ds,is,bs,kds,kte,cs) 
+                                = foldr mergeMod ([],[],[],[],[],[],Types [] [],Binds False [] [],Binds False [] [],[],[],[]) ims
+                          return ((rs,rnL,ss),(rnL,rnT,rnE),(xs,ds,bs,is),(kds,kte,cs))
 
-mergeMod (rs1,xs1,ss1,rnL1,rnT1,rnE1,ds1,is1,te1,kds1,kte1,cs1)
-         (rs2,xs2,ss2,rnL2,rnT2,rnE2,ds2,is2,te2,kds2,kte2,cs2) =
+mergeMod (rs1,xs1,ss1,rnL1,rnT1,rnE1,ds1,is1,bs1,kds1,kte1,cs1)
+         (rs2,xs2,ss2,rnL2,rnT2,rnE2,ds2,is2,bs2,kds2,kte2,cs2) =
                                    (rs1 ++ rs2, xs1 ++ xs2, ss1 ++ ss2, mergeRenamings2 rnL1 rnL2, 
                                     mergeRenamings2 rnT1 rnT2, mergeRenamings2 rnE1 rnE2,
-                                    catDecls ds1 ds2, catBinds is1 is2, te1 ++ te2,
-                                    kds1 ++ kds2,kte1 ++ kte2, cs1 ++ cs2)
+                                    catDecls ds1 ds2, catBinds is1 is2, catBinds bs1 bs2,
+                                    kds1 ++ kds2, kte1 ++ kte2, cs1 ++ cs2)
 
-mkEnv (m,(unQual,direct,IFace ns xs rs ss ds tsi te kds kte cs)) 
+mkEnv (m,(unQual,direct,IFace ns xs rs ss ds is bs kds kte cs)) 
                           = do ks  <- renaming (dom ke)
                                ts  <- renaming (dom te'')
                                ls' <- renaming ls -- (concatMap snd rs)
                                return (unMod unQual rs, xs, unMod unQual ss, unMod unQual ls',unMod unQual ks,
-                                       unMod unQual ts,ds,tsi,te',kds,kte,cs)
+                                       unMod unQual ts,ds,is,Binds r te' es,kds,kte,cs)
   where Types ke ds'      = ds
+        Binds r te es     = bs
         te'               = if direct then te ++ concatMap (tenvSelCon ke) ds' else []
         te''              = if direct then te ++ concatMap (tenvCon ke) ds' else []
         ls                = [ s | (_,DRec _ _ _ cs) <- ds', (s,_) <- cs, not (isGenerated s) ]
@@ -151,17 +153,17 @@ instance Binary IFace  where
 -- Printing -----------------------------------------------------------------------------
 
 instance Pr IFace where
-  pr (IFace ns xs rs ss ds1 is ts2' kds kte cs) =
+  pr (IFace ns xs rs ss ds1 is bs kds kte cs) =
                                   text "Imported/used modules: " <+> hsep (map prId ns) $$
                                   text "Default declarations: " <+> prDefault xs $$
                                   text ("Record types and their selectors: "++show rs) $$
                                   text "Type synonyms: " <+> hsep (map (prId . fst) ss) $$ 
-                                  pr ds1 $$ pr is  $$ vcat (map prPair ts2') 
+                                  pr ds1 $$ pr is  $$ pr bs
                                   $$$ text "Kindle declarations" 
                                   $$$ vcat (map pr kds)
                                   $$$ text "Kindle type environment" $$$ vcat (map pr kte)
                                   
-prPair (n,t)                      = prId n <+> text "::" <+> pr t
+-- prPair (n,t)                      = prId n <+> text "::" <+> pr t
 
 
 listIface f                       = do ifc <- decodeFile f

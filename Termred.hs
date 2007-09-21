@@ -1,4 +1,4 @@
-module Termred(termred, redTerm) where
+module Termred(termred, redTerm, finite, env0) where
 
 import Common
 import Core
@@ -210,8 +210,8 @@ redRat FloatGT a b              = eBool (a > b)
 redRat p _ _                    = error ("Internal: redRat " ++ show p)
 
 
-eBool True                      = EVar (prim TRUE)
-eBool False                     = EVar (prim FALSE)
+eBool True                      = ECon (prim TRUE)
+eBool False                     = ECon (prim FALSE)
 
 
 redCmd env (CRet e)             = CRet (redExp env e)

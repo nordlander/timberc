@@ -254,10 +254,11 @@ test pass           = compileTimber clo "Test.t"
                                         
 
 
-checkRoot clo def           = do (IFace _ _ _ _ _ _ te _ _ _) <- decodeFile (modToPath rootMod ++ ".ti")
+checkRoot clo def           = do (IFace _ _ _ _ _ _ bs _ _ _) <- decodeFile (modToPath rootMod ++ ".ti")
                                  (IFace _ _ _ _ ts _ _ _ _ _) <- decodeFile (modToPath rtsMod ++ ".ti")
                                  let ke = Core.ksigsOf ts
                                      ds = Core.tdefsOf ts
+                                     te = Core.tsigsOf bs
                                  case lookup rootT ke of
                                      Nothing   -> fail ("Cannot locate RootType in module " ++ rtsMod)
                                      Just Star -> case lookup rootT ds of
