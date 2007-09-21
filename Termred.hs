@@ -6,7 +6,7 @@ import Depend
 import PP
 import Char
 
-termred (_,_,_,impIe) m         = return (redModule (eqnsOf impIe) m)
+termred (_,_,bs',is') m         = return (redModule (eqnsOf is' ++ eqnsOf bs') m)
 
 
 redTerm coercions e             = redExp (Env {eqns = coercions, args = []}) e
@@ -23,10 +23,15 @@ addEqns env eqs                 = env { eqns = eqs ++ eqns env }
 
 
 redModule impEqs (Module m ns xs ds ie bs) 
-                                = Module m ns xs ds ie' (redBinds env2 bs)
-  where env1                    = addEqns env0 (finiteEqns env0 impEqs)
-        ie'                     = redBinds env1 ie
-        env2                    = addEqns env1 (finiteEqns env1 (eqnsOf ie'))
+                                = Module m ns xs ds ie' (Binds r te (es1' ++ redEqns env3 es2))
+  where envFree eqn             = all (\x -> isGenerated x || x `elem` [Prim Refl noAnnot]) (idents (snd eqn))
+        Binds r te es           = bs
+        (es1,es2)               = partition envFree es
+        es1'                    = redEqns env0 es1
+        env1                    = addEqns env0 (finiteEqns env0 es1')
+        env2                    = addEqns env1 (finiteEqns env1 impEqs) -- We know that imported top-level eqns are finite! should change here
+        ie'                     = redBinds env2 ie
+        env3                    = addEqns env2 (finiteEqns env2 (eqnsOf ie'))
 
 
 finiteEqns env eq               = filter (finite env . snd) eq
@@ -58,7 +63,7 @@ nonzero _                       = False
 -- may be safely inlined (can't lead to infinite expansion even if part of a recursive binding group)
 finite env (EVar (Prim _ _))    = True
 finite env (EVar (Tuple _ _))   = True
-finite env (EVar x)             = x `elem` args env
+finite env (EVar x)             = x `elem` args env || maybe False (finite env )(lookup x (eqns env))
 finite env (ECon _)             = True
 finite env (ELit _)             = True
 finite env (ESel e _)           = finite env e
