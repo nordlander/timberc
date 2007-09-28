@@ -160,19 +160,20 @@ Yet unknown:
 -- | right now.
 
 
-compileTimber clo f = do putStrLn $ "[compiling " ++ show f ++ "]"
+compileTimber clo ifs f
+                    = do putStrLn $ "[compiling " ++ show f ++ "]"
                          txt <-  catch (readFile f)
                                  (\e -> error $ "File " ++ f ++ " does not exist.")
                          let par@(Syntax.Module _ is _ _) = runM (pass parser Parser txt)
-                             m = rmSuffix ".t" f
-                         imps <- chaseImports m is
+                         (imps,ifs') <- chaseImports is ifs
                          let ((htxt,mtxt),ifc) = runM (passes imps par)
-                             f '/' = '_'
-                             f x = x
-                    
+                             m = rmSuffix ".t" f
+                             g '/' = '_'
+                             g x = x
                          encodeFile (m ++ ".ti") ifc
-                         writeFile (map f m ++ ".c") mtxt
-                         writeFile (map f m ++ ".h") htxt
+                         writeFile (map g m ++ ".c") mtxt
+                         writeFile (map g m ++ ".h") htxt
+                         return ifs'
  where passes imps par = do
                          (e0,e1,e2,e3) <- initEnvs imps
                          (d1,a0) <- pass (desugar1 e0)    Desugar1            par
@@ -186,8 +187,7 @@ compileTimber clo f = do putStrLn $ "[compiling " ++ show f ++ "]"
                          ll      <- pass (lambdalift e3)  LLift               ki
                          pc      <- pass (prepare4c e3)   Prepare4C           ll
                          c       <- pass (kindle2c (init_order imps)) K2C     pc
-                         ifc     <- ifaceMod (a0,rd,a2)
-                         return (c,ifc)
+                         return (c,ifaceMod a0 rd a2)
        pass        :: (Pr b) => (a -> M s b) -> Pass -> a -> M s b
        pass m p a  = do -- tr ("Pass " ++ show p ++ "...")
                         r <- m a
@@ -215,7 +215,11 @@ main2 args          = do (clo, files) <- Exception.catchDyn (cmdLineOpts args)
                              c_files = [ map f (rmSuffix ".t" file) | file <- files, ".t" `isSuffixOf` file ]
                              f '/' = '_'
                              f x = x
-                         mapM (compileTimber clo) timber_files
+                             compAll f ifs [] = return ()
+                             compAll f ifs (t:ts) = do ifs' <- f ifs t
+                                                       compAll f (ifs' ++ ifs) ts
+
+                         compAll (compileTimber clo) [] timber_files
 
                          let iface_files =  [ modToPath file | file <- files, ".ti" `isSuffixOf` file ]
                          mapM listIface iface_files
@@ -240,7 +244,7 @@ main2 args          = do (clo, files) <- Exception.catchDyn (cmdLineOpts args)
 
 
 
-test pass           = compileTimber clo "Test.t"
+test pass           = compileTimber clo [] "Test.t"
   where clo         = CmdLineOpts { isVerbose = False,
                                     binTarget = "a.out",
                                     cfgDir    = "../etc",
