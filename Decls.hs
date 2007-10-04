@@ -26,11 +26,11 @@ import Reduce
 -- Return extended environment, transformed decls and added witness bindings
 
 
-typeDecls env (Types ke ds)             = do (ds,pe1,eq1) <- desub env0 ds
+typeDecls env tds@(Types ke ds)         = do (ds,pe1,eq1) <- desub env0 ds
                                              (env',bs) <- instancePreds env0 pe1
-                                             let te0 = tenvSelsCons env' ds
                                              return (addTEnv0 te0 env', Types ke ds, catBinds (Binds False pe1 eq1)  bs)
   where env0                            = addClasses cs (addKEnv0 ke env)
+        te0                             = tenvSelsCons tds
         cs                              = [ c | (c, DRec True _ _ _) <- ds ]
 
 impDecls env (Types ke ds)              =  env1
@@ -49,7 +49,7 @@ instancePreds env pe                    = do (env',qe,eq) <- closePreds0 env pe
 -- Computes the stand-alone type schemes associated with selectors and constructors
 -- Note: these constants have no corresponding definition (i.e., no rhs)
 
-tenvSelsCons env ds                     = concatMap (tenvSelCon (kindEnv0 env)) ds
+tenvSelsCons (Types ke ds)              = concatMap (tenvSelCon ke) ds
 
 tenvSelCon ke0 (c,DRec _ vs _ ss)       = map (f t ke) ss
   where (t,ke)                          = mkHead ke0 c vs

@@ -113,11 +113,11 @@ litType (LStr _)                        = error "Internal chaos: Kindle.litType 
 primDecls                               = (prim Bool,       Enum   [prim FALSE, prim TRUE]) :
                                           (prim UNITTYPE,   Enum   [prim UNITTERM]) :
                                           (prim LISTtags,   Enum   [prim NIL, prim CONS]) :
-                                          (prim LIST,       Struct [(name0 "tag", ValT (TId (prim LISTtags)))]) :
-                                          (prim NIL,        Struct [(name0 "tag", ValT (TId (prim LISTtags)))]) :
-                                          (prim CONS,       Struct [(name0 "tag", ValT (TId (prim LISTtags))),
-                                                                    (name0 "hd",  ValT TWild), 
-                                                                    (name0 "tl",  ValT (TId (prim LIST)))]) :
+                                          (prim LIST,       Struct [(prim Tag, ValT (TId (prim LISTtags)))]) :
+                                          (prim NIL,        Struct [(prim Tag, ValT (TId (prim LISTtags)))]) :
+                                          (prim CONS,       Struct [(prim Tag, ValT (TId (prim LISTtags))),
+                                                                    (name0 "a",  ValT TWild), 
+                                                                    (name0 "b",  ValT (TId (prim LIST)))]) :
                                           (prim Msg,        Struct [(prim Code, FunT [] TWild),
                                                                     (prim Baseline, ValT (TId (prim Time))),
                                                                     (prim Deadline, ValT (TId (prim Time)))]) :
@@ -142,7 +142,7 @@ primTEnv                                = map cv (Env.primTypeEnv `restrict` pri
     cv3 (Core.TId n)                    = TId n
 
 
-tupleSels (Tuple n _)                   = map name0 (take n abcSupply) `zip` repeat TWild
+tupleSels (Tuple n _)                   = take n abcSupply `zip` repeat TWild
 
 searchFields ds x                       = [ (TId n, t) | (n, Struct te) <- ds, (x',t) <- te, x==x' ]
 
@@ -169,22 +169,23 @@ cBind bs c                              = CBind False bs c
 cBindR r [] c                           = c
 cBindR r bs c                           = CBind r bs c
 
-protect x t c                           = liftM (CRun (ECall (prim LOCK) [e])) (protect' e t c)
-  where e                               = ECast (TId (prim PID)) (EVar x)
-
-protect' e0 t (CRet e)
-  | sensitive e                         = do y <- newName tempSym
+protect x t c                           = liftM (CRun (ECall (prim LOCK) [e0])) (cMap f c)
+  where e0                              = ECast (TId (prim PID)) (EVar x)
+        f e | sensitive e               = do y <- newName tempSym
                                              return (cBind [(y,Val t e)] (CRun (ECall (prim UNLOCK) [e0]) (CRet (EVar y))))
-  | otherwise                           = return (CRun (ECall (prim UNLOCK) [e0]) (CRet e))
-protect' e0 t (CRun e c)                = liftM (CRun e) (protect' e0 t c)
-protect' e0 t (CBind r bs c)            = liftM (CBind r bs) (protect' e0 t c)
-protect' e0 t (CAssign e y e' c)        = liftM (CAssign e y e') (protect' e0 t c)
-protect' e0 t (CSwitch e alts c)        = liftM2 (CSwitch e) (mapM (protect'' e0 t) alts) (protect' e0 t c)
-protect' e0 t (CSeq c c')               = liftM2 CSeq (protect' e0 t c) (protect' e0 t c')
-protect' e0 t (CBreak)                  = return CBreak
+            | otherwise                 = return (CRun (ECall (prim UNLOCK) [e0]) (CRet e))
 
-protect'' e0 t (ACon y c)               = liftM (ACon y) (protect' e0 t c)
-protect'' e0 t (ALit l c)               = liftM (ALit l) (protect' e0 t c)
+
+cMap f (CRet e)                         = f e
+cMap f (CRun e c)                       = liftM (CRun e) (cMap f c)
+cMap f (CBind r bs c)                   = liftM (CBind r bs) (cMap f c)
+cMap f (CAssign e y e' c)               = liftM (CAssign e y e') (cMap f c)
+cMap f (CSwitch e alts c)               = liftM2 (CSwitch e) (mapM (cMap' f) alts) (cMap f c)
+cMap f (CSeq c c')                      = liftM2 CSeq (cMap f c) (cMap f c')
+cMap f (CBreak)                         = return CBreak
+
+cMap' f (ACon y c)                      = liftM (ACon y) (cMap f c)
+cMap' f (ALit l c)                      = liftM (ALit l) (cMap f c)
 
 
 mkSig (n,Val at _)                      = (n,ValT at)
@@ -197,18 +198,6 @@ sensitive (EEnter e n es)               = True
 sensitive (ENew n bs)                   = True
 sensitive (ECast t e)                   = sensitive e
 sensitive e                             = False
-
-{-
-cast t (CRet e)                         = CRet (ECast t e)
-cast t (CRun e c)                       = CRun e (cast t c)
-cast t (CBind r bs c)                   = CBind r bs (cast t c)
-cast t (CAssign e x e' c)               = CAssign e x e' (cast t c)
-cast t (CSwitch e alts c)               = CSwitch e (map cast' alts) (cast t c)
-  where cast' (ACon x c)                = ACon x (cast t c)
-        cast' (ALit l c)                = ALit l (cast t c)
-cast t (CSeq c c')                      = CSeq (cast t c) (cast t c')
-cast t (CBreak)                         = CBreak
--}
 
 
 -- Free variables ------------------------------------------------------------------------------------

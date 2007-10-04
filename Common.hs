@@ -243,28 +243,6 @@ isTag n                         = isGenerated n && str n == tagSym
 explicitSyms                    = [coercionSym, assumptionSym, witnessSym]
 
 
--- Textual variable supply -------------------------------------------------------------
-
-stdSupply                               = alternate (abcdeijklxyz 0 []) (mfghn 0 [])
-
-abcdeijklxyz                            = gensupply "abcdeijklxyz"
-mfghn                                   = gensupply "mfghn"
-
-abcSupply                               = gensupply "abcdefghijklmnopqrstuvwxyz" 0 []
-
-
-gensupply                               :: String -> Int -> [String] -> [String]
-gensupply chars depth avoid             = filter (`notElem` avoid) vars
-  where vars                            = if depth==0 then vars0 else map (++ show depth) vars0
-        vars0                           = map (:"") chars ++ map (:"'") chars ++ concat (map g [1..])
-        g n                             = map (replicate n) chars
-
-
-alternate vs1 vs2 []                    = []
-alternate vs1 vs2 (True  : xs)          = head vs1 : alternate (tail vs1) vs2 xs
-alternate vs1 vs2 (False : xs)          = head vs2 : alternate vs1 (tail vs2) xs
-
-
 -- Tracing -----------------------------------------------------------------------------
 
 tr m                            = trace (m++"\n") (return ())

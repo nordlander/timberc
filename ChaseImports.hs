@@ -33,7 +33,7 @@ ifaceMod ((rs,ss),Module _ ns xs ds is bs,(kds,kte))
    | not(null vis)                = error ("Private types visible in interface: " ++ showids vis)
    | not(null ys)                 = error ("Public default declaration mention private instance: "++ render(prDefault ys))
    | otherwise                    = do 
-                                       let cs = Core2Kindle.dataCons ds
+                                       let cs = [] -- Core2Kindle.dataCons ds
                                        return (IFace ns xs' rs ss ds1 is' bs' kds kte cs) 
   where Types ke te               = ds
         Binds r1 ts1 es1          = is

@@ -135,6 +135,10 @@ data Prim                       =
                                 | UNLOCK
                                 | NEW
                                 
+                                | Inherit               -- default Time value
+
+                                | Tag                   -- first selector of every datatype/constructor struct
+                                
                                 | Code                  -- selectors of struct Msg
                                 | Baseline
                                 | Deadline
@@ -163,6 +167,9 @@ primTerms                       = map primKeyValue [NIL .. Before] ++ alreadyPri
 primKeyValue p                  = (name0 (strRep p), prim p)
 
 alreadyPrimed ps                = map (\p -> (prim p, prim p)) ps
+
+nonPointers                     = [Int, Float, Time]
+
 
 strRep LIST                     = "[]"
 strRep UNITTYPE                 = "()"
@@ -232,6 +239,9 @@ qualName n@(Name s _ Nothing _) = case splitString s of
                                     (x : xs) -> n {str = x, fromMod = Just(joinString xs)}
 qualName n                      = n
 
+isQual m n                      = fromMod n == Just (str m)
+
+
 tag0 (Name s t m a)             = Name s 0 m a
 tag0 n                          = n
 
@@ -243,6 +253,16 @@ annotExplicit n                 = n { annot = a { explicit = True } }
 
 annotState n                    = n { annot = a { stateVar = True } }
   where a                       = annot n
+
+
+-- Textual name supply ---------------------------------------------------------------------------
+
+abcSupply                               = map name0 (gensupply "abcdefghijklmnopqrstuvwxyz")
+
+
+gensupply                               :: [Char] -> [String]
+gensupply chars                         = map (:"") chars ++ map (:"'") chars ++ concat (map g [1..])
+  where g n                             = map (replicate n) chars
 
 
 -- Testing Names ----------------------------------------------------------------
@@ -443,14 +463,16 @@ instance Binary Prim where
   put LOCK = putWord8 79
   put UNLOCK = putWord8 80
   put NEW = putWord8 81
-  put Code = putWord8 82
-  put Baseline = putWord8 83
-  put Deadline = putWord8 84
-  put CharBox = putWord8 85
-  put FloatBox = putWord8 86
-  put IntBox = putWord8 87
-  put Value = putWord8 88
-  put LISTtags = putWord8 89
+  put Inherit = putWord8 82
+  put Tag = putWord8 83
+  put Code = putWord8 84
+  put Baseline = putWord8 85
+  put Deadline = putWord8 86
+  put CharBox = putWord8 87
+  put FloatBox = putWord8 88
+  put IntBox = putWord8 89
+  put Value = putWord8 90
+  put LISTtags = putWord8 91
   get = do
     tag_ <- getWord8
     case tag_ of
@@ -536,12 +558,14 @@ instance Binary Prim where
       79 -> return LOCK
       80 -> return UNLOCK
       81 -> return NEW
-      82 -> return Code
-      83 -> return Baseline
-      84 -> return Deadline
-      85 -> return CharBox
-      86 -> return FloatBox
-      87 -> return IntBox
-      88 -> return Value
-      89 -> return LISTtags
+      82 -> return Inherit
+      83 -> return Tag
+      84 -> return Code
+      85 -> return Baseline
+      86 -> return Deadline
+      87 -> return CharBox
+      88 -> return FloatBox
+      89 -> return IntBox
+      90 -> return Value
+      91 -> return LISTtags
       _ -> fail "no parse"

@@ -182,7 +182,7 @@ compileTimber clo f = do putStrLn $ "[compiling " ++ show f ++ "]"
                          kc      <- pass (kindcheck e2)   KCheck              co
                          tc      <- pass (typecheck e2)   TCheck              kc
                          rd      <- pass (termred e2)     Termred             tc
-                         (ki,a2) <- pass (core2kindle e3) C2K                 rd
+                         (ki,a2) <- pass (core2kindle e2 e3) C2K                 rd
                          ll      <- pass (lambdalift e3)  LLift               ki
                          pc      <- pass (prepare4c e3)   Prepare4C           ll
                          c       <- pass (kindle2c (init_order imps)) K2C     pc

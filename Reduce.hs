@@ -565,11 +565,11 @@ data Implications                       = Equal | Similar | ImplyRight | ImplyLe
 
 implications env p1 p2                  = do (R c1,ps1) <- inst p1
                                              (R c2,ps2) <- inst p2
-                                             r1 <- expose (unify env [(c1,pbody p2)])
-                                             r2 <- expose (unify env [(pbody p1,c2)])
+                                             r1 <- expose (unify env [(c1,body p2)])
+                                             r2 <- expose (unify env [(body p1,c2)])
                                              case (r1,r2) of
                                                 (Right s, Right _) 
-                                                  | subst s ps1 == pctxt p2 -> return Equal
+                                                  | subst s ps1 == ctxt p2  -> return Equal
                                                   | otherwise               -> return Similar
                                                 (Right _, Left _)           -> return ImplyRight
                                                 (Left _, Right _)           -> return ImplyLeft

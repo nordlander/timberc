@@ -90,6 +90,15 @@ litType (LChr c)                = TId (prim Char)
 litType (LStr s)                = error "Internal chaos: Core.litType LStr"
 
 
+tupleKind n                     = foldr KFun Star (replicate n Star)
+
+
+tupleType n                     = Scheme (tFun' (map scheme ts) t) [] (vs `zip` repeat Star)
+  where vs                      = take n abcSupply
+        ts                      = map TId vs
+        t                       = tAp (TId (tuple n)) ts
+
+
 newTVar k                       = fmap TVar (newTV k)
 
 
@@ -165,13 +174,13 @@ isTVar t                        = case tHead t of
 a `sub` b                       = TFun [a] b
 
 
-isSub' p                        = isSub (pbody p)
+isSub' p                        = isSub (body p)
 
 
 isSub (TFun [l] u)              = True
 isSub _                         = False
 
-isClass' p                      = isClass (pbody p)
+isClass' p                      = isClass (body p)
 
 isClass c                       = not (isSub c)
 
@@ -180,19 +189,19 @@ subs (TFun [l] u)               = (l,u)
 subs t                          = error ("Internal: subs of " ++ show t)
 
 subsyms p                       = (tId (tHead t), tId (tHead t'))
-  where (t,t')                  = subs (pbody p)
+  where (t,t')                  = subs (body p)
 
 lowersym p                      = fst (subsyms p)
 uppersym p                      = snd (subsyms p)
 
-headsym                         = tId . tHead . pbody
+headsym                         = tId . tHead . body
 
 
-pbody (Scheme (R c) _ _)        = c
+body (Scheme (R c) _ _)         = c
 
-pctxt (Scheme _ ps _)           = ps
+ctxt (Scheme _ ps _)            = ps
 
-pquant (Scheme _ _ ke)          = ke
+quant (Scheme _ _ ke)           = ke
 
 scheme t                        = Scheme (R t) [] []
 scheme' t                       = Scheme t [] []
@@ -236,11 +245,6 @@ altRhss                         = map snd
 oplus eqs eqs'                  = filter ((`notElem` vs) . fst) eqs ++ eqs'
   where vs                      = dom eqs'
 
-isLocal m (n,_)                 = not (isQualified n) || fromMod n == Just (str m) 
-
-filterDecls m (Types ke ds)     = Types (filter (isLocal m) ke) (filter (isLocal m) ds)
-
-filterInsts m (Binds r ss es)   = Binds r (filter (isLocal m) ss) (filter (isLocal m) es)
 
 -- One-way matching -----------------------------------------------------
 -- Only apply when types are known to match!! ---------------------------

@@ -147,14 +147,10 @@ pExp' env (ENew n bs)               = do (bs1,bs) <- pMap (pSBind env n) bs
                                          return (bs1++[(x, Val (TId n) (ENew n bs))], TId n, EVar x)
 
 
-mustBox (TId (Prim Time _))         = True
-mustBox (TId (Prim Int _))          = True
-mustBox (TId (Prim Float _))        = True
-mustBox (TId (Prim Char _))         = True          -- really box chars?
+mustBox (TId (Prim p _))            = p `elem` nonPointers
 mustBox _                           = False
 
 
 box (TId (Prim Time _))             = prim TimeBox
 box (TId (Prim Int _))              = prim IntBox
 box (TId (Prim Float _))            = prim FloatBox
-box (TId (Prim Char _))             = prim CharBox

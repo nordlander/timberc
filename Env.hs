@@ -225,7 +225,7 @@ logHistory (env,c)                      = (env { history = c : history env }, c)
 
 conservative (env,c)                    = not (forced env)
 
-findKind0 ke (Tuple n _)                = foldr KFun Star (replicate n Star)
+findKind0 ke (Tuple n _)                = tupleKind n
 findKind0 ke c                          = case lookup c ke of
                                             Just k  -> k
                                             Nothing -> Star  -- Hack!  This alternative is intended for the fresh type
@@ -251,10 +251,7 @@ findKind0 ke c                          = case lookup c ke of
 findKind env c                          = findKind0 (kindEnv env ++ kindEnv0 env) c
 
 
-findType0 te (Tuple n _)                = Scheme (tFun' (map scheme ts) t) [] (vs `zip` repeat Star)
-  where vs                              = map name0 (take n abcSupply)
-        ts                              = map TId vs
-        t                               = tAp (TId (tuple n)) ts
+findType0 te (Tuple n _)                = tupleType n
 findType0 te v                          = case lookup v te of
                                             Just sc -> sc
                                             Nothing -> error ("Internal: Unknown identifier: " ++ show v)
