@@ -105,8 +105,10 @@ cModule ie (dsi,_,_) (Module m ns xs ds is bs)
                                     = do te <- tenv0 ie
                                          let env = addTEnv te (env0 (str m))
                                          ds1  <- cDecls env ds
+                                         te' <- cTEnv (Decls.tenvSelsCons ds)
+                                         let env' = addTEnv te' env
                                          mapM_ addToStore (filter (isClosure . fst) dsi)
-                                         bs  <- cBindsList env (groupBinds (is `catBinds` bs))
+                                         bs  <- cBindsList env' (groupBinds (is `catBinds` bs))
                                          ds2 <- currentStore
                                          return (Kindle.Module m ns (ds1++reverse (filter (isQual m . fst) ds2)) bs)
 
@@ -356,7 +358,7 @@ cExpTs env (t:ts) (e:es)                = do (bf,eq,e) <- cExpT env t e
 -- Translate a Core.Exp with a known function type into a Kindle.Cmd and an argument list
 cFunT env ts t e                        = do (te,u,c) <- cFun env e
                                              (te',c') <- absFun te u c
-                                             return (te', (TFun ts t, TFun (rng te) u), c')
+                                             return (if null te then ([],(TFun ts t,u),c) else (te', (TFun ts t, TFun (rng te) u), c'))
   where absFun te u c
           | l_ts >  l_te                = do (te,c) <- adaptFun env ts1 (TFun ts2 t) te u c
                                              xs <- newNames paramSym (length ts2)
@@ -731,7 +733,7 @@ quickUnify ((t,TVar n):eqs)             = quickUnify (subst s eqs) @@ s
 quickUnify ((TAp t t',TAp u u'):eqs)    = quickUnify ((t,u) : (t',u') : eqs)
 quickUnify ((TFun ts t,TFun us u):eqs)
   | length ts == length us              = quickUnify ((t,u) : (ts `zip` us) ++ eqs)
-  | otherwise                           = error "Internal: c2k.quickUnify"
+  | otherwise                           = error ("Internal: c2k.quickUnify:" ++ show (TFun ts t) ++" and " ++ show (TFun us u))
 quickUnify ((t,u):eqs)                  = quickUnify eqs
 
 

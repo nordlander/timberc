@@ -28,9 +28,10 @@ import Reduce
 
 typeDecls env tds@(Types ke ds)         = do (ds,pe1,eq1) <- desub env0 ds
                                              (env',bs) <- instancePreds env0 pe1
+                                             let te0 = tenvSelsCons (Types ke ds)
+
                                              return (addTEnv0 te0 env', Types ke ds, catBinds (Binds False pe1 eq1)  bs)
   where env0                            = addClasses cs (addKEnv0 ke env)
-        te0                             = tenvSelsCons tds
         cs                              = [ c | (c, DRec True _ _ _) <- ds ]
 
 impDecls env (Types ke ds)              =  env1
@@ -81,14 +82,14 @@ desub env ds                            = do (ds',pes,eqs) <- fmap unzip3 (mapM 
     ke0                                 = kindEnv0 env
     con (t0,ke0) (Scheme (R t) [] ke)   = do w <- newNameMod m coercionSym
                                              k <- newNameMod m constrSym
-                                             x <- newNameMod m paramSym
+                                             x <- newName paramSym
                                              let p  = (w, Scheme (R (t `sub` t0)) [] (ke0++ke))
                                                  eq = (w, ELam [(x,scheme t)] (EAp (ECon k) [EVar x]))
                                                  c  = (k, Constr [scheme t] [] ke)
                                              return (p, eq, c)
     sel (t0,ke0) (Scheme (R t) [] ke)   = do w <- newNameMod m coercionSym
                                              l <- newNameMod m labelSym
-                                             x <- newNameMod m paramSym
+                                             x <- newName paramSym
                                              let p  = (w, Scheme (R (t0 `sub` t)) [] (ke0++ke))
                                                  eq = (w, ELam [(x,scheme t0)] (ESel (EVar x) l))
                                                  s  = (l, Scheme (R t) [] ke)
