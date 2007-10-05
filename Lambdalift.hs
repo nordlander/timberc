@@ -100,7 +100,7 @@ llExp env (ECall x es)                  = do es <- mapM (llExp env) es
 llExp env (ENew n bs)
   | null fte                            = liftM (ENew n) (mapM (llBind env) bs)
   | otherwise                           = do n' <- newName typeSym
-                                             addToStore (Left (n', Kindle.Struct (te ++ mapSnd ValT fte)))
+                                             addToStore (Left (n', Kindle.Struct (te ++ mapSnd ValT fte) []))
                                              vals' <- mapM (llBind env) vals
                                              funs' <- mapM (llBind (setThisVars (dom fte) env)) funs
                                              return (ECast (TId n) (ENew n' (vals' ++ funs' ++ map close fte)))
@@ -108,7 +108,7 @@ llExp env (ENew n bs)
         free0                           = evars funs
         free1                           = free0 ++ concat [ xs | (f,xs) <- expansions env, f `elem` free0 ]
         fte                             = locals env `restrict` free1
-        Kindle.Struct te                = lookup' (decls env) n
+        Kindle.Struct te _              = lookup' (decls env) n
         close (x,t)                     = (x, Val t (mkEVar env x))
 llExp env (EVar x)                      = return (mkEVar env x)
 llExp env (EThis)                       = return (EThis)

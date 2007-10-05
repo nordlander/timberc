@@ -15,7 +15,7 @@ kindle2c is m                   = return (render h, render c)
 -- ====================================================================================================
 
 k2hModule (Module n ns ds bs)   = hHeader n ns $$$
-                                  vcat (map k2cStructStub [ n | (n, Struct te) <- ds ]) $$$
+                                  vcat (map k2cStructStub [ n | (n, Struct te _) <- ds ]) $$$
                                   vcat (map k2cDecl ds) $$$
                                   vcat (map k2cHBind bs) $$$
                                   hFooter n
@@ -32,15 +32,16 @@ includeGuard n                  = text ("#ifndef " ++ g) $$
                          
 hFooter n                       = text "#endif"
 
-k2cStructStub n                 = text "struct" <+> k2cName n <> text ";"
+k2cStructStub n                 = text "struct" <+> k2cName n <> text ";" $$
+                                  text "typedef" <+> text "struct" <+> k2cName n <+> text "*" <> k2cName n <> text ";"
 
-k2cDecl (n, Enum cs)            = text "enum" <+> k2cName n <+> braces (commasep k2cTag cs) <> text ";" $$
-                                  text "typedef" <+> text "enum" <+> k2cName n <+> k2cName n <> text ";"
-k2cDecl (n, Struct te)          = text "typedef" <+> text "struct" <+> k2cName n <+> text "*" <> k2cName n <> text ";"
-                                  $$ text "struct"  <+> k2cName n <+> text "{" $$
+k2cDecl (n, Struct te cs)       = text "struct"  <+> k2cName n <+> text "{" $$
                                      nest 4 (vcat (map (k2cSig n) te)) $$
-                                     text "}" <> text ";" 
-                                  
+                                  text "}" <> text ";" $$
+                                  k2cEnum cs
+
+k2cEnum []                      = empty
+k2cEnum cs                      = text "enum" <+> braces (commasep k2cTag cs) <> text ";"
 
 k2cSig n (x, FunT ts t)         = k2cType t <+> parens (text "*" <> k2cName x) <+> parens (commasep k2cType (TId n : ts)) <> text";"
 k2cSig _ (x, ValT t)            = k2cType t <+> k2cName x <> text ";"
@@ -131,9 +132,7 @@ newCall n                       = k2cName (prim NEW) <+> parens (text "sizeof" <
 k2cSBind e0 (x, Val t (ENew n bs))
                                 = k2cExp (ESel e0 x) <+> text "=" <+> newCall n  <> text ";" $$
                                   vcat (map (k2cSBind (ESel e0 x)) bs)
-k2cSBind e0 (x, Val t e)
-          | isTag x             = k2cExp (ESel e0 x) <+> text "=" <+> text "_" <> k2cExp e <> text ";"     ----- HACK!!!!  
-          | otherwise           = k2cExp (ESel e0 x) <+> text "=" <+> k2cExp e <> text ";"
+k2cSBind e0 (x, Val t e)        = k2cExp (ESel e0 x) <+> text "=" <+> k2cExp e <> text ";"
 k2cSBind e0 (x, Fun t te (CRet (ECall f es)))
                                 = k2cExp (ESel e0 x) <+> text "=" <+> k2cName f <> text ";"
 k2cSBind e0 (x, _)              = error "Internal: k2cSBind"
@@ -171,7 +170,8 @@ k2cExp (ECast t e)              = parens (k2cType t) <> k2cExp' e
 k2cExp e                        = k2cExp' e
 
 
-k2cExp' (EVar x)                = k2cName x
+k2cExp' (EVar x) | isCon x      = k2cTag x
+                 | otherwise    = k2cName x
 k2cExp' (ELit (LRat r))         = text (show (fromRational r :: Double))
 k2cExp' (ELit l)                = pr l
 k2cExp' (ESel e l)              = k2cExp' e <> text "->" <> k2cName l

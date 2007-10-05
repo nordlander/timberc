@@ -28,16 +28,16 @@ import Data.Binary
 data Module     = Module  Name [Name] Decls Binds
                 deriving (Eq,Show)
 
--- A type declaration either introduces a struct type that defines the layout of heap-allocated 
--- objects, or an enumeration type that defines a set of (parameterless) constructor names.  A 
--- struct may contain both value and function fields.  Each struct type introduces a private 
--- namespace for its field names.  The constructor names of an enum belong to the top-level term 
--- namespace, and must therefore be globally unique.  All type names belong to a common namespace 
--- that is disjoint from every other namespace.
+-- A type declaration introduces a struct type that defines the layout of heap-allocated objects.
+-- A struct may contain both value and function fields, and each struct type introduces a private 
+-- namespace for its field names.  As an option, a struct type can be accompanied by a list of 
+-- struct type names that constitute variants of the declared type.  Such names also qualify as 
+-- tag names of type Int at the term level, and might therefore be used identify a particular 
+-- variant when stored as a value in a common tag field.  All type names belong to a common 
+-- namespace that is disjoint from every other namespace.
 type Decls      = Map Name Decl
 
-data Decl       = Struct TEnv
-                | Enum   [Name]
+data Decl       = Struct TEnv [Name]
                 deriving (Eq,Show)
 
 
@@ -110,29 +110,25 @@ litType (LRat _)                        = TId (prim Float)
 litType (LChr _)                        = TId (prim Char)
 litType (LStr _)                        = error "Internal chaos: Kindle.litType LStr"
 
-primDecls                               = (prim Bool,       Enum   [prim FALSE, prim TRUE]) :
-                                          (prim UNITTYPE,   Enum   [prim UNITTERM]) :
-                                          (prim LISTtags,   Enum   [prim NIL, prim CONS]) :
-                                          (prim LIST,       Struct [(prim Tag, ValT (TId (prim LISTtags)))]) :
-                                          (prim NIL,        Struct [(prim Tag, ValT (TId (prim LISTtags)))]) :
-                                          (prim CONS,       Struct [(prim Tag, ValT (TId (prim LISTtags))),
-                                                                    (name0 "a",  ValT TWild), 
-                                                                    (name0 "b",  ValT (TId (prim LIST)))]) :
+tagSig                                  = (prim Tag, ValT (TId (prim Int)))
+
+primDecls                               = (prim Bool,       Struct [tagSig] [prim FALSE, prim TRUE]) :
+                                          (prim FALSE,      Struct [tagSig] []) :
+                                          (prim TRUE,       Struct [tagSig] []) :
+                                          (prim UNITTYPE,   Struct [tagSig] [prim UNITTERM]) :
+                                          (prim UNITTERM,   Struct [tagSig] []) :
+                                          (prim LIST,       Struct [tagSig] [prim NIL, prim CONS]) :
+                                          (prim NIL,        Struct [tagSig] []) :
+                                          (prim CONS,       Struct (tagSig : abcSupply `zip` [ValT TWild, ValT (TId (prim LIST))]) []) :
                                           (prim Msg,        Struct [(prim Code, FunT [] TWild),
                                                                     (prim Baseline, ValT (TId (prim Time))),
-                                                                    (prim Deadline, ValT (TId (prim Time)))]) :
+                                                                    (prim Deadline, ValT (TId (prim Time)))] []) :
                                           []
                                           
-primCons                                = (prim UNITTERM,   prim UNITTYPE) :
-                                          (prim NIL,        prim LIST) :
-                                          (prim CONS,       prim LIST) :
-                                          (prim TRUE,       prim Bool) :
-                                          (prim FALSE,      prim Bool) :
-                                          []
 
 primKindleTerms                         = map prim [ IntPlus .. TimeGT ]
 
-primTEnv                                = map cv (Env.primTypeEnv `restrict` primKindleTerms)
+primTEnv                                = map cv (Env.primTypeEnv `restrict` primKindleTerms) ++ primTEnv0
   where 
     cv (x,Core.Scheme r [] _)           = (x, cv0 r)
     cv0 (Core.F ts t)                   = FunT (map cv1 ts) (cv2 t)
@@ -141,12 +137,18 @@ primTEnv                                = map cv (Env.primTypeEnv `restrict` pri
     cv2 (Core.R t)                      = cv3 t
     cv3 (Core.TId n)                    = TId n
 
+tTime                                   = TId (prim Time)
+tMsg                                    = TId (prim Msg)
+tPID                                    = TId (prim PID)
+tUNIT                                   = TId (prim UNITTYPE)
+
+primTEnv0                               = (prim ASYNC,   FunT [tMsg,tTime,tTime] tUNIT) :
+                                          (prim LOCK,    FunT [tPID] tUNIT) :
+                                          (prim UNLOCK,  FunT [tPID] tUNIT) :
+                                          (prim Inherit, ValT tTime) :
+                                          []
 
 tupleSels (Tuple n _)                   = take n abcSupply `zip` repeat TWild
-
-searchFields ds x                       = [ (TId n, t) | (n, Struct te) <- ds, (x',t) <- te, x==x' ]
-
-searchCons ds x                         = [ TId n | (n, Enum xs) <- ds, x `elem` xs ]
 
 
 isVal (_, Val _ _)                      = True
@@ -242,11 +244,16 @@ instance Pr Module where
 
 instance Pr (Module,a) where
     pr (m,_)                            = pr m
+
+
 instance Pr (Name, Decl) where
-    pr (c, Struct te)                   = text "struct" <+> prId2 c <+> text "{" $$
+    pr (c, Struct te xs)                = text "struct" <+> prId2 c <+> text "{" $$
                                           nest 4 (vpr te) $$
-                                          text "}"
-    pr (c, Enum xs)                     = text "enum" <+> prId2 c <+> text "{" <> commasep pr xs <> text "}"
+                                          text "}" $$
+                                          prEnum xs
+
+prEnum []                               = empty
+prEnum xs                               = text "enum" <+> text "{" <> commasep pr xs <> text "}"
 
 
 instance Pr (Name, Type) where
@@ -326,13 +333,11 @@ instance Binary Module where
   get = get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (Module a b c d)
 -}
 instance Binary Decl where
-  put (Struct a) = putWord8 0 >> put a
-  put (Enum a) = putWord8 1 >> put a
+  put (Struct a b) = putWord8 0 >> put a >> put b
   get = do
     tag_ <- getWord8
     case tag_ of
-      0 -> get >>= \a -> return (Struct a)
-      1 -> get >>= \a -> return (Enum a)
+      0 -> get >>= \a -> get >>= \b -> return (Struct a b)
       _ -> fail "no parse"
 {-
 instance Binary Bind where

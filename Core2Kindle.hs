@@ -83,10 +83,10 @@ findClosureName env ts t            = do ds <- currentStore
                                             Just n  -> return n
                                             Nothing -> do
                                                n <- newNameMod (Just (mname env)) closureSym
-                                               addToStore (n, Kindle.Struct [(prim Code, Kindle.FunT ts t)])
+                                               addToStore (n, Kindle.Struct [(prim Code, Kindle.FunT ts t)] [])
                                                return n
   where find []                     = Nothing
-        find ((n,Kindle.Struct [(x,Kindle.FunT ts' t')]) : ds)  |  isClosure n && ts == ts' && t == t'     
+        find ((n,Kindle.Struct [(x,Kindle.FunT ts' t')] _) : ds)  |  isClosure n && ts == ts' && t == t'     
                                     = Just n
         find (_ : ds)               = find ds
 
@@ -123,16 +123,15 @@ cDecls env (Types ke ds)            = do dss <- mapM cDecl ds
                                          return (concat dss)
   where cDecl (n,DRec _ vs [] ss)   = do te <- cTEnv ss
                                          te <- kindleTEnv env te
-                                         return [(n, Kindle.Struct te)]
+                                         return [(n, Kindle.Struct te [])]
         cDecl (n,DType vs t)        = return []
-        cDecl (n,DData vs [] cs)    = do n' <- newNameMod (Just (mname env)) typeSym
-                                         let te0 = [(prim Tag, Kindle.ValT (Kindle.TId (prim Int)))]
-                                         ds <- mapM (cCon te0) cs
-                                         return ((n', Kindle.Enum (dom cs)) : (n, Kindle.Struct te0) : ds)
+        cDecl (n,DData vs [] cs)    = do ds <- mapM (cCon te0) cs
+                                         return ((n, Kindle.Struct te0 (dom cs)) : ds)
+          where te0                 = [(prim Tag, Kindle.ValT (Kindle.TId (prim Int)))]
 
         cCon te0 (c,Constr ts ps _) = do te' <- cValTEnv te
                                          te' <- kindleTEnv env te'
-                                         return (c, Kindle.Struct (te0++te'))
+                                         return (c, Kindle.Struct (te0++te') [])
           where te                  = abcSupply `zip` (ps++ts)
 
 
@@ -409,7 +408,7 @@ cFun env (ETempl x tx te c)             = do tx <- cValType tx     -- Type-check
                                              te <- cValTEnv te
                                              (t,c) <- cCmd (pushAddSelf x tx (addTEnv te env)) c
                                              te' <- kindleTEnv env te
-                                             addToStore (n, Kindle.Struct te')
+                                             addToStore (n, Kindle.Struct te' [])
                                              y <- newName dummySym
                                              u <- newTVar Star
                                              return ([(y,u)], t, Kindle.cBind [(x,Kindle.Val tx' (Kindle.ENew n []))] c)
@@ -577,20 +576,24 @@ cCmdExp env e                           = do (bf,t,e) <- cExp env (EAp e [EVar (
                                              bindOrphans env t bf e (Kindle.CRet e)
 
 
--- State variables are normally translated into field selections from the current "self"; i.e.:
---     x := 7; return (x + 1)        gets translated into         self->x := 7; return (self->x + 1)
--- However, closure values, which may be invoked long after they are being defined, must not be sensitive to future 
--- mutations,  This means that the "self" dereferencing must be done when the closure is defined, not when it is invoked.
--- Here's a challenging example:           x := 2; f = \y->y+x; x := 8; return (f 1);
+-- State variables are normally translated into field selections from the current "self".  For example,
+--     x := 7; return (x + 1)
+-- gets translated into
+--     self->x := 7; return (self->x + 1)
+-- However, closure values, which may be invoked long after they are defined, must not be sensitive to state
+-- mutations.  This means that "self" dereferencing operations for any contained state variables must be done 
+-- when the closure is defined, not when it is invoked.  Here's a challenging example:
+--     x := 7; f = \y->y+x; x := 2; return (f 1);
 -- If we naively translate the x reference in f to self->x, we end up with the wrong behavior:
---    self->x := 7; f(y) { return self->x + y }; self->x := 2; return f(1);        (3 will be returned instead of 8)
+--     self->x := 77; f(y) { return self->x + y }; self->x := 7; return f(1);        (3 is returned instead of 8)
 -- The correct translation is instead to dereference x in the state where f is defined:
---    self->x := 7; int x = self->x; f(y) { return x+y }; self->x := 2; return f(1);
--- State variables like x above will be left as they are when translated inside function closures, a context identified
--- by the lack of a current "self" -- c.f. cHead (EVar x)).  What remains to be done then is to insert bindings for any 
--- such "orphaned" variables before each command, and this is exactly what "bindOrphans" does.  It takes a an expression 
--- e in which to look for orphans (together with binding overflow bf), and applies the resulting self dereferencing 
--- bindsings to the given command c.  For convenience, the result is also paired with a given result type t0.
+--     self->x := 7; int x = self->x; f(y) { return x+y }; self->x := 2; return f(1);
+-- State variables like x above will be left as they are when translated inside function closures, a context 
+-- identified by the lack of a current "self" (c.f. cHead (EVar x)).  What remains to be done then is to 
+-- insert bindings for any such "orphaned" variables before each command, and this is exactly what "bindOrphans" 
+-- does.  It takes an expression e in which to look for orphans (together with binding overflow bf), and 
+-- prepends the resulting self dereferencing bindings to the given command c.  For convenience, the result is 
+-- also paired with a supplied result type t0.
 bindOrphans env t0 bf e c
   | not (haveSelf env)                  = return (t0, bf c)
   | otherwise                           = do ts <- mapM mkKindleType vs

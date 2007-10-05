@@ -21,34 +21,47 @@ import Kindle
 prepare4c envi m                = localStore (pModule envi m)
 
 
-data Env                        = Env { decls :: Decls,
-                                        tenv  :: TEnv,
-                                        this  :: Maybe (Name,AType) }
+data Env                        = Env { decls   :: Decls,
+                                        tenv    :: TEnv,
+                                        nulls   :: [Name],
+                                        singles :: [Name],
+                                        this    :: Maybe (Name,AType) }
 
-env0                            = Env { decls = primDecls, tenv = primTEnv, this = Nothing }
+env0                            = Env { decls = [], tenv = [], nulls = [], singles = [], this = Nothing }
 
-addDecls ds env                 = env { decls = ds ++ decls env }
+addDecls ds env                 = env { decls = ds ++ decls env, nulls = ns0 ++ nulls env, singles = ns1 ++ singles env }
+  where nss                     = [ ns | (_,Struct _ ns) <- ds ]
+        ns                      = concat nss
+        ns0                     = filter (isNullCon . lookup' ds) ns
+        ns1                     = map head . filter ((==1) . length) . map (\\ns0) $ nss
+        isNullCon (Struct [(Prim Tag _, ValT (TId (Prim Int _)))] [])  = True
+        isNullCon _                                                    = False
 
-addBinds bs env                 = env { tenv = mapSnd typeOf bs ++ tenv env }
+addTEnv te env                  = env { tenv = te ++ tenv env }
+
+addBinds bs env                 = addTEnv (mapSnd typeOf bs) env
 
 addVals te env                  = env { tenv = mapSnd ValT te ++ tenv env }
 
 setThis x t env                 = env { this = Just (x,t) }
 
 findDecl env n
-  | isTuple n                   = Struct (mapSnd ValT (tupleSels n))
+  | isTuple n                   = Struct (mapSnd ValT (tupleSels n)) []
   | otherwise                   = lookup' (decls env) n
 
 
 pModule (dsi,tei,_) (Module m ns ds bs)      
-                                = do ds <- mapM pDecl ds
-                                     (bs1,bs) <- pMap (pBind (addBinds bs (addDecls ds env))) bs
+                                = do (bs1,bs) <- pMap (pBind env) bs
                                      bs2 <- currentStore
-                                     return (Module m ns ds (bs1 ++ bs ++ reverse bs2))
-  where env                     = addDecls dsi (env0 {tenv = tei ++ tenv env0})
+                                     return (Module m ns (pDecls env ds) (bs1 ++ bs ++ reverse bs2))
+  where env1                    = addTEnv (primTEnv++tei) (addDecls (primDecls++dsi) env0)
+        env                     = addBinds bs (addDecls ds env1)
 
 
-pDecl d                         = return d
+pDecls env ds                   = map pDecl (prune ds (nulls env))
+  where pDecl (n,Struct te cs)
+         | n `elem` singles env = (n, Struct (tail te) cs)
+        pDecl d                 = d
 
 
 pMap f xs                       = do (bss,xs) <- fmap unzip (mapM f xs)
@@ -87,9 +100,21 @@ pCmd env (CAssign e x e' c)     = do (bs,e) <- pExp env e
                                      liftM (cBind bs . cBind bs' . CAssign e x e') (pCmd env c)
 pCmd env (CSwitch e alts d)     = do (bs,e) <- pExp env e
                                      alts <- mapM (pAlt env) alts
-                                     liftM (cBind bs . CSwitch e alts) (pCmd env d)
+                                     d <- pCmd env d
+                                     return (cBind bs (pSwitch0 env e alts0 (pSwitch1 env e alts1 d)))
+  where (alts0,alts1)           = partition nullAlt alts
+        nullAlt (ACon n c)      = n `elem` nulls env
+        nullAlt _               = False
 pCmd env (CSeq c c')            = liftM2 CSeq (pCmd env c) (pCmd env c')
 pCmd env (CBreak)               = return CBreak
+
+
+pSwitch0 env e [] d             = d
+pSwitch0 env e alts d           = CSwitch (ECast (TId (prim Int)) e) alts d
+
+pSwitch1 env e [ACon n c] d
+  | n `elem` singles env        = c
+pSwitch1 env e alts d           = CSwitch e alts d
 
 
 -- Prepare switch alternatives
@@ -98,8 +123,11 @@ pAlt env (ACon n c)             = liftM (ACon n) (pCmd env c)
 
 
 -- Prepare a right-hand-side expression
-pRhsExp env (ENew n bs)         = do (bs1,bs) <- pMap (pSBind env n) bs
+pRhsExp env (ENew n bs)
+  | n `elem` nulls env          = return ([], TId n, EVar n)
+  | otherwise                   = do (bs1,bs) <- pMap (pSBind env n) bs'
                                      return (bs1, TId n, ENew n bs)
+  where bs'                     = if n `elem` singles env then prune bs [prim Tag] else bs
 pRhsExp env e                   = pExp' env e
 
 
@@ -109,25 +137,24 @@ pExp env e                      = do (bs,t,e) <- pExp' env e
                                      
 
 -- Prepare an expression in an arbitrary position and compute its type
-pExp' env e@(EVar x)                = case searchCons (decls env) x of
-                                        [t] -> return ([], t, e)
-                                        _   -> return ([], rngType (lookup' (tenv env) x), e)
+pExp' env e@(EVar x) | isCon x      = return ([], TId x, e)
+                     | otherwise    = return ([], rngType (lookup' (tenv env) x), e)
 pExp' env e@(ELit l)                = return ([], litType l, e)
 pExp' env (EThis)                   = return ([], t, EVar x)
   where (x,t)                       = fromJust (this env)
 pExp' env (ESel e l)                = do (bs,TId n,e) <- pExp' env e
-                                         let Struct te = findDecl env n
+                                         let Struct te _ = findDecl env n
                                          return (bs, rngType (lookup' te l), ESel e l)
 pExp' env (ECall f es)              = do (bs,es) <- pMap (pExp env) es
                                          return (bs, rngType (lookup' (tenv env) f), ECall f es)
 pExp' env (EEnter (EVar x) f es)    = do (bs1,TId n,e) <- pExp' env (EVar x)
                                          (bs2,es) <- pMap (pExp env) es
-                                         let Struct te = findDecl env n
+                                         let Struct te _ = findDecl env n
                                          return (bs1++bs2, rngType (lookup' te f), EEnter e f es)
 pExp' env (EEnter e f es)           = do (bs1,t@(TId n),e) <- pRhsExp env e
                                          (bs2,es) <- pMap (pExp env) es
                                          x <- newName tempSym
-                                         let Struct te = findDecl env n
+                                         let Struct te _ = findDecl env n
                                          return (bs1++bs2++[(x, Val t e)], rngType (lookup' te f), EEnter (EVar x) f es)
 pExp' env (ECast TWild e)           = do (bs,t',e) <- pExp' env e
                                          if mustBox t' then do
@@ -142,9 +169,12 @@ pExp' env (ECast t e)               = do (bs,t',e) <- pExp' env e
                                              return (bs, t, ECast t (ESel (ECast (TId (box t)) e) (prim Value)))
                                           else
                                              return (bs, t, ECast t e)
-pExp' env (ENew n bs)               = do (bs1,bs) <- pMap (pSBind env n) bs
+pExp' env (ENew n bs)
+  | n `elem` nulls env              = return ([], TId n, EVar n)
+  | otherwise                       = do (bs1,bs) <- pMap (pSBind env n) bs'
                                          x <- newName tempSym
                                          return (bs1++[(x, Val (TId n) (ENew n bs))], TId n, EVar x)
+  where bs'                         = if n `elem` singles env then prune bs [prim Tag] else bs
 
 
 mustBox (TId (Prim p _))            = p `elem` nonPointers
