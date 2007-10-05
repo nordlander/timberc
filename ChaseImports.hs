@@ -46,7 +46,7 @@ ifaceMod (rs,ss) (Module _ ns xs ds is bs) (kds,kte)
   where Types ke te                  = ds
         Binds r1 ts1 es1             = is
         Binds r2 ts2 es2             = bs
-        cs                           = Core2Kindle.dataCons ds
+        cs                           = [] -- Core2Kindle.dataCons ds
         xs'                          = [d | d@(True,i1,i2) <- xs]
         ys                           = [d | d <- xs', localInst [(b,a) | (a,b) <- ts1] d]
         ds1                          = Types (filter exported ke) (filter exported' te)
@@ -57,27 +57,9 @@ ifaceMod (rs,ss) (Module _ ns xs ds is bs) (kds,kte)
         exported' p@(n,_)            = isQualified n && (not(isAbstract p)) --Constructors/selectors are exported
         fin (_,e)                    = finite env0 e
 
-ifaceMod ((rs,ss),Module _ ns xs ds is bs,(kds,kte)) 
-   | not(null vis)                = error ("Private types visible in interface: " ++ showids vis)
-   | not(null ys)                 = error ("Public default declaration mention private instance: "++ render(prDefault ys))
-   | otherwise                    = do 
-                                       let cs = Core2Kindle.dataCons ds
-                                       return (IFace ns xs' rs ss ds1 is' bs' kds kte cs) 
-  where Types ke te               = ds
-        Binds r1 ts1 es1          = is
-        Binds r2 ts2 es2          = bs
-        xs'                       = [d | d@(True,i1,i2) <- xs]
-        ys                        = [d | d <- xs', localInst [(b,a) | (a,b) <- ts1] d]
-        ds1                       = Types (filter exported ke) (filter exported' te)
-        is'                       = Binds r1 (filter exported ts1) (filter exported es1)
-        bs'                       = Binds r2 (filter exported ts2) (filter (\ eqn -> fin eqn &&  exported eqn) es2)
-        vis                       = nub(localTypes [] (rng (tsigsOf is') ++ rng (tsigsOf bs')))
-        exported (n,_)            = isQualified n
-        exported' p@(n,_)         = isQualified n && (not(isAbstract p)) --Constructors/selectors are exported
-        fin (_,e)                 = finite env0 e
-localInst ts (_,i1,i2)            = isPrivate (instName i1) || isPrivate(instName i2)
-  where instName (Just n,_)       = n
-        instName (Nothing,t)      = fromJust (lookup t ts)
+localInst ts (_,i1,i2)               = isPrivate (instName i1) || isPrivate(instName i2)
+  where instName (Just n,_)          = n
+        instName (Nothing,t)         = fromJust (lookup t ts)
 
 isPrivate nm@(Name _ _ _ _)          = not(isQualified nm)
 isPrivate _                          = False
