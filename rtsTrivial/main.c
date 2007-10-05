@@ -5,17 +5,17 @@ void ROOTINIT(void);
 extern LIST ROOT;
 
 void putStr(LIST xs) {
-  POLY x;
+  Char x;
   while(1) {
-    switch (xs->tag) {
-    case _CONS: 
-      x = ((CONS)xs)->hd;
-      xs = ((CONS)xs)->tl;
-      putchar(((CharBox)x)->Value);
-      break;
-    default: 
+    switch ((Int)xs) {
+    case _NIL: 
       putchar('\n');
       return;
+    default: 
+      x = (Char)((CONS)xs)->hd;
+      xs = ((CONS)xs)->tl;
+      putchar(x);
+      break;
     }
   }
 }
