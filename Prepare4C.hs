@@ -100,10 +100,10 @@ pCmd env (CAssign e x e' c)     = do (bs,e) <- pExp env e
                                      liftM (cBind bs . cBind bs' . CAssign e x e') (pCmd env c)
 pCmd env (CSwitch e alts d)     = do (bs,e) <- pExp env e
                                      alts <- mapM (pAlt env) alts
+                                     let (alts0,alts1) = partition nullAlt alts
                                      d <- pCmd env d
                                      return (cBind bs (pSwitch0 env e alts0 (pSwitch1 env e alts1 d)))
-  where (alts0,alts1)           = partition nullAlt alts
-        nullAlt (ACon n c)      = n `elem` nulls env
+  where nullAlt (ACon n c)      = n `elem` nulls env
         nullAlt _               = False
 pCmd env (CSeq c c')            = liftM2 CSeq (pCmd env c) (pCmd env c')
 pCmd env (CBreak)               = return CBreak
