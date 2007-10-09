@@ -305,8 +305,8 @@ adaptL env (t:ts) (u:us) (e:es)         = do e <- adapt env t u e
                                              return (e:es)
                                              
 
-mustBox (TId (Prim p _)) (TVar _)       = p `elem` nonPointers
-mustBox (TVar _) (TId (Prim p _))       = p `elem` nonPointers
+mustBox (TId (Prim p _)) (TVar _)       = p `elem` Kindle.boxedPrims
+mustBox (TVar _) (TId (Prim p _))       = p `elem` Kindle.boxedPrims
 mustBox _ _                             = False
 
 
@@ -332,8 +332,8 @@ cBinds env (Binds rec te eqs)           = do te <- cTEnv te
   where okRec (ValT ke t)               = okRec' t
         okRec (FunT ke ts t)            = True                            -- Good: recursive function
         okRec' (TFun _ _)               = True                            -- ( won't appear, but good anyway )
-        okRec' (TId (Prim p _))         = p `notElem` nonPointers         -- Bad: recursive non pointer (can't use placeholder)
-        okRec' (TId n)                  = isCon n                         -- Bad: recursive type variable (black hole)
+        okRec' (TId (Prim p _))         = p `notElem` Kindle.boxedPrims   -- Bad: type that can't fit placeholder
+        okRec' (TId n)                  = isCon n                         -- Bad: type variable (black hole)
         okRec' (TVar _)                 = False                           -- ( won't appear, but bad anyway )
         okRec' (TAp t _)                = okRec' t                        -- Discard type arguments
 
@@ -511,8 +511,9 @@ mkBinds xs ts es                        = zipWith3 f xs ts es
 -- Generate the operations necessary to acces the tag of a case head expression
 scrutinee (TAp t _)                     = scrutinee t
 scrutinee (TId (Prim p _))
-  | p `elem` nonPointers                = id
+  | p `elem` [Int, Float, Time, Char]   = id
 scrutinee _                             = \e -> Kindle.ESel e (prim Tag)
+
 
 
 

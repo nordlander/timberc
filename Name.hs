@@ -168,8 +168,6 @@ primKeyValue p                  = (name0 (strRep p), prim p)
 
 alreadyPrimed ps                = map (\p -> (prim p, prim p)) ps
 
-nonPointers                     = [Int, Float, Time]
-
 
 strRep LIST                     = "[]"
 strRep UNITTYPE                 = "()"

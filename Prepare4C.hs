@@ -177,7 +177,7 @@ pExp' env (ENew n bs)
   where bs'                         = if n `elem` singles env then prune bs [prim Tag] else bs
 
 
-mustBox (TId (Prim p _))            = p `elem` nonPointers
+mustBox (TId (Prim p _))            = p `elem` boxedPrims
 mustBox _                           = False
 
 
