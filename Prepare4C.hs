@@ -166,7 +166,7 @@ pExp' env (ECast TWild e)           = do (bs,t',e) <- pExp' env e
                                              return (bs, TWild, ECast TWild e)
 pExp' env (ECast t e)               = do (bs,t',e) <- pExp' env e
                                          if t'==TWild && mustBox t then
-                                             return (bs, t, ECast t (ESel (ECast (TId (box t)) e) (prim Value)))
+                                             return (bs, t, ESel (ECast (TId (box t)) e) (prim Value))
                                           else
                                              return (bs, t, ECast t e)
 pExp' env (ENew n bs)
