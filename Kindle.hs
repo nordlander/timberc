@@ -182,12 +182,15 @@ cMap f (CRet e)                         = f e
 cMap f (CRun e c)                       = liftM (CRun e) (cMap f c)
 cMap f (CBind r bs c)                   = liftM (CBind r bs) (cMap f c)
 cMap f (CAssign e y e' c)               = liftM (CAssign e y e') (cMap f c)
-cMap f (CSwitch e alts c)               = liftM2 (CSwitch e) (mapM (cMap' f) alts) (cMap f c)
+cMap f (CSwitch e alts c)               = liftM2 (CSwitch e) (mapM (aMap f) alts) (cMap f c)
 cMap f (CSeq c c')                      = liftM2 CSeq (cMap f c) (cMap f c')
 cMap f (CBreak)                         = return CBreak
 
-cMap' f (ACon y c)                      = liftM (ACon y) (cMap f c)
-cMap' f (ALit l c)                      = liftM (ALit l) (cMap f c)
+aMap f (ACon y c)                       = liftM (ACon y) (cMap f c)
+aMap f (ALit l c)                       = liftM (ALit l) (cMap f c)
+
+
+enter xs e                              = return (CRet (EEnter e (prim Code) (map EVar xs)))
 
 
 mkSig (n,Val at _)                      = (n,ValT at)

@@ -26,11 +26,10 @@ import Reduce
 -- Return extended environment, transformed decls and added witness bindings
 
 
-typeDecls env tds@(Types ke ds)         = do (ds,pe1,eq1) <- desub env0 ds
+typeDecls env (Types ke ds)             = do (ds,pe1,eq1) <- desub env0 ds
                                              (env',bs) <- instancePreds env0 pe1
-                                             let te0 = tenvSelsCons (Types ke ds)
-
-                                             return (addTEnv0 te0 env', Types ke ds, catBinds (Binds False pe1 eq1)  bs)
+                                             let tds = Types ke ds
+                                             return (addTEnv0 (tenvSelsCons tds) env', tds, catBinds (Binds False pe1 eq1)  bs)
   where env0                            = addClasses cs (addKEnv0 ke env)
         cs                              = [ c | (c, DRec True _ _ _) <- ds ]
 
