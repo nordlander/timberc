@@ -49,13 +49,13 @@ k2cSig _ (x, ValT t)            = k2cType t <+> k2cName x <> text ";"
 k2cSig' (x, t)                  = k2cType t <+> k2cName x
 
 k2cBindStub (x, Fun t te c)     = k2cType t <+> k2cName x <+> parens (commasep k2cSig' te) <> text";"
-k2cBindStub (x, Val t e)        = k2cType t <+> k2cName x <> text ";"
+k2cBindStub (x, Val t e)        = text "extern" <+> k2cType t <+> k2cName x <> text ";"
 
 k2cHBind b@(x,_) 
-  | not(isQualified x)          = empty
-  | k2cIsSimple b               = k2cBind b
-  | otherwise                   = k2cBindStub b
+  | isQualified x               = k2cBindStub b
+  | otherwise                   = empty
 
+k2cIsSimple (_,Fun _ _ _)       = True
 k2cIsSimple (x,Val _ (ELit _))  = True
 k2cIsSimple _                   = False
 
@@ -70,21 +70,19 @@ k2cType (TWild)                 = text "POLY"
 
 {- 
   Here we need
-  - stubs for private functions and values (i.e., non-functions) with non-constant initializer
-  - bindings for all functions and private values with constant initializer
-  - initialization procedure for all values with non-constant initializer
+  - stubs for private functions and values
+  - bindings for all functions and for values with constant initializer
+  - initialization procedure for values with non-constant initializer
   "Constant initializer" is presently interpreted as literals only for lack of better understanding.
 -}
 
 k2cModule is (Module n ns ds bs)= cHeader n $$$
-                                  vcat (map k2cBindStub [ b | b@(n,_) <- bs, not(isQualified n), not(k2cIsSimple b) || isFun b ]) $$$
-                                  vcat (map k2cBind     [ b | b@(n,_) <- bs, isFun b || (not(isQualified n) && k2cIsSimple b)]) $$$
-                                  k2cInitProc n ns      [ b | b@(n,_) <- bs, not(isFun b) && not(k2cIsSimple b)] $$$
-                                  maybeMain n is bs $$$ 
+                                  vcat (map k2cBindStub [ b | b@(n,_) <- bs, not(isQualified n) ]) $$$
+                                  vcat (map k2cBind bs1) $$$
+                                  k2cInitProc n ns bs2 $$$
                                   cFooter n
-  where isFun (_,Fun _ _ _)     = True
-        isFun _                 = False
-      
+  where (bs1,bs2)               = partition k2cIsSimple bs
+
 k2cBindStubLocal b@(x,_)
   | fromMod x /= Nothing        = empty
   | otherwise                   = k2cBindStub b
@@ -92,18 +90,6 @@ k2cBindStubLocal b@(x,_)
 
 cHeader n                       = k2cImport n 
 cFooter n                       = empty
-
-maybeMain n is bs               = case findMain bs of
-                                    Just (m,Fun _ te _) -> text "int main() {" $$
-                                      nest 4 (vcat (map f (is ++ [n])) $$ 
-                                              k2cName m <> char '(' <> commasep k2cName (map fst te) <> text");") $$
-                                      char '}'
-                                    Nothing -> empty
-  where f i                     = text "_init_" <> text (modToundSc (str i)) <> text "();" 
-        findMain []             = Nothing
-        findMain ((m,b):bs)
-           | str m == "main"    = Just (m,b)
-           | otherwise          = findMain bs                                   
 
 k2cInitProc n ns bs             = text "void _init_" <> text (modToundSc (str n)) <+> text "() {" $$
 	                              nest 4 (k2cOnce (vcat (map k2cInitImport ns ++ map k2cInit bs))) $$
