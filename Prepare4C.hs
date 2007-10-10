@@ -11,11 +11,11 @@ import Kindle
 --   every ENew expression occurs at the rhs of a Val binding
 
 -- Implements boxing and unboxing of non-ptr values that are cast to/from polymorphic type
+-- Replaces tag-only structs with casts from the actual tag value (and corresponding switch cmds)
 
 -- (Not yet):
 -- Flattens the struct subtyping graph by inlining the first coercion field
 -- Ditto for enums...
--- Replaces tag-only structs with casts from the actual tag value (and corresponding switch cmds)
 
 
 prepare4c envi m                = localStore (pModule envi m)

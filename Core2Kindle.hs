@@ -106,10 +106,8 @@ cModule ie (dsi,_,_) (Module m ns xs ds is bs)
                                          te <- cTEnv (Decls.tenvSelsCons ds)
                                          let env = addTEnv (te ++ te0) (env0 (str m))
                                          ds1  <- cDecls env ds
-                                         te' <- cTEnv (Decls.tenvSelsCons ds)
-                                         let env' = addTEnv te' env
                                          mapM_ addToStore (filter (isClosure . fst) dsi)
-                                         bs  <- cBindsList env' (groupBinds (is `catBinds` bs))
+                                         bs  <- cBindsList env (groupBinds (is `catBinds` bs))
                                          ds2 <- currentStore
                                          return (Kindle.Module m ns (ds1++reverse (filter (isQual m . fst) ds2)) bs)
 
@@ -164,7 +162,7 @@ cValScheme sc                           = do (ke,t) <- cAType (deQualify sc)
                                              return (ValT (quant sc ++ ke) t)
                                              
 
--- Translate a Core.Type nconditionally into a ValT FType
+-- Translate a Core.Type unconditionally into a ValT FType
 cValType t                              = do (ke,t) <- cAType t
                                              return (ValT ke t)
 
@@ -450,6 +448,7 @@ cAct env fa fb (EAp (EVar (Prim Before _)) [e,e'])
   where min e1 b                        = Kindle.ECall (prim TimeMin) [e1,b]
 cAct env fa fb (EAct e e')              = do (_,_,c) <- cFun env (EReq e e')
                                              -- Ignore returned te (must be unused) and result type (will be replaced below)
+                                             c <- Kindle.cMap (\_ -> return (Kindle.CRet (Kindle.EVar (prim UNITTERM)))) c
                                              a  <- newName paramSym
                                              b  <- newName paramSym
                                              m  <- newName tempSym
@@ -458,7 +457,6 @@ cAct env fa fb (EAct e e')              = do (_,_,c) <- cFun env (EReq e e')
                                                  bs' = [(prim Code, Kindle.Fun (Kindle.TId (prim UNITTYPE)) [] c)]
                                                  es  = [Kindle.EVar m, fa (Kindle.EVar a), fb (Kindle.EVar b)]
                                                  e1  = Kindle.ECall (prim ASYNC) es
-                                             c' <- Kindle.cMap (\_ -> return (Kindle.CRet (Kindle.EVar (prim UNITTERM)))) c'
                                              return ([(a,tTime),(b,tTime)], tMsg, c')
 cAct env fa fb e                        = do (bf,t0,f,_,[ta,tb]) <- cFunExp env e
                                              -- ignore resulting type equalities, no unification variables to instantiate in a tMsg
@@ -807,11 +805,12 @@ instKE ke                               = do ts <- mapM newTVar ks
 
 
 instSel env l                           = do s <- instKE ke0
-                                             return (subst s t0, subst s (f t1))
-  where FunT ke [t0] t1                 = lookup' (tenv env) l
+                                             return (subst s t0, subst s (f ts0 t1))
+  where FunT ke (t0:ts0) t1             = lookup' (tenv env) l
         (ke0,ke1)                       = partition ((`elem` tyvars t0) . fst) ke
-        f (TFun ts t)                   = FunT ke1 ts t
-        f t                             = ValT ke1 t
+        f [] (TFun ts t)                = FunT ke1 ts t
+        f [] t                          = ValT ke1 t
+        f ts t                          = FunT ke1 ts t
 
 
 instCon env (Tuple n _)                 = cScheme (tupleType n) >>= instT

@@ -176,7 +176,7 @@ cBindR r bs c                           = CBind r bs c
 
 protect x t c                           = liftM (CRun (ECall (prim LOCK) [e0])) (cMap f c)
   where e0                              = ECast (TId (prim PID)) (EVar x)
-        f e | sensitive e               = do y <- newName tempSym
+        f e | x `elem` evars e          = do y <- newName tempSym
                                              return (cBind [(y,Val t e)] (CRun (ECall (prim UNLOCK) [e0]) (CRet (EVar y))))
             | otherwise                 = return (CRun (ECall (prim UNLOCK) [e0]) (CRet e))
 
@@ -198,14 +198,6 @@ enter xs e                              = return (CRet (EEnter e (prim Code) (ma
 
 mkSig (n,Val at _)                      = (n,ValT at)
 mkSig (n,Fun at ats _)                  = (n,FunT (map snd ats) at)
-
-
-sensitive (ESel e n)                    = True
-sensitive (ECall n es)                  = True
-sensitive (EEnter e n es)               = True
-sensitive (ENew n bs)                   = True
-sensitive (ECast t e)                   = sensitive e
-sensitive e                             = False
 
 
 -- Free variables ------------------------------------------------------------------------------------

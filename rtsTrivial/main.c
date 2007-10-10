@@ -12,8 +12,8 @@ void putStr(LIST xs) {
       putchar('\n');
       return;
     default: 
-      x = (Char)((CONS)xs)->hd;
-      xs = ((CONS)xs)->tl;
+      x = (Char)((CONS)xs)->a;
+      xs = ((CONS)xs)->b;
       putchar(x);
       break;
     }

@@ -6,16 +6,14 @@
 #define Int int
 #define Float float
 #define Char char
+#define Bool char
+#define UNITTYPE char
 #define POLY void*
 #define Time int
 #define PID void*
-#define UNITTYPE int
-#define UNITTERM 0
 #define INFINITY 0
 #define NEW malloc
 
-struct Bool;
-typedef struct Bool *Bool;
 struct TUP2;
 typedef struct TUP2 *TUP2;
 struct LIST;
@@ -34,9 +32,8 @@ struct Msg;
 typedef struct Msg *Msg;
 
 
-struct Bool {
-  Int Tag;
-};
+enum {_UNITTERM};
+
 enum {_FALSE, _TRUE};
     
 struct TUP2 {
@@ -44,17 +41,12 @@ struct TUP2 {
   POLY b;
 };
 
-struct LIST {
-  Int Tag;
-};
+struct LIST {};
 enum {_NIL,_CONS};
 
-struct NIL {
-  Int Tag;
-};
+struct NIL {};
 
 struct CONS {
-  Int Tag;
   POLY a;
   LIST b;
 };
