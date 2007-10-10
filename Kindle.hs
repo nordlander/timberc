@@ -64,6 +64,7 @@ data Type       = ValT   AType
 type ATEnv      = Map Name AType
 
 data AType      = TId    Name
+                | TArray AType
                 | TWild
                 deriving (Eq,Show)
 
@@ -261,6 +262,7 @@ instance Pr (Name, Type) where
 
 instance Pr AType where
     pr (TId c)                          = prId2 c
+    pr (TArray t)                       = text "Array " <+> parens (pr t)
     pr (TWild)                          = text "POLY"
 
 instance Pr (Name, AType) where
@@ -360,11 +362,13 @@ instance Binary Type where
 
 instance Binary AType where
   put (TId a) = putWord8 0 >> put a
-  put TWild = putWord8 1
+  put (TArray a) = putWord8 1 >> put a
+  put TWild = putWord8 2
   get = do
     tag_ <- getWord8
     case tag_ of
       0 -> get >>= \a -> return (TId a)
-      1 -> return TWild
+      1 -> get >>= \a -> return (TArray a)
+      2 -> return TWild
       _ -> fail "no parse"
 

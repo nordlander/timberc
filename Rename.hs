@@ -16,6 +16,7 @@ This module does the following:
 import Monad
 import Common
 import Syntax
+import PP
 import List(sort)
 
 renameM e1 m                       = rename (initEnv e1) m
@@ -285,6 +286,7 @@ instance Rename Exp where
   rename env (ESectR e op)         = liftM (flip ESectR (renE env op)) (rename env e) 
   rename env (ESectL op e)         = liftM (ESectL (renE env op)) (rename env e)
   rename env (ESelect e l)         = liftM (flip ESelect (renL env l)) (rename env e) 
+  rename env e@(EIndex _ _)        = error ("Illegal pattern: "++render(pr e)) -- legal occurrences eliminated in Desugar1
   rename env (EAct v ss)           = liftM (EAct (fmap (renE env) v)) (renameS (unvoidAll env) (shuffleS ss))
   rename env (EReq v ss)           = liftM (EReq (fmap (renE env) v)) (renameS (unvoidAll env) (shuffleS ss))
   rename env (EDo (Just v) Nothing ss)

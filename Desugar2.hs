@@ -275,7 +275,7 @@ dsStmts (SGen p e : ss)
                                      return (SGen p e : ss)
   | otherwise                   = do v <- newEVar tempSym
                                      dsStmts (SGen v e : SBind (BEqn (LPat p) (RExp v)) : ss)
-dsStmts _                       = error "Chaos in dsStmts"
+dsStmts (s : _)                 = error ("Chaos in dsStmts; did not expect " ++ show s)
 
 
 -- Alternatives -----------------------------------------------------------------------
@@ -328,7 +328,6 @@ cons x xs                       = EAp (EAp (ECon (prim CONS)) x) xs
 nil                             = ECon (prim NIL)
 true                            = ECon (prim TRUE)
 false                           = ECon (prim FALSE)
-
 
 
 

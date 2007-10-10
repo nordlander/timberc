@@ -607,6 +607,8 @@ primKindEnv             = [ (prim Action,       Star),
                             (prim Char,         Star),
                             (prim Bool,         Star),
 
+                            (prim Array,        KFun Star Star),
+
                             (prim LIST,         KFun Star Star),
                             (prim UNITTYPE,     Star) ]
 
@@ -689,6 +691,13 @@ primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
                             (prim Match,        scheme1 [tPMC a] a),
                             (prim Fatbar,       scheme1 [tPMC a, tPMC a] (tPMC a)),
 
+                            (prim ListArray,    scheme1 [tList a] (tArray a)),
+                            (prim ConstArray,   scheme1 [tInt, a] (tArray a)),
+                            (prim SizeArray,    scheme1 [tArray a] tInt),
+                            (prim IndexArray,   scheme1 [tArray a, tInt] a),
+                            (prim UpdateArray,  scheme2 [tArray a, tInt, a] (tCmd b tUnit)),
+                            (prim CloneArray,   scheme1 [tArray a, tInt] (tArray a)),
+
                             (prim After,        scheme0 [tTime,tAction] tAction),
                             (prim Before,       scheme0 [tTime,tAction] tAction)
                           ]
@@ -707,6 +716,7 @@ tInt                    = TId (prim Int)
 tFloat                  = TId (prim Float)
 tChar                   = TId (prim Char)
 tBool                   = TId (prim Bool)
+tArray a                = TAp (TId (prim Array)) a
 tList a                 = TAp (TId (prim LIST)) a
 tUnit                   = TId (prim UNITTYPE)
         

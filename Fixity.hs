@@ -72,7 +72,9 @@ transFix e              = push e [] []
                                Fixity ass' prec' = fixity (str' o')
               _ -> push l (o:os) (r:es)
         push (Nil e) os es = popAll os (e:es)
-        opApp l o r = EAp (EAp (op2exp o) l) r
+        opApp l o r 
+           | str' o == "!" = EIndex l [r]
+           | otherwise = EAp (EAp (op2exp o) l) r
          
         popAll (o:os) (e1:e2:es) = popAll os (opApp e1 o e2:es)
         popAll [] es = head es
@@ -81,3 +83,5 @@ transFix e              = push e [] []
         str' (Prim LazyOr _) = "||"
         str' (Prim LazyAnd _) = "&&"
         str' (Prim p _) = error ("Internal: unknown predefined op: "++ strRep p)
+
+        

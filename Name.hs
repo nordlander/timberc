@@ -38,6 +38,8 @@ data Prim                       =
                                 | Char
                                 | Bool
 
+                                | Array
+
                                 -- Constructor symbols (special syntax)
 
                                 | LIST                  -- Type
@@ -119,6 +121,14 @@ data Prim                       =
                                 | TimeLE
                                 | TimeGE
                                 | TimeGT
+
+                                | ListArray
+                                | ConstArray
+                                | SizeArray
+                                | IndexArray
+                                | UpdateArray
+                                | CloneArray
+
 
                                 | Fail
                                 | Commit
@@ -303,6 +313,7 @@ instance Ord Name where
   Tuple a _  <= Tuple b _       = a <= b
   Tuple _ _  <= Name _ _ _ _    = True
   Name a _ (Just m) _ <= Name b _ (Just n) _  = a < b || ( a == b && m <= n )
+  Name a 0 _ _ <= Name b 0 _ _  = a <= b
   Name _ a _ _ <= Name _ b _ _  = a <= b
   _          <= _               = False
 
@@ -316,7 +327,7 @@ instance Show Name where
      |location a == Nothing     = show (s ++ "_" ++ show n ++ "'" ++ m)
      |otherwise                 = show (s ++ "'" ++ m)
   show (Tuple n _)              = show ('(' : replicate (n-1) ',' ++ ")")
-  show (Prim p _)               = show (strRep p)
+  show (Prim p _)               = "Prim "++show p
 
 
 instance Pr Name where
@@ -392,85 +403,94 @@ instance Binary Prim where
   put Float = putWord8 10
   put Char = putWord8 11
   put Bool = putWord8 12
-  put LIST = putWord8 13
-  put UNITTYPE = putWord8 14
-  put UNITTERM = putWord8 15
-  put NIL = putWord8 16
-  put CONS = putWord8 17
-  put FALSE = putWord8 18
-  put TRUE = putWord8 19
-  put Refl = putWord8 20
-  put ActToCmd = putWord8 21
-  put ReqToCmd = putWord8 22
-  put TemplToCmd = putWord8 23
-  put RefToPID = putWord8 24
-  put IntPlus = putWord8 25
-  put IntMinus = putWord8 26
-  put IntTimes = putWord8 27
-  put IntDiv = putWord8 28
-  put IntMod = putWord8 29
-  put IntNeg = putWord8 30
-  put IntEQ = putWord8 31
-  put IntNE = putWord8 32
-  put IntLT = putWord8 33
-  put IntLE = putWord8 34
-  put IntGE = putWord8 35
-  put IntGT = putWord8 36
-  put FloatPlus = putWord8 37
-  put FloatMinus = putWord8 38
-  put FloatTimes = putWord8 39
-  put FloatDiv = putWord8 40
-  put FloatNeg = putWord8 41
-  put FloatEQ = putWord8 42
-  put FloatNE = putWord8 43
-  put FloatLT = putWord8 44
-  put FloatLE = putWord8 45
-  put FloatGE = putWord8 46
-  put FloatGT = putWord8 47
-  put IntToFloat = putWord8 48
-  put FloatToInt = putWord8 49
-  put CharToInt = putWord8 50
-  put IntToChar = putWord8 51
-  put LazyOr = putWord8 52
-  put LazyAnd = putWord8 53
-  put MsgEQ = putWord8 54
-  put MsgNE = putWord8 55
-  put PidEQ = putWord8 56
-  put PidNE = putWord8 57
-  put Sec = putWord8 58
-  put MilliSec = putWord8 59
-  put MicroSec = putWord8 60
-  put NanoSec = putWord8 61
-  put Infinity = putWord8 62
-  put TimePlus = putWord8 63
-  put TimeMinus = putWord8 64
-  put TimeMin = putWord8 65
-  put TimeEQ = putWord8 66
-  put TimeNE = putWord8 67
-  put TimeLT = putWord8 68
-  put TimeLE = putWord8 69
-  put TimeGE = putWord8 70
-  put TimeGT = putWord8 71
-  put Fail = putWord8 72
-  put Commit = putWord8 73
-  put Match = putWord8 74
-  put Fatbar = putWord8 75
-  put After = putWord8 76
-  put Before = putWord8 77
-  put ASYNC = putWord8 78
-  put LOCK = putWord8 79
-  put UNLOCK = putWord8 80
-  put NEW = putWord8 81
-  put Inherit = putWord8 82
-  put Tag = putWord8 83
-  put Code = putWord8 84
-  put Baseline = putWord8 85
-  put Deadline = putWord8 86
-  put CharBox = putWord8 87
-  put FloatBox = putWord8 88
-  put IntBox = putWord8 89
-  put Value = putWord8 90
-  put LISTtags = putWord8 91
+  put Array = putWord8 13
+  put LIST = putWord8 14
+  put UNITTYPE = putWord8 15
+  put UNITTERM = putWord8 16
+  put NIL = putWord8 17
+  put CONS = putWord8 18
+  put FALSE = putWord8 19
+  put TRUE = putWord8 20
+  put Refl = putWord8 21
+  put ActToCmd = putWord8 22
+  put ReqToCmd = putWord8 23
+  put TemplToCmd = putWord8 24
+  put RefToPID = putWord8 25
+  put IntPlus = putWord8 26
+  put IntMinus = putWord8 27
+  put IntTimes = putWord8 28
+  put IntDiv = putWord8 29
+  put IntMod = putWord8 30
+  put IntNeg = putWord8 31
+  put IntEQ = putWord8 32
+  put IntNE = putWord8 33
+  put IntLT = putWord8 34
+  put IntLE = putWord8 35
+  put IntGE = putWord8 36
+  put IntGT = putWord8 37
+  put FloatPlus = putWord8 38
+  put FloatMinus = putWord8 39
+  put FloatTimes = putWord8 40
+  put FloatDiv = putWord8 41
+  put FloatNeg = putWord8 42
+  put FloatEQ = putWord8 43
+  put FloatNE = putWord8 44
+  put FloatLT = putWord8 45
+  put FloatLE = putWord8 46
+  put FloatGE = putWord8 47
+  put FloatGT = putWord8 48
+  put IntToFloat = putWord8 49
+  put FloatToInt = putWord8 50
+  put CharToInt = putWord8 51
+  put IntToChar = putWord8 52
+  put LazyOr = putWord8 53
+  put LazyAnd = putWord8 54
+  put MsgEQ = putWord8 55
+  put MsgNE = putWord8 56
+  put PidEQ = putWord8 57
+  put PidNE = putWord8 58
+  put Sec = putWord8 59
+  put MilliSec = putWord8 60
+  put MicroSec = putWord8 61
+  put NanoSec = putWord8 62
+  put Infinity = putWord8 63
+  put TimePlus = putWord8 64
+  put TimeMinus = putWord8 65
+  put TimeMin = putWord8 66
+  put TimeEQ = putWord8 67
+  put TimeNE = putWord8 68
+  put TimeLT = putWord8 69
+  put TimeLE = putWord8 70
+  put TimeGE = putWord8 71
+  put TimeGT = putWord8 72
+  put ListArray = putWord8 73
+  put ConstArray = putWord8 74
+  put SizeArray = putWord8 75
+  put IndexArray = putWord8 76
+  put UpdateArray = putWord8 77
+  put CloneArray = putWord8 78
+  put Fail = putWord8 79
+  put Commit = putWord8 80
+  put Match = putWord8 81
+  put Fatbar = putWord8 82
+  put After = putWord8 83
+  put Before = putWord8 84
+  put ASYNC = putWord8 85
+  put LOCK = putWord8 86
+  put UNLOCK = putWord8 87
+  put NEW = putWord8 88
+  put Inherit = putWord8 89
+  put Tag = putWord8 90
+  put Code = putWord8 91
+  put Baseline = putWord8 92
+  put Deadline = putWord8 93
+  put CharBox = putWord8 94
+  put FloatBox = putWord8 95
+  put IntBox = putWord8 96
+  put TimeBox = putWord8 97
+  put Value = putWord8 98
+  put LISTtags = putWord8 99
+
   get = do
     tag_ <- getWord8
     case tag_ of
@@ -487,83 +507,91 @@ instance Binary Prim where
       10 -> return Float
       11 -> return Char
       12 -> return Bool
-      13 -> return LIST
-      14 -> return UNITTYPE
-      15 -> return UNITTERM
-      16 -> return NIL
-      17 -> return CONS
-      18 -> return FALSE
-      19 -> return TRUE
-      20 -> return Refl
-      21 -> return ActToCmd
-      22 -> return ReqToCmd
-      23 -> return TemplToCmd
-      24 -> return RefToPID
-      25 -> return IntPlus
-      26 -> return IntMinus
-      27 -> return IntTimes
-      28 -> return IntDiv
-      29 -> return IntMod
-      30 -> return IntNeg
-      31 -> return IntEQ
-      32 -> return IntNE
-      33 -> return IntLT
-      34 -> return IntLE
-      35 -> return IntGE
-      36 -> return IntGT
-      37 -> return FloatPlus
-      38 -> return FloatMinus
-      39 -> return FloatTimes
-      40 -> return FloatDiv
-      41 -> return FloatNeg
-      42 -> return FloatEQ
-      43 -> return FloatNE
-      44 -> return FloatLT
-      45 -> return FloatLE
-      46 -> return FloatGE
-      47 -> return FloatGT
-      48 -> return IntToFloat
-      49 -> return FloatToInt
-      50 -> return CharToInt
-      51 -> return IntToChar
-      52 -> return LazyOr
-      53 -> return LazyAnd
-      54 -> return MsgEQ
-      55 -> return MsgNE
-      56 -> return PidEQ
-      57 -> return PidNE
-      58 -> return Sec
-      59 -> return MilliSec
-      60 -> return MicroSec
-      61 -> return NanoSec
-      62 -> return Infinity
-      63 -> return TimePlus
-      64 -> return TimeMinus
-      65 -> return TimeMin
-      66 -> return TimeEQ
-      67 -> return TimeNE
-      68 -> return TimeLT
-      69 -> return TimeLE
-      70 -> return TimeGE
-      71 -> return TimeGT
-      72 -> return Fail
-      73 -> return Commit
-      74 -> return Match
-      75 -> return Fatbar
-      76 -> return After
-      77 -> return Before
-      78 -> return ASYNC
-      79 -> return LOCK
-      80 -> return UNLOCK
-      81 -> return NEW
-      82 -> return Inherit
-      83 -> return Tag
-      84 -> return Code
-      85 -> return Baseline
-      86 -> return Deadline
-      87 -> return CharBox
-      88 -> return FloatBox
-      89 -> return IntBox
-      90 -> return Value
-      91 -> return LISTtags
+      13 -> return Array
+      14 -> return LIST
+      15 -> return UNITTYPE
+      16 -> return UNITTERM
+      17 -> return NIL
+      18 -> return CONS
+      19 -> return FALSE
+      20 -> return TRUE
+      21 -> return Refl
+      22 -> return ActToCmd
+      23 -> return ReqToCmd
+      24 -> return TemplToCmd
+      25 -> return RefToPID
+      26 -> return IntPlus
+      27 -> return IntMinus
+      28 -> return IntTimes
+      29 -> return IntDiv
+      30 -> return IntMod
+      31 -> return IntNeg
+      32 -> return IntEQ
+      33 -> return IntNE
+      34 -> return IntLT
+      35 -> return IntLE
+      36 -> return IntGE
+      37 -> return IntGT
+      38 -> return FloatPlus
+      39 -> return FloatMinus
+      40 -> return FloatTimes
+      41 -> return FloatDiv
+      42 -> return FloatNeg
+      43 -> return FloatEQ
+      44 -> return FloatNE
+      45 -> return FloatLT
+      46 -> return FloatLE
+      47 -> return FloatGE
+      48 -> return FloatGT
+      49 -> return IntToFloat
+      50 -> return FloatToInt
+      51 -> return CharToInt
+      52 -> return IntToChar
+      53 -> return LazyOr
+      54 -> return LazyAnd
+      55 -> return MsgEQ
+      56 -> return MsgNE
+      57 -> return PidEQ
+      58 -> return PidNE
+      59 -> return Sec
+      60 -> return MilliSec
+      61 -> return MicroSec
+      62 -> return NanoSec
+      63 -> return Infinity
+      64 -> return TimePlus
+      65 -> return TimeMinus
+      66 -> return TimeMin
+      67 -> return TimeEQ
+      68 -> return TimeNE
+      69 -> return TimeLT
+      70 -> return TimeLE
+      71 -> return TimeGE
+      72 -> return TimeGT
+      73 -> return ListArray
+      74 -> return ConstArray
+      75 -> return SizeArray
+      76 -> return IndexArray
+      77 -> return UpdateArray
+      78 -> return CloneArray
+      79 -> return Fail
+      80 -> return Commit
+      81 -> return Match
+      82 -> return Fatbar
+      83 -> return After
+      84 -> return Before
+      85 -> return ASYNC
+      86 -> return LOCK
+      87 -> return UNLOCK
+      88 -> return NEW
+      89 -> return Inherit
+      90 -> return Tag
+      91 -> return Code
+      92 -> return Baseline
+      93 -> return Deadline
+      94 -> return CharBox
+      95 -> return FloatBox
+      96 -> return IntBox
+      97 -> return TimeBox
+      98 -> return Value
+      99 -> return LISTtags
       _ -> fail "no parse"
