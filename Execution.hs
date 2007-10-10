@@ -28,7 +28,6 @@ compileC cfg clo mod  = do let cfile file = file ++ ".c"
                                      (if (doGc clo)
                                       then " -DENABLE_GC "
                                       else "")
-                                     ++ " -Wno-int-to-pointer-cast -Wno-pointer-to-int-cast "
                                      ++ compilerFlags cfg ++ includePath cfg
                                      ++ cfile mod 
                            execCmd clo cmd
