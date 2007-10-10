@@ -110,7 +110,10 @@ pCmd env (CBreak)               = return CBreak
 
 
 pSwitch0 env e [] d             = d
-pSwitch0 env e alts d           = CSwitch (ECast (TId (prim Int)) e) alts d
+pSwitch0 env e alts d           = CSwitch (ECast (TId (prim Int)) (noTag e)) alts d
+
+noTag (ESel e (Prim Tag _))     = e
+noTag e                         = e
 
 pSwitch1 env e [ACon n c] d
   | n `elem` singles env        = c
