@@ -2,7 +2,6 @@ module ChaseImports where
 
 import Common
 import Data.Binary
---import Env(addKEnv0, nullEnv)
 import Rename 
 import Core
 import qualified Syntax
@@ -23,8 +22,7 @@ data IFace = IFace { impsOf      :: [Name],                         -- imported/
                      insts       :: Binds,                          -- types for instances
                      valEnv      :: Binds,                          -- types for exported values (including sels and cons) and some finite eqns
                      kdeclEnv    :: Kindle.Decls,                   -- Kindle form of declarations
-                     ktypeEnv    :: Kindle.TEnv,                    -- Kindle type environment
-                     constrEnv   :: Map Name Name                   -- Constructors to their datatype
+                     ktypeEnv    :: Kindle.TEnv                     -- Kindle type environment
                    }
            deriving (Show)
 
@@ -42,11 +40,10 @@ ifaceMod                   :: (Map Name [Name], Map Name ([Name], Syntax.Type)) 
 ifaceMod (rs,ss) (Module _ ns xs ds is bs) (kds,kte)
    | not(null vis)                   = error ("Private types visible in interface: " ++ showids vis)
    | not(null ys)                    = error ("Public default declaration mentions private instance: "++ render(prDefault ys))
-   | otherwise                       = IFace ns xs' rs ss ds1 is' bs' kds kte cs 
+   | otherwise                       = IFace ns xs' rs ss ds1 is' bs' kds kte
   where Types ke te                  = ds
         Binds r1 ts1 es1             = is
         Binds r2 ts2 es2             = bs
-        cs                           = [] -- Core2Kindle.dataCons ds
         xs'                          = [d | d@(True,i1,i2) <- xs]
         ys                           = [d | d <- xs', localInst [(b,a) | (a,b) <- ts1] d]
         ds1                          = Types (filter exported ke) (filter exported' te)
@@ -119,27 +116,27 @@ init_order imps                      = case topSort transImps imps of
 type Desugar1Env     = (Map Name [Name], Map Name Name, Map Name ([Name], Syntax.Type))
 type RenameEnv       = (Map Name Name, Map Name Name, Map Name Name)
 type CheckEnv        = ([Default], Types, Binds, Binds)
-type KindleEnv       = (Map Name Kindle.Decl, Map Name Kindle.Type, Map Name Name)
+type KindleEnv       = (Map Name Kindle.Decl, Map Name Kindle.Type)
 
 initEnvs             :: Map a ImportInfo -> M s (Desugar1Env, RenameEnv, CheckEnv, KindleEnv)
 initEnvs bms         = do ims <- mapM (mkEnv . snd) bms
-                          let (rs,xs,ss,rnL,rnT,rnE,ds,is,bs,kds,kte,cs) 
-                               = foldr mergeMod ([],[],[],[],[],[],Types [] [],Binds False [] [],Binds False [] [],[],[],[]) ims
-                          return ((rs,rnL,ss),(rnL,rnT,rnE),(xs,ds,bs,is),(kds,kte,cs))
+                          let (rs,xs,ss,rnL,rnT,rnE,ds,is,bs,kds,kte) 
+                               = foldr mergeMod ([],[],[],[],[],[],Types [] [],Binds False [] [],Binds False [] [],[],[]) ims
+                          return ((rs,rnL,ss),(rnL,rnT,rnE),(xs,ds,bs,is),(kds,kte))
 
-  where mergeMod (rs1,xs1,ss1,rnL1,rnT1,rnE1,ds1,is1,bs1,kds1,kte1,cs1)
-                 (rs2,xs2,ss2,rnL2,rnT2,rnE2,ds2,is2,bs2,kds2,kte2,cs2) =
+  where mergeMod (rs1,xs1,ss1,rnL1,rnT1,rnE1,ds1,is1,bs1,kds1,kte1)
+                 (rs2,xs2,ss2,rnL2,rnT2,rnE2,ds2,is2,bs2,kds2,kte2) =
                                        (rs1 ++ rs2, xs1 ++ xs2, ss1 ++ ss2, mergeRenamings2 rnL1 rnL2, 
                                         mergeRenamings2 rnT1 rnT2, mergeRenamings2 rnE1 rnE2,
                                         catDecls ds1 ds2, catBinds is1 is2, catBinds bs1 bs2,
-                                        kds1 ++ kds2, kte1 ++ kte2, cs1 ++ cs2)
+                                        kds1 ++ kds2, kte1 ++ kte2)
 
-        mkEnv (unQual,direct,IFace ns xs rs ss ds is bs kds kte cs)
+        mkEnv (unQual,direct,IFace ns xs rs ss ds is bs kds kte)
                                      = do ks  <- renaming (dom ke)
                                           ts  <- renaming (dom te'')
                                           ls' <- renaming ls -- (concatMap snd rs)
                                           return (unMod unQual rs, xs, unMod unQual ss, unMod unQual ls',unMod unQual ks,
-                                                  unMod unQual ts,ds,is,Binds r te' es,kds,kte,cs)
+                                                  unMod unQual ts,ds,is,Binds r te' es,kds,kte)
           where Types ke ds'         = ds
                 Binds r te es        = bs
                 te'                  = if direct then te ++ concatMap (tenvSelCon ke) ds' else []
@@ -188,14 +185,14 @@ instance LocalTypes Constr where
 -- Binary -------------------------------------------------------------------------------
 
 instance Binary IFace  where
-  put (IFace a b c d e f g h i j) = put a >> put b >> put c >> put d >> put e >> put f >> put g >> put h >> put i >> put j
+  put (IFace a b c d e f g h i) = put a >> put b >> put c >> put d >> put e >> put f >> put g >> put h >> put i
   get = get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> get >>= \f ->  
-        get >>= \g -> get >>= \h -> get >>= \i -> get >>= \j -> return (IFace a b c d e f g h i j)
+        get >>= \g -> get >>= \h -> get >>= \i -> return (IFace a b c d e f g h i)
 
 -- Printing -----------------------------------------------------------------------------
 
 instance Pr IFace where
-  pr (IFace ns xs rs ss ds1 is bs kds kte cs) =
+  pr (IFace ns xs rs ss ds1 is bs kds kte) =
                                   text "Imported/used modules: " <+> hsep (map prId ns) $$
                                   text "Default declarations: " <+> prDefault xs $$
                                   text ("Record types and their selectors: "++show rs) $$

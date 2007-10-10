@@ -224,7 +224,7 @@ main2 args          = do (clo, files) <- Exception.catchDyn (cmdLineOpts args)
                          let iface_files =  [ modToPath file | file <- files, ".ti" `isSuffixOf` file ]
                          mapM listIface iface_files
                          Monad.when (stopAtC clo) stopCompiler
-
+                         putStrLn "[compiling C files]"
                          let c_modules     = [ rmSuffix ".c" file | file <- files, ".c" `isSuffixOf` file ]
                              -- all the timber modules should have produced c modules
                              all_c_modules = c_files ++ c_modules
@@ -258,11 +258,12 @@ test pass           = compileTimber clo [] "Test.t"
                                         
 
 
-checkRoot clo def           = do (IFace _ _ _ _ _ _ bs _ _ _) <- decodeFile (modToPath rootMod ++ ".ti")
-                                 (IFace _ _ _ _ ts _ _ _ _ _) <- decodeFile (modToPath rtsMod ++ ".ti")
-                                 let ke = Core.ksigsOf ts
+checkRoot clo def           = do if1 <- decodeFile (modToPath rootMod ++ ".ti")
+                                 if2 <- decodeFile (modToPath rtsMod ++ ".ti")
+                                 let ts = tEnv if2
+                                     ke = Core.ksigsOf ts
                                      ds = Core.tdefsOf ts
-                                     te = Core.tsigsOf bs
+                                     te = Core.tsigsOf (valEnv if1)
                                  case lookup rootT ke of
                                      Nothing   -> fail ("Cannot locate RootType in module " ++ rtsMod)
                                      Just Star -> case lookup rootT ds of

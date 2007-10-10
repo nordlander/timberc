@@ -101,9 +101,9 @@ findClosureName' env _              = error "Internal: c2k.findClosureName'"
 -- =========================================================================================
 
 -- Translate a Core.Module into a Kindle.Module
-cModule ie (dsi,_,_) (Module m ns xs ds is bs)
+cModule ie (dsi,_) (Module m ns xs ds is bs)
                                     = do te0 <- tenv0 ie
-                                         te <- cTEnv (Decls.tenvSelsCons ds)
+                                         te  <- cTEnv (Decls.tenvSelsCons ds)
                                          let env = addTEnv (te ++ te0) (env0 (str m))
                                          ds1  <- cDecls env ds
                                          mapM_ addToStore (filter (isClosure . fst) dsi)

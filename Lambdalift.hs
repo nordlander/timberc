@@ -5,7 +5,7 @@ import Common
 import Kindle
 
 
-lambdalift (ds,_,_) m                   = localStore (llModule ds m)
+lambdalift (ds,_) m                     = localStore (llModule ds m)
 
 
 data Env                                = Env { decls      :: Decls,                -- global type declarations
