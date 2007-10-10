@@ -117,7 +117,7 @@ noTag e                         = e
 
 pSwitch1 env e [ACon n c] d
   | n `elem` singles env        = c
-pSwitch1 env e alts d           = CSwitch e alts d
+pSwitch1 env e alts d           = pSwitch0 env e alts d -- CSwitch e alts d
 
 
 -- Prepare switch alternatives
