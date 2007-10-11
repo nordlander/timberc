@@ -12,6 +12,7 @@
 #define Time int
 #define PID void*
 #define INFINITY 0
+#define Inherit -1
 #define NEW malloc
 
 struct TUP2;
