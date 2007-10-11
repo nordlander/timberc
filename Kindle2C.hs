@@ -78,6 +78,7 @@ k2cType (TWild)                 = text "POLY"
 
 k2cModule is (Module n ns ds bs)= cHeader n $$$
                                   vcat (map k2cBindStub [ b | b@(n,_) <- bs, not(isQualified n) ]) $$$
+                                  vcat (map k2cBindStubActual bs2) $$$
                                   vcat (map k2cBind bs1) $$$
                                   k2cInitProc n ns bs2 $$$
                                   cFooter n
@@ -86,6 +87,9 @@ k2cModule is (Module n ns ds bs)= cHeader n $$$
 k2cBindStubLocal b@(x,_)
   | fromMod x /= Nothing        = empty
   | otherwise                   = k2cBindStub b
+
+k2cBindStubActual (x, Val t _)  = k2cType t <+> k2cName x <> text ";"
+k2cBindStubActual _             = empty
 
 
 cHeader n                       = k2cImport n 
@@ -112,6 +116,7 @@ k2cBind p@(_,Val t _)           = k2cType t <+> k2cInit p
 k2cBind (x, Fun t te c)         = k2cType t <+> k2cName x <+> parens (commasep k2cSig' te) <+> text "{" $$
                                     nest 4 (k2cCmd c) $$
                                   text "}"
+
 
 newCall n                       = k2cName (prim NEW) <+> parens (text "sizeof" <> parens (text "struct" <+> k2cName n))<> text ";"
 
