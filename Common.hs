@@ -136,6 +136,8 @@ runM (M m)                      = case m (1,[]) of
 
 newNum                          = M $ \(n,s) -> Right ((n+1,s), n)
 
+currentNum                      = M $ \(n,s) -> Right ((n,s), n)
+
 addToStore x                    = M $ \(n,s) -> Right ((n,x:s), ())
 
 currentStore                    = M $ \(n,s) -> Right ((n,s), s)
