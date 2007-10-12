@@ -512,8 +512,14 @@ mkTrans env ((w1,p1), (w2,p2))          = do (pe1, R c1, e1) <- instantiate p1 (
 -- Handle class predicates
 closeSuperclass env []                  = return (env, [], [])
 closeSuperclass env ((w,p):pe)
-  | isClass' p                          = do (pe1,eq1) <- mapSuccess (mkSuper env (w,p)) [ n | n <- above_c ]
+  | isClass' p                          = do kkk <- currentNum
+                                             tr ("RedA: " ++ show kkk ++ "  " ++ show w )
+                                             (pe1,eq1) <- mapSuccess (mkSuper env (w,p)) [ n | n <- above_c ]
+                                             kkk <- currentNum
+                                             tr ("RedB: " ++ show kkk ++ "  " ++ show w )
                                              env1 <- addPreds env ((w,p):pe1)
+                                             kkk <- currentNum
+                                             tr ("RedC: " ++ show kkk ++ "  " ++ show w )
                                              (env2,pe2,eq2) <- closeSuperclass env1 pe
                                              return (env2, pe1++pe2, eq1++eq2)
   where c                               = headsym p
