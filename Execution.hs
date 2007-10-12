@@ -28,6 +28,7 @@ compileC cfg clo mod  = do let cfile file = file ++ ".c"
                                      (if (doGc clo)
                                       then " -DENABLE_GC "
                                       else "")
+--                                     ++ " -w "
                                      ++ compilerFlags cfg ++ includePath cfg
                                      ++ cfile mod 
                            execCmd clo cmd
@@ -43,6 +44,7 @@ linkO cfg clo r mods  = do let ofile file = file ++ ".o"
                                      (if (doGc clo)
                                       then " -DENABLE_GC "
                                       else "")
+--                                     ++ " -w " 
                                      ++ includePath cfg ++  " -o "
                                      ++ binTarget clo ++ " "
                                      ++ unwords (map ofile mods) ++ " "

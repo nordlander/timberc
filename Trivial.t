@@ -1,4 +1,4 @@
 module Trivial where
     
-type RootType = [Char]
+type RootType = [[Char]] -> [Char]
 

@@ -2,7 +2,7 @@
 #include "../timber.h"
 
 void ROOTINIT(void);
-extern LIST ROOT;
+extern LIST ROOT(LIST);
 
 void putStr(LIST xs) {
   Char x;
@@ -23,5 +23,5 @@ void putStr(LIST xs) {
 
 int main(int argc, char **argv) {
     ROOTINIT();
-    putStr(ROOT);
+    putStr(ROOT((LIST)_NIL));
 }
