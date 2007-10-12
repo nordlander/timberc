@@ -3,7 +3,7 @@ module Prelude where
 
 class Num a =
  (+),(-),(*) :: a -> a -> a
- negate, abs :: a -> a
+ negate :: a -> a
  fromInt :: Int -> a
 
 instance Num Int =
@@ -11,9 +11,6 @@ instance Num Int =
   (-) = primIntMinus
   (*) = primIntTimes
   negate = primIntNeg
-  abs x 
-   | x < 0     = primIntNeg x
-   | otherwise = x
   fromInt n = n
 
 instance Num Float =
@@ -21,12 +18,9 @@ instance Num Float =
   (-) = primFloatMinus
   (*) = primFloatTimes
   negate = primFloatNeg
-  abs x
-   | x < 0.0   = primFloatNeg x
-   | otherwise = x
   fromInt = primIntToFloat
 
--- default Num Int < Num Float
+default Num Int < Num Float
 
 class Eq a =
   (==),(/=) :: a -> a -> Bool
@@ -95,9 +89,11 @@ instance Show Float =
                                in  is ++ '.' : ds
    | otherwise               = "Show Float is incomplete"
  
+{-
 instance Show Bool =
   show False = "False"
   show True  = "True"
+-}
 
 instance Show Char =
   show c = [c]
@@ -115,6 +111,39 @@ instance Show String =
 instance Show [a] \\ Show a =
   show [] = "[]"
   show (x : xs) = '[' : show x ++ concat (map (\x -> ',' : show x) xs) ++ "]"
+
+class Enum a =
+  fromEnum :: a -> Int
+  toEnum :: Int -> a
+  enumFromTo :: a -> a -> [a]
+--  enumFromThenTo :: a -> a -> a -> [a]
+
+instance Enum Int =
+  fromEnum n = n
+  toEnum n = n
+  enumFromTo = fromToInt
+{-
+  enumFromThenTo a b c
+    | signum (b-a) == signum (c-a) = a : enumFromThenTo b (2*b - a) c
+    | a==c                         = [a]
+    | otherwise                    = []
+    where signum x
+            | x > 0 = 1
+            | x == 0 = 0
+            | x < 0 = -1
+-}
+
+instance Enum Char =
+   fromEnum = primCharToInt
+   toEnum = primIntToChar
+   enumFromTo a b = map primIntToChar (enumFromTo (primCharToInt a) (primCharToInt b))
+{-
+   enumFromThenTo a b c = map chr (enumFromThenTo (ord a) (ord b) (ord c))
+-}
+forallDo f []       = do return ()
+forallDo f (x : xs) = do f x
+                         forallDo f xs
+
 
 data Maybe a = Just a | Nothing
 
@@ -140,8 +169,9 @@ map                :: (a -> b) -> [a] -> [b]
 map f []            = []
 map f (x : xs)      = f x : map f xs
 
+replicate :: Int -> a -> [a]
 replicate n x
-  | n <= 0          = []
+  | n < 0          = []
   | otherwise       = x : replicate (n-1) x
 
 filter             :: (a -> Bool) -> [a] -> [a]
@@ -161,9 +191,10 @@ foldl f u (x : xs)  = foldl f (f u x) xs
 
 concat              = foldr (++) []
 
-fromTo m n
+fromToInt :: Int -> Int -> [Int]
+fromToInt m n
        | m > n      = []
-       | otherwise  = m : fromTo (m+1) n
+       | otherwise  = m : fromToInt (m+1) n
 
 zip (x:xs) (y:ys)   = (x,y) : zip xs ys
 zip _ _             = []
@@ -229,6 +260,10 @@ gcd x y             = gcd' (abs x) (abs y)
          | a > 0    = a
         gcd' a b    = gcd' b (a `mod` b)
 
+abs x  = case x < 0 of
+             True  -> -x
+             False -> x
+
 
 max, min           :: a -> a -> a \\ Ord a
 max x y
@@ -243,9 +278,17 @@ floor               = primFloatToInt
 
 round x             = floor (x + 0.5)
 
+sequence []         = do return []
+sequence (x : xs)   = do a  <- x
+                         as <- sequence xs
+                         return a : as
+
+mapM f []           = do return []
+mapM f (x : xs)     = do a <- f x
+                         as <- mapM f xs
+                         return a : as
+
 record Point = 
   x,y :: Int
 
 type P = Point
-
-x = 3
