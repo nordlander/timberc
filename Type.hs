@@ -59,11 +59,7 @@ let f = \w0 v x -> e w0 (f w0 v 7)                                            ::
 
 tiModule (xs',ds',bs',is') (Module v ns xs ds is bs) = 
                                   do (env1,ds1,bs1) <- typeDecls env0 ds
-                                     kkk <- currentNum
-                                     tr ("AAA: " ++ show kkk)
                                      (env2,bs2) <- instancePreds env1 ieTot
-                                     kkk <- currentNum
-                                     tr ("BBB: " ++ show kkk)
                                      let env3 = insertDefaults env2 (xs' ++ xs)
                                      (ss0,pe0,subInsts) <- tiBinds env3 subInsts
                                      -- Here it should be checked that the equations in subInsts follow the
@@ -72,8 +68,6 @@ tiModule (xs',ds',bs',is') (Module v ns xs ds is bs) =
                                      let is0  = concatBinds [bs1, bs2, subInsts]
                                          env4 = addCoercions (eqnsOf is' ++ eqnsOf is0) env3
                                      (ss1,pe1,bs) <- tiBindsList (addTEnv0 ieTot env4) (groupBinds bs)
-                                     kkk <- currentNum
-                                     tr ("CCC: " ++ show kkk)
                                      (ss2,pe2,classInsts) <- tiBinds (addTEnv0 (tsigsOf bs) env4) classInsts
                                      assert (null (ss0++ss1++ss2)) "Internal: top-level type inference 1"
                                      assert (null (pe0++pe1++pe2)) "Internal: top-level type inference 2"
