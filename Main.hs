@@ -276,12 +276,12 @@ checkRoot clo def           = do if1 <- decodeFile (modToPath rootMod ++ ".ti")
         (r,rootMod)         = splitQual (root clo) def
         rootN               = qName rootMod r
         rootT               = qName rtsMod "RootType"
-        checkRoot' te t0    = case ns of
-                                [] -> fail ("Cannot locate root " ++ (root clo) ++ " in module " ++ rootMod)
-                                [(n,t)]  -> if t /= Core.scheme t0
-                                            then fail ("Incorrect root type: " ++ render (pr t))
-                                            else return n
-          where ns          = [ (n,t) | (n,t) <- te, n == rootN ]
+        checkRoot' te t0    = case [ (n,t) | (n,t) <- te, n == rootN ] of
+                                [(n,t)]  -> if Core.simpleInst t (Core.scheme t0)
+                                            then return n
+                                            else fail ("Incorrect root type: " ++ render (pr t))
+                                _ -> fail ("Cannot locate root " ++ (root clo) ++ " in module " ++ rootMod)
+
 
 ------------------------------------------------------------------------------
 

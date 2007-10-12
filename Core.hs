@@ -273,6 +273,28 @@ equalTs ((TFun ts t,TFun ts' t'):eqs)
 equalTs eqs                             = False
 
 
+simpleInst s1 s2                        = instS [(s1,s2)]
+  where instS []                        = True
+        instS ((Scheme r1 [] _, Scheme r2 [] _):scs)
+                                        = instR r1 r2 scs
+        instS _                         = False
+        instR (R t1) (R t2) scs         = instT [(t1,t2)] scs
+        instR (F ss1 r1) (F ss2 r2) scs = instR r1 r2 ((ss2 `zip` ss1)++scs)
+        instR _ _ scs                   = False
+        instT [] scs                    = instS scs
+        instT ((TFun ts1 t1, TFun ts2 t2):ts) scs
+                                        = instT ((t1,t2):(ts2 `zip` ts1)++ts) scs
+        instT ((TAp t1 u1, TAp t2 u2):ts) scs
+                                        = instT ((t1,t2):(u1,u2):ts) scs
+        instT ((TId n1, TId n2):ts) scs
+          | n1 == n2                    = instT ts scs
+        instT ((TId n, t):ts) scs
+          | isVar n                     = instT (subst s ts) (subst s scs)
+          where s                       = n +-> t
+        instT _ scs                     = False
+                
+                
+                
 -- Free variables (Exp) -------------------------------------------------------------
 
 instance Ids Binds where
@@ -432,6 +454,12 @@ instance Subst Rho Name Type where
     subst s (R t)               = R (subst s t)
     subst s (F scs rh)          = F (subst s scs) (subst s rh)
 
+instance Subst (Type,Type) Name Type where
+    subst s (t1,t2)             = (subst s t1, subst s t2)
+    
+instance Subst (Scheme,Scheme) Name Type where
+    subst s (s1,s2)             = (subst s s1, subst s s2)
+                
 
 -- Type variables --------------------------------------------------------------
 
