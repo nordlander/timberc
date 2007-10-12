@@ -20,8 +20,30 @@ void putStr(LIST xs) {
   }
 }
 
+LIST getStr(char *p) {
+    if (!*p)
+        return (LIST)_NIL;
+    CONS n0 = NEW(sizeof(struct CONS));
+    CONS n = n0;
+    n->a = (POLY)*p++;
+    while (*p) {
+        n->b = NEW(sizeof(struct CONS));
+        n = (CONS)n->b;
+        n->a = (POLY)*p++;
+    }
+    n->b = (LIST)_NIL;
+    return (LIST)n0;
+}
+
 
 int main(int argc, char **argv) {
     ROOTINIT();
-    putStr(ROOT((LIST)_NIL));
+    LIST w = (LIST)_NIL;
+    for (; argc; argc--) {
+            CONS n = NEW(sizeof(struct CONS));
+            n->a = getStr(argv[argc-1]);
+            n->b = w;
+            w = (LIST)n;
+    }
+    putStr(ROOT(w));
 }
