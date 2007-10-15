@@ -15,9 +15,13 @@ module Config (
                
                -- Read out configuration from file.
                readCfg,
+
                -- Query about our options from flags.
                cmdLineOpts,
                           
+               -- Path to target-independent library files.
+               libDir,
+                      
                -- Path to target-dependent RTS files.
                rtsDir,
                       
@@ -41,18 +45,15 @@ import CompileConfig          ( timberRoot )
 
 -- | Contains the configuration for the compiler with the current
 -- command line switches.
-data CfgOpts         = CfgOpts { defaultCompiler :: FilePath,
-                                 compilerFlags   :: FilePath,
-                                 includePath     :: String,
-                                 rootDir         :: FilePath
+data CfgOpts         = CfgOpts { cCompiler       :: FilePath,
+                                 compileFlags    :: String,
+                                 linkFlags       :: String
                                } deriving (Show, Eq, Read)
 
 -- | Command line options.
 data CmdLineOpts     = CmdLineOpts { isVerbose :: Bool,
                                      binTarget :: String,
-                                     cfgDir    :: String,
                                      target    :: String,
-                                     doGc      :: Bool,
                                      root      :: String,
                                      stopAtC   :: Bool,
                                      stopAtO   :: Bool,
@@ -69,18 +70,10 @@ options              = [ Option ['v']
                                 ["output"]  
                                 (ReqArg BinTarget "FILE")     
                                 "Name of binary target",
-                         Option []    
-                                ["cfg"]
-                                (ReqArg TimberCfg "DIR")
-                                "Config directory of compiler",
                          Option []
                                 ["target"]
                                 (ReqArg Target "TARGET")
                                 "Target platform",
-                         Option []
-                                ["enable-gc"]
-                                (NoArg DoGc)
-                                "Enable garbage collector",
                          Option []
                                 ["root"]
                                 (ReqArg Root "NAME['MODULE]")
@@ -113,9 +106,7 @@ options              = [ Option ['v']
 data Flag            = Verbose
                      | Version
                      | BinTarget String
-                     | TimberCfg String
                      | Target String
-                     | DoGc
                      | Root String
                      | RootMod String
                      | StopAtC
@@ -160,11 +151,8 @@ mkCmdLineOpts flags  =  do cfg <- System.getEnv "TIMBER_CFG" `catch`
                                   { isVerbose = find Verbose,
                                     binTarget = first "a.out"
                                                 [ target | (BinTarget target) <- flags ],
-                                    cfgDir    = first cfg
-                                                [ target | (TimberCfg target) <- flags ],
-                                    target    = first "default"
+                                    target    = first "Trivial"
                                                 [ target | (Target target) <- flags ],
-                                    doGc      = find DoGc,
                                     root      = first "root"
                                                 [ root | (Root root) <- flags ],
                                     stopAtC   = find StopAtC,
@@ -183,10 +171,8 @@ mkCmdLineOpts flags  =  do cfg <- System.getEnv "TIMBER_CFG" `catch`
 
 -- | Reads a configuration file in the format of CfgOpts.
 readCfg clo
-    = if null (cfgDir clo) then
-        parseCfg $ timberRoot ++ "/etc/timberc-" ++ target clo ++ ".cfg"
-      else
-        parseCfg $ cfgDir clo ++ "/timberc-" ++ target clo ++ ".cfg"
+    = parseCfg $ rtsDir clo ++ "/timberc.cfg"
+
 
 -- | Internal help routine for readCfg.
 parseCfg file
@@ -226,5 +212,6 @@ data Pass            = Parser
 allPasses            :: [Pass]
 allPasses            = [Parser .. K2C]
 
-rtsDir cfg clo       = rootDir cfg ++ "/rts" ++ target clo
+rtsDir clo           = timberRoot ++ "/rts" ++ target clo
 
+libDir               = timberRoot ++ "/lib"

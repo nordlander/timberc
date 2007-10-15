@@ -11,6 +11,7 @@ import qualified Core2Kindle
 import qualified Kindle 
 import Depend
 import Termred
+import qualified Config
 
 -- Data type of interface file -----------------------------------------------
 
@@ -86,9 +87,10 @@ chaseImports imps ifs                = do bms <- mapM (readImport ifs) imps
                                           return (map fst bms ++ rms, [(c,ifc) | (c,(_,_,ifc)) <- newpairs])
   where readIfile ifs c              = case lookup c ifs of
                                         Just ifc -> return (ifc,False)
-                                        Nothing -> do ifc <- decodeFile (modToPath(str c) ++ ".ti")
-                                                      putStrLn ("[reading "++show(modToPath(str c) ++ ".ti")++"]")
+                                        Nothing -> do ifc <- decodeModule f
+                                                      putStrLn ("[reading " ++ show f ++ "]")
                                                       return (ifc,True)
+                                          where f = modToPath(str c) ++ ".ti"
         readImport ifs (Syntax.Import b c) 
                                      = do (ifc,isNew) <- readIfile ifs c
                                           return ((c,(b,True,ifc)),isNew)
@@ -105,6 +107,8 @@ transImps (_,_,ifc)                  = impsOf ifc
 init_order imps                      = case topSort transImps imps of
                                          Left ms  -> error ("Mutually recursive modules: " ++ showids ms)
                                          Right is -> map fst is
+
+decodeModule f                       = catch (decodeFile f) (\e -> decodeFile (Config.libDir ++ "/" ++ f))
 
 
 -- Building environments in which to compile the current module -----------------------------------------------
@@ -205,5 +209,5 @@ instance Pr IFace where
 -- prPair (n,t)                      = prId n <+> text "::" <+> pr t
 
 
-listIface f                       = do ifc <- decodeFile f
+listIface f                       = do ifc <- decodeModule f
                                        putStrLn (render(pr (ifc :: IFace)))

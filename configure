@@ -3627,7 +3627,7 @@ CFLAGS="$CFLAGS -c"
 
 
 
-                              ac_config_files="$ac_config_files Makefile CompileConfig.hs etc/timberc-default.cfg"
+                                        ac_config_files="$ac_config_files Makefile CompileConfig.hs rtsTrivial/timberc.cfg rtsPOSIX/timberc.cfg"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -4156,7 +4156,8 @@ do
   # Handling of arguments.
   "Makefile" ) CONFIG_FILES="$CONFIG_FILES Makefile" ;;
   "CompileConfig.hs" ) CONFIG_FILES="$CONFIG_FILES CompileConfig.hs" ;;
-  "etc/timberc-default.cfg" ) CONFIG_FILES="$CONFIG_FILES etc/timberc-default.cfg" ;;
+  "rtsTrivial/timberc.cfg" ) CONFIG_FILES="$CONFIG_FILES rtsTrivial/timberc.cfg" ;;
+  "rtsPOSIX/timberc.cfg" ) CONFIG_FILES="$CONFIG_FILES rtsPOSIX/timberc.cfg" ;;
   "config.h" ) CONFIG_HEADERS="$CONFIG_HEADERS config.h" ;;
   *) { { echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
 echo "$as_me: error: invalid argument: $ac_config_target" >&2;}

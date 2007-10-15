@@ -31,4 +31,4 @@ clean:
 	rm -f *.o *.hi $(DEST) 
 
 distclean: clean
-	rm -f Makefile etc/timberc-default.cfg config.h	
+	rm -f Makefile rtsTrivial/timberc.cfg rtsPOSIX/timberc.cfg config.h	

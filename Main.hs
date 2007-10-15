@@ -236,6 +236,7 @@ main2 args          = do (clo, files) <- Exception.catchDyn (cmdLineOpts args)
                              all_o_modules = all_c_modules ++ o_modules
                          Monad.when (null all_o_modules) (fail "Nothing to link!")
                          -- time to check the root options
+                         putStrLn "[linking]"
                          r <- checkRoot clo (head all_o_modules)
                          -- finally, perform the last link
                          linkO cfg clo r all_o_modules
@@ -247,9 +248,7 @@ main2 args          = do (clo, files) <- Exception.catchDyn (cmdLineOpts args)
 test pass           = compileTimber clo [] "Test.t"
   where clo         = CmdLineOpts { isVerbose = False,
                                     binTarget = "a.out",
-                                    cfgDir    = "../etc",
-                                    target    = "default",
-                                    doGc      = False,
+                                    target    = "Trivial",
                                     root      = "root",
                                     stopAtC   = False,
                                     stopAtO   = False,
@@ -258,8 +257,8 @@ test pass           = compileTimber clo [] "Test.t"
                                         
 
 
-checkRoot clo def           = do if1 <- decodeFile (modToPath rootMod ++ ".ti")
-                                 if2 <- decodeFile (modToPath rtsMod ++ ".ti")
+checkRoot clo def           = do if1 <- decodeModule (modToPath rootMod ++ ".ti")
+                                 if2 <- decodeModule (modToPath rtsMod ++ ".ti")
                                  let ts = tEnv if2
                                      ke = Core.ksigsOf ts
                                      ds = Core.tdefsOf ts

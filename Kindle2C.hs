@@ -107,22 +107,27 @@ k2cOnce p                       = text "static int INITIALIZED = 0;" $$
                                   text "}"
 
                                   -- temporary, only works for non-recursive values
-k2cInit (x, Val t (ENew n bs))  = k2cName x <+> text "=" <+> newCall n $$
-                                  vcat (map (k2cSBind (EVar x)) bs)
+k2cInit (x, Val t (ENew n bs))  = newCall t e n $$
+                                  vcat (map (k2cSBind e) bs)
+  where e                       = EVar x
 k2cInit (x, Val t e)            = k2cName x <+> text "=" <+> k2cExp e <> text ";"
 
 
-k2cBind p@(_,Val t _)           = k2cType t <+> k2cInit p
+k2cBind p@(x,Val t (ENew _ _))  = k2cType t <+> k2cName x <> text ";" <+> k2cInit p
+k2cBind p@(x,Val t e)           = k2cType t <+> k2cInit p
 k2cBind (x, Fun t te c)         = k2cType t <+> k2cName x <+> parens (commasep k2cSig' te) <+> text "{" $$
                                     nest 4 (k2cCmd c) $$
                                   text "}"
 
 
-newCall n                       = k2cName (prim NEW) <+> parens (text "sizeof" <> parens (text "struct" <+> k2cName n))<> text ";"
+newCall t e n                   = k2cName (prim NEW) <+> parens (k2cType t <> text "," <+> 
+                                                                 k2cExp e <> text "," <+> 
+                                                                 text "sizeof" <> parens (text "struct" <+> k2cName n))<> text ";"
 
 k2cSBind e0 (x, Val t (ENew n bs))
-                                = k2cExp (ESel e0 x) <+> text "=" <+> newCall n  <> text ";" $$
-                                  vcat (map (k2cSBind (ESel e0 x)) bs)
+                                = newCall t e n  <> text ";" $$
+                                  vcat (map (k2cSBind e) bs)
+  where e                       = ESel e0 x
 k2cSBind e0 (x, Val t e)        = k2cExp (ESel e0 x) <+> text "=" <+> k2cExp e <> text ";"
 k2cSBind e0 (x, Fun t te (CRet (ECall f es)))
                                 = k2cExp (ESel e0 x) <+> text "=" <+> k2cName f <> text ";"
