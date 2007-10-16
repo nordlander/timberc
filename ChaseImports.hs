@@ -41,7 +41,7 @@ ifaceMod                   :: (Map Name [Name], Map Name ([Name], Syntax.Type)) 
 ifaceMod (rs,ss) (Module _ ns xs ds is bs) (kds,kte)
    | not(null vis)                   = error ("Private types visible in interface: " ++ showids vis)
    | not(null ys)                    = error ("Public default declaration mentions private instance: "++ render(prDefault ys))
-   | otherwise                       = IFace ns xs' rs ss ds1 is' bs' kds kte
+   | otherwise                       = IFace ns xs' rs ss ds1 is' bs' kds (filter exported kte)
   where Types ke te                  = ds
         Binds r1 ts1 es1             = is
         Binds r2 ts2 es2             = bs
