@@ -121,7 +121,7 @@ primDecls                               = (prim Bool,       Struct [tagSig] [pri
                                           (prim LIST,       Struct [tagSig] [prim NIL, prim CONS]) :
                                           (prim NIL,        Struct [tagSig] []) :
                                           (prim CONS,       Struct (tagSig : abcSupply `zip` [ValT TWild, ValT (TId (prim LIST))]) []) :
-                                          (prim Msg,        Struct [(prim Code, FunT [] TWild),
+                                          (prim Msg,        Struct [(prim Code, FunT [] tUNIT),
                                                                     (prim Baseline, ValT (TId (prim Time))),
                                                                     (prim Deadline, ValT (TId (prim Time)))] []) :
                                           []
@@ -177,10 +177,16 @@ cBindR r bs c                           = CBind r bs c
 
 protect x t c                           = liftM (CRun (ECall (prim LOCK) [e0])) (cMap f c)
   where e0                              = ECast (TId (prim PID)) (EVar x)
-        f e | x `elem` evars e          = do y <- newName tempSym
+        f e | safe e                    = return (CRun (ECall (prim UNLOCK) [e0]) (CRet e))
+            | otherwise                 = do y <- newName tempSym
                                              return (cBind [(y,Val t e)] (CRun (ECall (prim UNLOCK) [e0]) (CRet (EVar y))))
-            | otherwise                 = return (CRun (ECall (prim UNLOCK) [e0]) (CRet e))
-
+        safe (EVar _)                   = True
+        safe (ELit _)                   = True
+        safe (ECast _ e)                = safe e
+        safe (ENew _ bs)                = all safe' bs
+        safe _                          = False
+        safe' (x,Val _ e)               = safe e
+        safe' _                         = False
 
 cMap f (CRet e)                         = f e
 cMap f (CRun e c)                       = liftM (CRun e) (cMap f c)
