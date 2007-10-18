@@ -243,7 +243,7 @@ instance Desugar1 Exp where
          |isPat env                = EIndex e' es    -- if lhs of statement, desugered there; otherwise illegal and caught in rename.
          |otherwise                = maybeClone env e' e'' (length es)
        where (e',es)               = mergeIndex e []
-             e''                   = indexArray (ds1 env e') (ds1 env es)
+             e''                   = indexArray e' (ds1 env es) 
     ds1 env (EAp e1 e2)            = EAp (ds1 env e1) (ds1 env e2)
     ds1 env (ETup es)              = ETup (ds1 env es)
     ds1 env (EList es)             = EList (ds1 env es)
