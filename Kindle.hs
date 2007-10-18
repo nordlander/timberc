@@ -152,6 +152,8 @@ primTEnv0                               = (prim ASYNC,   FunT [tMsg,tTime,tTime]
 
 boxedPrims                              = [Int, Float, Time]
 
+smallPrims                              = [Char, Bool, UNITTYPE]
+
 tupleSels (Tuple n _)                   = take n abcSupply `zip` repeat TWild
 
 

@@ -166,11 +166,15 @@ pExp' env (ECast TWild e)           = do (bs,t',e) <- pExp' env e
                                              let bs1 = [(x, Val (TId (box t')) (ENew (box t') bs2))]
                                                  bs2 = [(prim Value, Val t' e)]
                                              return (bs++bs1, TWild, ECast TWild (EVar x))
+                                          else if smallPrim t' then
+                                             return (bs, TWild, ECast TWild (ECast (TId (prim Int)) e))
                                           else
                                              return (bs, TWild, ECast TWild e)
 pExp' env (ECast t e)               = do (bs,t',e) <- pExp' env e
                                          if t'==TWild && mustBox t then
                                              return (bs, t, ESel (ECast (TId (box t)) e) (prim Value))
+                                          else if t'==TWild && smallPrim t then
+                                             return (bs, t, ECast t (ECast (TId (prim Int)) e))
                                           else
                                              return (bs, t, ECast t e)
 pExp' env (ENew n bs)
@@ -184,6 +188,8 @@ pExp' env (ENew n bs)
 mustBox (TId (Prim p _))            = p `elem` boxedPrims
 mustBox _                           = False
 
+smallPrim (TId (Prim p _))          = p `elem` smallPrims
+smallPrim _                         = False
 
 box (TId (Prim Time _))             = prim TimeBox
 box (TId (Prim Int _))              = prim IntBox
