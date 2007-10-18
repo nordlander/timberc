@@ -22,8 +22,7 @@ data IFace = IFace { impsOf      :: [Name],                         -- imported/
                      tEnv        :: Types,                          -- Core type environment
                      insts       :: Binds,                          -- types for instances
                      valEnv      :: Binds,                          -- types for exported values (including sels and cons) and some finite eqns
-                     kdeclEnv    :: Kindle.Decls,                   -- Kindle form of declarations
-                     ktypeEnv    :: Kindle.TEnv                     -- Kindle type environment
+                     kdeclEnv    :: Kindle.Decls                   -- Kindle form of declarations
                    }
            deriving (Show)
 
@@ -32,16 +31,16 @@ data IFace = IFace { impsOf      :: [Name],                         -- imported/
 Input to ifaceMod is
       - from Desugar1: exported record types with their selectors and exported type synomyms.
       - from Termred: the entire module in Core form after term reduction
-      - from Core2Kindle: declarations and type environment in Kindle form.
+      - from Core2Kindle: declarations in Kindle form.
 The function checks that the public part is closed (does not mention private data) and computes
 the IFace.
 -}
  
-ifaceMod                   :: (Map Name [Name], Map Name ([Name], Syntax.Type)) -> Module -> (Kindle.Decls, Kindle.TEnv) -> IFace
-ifaceMod (rs,ss) (Module _ ns xs ds is bs) (kds,kte)
+ifaceMod                   :: (Map Name [Name], Map Name ([Name], Syntax.Type)) -> Module -> Kindle.Decls -> IFace
+ifaceMod (rs,ss) (Module _ ns xs ds is bs) kds
    | not(null vis)                   = error ("Private types visible in interface: " ++ showids vis)
    | not(null ys)                    = error ("Public default declaration mentions private instance: "++ render(prDefault ys))
-   | otherwise                       = IFace ns xs' rs ss ds1 is' bs' kds (filter exported kte)
+   | otherwise                       = IFace ns xs' rs ss ds1 is' bs' kds
   where Types ke te                  = ds
         Binds r1 ts1 es1             = is
         Binds r2 ts2 es2             = bs
@@ -53,7 +52,7 @@ ifaceMod (rs,ss) (Module _ ns xs ds is bs) (kds,kte)
         vis                          = nub (localTypes [] (rng (tsigsOf is') ++ rng (tsigsOf bs')))
         exported (n,_)               = isQualified n
         exported' p@(n,_)            = isQualified n && (not(isAbstract p)) --Constructors/selectors are exported
-        fin (_,e)                    = finite env0 e
+        fin (_,e)                    = finite env0 e && null(filter isPrivate (constrs e))
 
 localInst ts (_,i1,i2)               = isPrivate (instName i1) || isPrivate(instName i2)
   where instName (Just n,_)          = n
@@ -114,33 +113,33 @@ decodeModule f                       = catch (decodeFile f) (\e -> decodeFile (C
 -- Building environments in which to compile the current module -----------------------------------------------
 {- 
    Input to initEnvs is a map as built by chaseImports;
-   output is four tuples of data suitable four various compiler passes.
+   output is four tuples of data suitable for various compiler passes.
 -}
 
 type Desugar1Env     = (Map Name [Name], Map Name Name, Map Name ([Name], Syntax.Type))
 type RenameEnv       = (Map Name Name, Map Name Name, Map Name Name)
 type CheckEnv        = ([Default], Types, Binds, Binds)
-type KindleEnv       = (Map Name Kindle.Decl, Map Name Kindle.Type)
+type KindleEnv       = Map Name Kindle.Decl
 
 initEnvs             :: Map a ImportInfo -> M s (Desugar1Env, RenameEnv, CheckEnv, KindleEnv)
 initEnvs bms         = do ims <- mapM (mkEnv . snd) bms
-                          let (rs,xs,ss,rnL,rnT,rnE,ds,is,bs,kds,kte) 
-                               = foldr mergeMod ([],[],[],[],[],[],Types [] [],Binds False [] [],Binds False [] [],[],[]) ims
-                          return ((rs,rnL,ss),(rnL,rnT,rnE),(xs,ds,bs,is),(kds,kte))
+                          let (rs,xs,ss,rnL,rnT,rnE,ds,is,bs,kds) 
+                               = foldr mergeMod ([],[],[],[],[],[],Types [] [],Binds False [] [],Binds False [] [],[]) ims
+                          return ((rs,rnL,ss),(rnL,rnT,rnE),(xs,ds,bs,is),kds)
 
-  where mergeMod (rs1,xs1,ss1,rnL1,rnT1,rnE1,ds1,is1,bs1,kds1,kte1)
-                 (rs2,xs2,ss2,rnL2,rnT2,rnE2,ds2,is2,bs2,kds2,kte2) =
+  where mergeMod (rs1,xs1,ss1,rnL1,rnT1,rnE1,ds1,is1,bs1,kds1)
+                 (rs2,xs2,ss2,rnL2,rnT2,rnE2,ds2,is2,bs2,kds2) =
                                        (rs1 ++ rs2, xs1 ++ xs2, ss1 ++ ss2, mergeRenamings2 rnL1 rnL2, 
                                         mergeRenamings2 rnT1 rnT2, mergeRenamings2 rnE1 rnE2,
                                         catDecls ds1 ds2, catBinds is1 is2, catBinds bs1 bs2,
-                                        kds1 ++ kds2, kte1 ++ kte2)
+                                        kds1 ++ kds2)
 
-        mkEnv (unQual,direct,IFace ns xs rs ss ds is bs kds kte)
+        mkEnv (unQual,direct,IFace ns xs rs ss ds is bs kds)
                                      = do ks  <- renaming (dom ke)
                                           ts  <- renaming (dom te'')
                                           ls' <- renaming ls -- (concatMap snd rs)
                                           return (unMod unQual rs, xs, unMod unQual ss, unMod unQual ls',unMod unQual ks,
-                                                  unMod unQual ts,ds,is,Binds r te' es,kds,kte)
+                                                  unMod unQual ts,ds,is,Binds r te' es,kds)
           where Types ke ds'         = ds
                 Binds r te es        = bs
                 te'                  = if direct then te ++ concatMap (tenvSelCon ke) ds' else []
@@ -189,14 +188,14 @@ instance LocalTypes Constr where
 -- Binary -------------------------------------------------------------------------------
 
 instance Binary IFace  where
-  put (IFace a b c d e f g h i) = put a >> put b >> put c >> put d >> put e >> put f >> put g >> put h >> put i
+  put (IFace a b c d e f g h) = put a >> put b >> put c >> put d >> put e >> put f >> put g >> put h
   get = get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> get >>= \f ->  
-        get >>= \g -> get >>= \h -> get >>= \i -> return (IFace a b c d e f g h i)
+        get >>= \g -> get >>= \h -> return (IFace a b c d e f g h)
 
 -- Printing -----------------------------------------------------------------------------
 
 instance Pr IFace where
-  pr (IFace ns xs rs ss ds1 is bs kds kte) =
+  pr (IFace ns xs rs ss ds1 is bs kds) =
                                   text "Imported/used modules: " <+> hsep (map prId ns) $$
                                   text "Default declarations: " <+> prDefault xs $$
                                   text ("Record types and their selectors: "++show rs) $$
@@ -204,7 +203,6 @@ instance Pr IFace where
                                   pr ds1 $$ pr is  $$ pr bs
                                   $$$ text "Kindle declarations" 
                                   $$$ vcat (map pr kds)
-                                  $$$ text "Kindle type environment" $$$ vcat (map pr kte)
                                   
 -- prPair (n,t)                      = prId n <+> text "::" <+> pr t
 

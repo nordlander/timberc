@@ -127,7 +127,7 @@ primDecls                               = (prim Bool,       Struct [tagSig] [pri
                                           []
                                           
 
-primKindleTerms                         = map prim [ IntPlus .. TimeGT ]
+primKindleTerms                         = map prim [ IntPlus .. CloneArray ]
 
 primTEnv                                = map cv (Env.primTypeEnv `restrict` primKindleTerms) ++ primTEnv0
   where 
@@ -136,7 +136,11 @@ primTEnv                                = map cv (Env.primTypeEnv `restrict` pri
     cv0 (Core.R t)                      = ValT (cv3 t)
     cv1 (Core.Scheme r [] _)            = cv2 r
     cv2 (Core.R t)                      = cv3 t
-    cv3 (Core.TId n)                    = TId n
+    cv3 (Core.TId n)
+      | isCon n                         = TId n
+      | otherwise                       = TWild
+    cv3 (Core.TAp (Core.TId (Prim Array _)) t) = TArray (cv3 t)
+    cv3 (Core.TAp t _)                  = cv3 t
 
 tTime                                   = TId (prim Time)
 tMsg                                    = TId (prim Msg)

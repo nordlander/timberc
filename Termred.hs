@@ -1,4 +1,4 @@
-module Termred(termred, redTerm, finite, env0) where
+module Termred(termred, redTerm, finite, env0, constrs) where
 
 import Common
 import Core
@@ -24,7 +24,7 @@ addEqns env eqs                 = env { eqns = eqs ++ eqns env }
 
 redModule impEqs (Module m ns xs ds ie bs) 
                                 = Module m ns xs ds ie' (Binds r te (es1' ++ redEqns env3 es2))
-  where envFree eqn             = all (\x -> isGenerated x || x `elem` [Prim Refl noAnnot]) (idents (snd eqn))
+  where envFree (_,e)           = all (\x -> isGenerated x || x `elem` [Prim Refl noAnnot]) (idents e) && isSmall e
         Binds r te es           = bs
         (es1,es2)               = partition envFree es
         es1'                    = redEqns env0 es1
@@ -61,7 +61,7 @@ nonzero _                       = False
 
 
 -- may be safely inlined (can't lead to infinite expansion even if part of a recursive binding group)
-finite env (EVar (Prim _ _))    = True
+finite env (EVar (Prim c _))    = c `notElem` [ListArray, ConstArray, CloneArray, UpdateArray]
 finite env (EVar (Tuple _ _))   = True
 finite env (EVar x)             = x `elem` args env || maybe False (finite env )(lookup x (eqns env))
 finite env (ECon _)             = True
@@ -82,7 +82,8 @@ redBinds env (Binds r te eqns)  = Binds r te (redEqns env eqns)
 
 redEqns env []                  = []
 redEqns env ((x,e):eqns)
-  | finite env e'               = (x,e') : redEqns (addEqns env [(x,e')]) eqns    -- no risk of infinite inlining
+  | finite env e' && isSmall e              
+                                = (x,e') : redEqns (addEqns env [(x,e')]) eqns    -- no risk of infinite inlining
   | otherwise                   = (x,e') : redEqns env eqns
   where e'                      = redExp env e
 
@@ -172,7 +173,8 @@ findLit env l (_:alts) d        = findLit env l alts d
 
 redPrim env Refl _ [e]                          = e
 redPrim env Fatbar _ [e,e']                     = redFat env e e'
-redPrim env p a [ELit (LInt x), ELit (LInt y)]  = redInt p x y
+redPrim env p a [ELit (LInt x), ELit (LInt y)]  
+  |p /= ConstArray                              = redInt p x y
 redPrim env p a [ELit (LRat x), ELit (LRat y)]  = redRat p x y
 redPrim env IntNeg _ [ELit (LInt x)]            = ELit (LInt (-x))
 redPrim env IntToFloat _ [ELit (LInt x)]        = ELit (LRat (fromInteger x))
@@ -225,4 +227,42 @@ redCmd env (CGen p t e c)       = CGen p t (redExp env e) (redCmd env c)
 redCmd env (CLet bs c)          = CLet (redBinds env bs) (redCmd env c)
 redCmd env (CAss x e c)         = CAss x (redExp env e) (redCmd env c)
 
+
+-- Constructor presence
+
+isSmall e                       = length (constrs e) < 5
+
+class Constrs a where
+    constrs :: a -> [Name]
+
+instance Constrs Binds where
+    constrs (Binds rec te eqns) = constrs (map snd eqns)
+
+instance Constrs a => Constrs [a] where
+    constrs xs = concatMap constrs xs
+
+instance Constrs Exp where
+    constrs (ECon c)             = [c]
+    constrs (ESel e l)           = constrs e
+    constrs (ELam te e)          = constrs e
+    constrs (EAp e e')           = constrs e ++ constrs e'
+    constrs (ELet bs e)          = constrs bs ++ constrs e
+    constrs (ECase e alts def)   = constrs e ++ constrs alts ++ constrs def
+    constrs (ERec c eqs)         = constrs (map snd eqs)
+    constrs (EAct e e')          = constrs e ++ constrs e'
+    constrs (EReq e e')          = constrs e ++ constrs e'
+    constrs (ETempl x t te c)    = constrs c
+    constrs (EDo x t c)          = constrs c
+    constrs _                    = []
+
+instance Constrs Alt where
+    constrs (p,e)                = constrs e
+
+
+instance Constrs Cmd where
+    constrs (CLet bs c)          = constrs bs ++ constrs c
+    constrs (CGen x t e c)       = constrs e ++ constrs c
+    constrs (CAss x e c)         = constrs e ++ constrs c
+    constrs (CRet e)             = constrs e
+    constrs (CExp e)             = constrs e
 

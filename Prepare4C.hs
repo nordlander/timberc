@@ -3,7 +3,8 @@ module Prepare4C(prepare4c) where
 import Monad
 import Common
 import Kindle
-
+import qualified Core
+import qualified Core2Kindle
 
 -- Establishes that:
 --   every struct function simply relays all work to a global function with an explicit "this" parameter
@@ -18,7 +19,7 @@ import Kindle
 -- Ditto for enums...
 
 
-prepare4c envi m                = localStore (pModule envi m)
+prepare4c e2 e3 m             = localStore (pModule e2 e3 m)
 
 
 data Env                        = Env { decls   :: Decls,
@@ -50,12 +51,16 @@ findDecl env n
   | otherwise                   = lookup' (decls env) n
 
 
-pModule (dsi,tei) (Module m ns ds bs)      
-                                = do (bs1,bs) <- pMap (pBind env) bs
+pModule e2 dsi (Module m ns ds bs)      
+                                = do -- tr (render (vcat (map pr dsi))
+                                     let (_,_,Core.Binds _ te1 _,Core.Binds _ te2 _) = e2
+                                     tei <- Core2Kindle.c2kTEnv dsi (te1++te2)
+                                     let env1 = addTEnv (primTEnv++tei) (addDecls (primDecls++dsi) env0)
+                                         env  = addBinds bs (addDecls ds env1)
+                                     (bs1,bs) <- pMap (pBind env) bs
                                      bs2 <- currentStore
                                      return (Module m ns (pDecls env ds) (bs1 ++ bs ++ reverse bs2))
-  where env1                    = addTEnv (primTEnv++tei) (addDecls (primDecls++dsi) env0)
-        env                     = addBinds bs (addDecls ds env1)
+
 
 
 pDecls env ds                   = map pDecl (prune ds (nulls env))

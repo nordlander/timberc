@@ -172,6 +172,12 @@ k2cExp' (ELit (LRat r))         = text (show (fromRational r :: Double))
 k2cExp' (ELit l)                = pr l
 k2cExp' (ESel e l)              = k2cExp' e <> text "->" <> k2cName l
 k2cExp' (EEnter (EVar x) f es)  = k2cExp' (ESel (EVar x) f) <> parens (commasep k2cExp (EVar x : es))
+k2cExp' (ECall (Prim IndexArray _) [e1,e2])
+                                = k2cExp' e1 <> text "->elems [" <+> k2cExp e2 <+> text "]"
+k2cExp' (ECall (Prim SizeArray _) [e])
+                                = k2cExp' e<> text "->size"
+k2cExp' (ECall (Prim UpdateArray _) [e1,e2,e3])
+                                = k2cExp' (ECall (prim IndexArray) [e1,e2]) <+> text "=" <+> k2cExp e3
 k2cExp' e@(ECall x es)
   | not (isInfix x)             = k2cName x <> parens (commasep k2cExp es)
 k2cExp' e                       = parens (k2cExp e)

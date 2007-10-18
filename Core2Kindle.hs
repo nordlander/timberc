@@ -1,4 +1,4 @@
-module Core2Kindle(core2kindle) where
+module Core2Kindle(core2kindle, c2kTEnv) where
 {- -}
 import Monad
 import Common
@@ -15,10 +15,7 @@ import qualified Kindle
 -- Translation of Core modules into back-end Kindle format
 -- =========================================================================================
 
-core2kindle imp envI m              = do m <- localStore (cModule imp envI m)
-                                         let Kindle.Module n ns ds bs = m
-                                             te = map Kindle.mkSig bs
-                                         return (m,(ds,te))
+core2kindle e2 e3 m                 = localStore (cModule e2 e3 m)
 
 -- Note: bound variables in the output from this pass are no longer guaranteed to be globally unique!
 -- This arises from the handling of orphaned state variables (see bindOrphans)
@@ -101,20 +98,20 @@ findClosureName' env _              = error "Internal: c2k.findClosureName'"
 -- =========================================================================================
 
 -- Translate a Core.Module into a Kindle.Module
-cModule ie (dsi,_) (Module m ns xs ds is bs)
-                                    = do te0 <- tenv0 ie
+cModule e2 e3 (Module m ns xs ds is bs)
+                                    = do te0 <- tenv0 e2
                                          te  <- cTEnv (Decls.tenvSelsCons ds)
                                          let env = addTEnv (te ++ te0) (env0 (str m))
                                          ds1  <- cDecls env ds
-                                         mapM_ addToStore (filter (isClosure . fst) dsi)
+                                         mapM_ addToStore (filter (isClosure . fst) e3)
                                          bs  <- cBindsList env (groupBinds (is `catBinds` bs))
                                          ds2 <- currentStore
-                                         return (Kindle.Module m ns (ds1++reverse (filter (isQual m . fst) ds2)) bs)
+                                         let ds3 = ds1++reverse (filter (isQual m . fst) ds2)
+                                         return (Kindle.Module m ns ds3 bs,ds3)
 
 
 -- Compute the imported type environment
 tenv0 (_,ds,bs,is)                  = cTEnv (tsigsOf is ++ tsigsOf bs ++ Decls.tenvSelsCons ds ++ Env.primTypeEnv)
-
 
 -- =========================================================================================
 -- Translating Core type declarations into Kindle.Decls
@@ -815,3 +812,12 @@ instSel env l                           = do s <- instKE ke0
 
 instCon env (Tuple n _)                 = cScheme (tupleType n) >>= instT
 instCon env k                           = instT (lookup' (tenv env) k)
+
+c2kTEnv ds te                           = localStore f
+  where f                               = do mapM_ addToStore (filter (isClosure . fst) ds)
+                                             te <- cTEnv te
+                                             te <- kindleTEnv (env0 "") te
+                                             return (filter p te)
+        p (_,Kindle.FunT _ (Kindle.TId n))    
+                                        = not(isClosure n)
+        p _                             = True

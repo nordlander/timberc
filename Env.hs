@@ -699,7 +699,12 @@ primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
                             (prim CloneArray,   scheme1 [tArray a, tInt] (tArray a)),
 
                             (prim After,        scheme0 [tTime,tAction] tAction),
-                            (prim Before,       scheme0 [tTime,tAction] tAction)
+                            (prim Before,       scheme0 [tTime,tAction] tAction),
+                            (prim ASYNC,        scheme0 [tMsg, tTime, tTime] tUnit),
+                            (prim LOCK,         scheme0 [tPID] tUnit),
+                            (prim UNLOCK,       scheme0 [tPID] tUnit),
+                            (prim Inherit,      scheme0 [] tTime) 
+
                           ]
 
 
