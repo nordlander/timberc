@@ -33,7 +33,7 @@ struct FloatBox;
 typedef struct FloatBox *FloatBox;
 struct IntBox;
 typedef struct IntBox *IntBox;
-struct FloatBox;
+struct TimeBox;
 typedef struct TimeBox *TimeBox;
 struct Msg;
 typedef struct Msg *Msg;
