@@ -45,7 +45,7 @@ separate []                     = ([],[])
 separate (Left x : xs)          = let (ls,rs) = separate xs in (x:ls,rs)
 separate (Right x : xs)         = let (ls,rs) = separate xs in (ls,x:rs)
 
-showids vs                      = concat (intersperse "," (map show vs))
+showids vs                      = concat (intersperse ", " (map show vs))
 
 fmapM f g xs                    = do ys <- mapM g xs
                                      return (f ys)
@@ -63,14 +63,16 @@ uncurry3 f (x,y,z)              = f x y z
 
 -- String manipulation -----------------------------------------------------
 
-rmSuffix :: String -> String -> String
-rmSuffix suf = reverse . rmPrefix (reverse suf) . reverse
+rmSuffix                        :: String -> String -> String
+rmSuffix suf                    = reverse . rmPrefix (reverse suf) . reverse
 
-rmPrefix :: String -> String -> String
-rmPrefix pre string 
-  | pre `List.isPrefixOf` string = drop (length pre) string
-  | otherwise                    = error $ "rmPrefix: " ++ string 
-                               ++ " is not a prefix of " ++ show pre
+rmPrefix                        :: String -> String -> String
+rmPrefix pre str 
+  | pre `List.isPrefixOf` str   = drop (length pre) str
+  | otherwise                   = error $ "rmPrefix: " ++ str ++ " is not a prefix of " ++ show pre
+
+rmDirs                          :: String -> String
+rmDirs                          = reverse . fst . span (/='/') . reverse 
 
 dropPrefix [] s                 = (True, s)
 dropPrefix (x:xs) (y:ys)

@@ -8,6 +8,7 @@ import qualified Monad
 import qualified Char
 import qualified Control.Exception as Exception ( catchDyn, catch )
 import System.Console.GetOpt
+import qualified Directory
 
 -- Timber Compiler
 import Config
@@ -160,43 +161,69 @@ Yet unknown:
 -- | right now.
 
 
-compileTimber clo ifs f
-                    = do putStrLn $ "[compiling " ++ show f ++ "]"
-                         txt <-  catch (readFile f)
-                                 (\e -> error $ "File " ++ f ++ " does not exist.")
-                         let par@(Syntax.Module _ is _ _) = runM (pass parser Parser txt)
-                         (imps,ifs') <- chaseImports is ifs
-                         let ((htxt,mtxt),ifc) = runM (passes imps par)
-                             m = rmSuffix ".t" f
-                             g '/' = '_'
-                             g x = x
-                         encodeFile (m ++ ".ti") ifc
-                         writeFile (map g m ++ ".c") mtxt
-                         writeFile (map g m ++ ".h") htxt
-                         return ifs'
- where passes imps par = do
-                         (e0,e1,e2,e3) <- initEnvs imps
-                         (d1,a0) <- pass (desugar1 e0)    Desugar1            par
-                         rn      <- pass (renameM e1)     Rename              d1
-                         d2      <- pass desugar2         Desugar2            rn
-                         co      <- pass syntax2core      S2C                 d2
-                         kc      <- pass (kindcheck e2)   KCheck              co
-                         tc      <- pass (typecheck e2)   TCheck              kc
-                         rd      <- pass (termred e2)     Termred             tc
-                         (ki,a2) <- pass (core2kindle e2 e3) C2K                 rd
-                         ll      <- pass (lambdalift e3)  LLift               ki
-                         pc      <- pass (prepare4c e3)   Prepare4C           ll
-                         c       <- pass (kindle2c (init_order imps)) K2C     pc
-                         return (c,ifaceMod a0 rd a2)
-       pass        :: (Pr b) => (a -> M s b) -> Pass -> a -> M s b
-       pass m p a  = do -- tr ("Pass " ++ show p ++ "...")
-                        r <- m a
-                        Monad.when (dumpAfter clo p) 
-                                 $ fail ("#### Result after " ++ show p ++ ":\n\n" ++ render (pr r))
-                        if stopAfter clo p
-                           then fail ("#### Terminated after " ++ show p ++ ".")
-                           else return r                                  
+compileTimber clo ifs t_file ti_file c_file h_file
+                        = do putStrLn $ "[compiling " ++ show t_file ++ "]"
+                             txt <- readFile t_file
+                             let par@(Syntax.Module _ is _ _) = runM (pass parser Parser txt)
+                             (imps,ifs') <- chaseImports is ifs
+                             let ((htxt,mtxt),ifc) = runM (passes imps par)
+                             encodeFile ti_file ifc
+                             writeFile c_file mtxt
+                             writeFile h_file htxt
+                             return ifs'
+  where passes imps par = do (e0,e1,e2,e3) <- initEnvs imps
+                             (d1,a0) <- pass (desugar1 e0)    Desugar1            par
+                             rn      <- pass (renameM e1)     Rename              d1
+                             d2      <- pass desugar2         Desugar2            rn
+                             co      <- pass syntax2core      S2C                 d2
+                             kc      <- pass (kindcheck e2)   KCheck              co
+                             tc      <- pass (typecheck e2)   TCheck              kc
+                             rd      <- pass (termred e2)     Termred             tc
+                             (ki,a2) <- pass (core2kindle e2 e3) C2K              rd
+                             ll      <- pass (lambdalift e3)  LLift               ki
+                             pc      <- pass (prepare4c e3)   Prepare4C           ll
+                             c       <- pass (kindle2c (init_order imps)) K2C     pc
+                             return (c,ifaceMod a0 rd a2)
 
+        pass m p a      = do -- tr ("Pass " ++ show p ++ "...")
+                             r <- m a
+                             Monad.when (dumpAfter clo p) 
+                                $ fail ("#### Result after " ++ show p ++ ":\n\n" ++ render (pr r))     -- Hmm, shouldn't fail here...
+                             Monad.when (stopAfter clo p)
+                                $ fail ("#### Terminated after " ++ show p ++ ".")
+                             return r                                  
+
+
+compileAll clo ifs []   = return ()
+compileAll clo ifs (t_file:t_files)
+                        = do t_exists <- Directory.doesFileExist t_file
+                             Monad.when (not t_exists) (fail ("File " ++ t_file ++ " does not exist."))
+                             res <- checkUpToDate t_file ti_file c_file h_file
+                             if res then do 
+                                 putStrLn ("[skipping " ++ show t_file ++ " (output is up to date)]")
+                                 compileAll clo ifs t_files
+                              else do
+                                 ifs' <- compileTimber clo ifs t_file ti_file c_file h_file
+                                 compileAll clo (ifs' ++ ifs) t_files
+  where base            = rmSuffix ".t" t_file
+        ti_file         = base ++ ".ti"
+        c_file          = base ++ ".c"
+        h_file          = base ++ ".h"
+
+
+checkUpToDate t_file ti_file c_file h_file
+                        = do ti_exists <- Directory.doesFileExist ti_file
+                             c_exists  <- Directory.doesFileExist c_file
+                             h_exists  <- Directory.doesFileExist h_file
+                             if not ti_exists || not c_exists || not h_exists then 
+                                 return False 
+                              else do
+                                 t_time  <- Directory.getModificationTime t_file
+                                 ti_time <- Directory.getModificationTime ti_file
+                                 c_time  <- Directory.getModificationTime c_file
+                                 h_time  <- Directory.getModificationTime h_file
+                                 return (t_time < ti_time && t_time < c_time && t_time < h_time)
+        
 
 ------------------------------------------------------------------------------
 
@@ -211,38 +238,35 @@ main2 args          = do (clo, files) <- Exception.catchDyn (cmdLineOpts args)
                          cfg          <- Exception.catchDyn (readCfg clo)
                                          fatalErrorHandler
 
-                         let timber_files = [ modToPath file | file <- files, ".t" `isSuffixOf` file ]
-                             c_files = [ map f (rmSuffix ".t" file) | file <- files, ".t" `isSuffixOf` file ]
-                             f '/' = '_'
-                             f x = x
-                             compAll f ifs [] = return ()
-                             compAll f ifs (t:ts) = do ifs' <- f ifs t
-                                                       compAll f (ifs' ++ ifs) ts
-
-                         compAll (compileTimber clo) [] timber_files
-
-                         let iface_files =  [ modToPath file | file <- files, ".ti" `isSuffixOf` file ]
-                         mapM listIface iface_files
+                         let t_files  = filter (".t"  `isSuffixOf`) files
+                             i_files  = filter (".ti" `isSuffixOf`) files
+                             badfiles = files \\ (t_files++i_files)
+                         
+                         Monad.when (not (null badfiles)) $ do
+                             fail ("Bad input files: " ++ showids badfiles)
+                         Monad.when (null t_files && null i_files) $ do 
+                             m <- helpMsg
+                             fatalErrorHandler (CmdLineError m)
+                         
+                         mapM listIface i_files
+                         Monad.when (null t_files) stopCompiler
+                         
+                         compileAll clo [] t_files
                          Monad.when (stopAtC clo) stopCompiler
+                         
+                         let basefiles = map (rmSuffix ".t") t_files
+                             c_files   = map (++ ".c") basefiles
                          putStrLn "[compiling C files]"
-                         let c_modules     = [ rmSuffix ".c" file | file <- files, ".c" `isSuffixOf` file ]
-                             -- all the timber modules should have produced c modules
-                             all_c_modules = c_files ++ c_modules
-                         mapM_ (compileC cfg clo) all_c_modules
+                         mapM (compileC cfg clo) c_files
                          Monad.when (stopAtO clo) stopCompiler
 
-                         let o_modules = [ rmSuffix ".o" file | file <- files, ".o" `isSuffixOf` file ]
-                             -- all the c modules should have produced o modules
-                             all_o_modules = all_c_modules ++ o_modules
-                         Monad.when (null all_o_modules) (fail "Nothing to link!")
-                         -- time to check the root options
+                         let basenames = map rmDirs basefiles
+                             o_files   = map (++ ".o") basenames
                          putStrLn "[linking]"
-                         r <- checkRoot clo (head all_o_modules)
-                         -- finally, perform the last link
-                         linkO cfg clo r all_o_modules
+                         r <- checkRoot clo (head basenames)
+                         linkO cfg clo r o_files
 
                          return ()
-
 
 
 test pass           = compileTimber clo [] "Test.t"

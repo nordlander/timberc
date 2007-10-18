@@ -24,6 +24,9 @@ module Config (
                       
                -- Path to target-dependent RTS files.
                rtsDir,
+               
+               -- Print usage info and exit.
+               helpMsg,
                       
                -- Pass data. XXX Does not belong here?
                Pass(..),
@@ -134,11 +137,14 @@ cmdLineOpts          :: [String] -> IO (CmdLineOpts,[String])
 cmdLineOpts args     = case getOpt Permute options args of
                          (flags,n,[])   -> do opts <- mkCmdLineOpts flags
                                               return (opts,n)
-                         (_,_,errs)     -> do pgm <- getProgName
-                                              Exception.throwDyn (emsg pgm errs)
-  where header otc   = "Usage: " ++ otc ++ " [OPTION...] files..."
-        emsg pgm errs = (CmdLineError
-                         (concat errs ++ usageInfo (header pgm) options))
+                         (_,_,errs)     -> do msg <- helpMsg
+                                              Exception.throwDyn (CmdLineError (concat errs ++ msg))
+
+
+helpMsg              = do pgm <- getProgName
+                          return (usageInfo (header pgm) options)
+  where header pgm   = "Usage: " ++ pgm ++ " [OPTION...] files..."
+                         
 
 
 -- CmdLineOpts is a set of functions that can be queried
