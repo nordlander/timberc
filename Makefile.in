@@ -17,7 +17,7 @@ LIB_T = $(wildcard lib/*.t)
 LIB_C = $(LIB_T:.t=.c)
 LIB_H = $(LIB_T:.t=.h)
 
-all: $(DEST) rts
+all: $(DEST)
 
 rts: $(DEST)
 	for rts in $(RTSS); do \
