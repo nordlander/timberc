@@ -1,16 +1,29 @@
 prefix=@prefix@
-sysconfdir=@sysconfdir@
 HCOMPILER=@HCOMPILER@
 HFLAGS=@HFLAGS@
 HAPPY=@HAPPY@
 INSTALL=@INSTALL@
 DESTDIR=
+RTSS=$(wildcard rts*)
 
-SRC = @SRC@
+export prefix HCOMPILER HFLAGS HAPPY INSTALL DESTDIR RTSS
 
-DEST = @DEST@
 
-all: $(DEST)
+SRC   = @SRC@
+
+DEST  = @DEST@
+
+LIB_T = $(wildcard lib/*.t)
+LIB_C = $(LIB_T:.t=.c)
+LIB_H = $(LIB_T:.t=.h)
+
+all: $(DEST) rts
+
+rts: $(DEST)
+	for rts in $(RTSS); do \
+		echo Making $$rts; \
+		$(MAKE) -C $$rts; \
+	done
 
 ${DEST}: Parser.hs
 	$(HCOMPILER) $(HFLAGS) $(SRC) $(DEST) 
@@ -18,17 +31,28 @@ ${DEST}: Parser.hs
 Parser.hs: Parser.y
 	$(HAPPY) Parser.y
 
-install: ${DEST} etc/timberc-default.cfg
+install: ${DEST}
 	$(INSTALL) -d $(DESTDIR)$(prefix)/bin
-	$(INSTALL) -d $(DESTDIR)$(prefix)/rts
-	$(INSTALL) -d $(DESTDIR)$(sysconfdir)
+	$(INSTALL) -d $(DESTDIR)$(prefix)/lib
 	$(INSTALL) timberc $(DESTDIR)$(prefix)/bin
-	$(INSTALL) etc/timberc-default.cfg $(DESTDIR)$(sysconfdir)
-	$(INSTALL) rts/rts.c $(DESTDIR)$(prefix)/rts
-	$(INSTALL) rts/rts.h $(DESTDIR)$(prefix)/rts
+	$(INSTALL) lib/* $(DESTDIR)$(prefix)/lib
+	for rts in $(RTSS); do \
+		echo Installing $$rts; \
+		$(MAKE) install -C $$rts; \
+	done
 
 clean:
 	rm -f *.o *.hi $(DEST) 
+	rm -f $(LIB_C) $(LIB_H)
+	for rts in $(RTSS); do \
+		echo Cleaning $$rts; \
+		$(MAKE) clean -C $$rts; \
+	done
 
 distclean: clean
-	rm -f Makefile rtsTrivial/timberc.cfg rtsPOSIX/timberc.cfg config.h	
+	rm -f Makefile config.h	
+	for rts in $(RTSS); do \
+		echo Distcleaning $$rts; \
+		$(MAKE) distclean -C $$rts; \
+	done
+
