@@ -161,42 +161,55 @@ Yet unknown:
 -- | right now.
 
 
-compileTimber clo ifs f
-                    = do putStrLn $ "[compiling " ++ show f ++ "]"
-                         txt <-  catch (readFile f)
-                                 (\e -> error $ "File " ++ f ++ " does not exist.")
-                         let par@(Syntax.Module _ is _ _) = runM (pass parser Parser txt)
-                         (imps,ifs') <- chaseImports is ifs
-                         let ((htxt,mtxt),ifc) = runM (passes imps par)
-                             m = rmSuffix ".t" f
-                             g '/' = '_'
-                             g x = x
-                         encodeFile (m ++ ".ti") ifc
-                         writeFile (map g m ++ ".c") mtxt
-                         writeFile (map g m ++ ".h") htxt
-                         return ifs'
- where passes imps par = do
-                         (e0,e1,e2,e3) <- initEnvs imps
-                         (d1,a0) <- pass (desugar1 e0)    Desugar1            par
-                         rn      <- pass (renameM e1)     Rename              d1
-                         d2      <- pass desugar2         Desugar2            rn
-                         co      <- pass syntax2core      S2C                 d2
-                         kc      <- pass (kindcheck e2)   KCheck              co
-                         tc      <- pass (typecheck e2)   TCheck              kc
-                         rd      <- pass (termred e2)     Termred             tc
-                         (ki,a2) <- pass (core2kindle e2 e3) C2K                 rd
-                         ll      <- pass (lambdalift e3)  LLift               ki
-                         pc      <- pass (prepare4c e3)   Prepare4C           ll
-                         c       <- pass (kindle2c (init_order imps)) K2C     pc
-                         return (c,ifaceMod a0 rd a2)
-       pass        :: (Pr b) => (a -> M s b) -> Pass -> a -> M s b
-       pass m p a  = do -- tr ("Pass " ++ show p ++ "...")
-                        r <- m a
-                        Monad.when (dumpAfter clo p) 
-                                 $ fail ("#### Result after " ++ show p ++ ":\n\n" ++ render (pr r))
-                        if stopAfter clo p
-                           then fail ("#### Terminated after " ++ show p ++ ".")
-                           else return r                                  
+compileTimber clo ifs t_file ti_file c_file h_file
+                        = do putStrLn $ "[compiling " ++ show t_file ++ "]"
+                             txt <- readFile t_file
+                             let par@(Syntax.Module _ is _ _) = runM (pass parser Parser txt)
+                             (imps,ifs') <- chaseImports is ifs
+                             let ((htxt,mtxt),ifc) = runM (passes imps par)
+                             encodeFile ti_file ifc
+                             writeFile c_file mtxt
+                             writeFile h_file htxt
+                             return ifs'
+  where passes imps par = do (e0,e1,e2,e3) <- initEnvs imps
+                             (d1,a0) <- pass (desugar1 e0)    Desugar1            par
+                             rn      <- pass (renameM e1)     Rename              d1
+                             d2      <- pass desugar2         Desugar2            rn
+                             co      <- pass syntax2core      S2C                 d2
+                             kc      <- pass (kindcheck e2)   KCheck              co
+                             tc      <- pass (typecheck e2)   TCheck              kc
+                             rd      <- pass (termred e2)     Termred             tc
+                             (ki,a2) <- pass (core2kindle e2 e3) C2K              rd
+                             ll      <- pass (lambdalift e3)  LLift               ki
+                             pc      <- pass (prepare4c e2 e3)   Prepare4C           ll
+                             c       <- pass (kindle2c (init_order imps)) K2C     pc
+                             return (c,ifaceMod a0 rd a2)
+
+        pass m p a      = do -- tr ("Pass " ++ show p ++ "...")
+                             r <- m a
+                             Monad.when (dumpAfter clo p) 
+                                $ fail ("#### Result after " ++ show p ++ ":\n\n" ++ render (pr r))     -- Hmm, shouldn't fail here...
+                             Monad.when (stopAfter clo p)
+                                $ fail ("#### Terminated after " ++ show p ++ ".")
+                             return r                                  
+
+
+compileAll clo ifs []   = return ()
+compileAll clo ifs (t_file:t_files)
+                        = do t_exists <- Directory.doesFileExist t_file
+                             Monad.when (not t_exists) (fail ("File " ++ t_file ++ " does not exist."))
+                             res <- checkUpToDate t_file ti_file c_file h_file
+                             if res then do 
+                                 putStrLn ("[skipping " ++ show t_file ++ " (output is up to date)]")
+                                 compileAll clo ifs t_files
+                              else do
+                                 ifs' <- compileTimber clo ifs t_file ti_file c_file h_file
+                                 compileAll clo (ifs' ++ ifs) t_files
+  where base            = rmSuffix ".t" t_file
+        ti_file         = base ++ ".ti"
+        c_file          = base ++ ".c"
+        h_file          = base ++ ".h"
+^ ^ ^ ^ ^ ^ ^
 
 
 checkUpToDate t_file ti_file c_file h_file
