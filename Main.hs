@@ -209,7 +209,6 @@ compileAll clo ifs (t_file:t_files)
         ti_file         = base ++ ".ti"
         c_file          = base ++ ".c"
         h_file          = base ++ ".h"
-^ ^ ^ ^ ^ ^ ^
 
 
 checkUpToDate t_file ti_file c_file h_file
