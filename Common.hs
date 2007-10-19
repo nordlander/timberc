@@ -97,9 +97,8 @@ errorIds mess ns                = error (unlines(mess : map pos ns))
         loc n                   = location (annot n)
         rJust w str             = replicate (w-length str) ' ' ++ str
 
-errorTree mess t                = error (header++mess ++ pos ++ (if length(lines str) >1 then "\n"++str++"\n" else str) )
-  where header                  = " *** Compilation error ***\n"
-        str                     = render (pr t)
+errorTree mess t                = error (mess ++ pos ++ (if length(lines str) >1 then "\n"++str++"\n" else str) )
+  where str                     = render (pr t)
         pos                     = " ("++ show(posInfo t)++"): "
  
 internalError mess t            = errorTree ("**** InternalError ****\n" ++ mess) t
@@ -361,7 +360,7 @@ type Map a b = [(a,b)]
 
 lookup' assoc x                 = case lookup x assoc of
                                     Just e -> e
-                                    Nothing -> error ("Internal: lookup': " ++ show x ++ " not in " ++ show (assoc))
+                                    Nothing -> internalError "lookup': did nor find" x
 
 inv assoc                       = map (\(a,b) -> (b,a)) assoc
 

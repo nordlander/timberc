@@ -71,6 +71,6 @@ popContext = PM $ \i loc c stk ->
 
 parseError :: String -> PM a
 parseError err =
-    PM $ \r loc -> (unPM $ fail $ show loc ++ ": " ++ err ++ "\n") r loc
+    PM $ \r (l,c) -> (unPM $ fail $ "Syntax error at line "++show l++", column "++show c++ "\n") r (l,c)
 
 \end{code}

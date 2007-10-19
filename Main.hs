@@ -33,7 +33,7 @@ import Prepare4C
 import Kindle2C
 import Data.Binary
 import ChaseImports
-
+import GHC.Exception
 {-
 
 Lexer:
@@ -253,7 +253,7 @@ main2 args          = do (clo, files) <- Exception.catchDyn (cmdLineOpts args)
                          mapM listIface i_files
                          Monad.when (null t_files) stopCompiler
                          
-                         compileAll clo [] t_files
+                         compileAll clo [] t_files `catchException` handleError
                          Monad.when (stopAtC clo) stopCompiler
                          
                          let basefiles = map (rmSuffix ".t") t_files
@@ -270,6 +270,10 @@ main2 args          = do (clo, files) <- Exception.catchDyn (cmdLineOpts args)
 
                          return ()
 
+handleError (ErrorCall mess) = do
+  putStr ("*** Timber compilation error ***\n"++mess++"\n")
+  stopCompiler
+handleError e = throw e
 
 test pass           = compileTimber clo [] "Test.t"
   where clo         = CmdLineOpts { isVerbose = False,

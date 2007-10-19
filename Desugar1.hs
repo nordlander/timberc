@@ -324,6 +324,7 @@ ds1Forall env (QGen p e : qs) ss = EAp (EAp (EVar (name (0,0) "forallDo")) (ELam
 ds1Forall env (QExp e : qs) ss   = EIf e (EDo (self env) Nothing [])  (EDo (self env) Nothing [SForall qs ss])
 
 ds1T env [SRet e]                = [SRet (ds1 env e)]
+ds1T env [s]                     = errorTree "Last statement in template must be return, not" s
 ds1T env (s@(SRet _) : ss)       = errorTree "Return statement must be last in sequence" s
 ds1T env (SBind b : ss)          = SBind (ds1 env b) : ds1T env ss
 ds1T env (s@(SAss p e) : ss)     = case ds1 (patEnv env) p of
