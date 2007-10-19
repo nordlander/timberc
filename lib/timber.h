@@ -80,4 +80,15 @@ UNITTYPE ASYNC(Msg, Time, Time);
 UNITTYPE LOCK(PID);
 UNITTYPE UNLOCK(PID);
 
+
+struct Array {
+  Int size;
+  POLY elems[];
+};
+
+typedef struct Array *Array;
+
+Array primListArray(LIST);
+Array primConstArray(Int,POLY);
+Array primCloneArray(Array,Int);
 #endif
