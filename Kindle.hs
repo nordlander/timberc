@@ -184,6 +184,7 @@ cBindR r bs c                           = CBind r bs c
 protect x t c                           = liftM (CRun (ECall (prim LOCK) [e0])) (cMap f c)
   where e0                              = ECast (TId (prim PID)) (EVar x)
         f e | safe e                    = return (CRun (ECall (prim UNLOCK) [e0]) (CRet e))
+            | t == tUNIT                = return (CRun e (CRun (ECall (prim UNLOCK) [e0]) (CRet (EVar(prim UNITTERM)))))
             | otherwise                 = do y <- newName tempSym
                                              return (cBind [(y,Val t e)] (CRun (ECall (prim UNLOCK) [e0]) (CRet (EVar y))))
         safe (EVar _)                   = True

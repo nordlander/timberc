@@ -135,6 +135,9 @@ k2cSBind e0 (x, _)              = error "Internal: k2cSBind"
 
 
 k2cCmd (CRet e)                 = text "return" <+> k2cExp e <> text ";"
+k2cCmd (CRun (ECall (Prim UpdateArray _) [e1,e2,e3,_]) c)
+                                = k2cExp' (ECall (prim IndexArray) [e1,e2]) <+> text "=" <+> k2cExp e3 <> text ";" $$
+                                  k2cCmd c
 k2cCmd (CRun e c)               = k2cExp e <> text ";" $$
                                   k2cCmd c
 k2cCmd (CBind False bs c)       = vcat (map k2cBind bs) $$
@@ -176,8 +179,6 @@ k2cExp' (ECall (Prim IndexArray _) [e1,e2])
                                 = k2cExp' e1 <> text "->elems [" <+> k2cExp e2 <+> text "]"
 k2cExp' (ECall (Prim SizeArray _) [e])
                                 = k2cExp' e<> text "->size"
-k2cExp' (ECall (Prim UpdateArray _) [e1,e2,e3])
-                                = k2cExp' (ECall (prim IndexArray) [e1,e2]) <+> text "=" <+> k2cExp e3
 k2cExp' e@(ECall x es)
   | not (isInfix x)             = k2cName x <> parens (commasep k2cExp es)
 k2cExp' e                       = parens (k2cExp e)
