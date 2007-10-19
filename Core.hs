@@ -64,8 +64,6 @@ data Exp        = ECon    Name
                 | EVar    Name
                 | ELam    TEnv Exp
                 | EAp     Exp [Exp]
-                | ETLam   KEnv Exp
-                | ETAp    Exp [Type]
                 | ELet    Binds Exp
                 | ECase   Exp [Alt] Exp
                 | ERec    Name Eqns
@@ -311,9 +309,7 @@ instance Ids Exp where
     idents (EVar v)             = [v]
     idents (ESel e l)           = idents e
     idents (ELam te e)          = idents e \\ dom te
-    idents (ETLam ke e)         = idents e
     idents (EAp e es)           = idents e ++ idents es
-    idents (ETAp e ts)          = idents e
     idents (ELet bs e)          = idents bs ++ (idents e \\ bvars bs)
     idents (ECase e alts def)   = idents e ++ idents alts ++ idents def
     idents (ERec c eqs)         = idents eqs
@@ -351,8 +347,6 @@ instance Subst Exp Name Exp where
     subst s (ESel e l)          = ESel (subst s e) l
     subst s (ELam te e)         = ELam te (subst s e)
     subst s (EAp e es)          = EAp (subst s e) (subst s es)
-    subst s (ETLam ke e)        = ETLam ke (subst s e)
-    subst s (ETAp e ts)         = ETAp (subst s e) ts
     subst s (ELet bs e)         = ELet (subst s bs) (subst s e)
     subst s (ECase e alts def)  = ECase (subst s e) (subst s alts) (subst s def)
     subst s (ERec c eqs)        = ERec c (subst s eqs)
@@ -382,8 +376,6 @@ instance Subst Exp TVar Type where
     subst s (ESel e l)          = ESel (subst s e) l
     subst s (ELam te e)         = ELam (subst s te) (subst s e)
     subst s (EAp e es)          = EAp (subst s e) (subst s es)
-    subst s (ETLam ke e)        = ETLam ke (subst s e)
-    subst s (ETAp e ts)         = ETAp (subst s e) (subst s ts)
     subst s (ELet bs e)         = ELet (subst s bs) (subst s e)
     subst s (ECase e alts def)  = ECase (subst s e) (subst s alts) (subst s def)
     subst s (ERec c eqs)        = ERec c (subst s eqs)
@@ -410,8 +402,6 @@ instance Subst Exp Name Type where
     subst s (ESel e l)          = ESel (subst s e) l
     subst s (ELam te e)         = ELam (subst s te) (subst s e)
     subst s (EAp e es)          = EAp (subst s e) (subst s es)
-    subst s (ETLam ke e)        = ETLam ke (subst s e)
-    subst s (ETAp e ts)         = ETAp (subst s e) (subst s ts)
     subst s (ELet bs e)         = ELet (subst s bs) (subst s e)
     subst s (ECase e alts def)  = ECase (subst s e) (subst s alts) (subst s def)
     subst s (ERec c eqs)        = ERec c (subst s eqs)
@@ -682,7 +672,6 @@ instance Pr Pat where
 instance Pr Exp where
 --    prn 0 (ELam te e)           = hang (char '\\' <> sep (map (parens . pr) te) <+> text "->") 4 (pr e)
     prn 0 (ELam te e)           = hang (char '\\' <> sep (map prId (dom te)) <+> text "->") 4 (pr e)
-    prn 0 (ETLam ke e)          = hang (text "/\\" <> sep (map prId (dom ke)) <+> text "->") 4 (pr e)
     prn 0 (ELet bs e)           = text "let" $$ nest 4 (pr bs) $$ text "in" <+> pr e
     prn 0 (ECase e alts def)    = text "case" <+> pr e <+> text "of" $$ 
                                        nest 2 (vpr alts $$ text "_ ->" <+> pr def)
@@ -698,7 +687,6 @@ instance Pr Exp where
     prn 0 e                     = prn 1 e
 
     prn 1 (EAp e es)            = hang (prn 1 e) 2 (sep (map (prn 2) es))
-    prn 1 (ETAp e ts)           = hang (prn 1 e) 2 (sep (map (prn 2) ts))
 
     prn 1 e                     = prn 2 e
         
@@ -797,16 +785,14 @@ instance Binary Exp where
   put (EVar a) = putWord8 2 >> put a
   put (ELam a b) = putWord8 3 >> put a >> put b
   put (EAp a b) = putWord8 4 >> put a >> put b
-  put (ETLam a b) = putWord8 5 >> put a >> put b
-  put (ETAp a b) = putWord8 6 >> put a >> put b
-  put (ELet a b) = putWord8 7 >> put a >> put b
-  put (ECase a b c) = putWord8 8 >> put a >> put b >> put c
-  put (ERec a b) = putWord8 9 >> put a >> put b
-  put (ELit a) = putWord8 10 >> put a
-  put (EAct a b) = putWord8 11 >> put a >> put b
-  put (EReq a b) = putWord8 12 >> put a >> put b
-  put (ETempl a b c d) = putWord8 13 >> put a >> put b >> put c >> put d
-  put (EDo a b c) = putWord8 14 >> put a >> put b >> put c
+  put (ELet a b) = putWord8 5 >> put a >> put b
+  put (ECase a b c) = putWord8 6 >> put a >> put b >> put c
+  put (ERec a b) = putWord8 7 >> put a >> put b
+  put (ELit a) = putWord8 8 >> put a
+  put (EAct a b) = putWord8 9 >> put a >> put b
+  put (EReq a b) = putWord8 10 >> put a >> put b
+  put (ETempl a b c d) = putWord8 11 >> put a >> put b >> put c >> put d
+  put (EDo a b c) = putWord8 12 >> put a >> put b >> put c
   get = do
     tag_ <- getWord8
     case tag_ of
@@ -815,16 +801,14 @@ instance Binary Exp where
       2 -> get >>= \a -> return (EVar a)
       3 -> get >>= \a -> get >>= \b -> return (ELam a b)
       4 -> get >>= \a -> get >>= \b -> return (EAp a b)
-      5 -> get >>= \a -> get >>= \b -> return (ETLam a b)
-      6 -> get >>= \a -> get >>= \b -> return (ETAp a b)
-      7 -> get >>= \a -> get >>= \b -> return (ELet a b)
-      8 -> get >>= \a -> get >>= \b -> get >>= \c -> return (ECase a b c)
-      9 -> get >>= \a -> get >>= \b -> return (ERec a b)
-      10 -> get >>= \a -> return (ELit a)
-      11 -> get >>= \a -> get >>= \b -> return (EAct a b)
-      12 -> get >>= \a -> get >>= \b -> return (EReq a b)
-      13 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (ETempl a b c d)
-      14 -> get >>= \a -> get >>= \b -> get >>= \c -> return (EDo a b c)
+      5 -> get >>= \a -> get >>= \b -> return (ELet a b)
+      6 -> get >>= \a -> get >>= \b -> get >>= \c -> return (ECase a b c)
+      7 -> get >>= \a -> get >>= \b -> return (ERec a b)
+      8 -> get >>= \a -> return (ELit a)
+      9 -> get >>= \a -> get >>= \b -> return (EAct a b)
+      10 -> get >>= \a -> get >>= \b -> return (EReq a b)
+      11 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (ETempl a b c d)
+      12 -> get >>= \a -> get >>= \b -> get >>= \c -> return (EDo a b c)
       _ -> fail "no parse"
 
 instance Binary Cmd where
