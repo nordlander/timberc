@@ -775,6 +775,63 @@ instance Pr Cmd where
     pr (CRet e)                 = text "return" <+> pr e
     pr (CExp e)                 = pr e
 
+
+
+-- HasPos --------------------------------------------------
+
+instance HasPos Types where
+  posInfo (Types ke ds)         = between (posInfo ke) (posInfo ds)
+
+instance HasPos Binds where
+  posInfo (Binds _ te es)       = between (posInfo te) (posInfo es)
+
+instance HasPos Decl where
+  posInfo (DData ns ts ce)      = foldr1 between [posInfo ns, posInfo ts, posInfo ce]
+  posInfo (DRec _ ns ts te)     = foldr1 between [posInfo ns, posInfo ts, posInfo te]
+  posInfo (DType ns t)          = between (posInfo ns) (posInfo t)
+
+instance HasPos Scheme where
+  posInfo (Scheme r ps ke)      = foldr1 between [posInfo r, posInfo ps, posInfo ke]
+
+instance HasPos Constr where
+  posInfo (Constr ts ps ke)     = foldr1 between [posInfo ts, posInfo ps, posInfo ke]
+
+instance HasPos Rho where
+  posInfo (R t)                 = posInfo t
+  posInfo (F ts r)              = between (posInfo ts) (posInfo r)
+
+instance HasPos Type where
+  posInfo (TId n)               = posInfo n
+  posInfo (TVar _)              = Unknown
+  posInfo (TFun ts t)           = posInfo (t : ts)
+  posInfo (TAp t t')            = between (posInfo t) (posInfo t')
+
+instance HasPos Pat where
+  posInfo (PCon n)              = posInfo n
+  posInfo (PLit l)              = Unknown
+
+instance HasPos Exp where
+  posInfo (ECon n)              = posInfo n
+  posInfo (ESel e l)            = between (posInfo e) (posInfo l)
+  posInfo (EVar n)              = posInfo n
+  posInfo (ELam te e)           = between (posInfo te) (posInfo e)
+  posInfo (ELet bs e)           = between (posInfo bs) (posInfo e)
+  posInfo (ECase e as d)        = foldr1 between [posInfo e, posInfo as, posInfo d]
+  posInfo (ERec n es)           = between (posInfo n) (posInfo es)
+  posInfo (ELit l)              = Unknown
+  posInfo (EAct e e')           = between (posInfo e) (posInfo e')
+  posInfo (EReq e e')           = between (posInfo e) (posInfo e')
+  posInfo (ETempl n t te c)     = foldr1 between [posInfo n, posInfo t, posInfo te, posInfo c]
+  posInfo (EDo n t c)           = foldr1 between [posInfo n, posInfo t, posInfo c]
+
+instance HasPos Cmd where
+  posInfo (CGen n t e c)        = foldr1 between [posInfo n, posInfo t, posInfo e, posInfo c]
+  posInfo (CAss n e c)          = foldr1 between [posInfo n, posInfo e, posInfo c]
+  posInfo (CLet bs c)           = between (posInfo bs) (posInfo c)
+  posInfo (CRet e)              = posInfo e
+  posInfo (CExp e)              = posInfo e
+
+  
 -- Binary --------------------------------------------------
 
 instance Binary Module where

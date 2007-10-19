@@ -455,6 +455,9 @@ data Kind                       = Star
                                 | KVar    Int
                                 deriving (Eq,Show)
 
+instance HasPos Kind where
+  posInfo _                     = Unknown
+
 newtype TVar                    = TV (Int,Kind)
 
 type KEnv                       = Map Name Kind
