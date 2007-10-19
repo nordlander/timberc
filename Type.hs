@@ -189,7 +189,7 @@ tiExp env (ELet bs e)           = do (s,pe,bs) <- tiBinds env bs
                                      (s',pe',t,e) <- tiExp (addTEnv (tsigsOf bs) env) e
                                      return (s++s',pe++pe', t, ELet bs e)
 tiExp env (ERec c eqs)          = do alphas <- mapM newTVar (kArgs (findKind env c))
-                                     (t,ts,sels')   <- tiLhs env (foldl TAp (TId c) alphas) tiX sels
+                                     (t,ts,sels')   <- tiLhs env (foldl TAp (TId c) alphas) tiSel sels
                                      (s,pe,es') <- tiRhs env ts es
                                      -- tr ("RECORD " ++ render (pr t))
                                      -- tr (render (vpr (sels `zip` ts)))
@@ -197,9 +197,9 @@ tiExp env (ERec c eqs)          = do alphas <- mapM newTVar (kArgs (findKind env
                                      e <- mkRec env c (map flatSels sels' `zip` es')
                                      return (s, pe, R t, e)
   where (sels,es)               = unzip eqs
-        tiX env x l             = tiExp env (ESel (EVar x) l)
+        tiSel env x l           = tiExp env (ESel (EVar x) l)
 tiExp env (ECase e alts d)      = do alpha <- newTVar Star
-                                     (t,ts,pats') <- tiLhs env alpha tiX pats
+                                     (t,ts,pats') <- tiLhs env alpha tiPat pats
                                      (s,pe,es')   <- tiRhs env ts es
                                      let TFun [t0] t1 = t
                                      (s1,pe1,e')  <- tiExpT env (scheme t0) e
@@ -207,13 +207,10 @@ tiExp env (ECase e alts d)      = do alpha <- newTVar Star
                                      e <- mkCase env e' t0 (map flatCons pats' `zip` es') d'
                                      return (s++s1++s2, pe++pe1++pe2, R t1, e)
   where (pats,es)               = unzip alts
-        tiX env x (PLit l)      = tiExp env (EAp (EVar x) [ELit l])
-        tiX env x (PCon k)      = do (t,_) <- inst (findType env k)
-                                     te <- newEnv paramSym (fArgs t)
-                                     tiExp env (eLam te (e (dom te)))
-          where e vs            = EAp (EVar x) [eAp (ECon k) (map EVar vs)]
-                fArgs (F ts t)  = ts
-                fArgs t         = []
+        tiPat env x (PLit l)    = tiExp env (EAp (EVar x) [ELit l])
+        tiPat env x (PCon k)    = do (t,_) <- inst (findType env k)
+                                     te <- newEnv paramSym (funArgs t)
+                                     tiExp env (eLam te (EAp (EVar x) [eAp (ECon k) (map EVar (dom te))]))
 tiExp env (EReq e e')           = do alpha <- newTVar Star
                                      beta <- newTVar Star
                                      (s,pe,e) <- tiExpT env (scheme (tRef alpha)) e

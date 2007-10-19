@@ -198,6 +198,9 @@ uppersym p                      = snd (subsyms p)
 
 headsym                         = tId . tHead . body
 
+funArgs (F ts rh)               = ts
+funArgs rh                      = []
+
 
 body (Scheme (R c) _ _)         = c
 
