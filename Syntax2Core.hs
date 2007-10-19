@@ -261,7 +261,7 @@ s2cE env (ETempl (Just x) Nothing ss)   = do c <- s2cS (addSigs te env) (map uns
     unsig (SAss (ESig p t) e)           = SAss p e
     unsig s                             = s
 
-s2cE env e                              = error ("Internal s2cE " ++ show e)
+s2cE env e                              = internalError "s2cE: did not expect" e
 
 
 -- Statements ==================================================================================
@@ -349,7 +349,7 @@ mergeT ps t                     = (zipWith f ts ps, t')
   where (ts,t')                 = split (length ps) t
         f t (EVar v)            = (v,t)
         f t (ESig (EVar v) t')  = (v,t')
-        f t e                   = error ("Internal: mergeT: " ++ show e)
+        f t e                   = internalError "mergeT: did not expect" e
         split 0 t               = ([],t)
         split n t               = (t1:ts,t')
           where (t1,t2)         = splitT t

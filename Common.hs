@@ -54,10 +54,11 @@ mapFst f xs                     = [ (f a, b) | (a,b) <- xs ]
 
 mapSnd f xs                     = [ (a, f b) | (a,b) <- xs ]
 
-noDups vs
-  | not (null dups)                = error ("Duplicate variables: " ++ showids dups)
+noDups mess vs
+  | not (null dups)                = errorIds mess dups
   | otherwise                      = vs
   where dups                       = duplicates vs
+
 
 uncurry3 f (x,y,z)              = f x y z
 
@@ -87,6 +88,69 @@ dropDigits xs                   = drop 0 xs
 
 
 
+-- Error reporting ---------------------------------------------------------
+
+errorIds mess ns                = error (unlines(mess : map pos ns))
+  where pos n                   = case loc n of
+                                    Just (r,c) -> rJust 15 (show n) ++ "  at line " ++ show r ++ ", column " ++ show c
+                                    Nothing ->    rJust 15 (show n) ++ "  (internally generated)"
+        loc n                   = location (annot n)
+        rJust w str             = replicate (w-length str) ' ' ++ str
+
+errorTree mess t                = error (header++mess ++ pos ++ (if length(lines str) >1 then "\n"++str++"\n" else str) )
+  where header                  = " *** Compilation error ***\n"
+        str                     = render (pr t)
+        pos                     = " ("++ show(posInfo t)++"): "
+ 
+internalError mess t            = errorTree ("**** InternalError ****\n" ++ mess) t
+
+-- PosInfo ---------------------------------------------------------
+   
+
+data PosInfo                    = Between {start :: (Int,Int), end :: (Int,Int)}
+                                | Unknown
+
+instance Show PosInfo where
+   show (Between (l1,c1) (l2,c2)) 
+                                = case l1==l2 of
+                                    True ->  case c1 == c2 of
+                                              True -> "close to line "++show l1++", column "++show c1
+                                              False -> "close to line "++show l1++", columns "++show c1++" to "++show c2
+                                    False -> "close to lines "++show l1++" to "++show l2
+   show Unknown                 = "unknown position"
+
+
+
+between (Between s1 e1) (Between s2 e2) 
+                                = Between (min s1 s2) (max e1 e2)
+between b@(Between _ _) Unknown = b
+between Unknown b@(Between _ _) = b
+between Unknown Unknown         = Unknown 
+
+class HasPos a where
+  posInfo :: a -> PosInfo
+
+
+instance HasPos a => HasPos [a] where
+  posInfo xs = foldr between Unknown (map posInfo xs)
+
+instance (HasPos a, HasPos b) => HasPos (a,b) where
+  posInfo (a,b) = between (posInfo a) (posInfo b)
+
+instance HasPos a => HasPos (Maybe a) where
+  posInfo Nothing  = Unknown
+  posInfo (Just a) = posInfo a
+
+instance HasPos Bool where
+  posInfo _ = Unknown
+
+instance HasPos Name where
+   posInfo n = case location (annot n) of
+                 Just (0,0) -> Unknown  -- artificially introduced
+                 Just (l,c) -> Between (l,c) (l,c+len n-1)
+               where len(Name s _ _ _) = length s
+                     len(Prim p _)     = length (strRep p)
+                     len(Tuple n _)    = n+2
 
 -- Literals ----------------------------------------------------------------
 

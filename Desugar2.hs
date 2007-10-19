@@ -57,7 +57,7 @@ dsType (TList t)                = TAp (TCon (prim LIST)) (dsType t)
 dsType (TTup ts)                = foldl TAp (TCon (tuple (length ts))) (map dsType ts)
 dsType (TCon c)                 = TCon c
 dsType (TVar v)                 = TVar v
-dsType t                        = error ("Bad type expression: " ++ show t)
+dsType t                        = internalError "Bad type expressionin dsType" t
 
 
 -- Types with wildcards ---------------------------------------------------------------
@@ -75,7 +75,7 @@ dsWildType (TTup ts)            = foldl TAp (TCon (tuple (length ts))) (map dsWi
 dsWildType (TCon c)             = TCon c
 dsWildType (TVar v)             = TVar v
 dsWildType (TWild)              = TWild
-dsWildType t                    = error ("Bad type expression: " ++ show t)
+dsWildType t                    = internalError "Bad type expression in dsWildType" t
 
 
 -- Base types -------------------------------------------------------------
@@ -86,7 +86,7 @@ dsQualBaseType t                = TQual (dsBaseType t) []
 dsBaseType (TAp t t')           = TAp (dsBaseType t) (dsType t')
 dsBaseType (TList t)            = TAp (TCon (prim LIST)) (dsType t)
 dsBaseType (TCon c)             = TCon c
-dsBaseType _                    = error ("Bad base type expression")
+dsBaseType t                    = internalError "Bad base type expression in dsBaseType" t
 
 
 -- Predicates ------------------------------------------------------------
@@ -98,7 +98,7 @@ dsQual (PType t)                = PType (dsQualPred t)
 
 dsKindQual (PKind v k)          = PKind v k
 dsKindQual (PType (TVar v))     = PKind v KWild
-dsKindQual _                    = error ("Bad qualifier")
+dsKindQual q                    = internalError "Bad qualifier in dsKindQual" q
 
 
 dsQualPred (TQual t ps)         = checkQual (dsSubOrClassPred t) (map dsQual ps)
@@ -109,7 +109,7 @@ dsSubOrClassPred t              = dsClassPred t
 
 dsClassPred (TAp t t')          = TAp (dsClassPred t) (dsType t')
 dsClassPred (TCon c)            = TCon c
-dsClassPred _                   = error ("Bad class predicate")
+dsClassPred p                   = internalError "Bad class predicate in dsClassPred" p
 
 
 -- Bindings ---------------------------------------------------------------
@@ -150,7 +150,7 @@ dsFunBind v [(ps,rh)] eqns      = do e <- dsExp (eLam ps (rh2exp rh))
                                      eqns <- dsEqns eqns
                                      return ((LFun v [], RExp e) : eqns)
 dsFunBind v alts eqns
-  | length arities /= 1         = fail ("Different arities for function " ++ show v)
+  | length arities /= 1         = errorIds "Different arities for function" [v]
   | otherwise                   = do ws <- newNames paramSym (head arities)
                                      alts <- mapM dsA alts
                                      e <- pmc' ws alts
@@ -163,7 +163,7 @@ dsFunBind v alts eqns
 -- Helper functions --------------------------------------------------
 
 checkQual t ps
-  | not (null ambig)            = error ("Ambiguous type scheme, orphans: " ++ showids ambig)
+  | not (null ambig)            = errorIds "Ambiguous type scheme, orphans are" ambig
   | otherwise                   = TQual t ps
   where ambig                   = tvs_ps \\ (vclose tvss tvs)
         tvs_ps                  = nub (concat tvss `intersect` bvs)
@@ -210,7 +210,7 @@ dsExp (ECase e alts)            = do e <- dsExp e
 dsExp (ESelect e s)             = liftM (flip ESelect s) (dsExp e)
 dsExp (ESel s)                  = do x <- newName paramSym
                                      return (ELam [EVar x] (ESelect (EVar x) s))
-dsExp (EWild)                   = fail "Illegal expression syntax"
+dsExp (EWild)                   = errorTree "Non-pattern use of wildcard variable" EWild
 dsExp (EVar v)                  = return (EVar v)
 dsExp (ECon c)                  = return (ECon c)
 dsExp (ELit l)                  = dsLit l
@@ -224,7 +224,6 @@ dsExp (EAfter e e')             = dsExp (EAp (EAp (EVar (prim After)) e) e')
 dsExp (EBefore e e')            = dsExp (EAp (EAp (EVar (prim Before)) e) e')
 dsExp (ETup es)                 = dsExp (foldl EAp (ECon (tuple (length es))) es)
 dsExp (EList es)                = dsExp (foldr cons nil es)
--- dsExp (ESeq _ _ _)              = fail "Sequences not yet implemented"
 dsExp (EComp e qs)              = do e <- comp2exp e qs nil
                                      dsExp e
 
@@ -253,8 +252,8 @@ dsStmts (SBind b : ss)          = do bs' <- dsBinds bs
                                      liftM (map SBind bs' ++) (dsStmts ss2)
   where (ss1,ss2)               = span isSBind ss
         bs                      = b : [ b' | SBind b' <- ss1 ]
-dsStmts (SAss p e : ss)
-  | p == EWild                  = fail "Bad assignment"
+dsStmts (s@(SAss p e) : ss)
+  | p == EWild                  = errorTree "Bad assignment" s
   | isEVar p                    = do e <- dsExp e
                                      ss <- dsStmts ss
                                      return (SAss p e : ss)
@@ -275,7 +274,7 @@ dsStmts (SGen p e : ss)
                                      return (SGen p e : ss)
   | otherwise                   = do v <- newEVar tempSym
                                      dsStmts (SGen v e : SBind (BEqn (LPat p) (RExp v)) : ss)
-dsStmts (s : _)                 = error ("Chaos in dsStmts; did not expect " ++ show s)
+dsStmts (s : _)                 = internalError "Internal error in dsStmts; did not expect" s
 
 
 -- Alternatives -----------------------------------------------------------------------
@@ -308,7 +307,7 @@ dsPat p                         = dsConPat p
 
 dsConPat (EAp p p')             = liftM2 EAp (dsConPat p) (dsInnerPat p')
 dsConPat (ECon c)               = return (ECon c)
-dsConPat p                      = fail "Illegal pattern"
+dsConPat p                      = errorTree "Illegal pattern" p
 
 dsInnerPat (ESig p t)
   | isEVar p                    = do p <- dsPat p

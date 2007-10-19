@@ -42,12 +42,12 @@ tscope env                         = dom (rT env)
 renE env n@(Tuple _ _)             = n
 renE env v                         = case lookup v (rE env) of
                                        Just n  -> n { annot = annot v }
-                                       Nothing -> error ("Undefined identifier: " ++ show v)
+                                       Nothing -> errorIds "Undefined identifier" [v]
 
 renS env n@(Tuple _ _)             = n
 renS env v                         = case lookup v (rS env) of
                                        Just n  -> n { annot = a { stateVar = True} }
-                                       Nothing -> error ("Undefined state variable: " ++ show v)
+                                       Nothing -> errorIds "Undefined state variable" [v]
   where a                          = annot v
 
 renL env v                         = case lookup v (rL env) of
@@ -60,17 +60,17 @@ renT env v                         = case lookup v (rT env) of
                                        Nothing -> error ("Undefined type identifier: " ++ show v)
 
 extRenE env vs
-  | not (null shadowed)            = fail ("Illegal shadowing of state variable: " ++ showids shadowed)
-  | not (null shadowed')           = fail ("Illegal shadowing of state reference: " ++ showids shadowed')
-  | otherwise                      = do rE' <- renaming (noDups vs)
+  | not (null shadowed)            = errorIds "Illegal shadowing of state variables" shadowed
+  | not (null shadowed')           = errorIds "Illegal shadowing of state reference" shadowed'
+  | otherwise                      = do rE' <- renaming (noDups "Duplicate state variables" vs)
                                         return (env { rE = rE' ++ rE env })
   where shadowed                   = intersect vs (stateVars env)
         shadowed'                  = intersect vs (self env)
 
 
 setRenS env vs
-  | not (null shadowed)            = fail ("Illegal shadowing of state reference: " ++ showids shadowed)
-  | otherwise                      = do rS' <- renaming (noDups vs)
+  | not (null shadowed)            = errorIds"Illegal shadowing of state reference" shadowed
+  | otherwise                      = do rS' <- renaming (noDups "Duplicate state variables" vs)
                                         return (env { rS = rS', void = vs })
   where shadowed                   = intersect vs (self env)
 
@@ -78,7 +78,7 @@ unvoid vs env                      = env { void = void env \\ vs }
 
 unvoidAll env                      = env { void = [] }
 
-extRenT env vs                     = do rT' <- renaming (noDups vs)
+extRenT env vs                     = do rT' <- renaming (noDups "Duplicate type variables" vs)
                                         return (env { rT = rT' ++ rT env })
 extRenEMod pub m env vs            = do rE' <- extRenXMod pub m (rE env) vs
                                         return (env {rE = rE'})
@@ -103,7 +103,7 @@ extRenXMod pub m rX vs             = do rX' <- renaming (map (mName (qual pub)) 
 noQual vs                          = map checkQual vs
   where checkQual v
          | fromMod v == Nothing    = v
-         | otherwise               = error ("Binding occurrence may not be qualified: " ++ show v)
+         | otherwise               = errorIds "Binding occurrence may not be qualified" [v]
 
 -- Binding of overloaded names ------------------------------------------------------------------------
 
@@ -175,8 +175,8 @@ renameD ks ts ss cs ws bs (DRec _ c _ _ sigs : ds)
 renameD ks ts ss cs ws bs (DData c _ _ cdefs : ds)
                                    = renameD ks (c:ts) ss (cons++cs) ws bs ds
   where cons                       = [ c | Constr c _ _ <- cdefs ]
-renameD ks ts ss cs ws bs (DInst _ _ : ds)
-                                   = error "Internal: DInst remaining in rename" -- renameD ks ts ss cs ws bs ds
+renameD ks ts ss cs ws bs (DInst n _ : ds)
+                                   = internalError "DInst remaining in renameD" n
 renameD ks ts ss cs ws bs (DType c _ _ : ds)
                                    = renameD ks (c:ts) ss cs ws bs ds
 renameD ks ts ss cs ws bs (DPSig v t : ds)
@@ -214,8 +214,8 @@ instance Rename Constr where
    where ps'                       = completeP env ts ps
 
 completeP env t ps
-  | not (null dups)                = error ("Duplicate type variable abstractions: " ++ showids dups)
-  | not (null dang)                = error ("Dangling type variable abstractions: " ++ showids dang)
+  | not (null dups)                = errorIds "Duplicate type variable abstractions" dups
+  | not (null dang)                = errorIds "Dangling type variable abstractions" dang
   | otherwise                      = ps ++ zipWith PKind implicit (repeat KWild)
   where vs                         = tyvars t ++ tyvars ps
         bvs                        = bvars ps
@@ -261,7 +261,7 @@ instance Rename Lhs where
 
 instance Rename Exp where
   rename env (EVar v)
-    | v `elem` void env            = fail ("Uninitialized state variable: " ++ show v)
+    | v `elem` void env            = errorIds"Uninitialized state variable" [v]
     | v `elem` stateVars env       = return (EVar (renS env v))
     | otherwise                    = return (EVar (renE env v))
   rename env (ECon c)              = return (ECon (renE env c))
@@ -286,7 +286,7 @@ instance Rename Exp where
   rename env (ESectR e op)         = liftM (flip ESectR (renE env op)) (rename env e) 
   rename env (ESectL op e)         = liftM (ESectL (renE env op)) (rename env e)
   rename env (ESelect e l)         = liftM (flip ESelect (renL env l)) (rename env e) 
-  rename env e@(EIndex _ _)        = error ("Illegal pattern: "++render(pr e)) -- legal occurrences eliminated in Desugar1
+  rename env e@(EIndex _ _)        = errorTree "Illegal pattern" e -- legal occurrences eliminated in Desugar1
   rename env (EAct v ss)           = liftM (EAct (fmap (renE env) v)) (renameS (unvoidAll env) (shuffleS ss))
   rename env (EReq v ss)           = liftM (EReq (fmap (renE env) v)) (renameS (unvoidAll env) (shuffleS ss))
   rename env (EDo (Just v) Nothing ss)
@@ -349,7 +349,7 @@ renameS env ss@(SBind _ : _)       = do env' <- extRenE env (bvars ss1)
   where (ss1,ss2)                  = span isSBind ss
         renameB env (SBind b)      = liftM SBind (rename env b)
 renameS env (SAss p e : ss)
-  | not (null illegal)             = fail ("Unknown state variable: " ++ showids illegal)
+  | not (null illegal)             = errorIds "Unknown state variables" illegal
   | otherwise                      = liftM2 (:) (liftM2 SAss (rename (unvoidAll env) p) (rename env e)) (renameS (unvoid (pvars p) env) ss)
   where illegal                    = pvars p \\ stateVars env
 
@@ -365,11 +365,11 @@ shuffleS ss                        = shuffle' [] ss
 
 
 shuffle [] [] []                   = []
-shuffle insts [] []                = error ("Dangling instance signatures: " ++ showids insts)
-shuffle [] sigs []                 = error ("Dangling type signatures: " ++ showids (dom sigs))
+shuffle insts [] []                = errorIds "Dangling instance signatures" insts
+shuffle [] sigs []                 = errorIds "Dangling type signatures" (dom sigs)
 shuffle insts sigs (BSig vs t : bs)
-  | not (null s_dups)              = error ("Duplicate type signatures: " ++ showids s_dups)
-  | not (null i_dups)              = error ("Signatures overlap with instances: " ++ showids i_dups)
+  | not (null s_dups)              = errorIds "Duplicate type signatures" s_dups
+  | not (null i_dups)              = errorIds "Signatures overlap with instances" i_dups
   | otherwise                      = shuffle insts (vs `zip` repeat t ++ sigs) bs
   where s_dups                     = duplicates vs ++ (vs `intersect` dom sigs)
         i_dups                     = vs `intersect` insts
@@ -378,7 +378,7 @@ shuffle insts sigs (b@(BEqn (LFun v _) _) : bs)
                                        Just t  -> BSig [v] t : b : shuffle insts (prune sigs [v]) bs
                                        Nothing -> b : shuffle (insts \\ [v]) sigs bs
 shuffle insts sigs (BEqn (LPat p) rh : bs)
-  | not (null illegal)             = error ("Illegal instance binding for: " ++ showids illegal)
+  | not (null illegal)             = errorIds "Illegal instance binding for" illegal
   | otherwise                      = BEqn (LPat p') rh : shuffle insts sigs' bs
   where illegal                    = pvars p `intersect` insts
         (sigs',p')                 = attach sigs p
@@ -386,9 +386,9 @@ shuffle insts sigs (BEqn (LPat p) rh : bs)
 
 
 shuffle' [] []                     = []
-shuffle' sigs []                   = error ("Dangling type signatures for: " ++ showids (dom sigs))
+shuffle' sigs []                   = errorIds "Dangling type signatures for" (dom sigs)
 shuffle' sigs (SBind (BSig vs t) : ss)
-  | not (null dups)                = error ("Multiple type signatures for: " ++ showids dups)
+  | not (null dups)                = errorIds "Multiple type signatures for" dups
   | otherwise                      = shuffle' (vs `zip` repeat t ++ sigs) ss
   where dups                       = duplicates vs ++ (vs `intersect` dom sigs)
 shuffle' sigs (s@(SBind (BEqn (LFun v ps) rh)) : ss)
@@ -407,7 +407,7 @@ shuffle' sigs (s : ss)             = s : shuffle' sigs ss
 
 
 attach sigs e@(ESig (EVar v) t)
-  | v `elem` dom sigs              = error ("Conflicting signatures for " ++ show v)
+  | v `elem` dom sigs              = errorIds "Conflicting signatures for" [v]
   | otherwise                      = (sigs, e)
 attach sigs (EVar v)               = case lookup v sigs of
                                        Nothing -> (sigs, EVar v)

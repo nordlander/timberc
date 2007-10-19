@@ -628,7 +628,92 @@ instance Ids Pred where
   idents (PKind v k)            = []
 
 
--- Binary --------------------------------------
+-- PosInfo -------------------------------------------------------------------
+
+instance HasPos Type where
+  posInfo (TQual t ps)          = between (posInfo t) (posInfo ps)
+  posInfo (TCon n)              = posInfo n
+  posInfo (TVar n)              = posInfo n 
+  posInfo (TAp t t')            = between (posInfo t) (posInfo t')
+  posInfo (TSub t t')           = between (posInfo t) (posInfo t')
+  posInfo TWild                 = Unknown
+  posInfo (TList t)             = posInfo t 
+  posInfo (TTup ts)             = posInfo ts
+  posInfo (TFun ts t)           = between (posInfo ts) (posInfo t)
+
+instance HasPos Pred where
+  posInfo (PType t)              = posInfo t
+  posInfo (PKind n k)            = posInfo n
+
+instance HasPos Exp where
+  posInfo (EVar n)              = posInfo n
+  posInfo (ECon c)              = posInfo c
+  posInfo (EAp e e')            = between (posInfo e) (posInfo e')
+  posInfo (ESel n)              = posInfo n
+  posInfo (ETup es)             = posInfo es
+  posInfo (EList es)            = posInfo es
+  posInfo (ESig e t)            = between (posInfo e) (posInfo t)
+  posInfo (ERec m fs)           = between (posInfo m) (posInfo fs)
+  posInfo (ELam ps e)           = between (posInfo ps) (posInfo e)
+  posInfo (ELet bs e)           = between (posInfo bs) (posInfo e)
+  posInfo (ECase e as)          = between (posInfo e) (posInfo as)
+  posInfo (EIf e t f)           = posInfo [e,t,f]
+  posInfo (ENeg e)              = posInfo e
+  posInfo (ESeq e1 m e2)        = foldr1 between [posInfo e1, posInfo m, posInfo e2]
+  posInfo (EComp e qs)          = between (posInfo e) (posInfo qs)
+  posInfo (ESectR e n)          = between (posInfo e) (posInfo n)
+  posInfo (ESectL n e)          = between (posInfo n) (posInfo e)
+  posInfo (ESelect e n)         = between (posInfo e) (posInfo n)
+  posInfo (EIndex e es)         = between (posInfo e) (posInfo es)
+  posInfo (EDo n t ss)          = between (posInfo n) (posInfo ss)
+  posInfo (ETempl n t ss)       = between (posInfo n) (posInfo ss)
+  posInfo (EAct n ss)           = between (posInfo n) (posInfo ss)
+  posInfo (EReq n ss)           = between (posInfo n) (posInfo ss)
+  posInfo (EAfter e e')         = between (posInfo e) (posInfo e')
+  posInfo (EBefore e e')        = between (posInfo e) (posInfo e')
+  posInfo _                     = Unknown
+
+instance HasPos Field where
+  posInfo (Field n e)           = between (posInfo n) (posInfo e)
+
+instance HasPos a => HasPos (Rhs a) where
+  posInfo (RExp a)              = posInfo a
+  posInfo (RGrd gs)             = posInfo gs
+  posInfo (RWhere r bs)         = between (posInfo r) (posInfo bs)
+ 
+instance HasPos a => HasPos (GExp a) where
+  posInfo (GExp qs a)           = between (posInfo qs) (posInfo a)
+
+instance HasPos a => HasPos (Alt a) where
+  posInfo (Alt p r)             = between (posInfo p) (posInfo r)
+
+instance HasPos Qual where
+  posInfo (QExp e)              = posInfo e
+  posInfo (QGen p e)            = between (posInfo p) (posInfo e)
+  posInfo (QLet bs)             = posInfo bs
+
+instance HasPos Stmt where
+  posInfo (SExp e)              = posInfo e
+  posInfo (SRet e)              = posInfo e
+  posInfo (SGen p e)            = between (posInfo p) (posInfo e)
+  posInfo (SBind b)             = posInfo b
+  posInfo (SAss p e)            = between (posInfo p) (posInfo e)
+  posInfo (SForall qs ss)       = between (posInfo qs) (posInfo ss)
+  posInfo (SWhile e ss)         = between (posInfo e) (posInfo ss)
+  posInfo (SIf e ss)            = between (posInfo e) (posInfo ss)
+  posInfo (SElsif e ss)         = between (posInfo e) (posInfo ss)
+  posInfo (SElse ss)            = posInfo ss
+  posInfo (SCase e as)          = between (posInfo e) (posInfo as)
+
+instance HasPos Bind where
+  posInfo (BSig ns t)           = posInfo ns
+  posInfo (BEqn l r)            = between (posInfo l) (posInfo r)
+
+instance HasPos Lhs where
+  posInfo (LFun n ps)           = between (posInfo n) (posInfo ps)
+  posInfo (LPat p)              = posInfo p
+
+-- Binary --------------------------------------------------------------------
 
 instance Binary Module where
   put (Module a b c d) = put a >> put b >> put c >> put d

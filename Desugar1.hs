@@ -57,15 +57,15 @@ mkEnv c ds (rs,rn,ss)           = (env {sels = map transClose recEnv, modName = 
         sels (Sig vs _)         = map (mName (Just (str c))) vs
         transClose (c,(cs,ss))  = (c, sort (ss ++ nub(concat (map (selectors [c]) cs))))
         selectors cs0 c
-          | c `elem` cs0        = error ("Circular record dependencies: " ++ showids (c:cs0))
+          | c `elem` cs0        = errorIds "Circular record dependencies:" (c:cs0)
           | otherwise           = case lookup c recEnv of
                                     Just (cs,ss) -> ss ++ concat (map (selectors (c:cs0)) cs)
-                                    Nothing      -> error ("Unknown record constructor: " ++ show c)
+                                    Nothing      -> errorIds "Unknown record constructor:"  [c]
 
         tsynDecls                
-          | not (null dups)     = error ("Duplicate type synonym declarations for "++showids dups)
+          | not (null dups)     = errorIds "Duplicate type synonym declarations:" dups
           | otherwise           = case topSort (tyCons . snd) syns of
-                                    Left ns     -> error ("Mutually recursive type synonyms: " ++  showids ns)
+                                    Left ns     -> errorIds "Mutually recursive type synonyms:" ns
                                     Right syns' -> syns'
         syns                    = [(c,(vs,t)) | DType c vs t <- ds]
         dups                    = duplicates (map fst syns)
@@ -73,7 +73,7 @@ mkEnv c ds (rs,rn,ss)           = (env {sels = map transClose recEnv, modName = 
 
 tsynE env ls []                 = (env,ls)
 tsynE env ls ((c,(vs,t)) : ps) 
-    | c `elem` tyCons t         = error ("Type synonym "++show c++" is recursive")
+    | c `elem` tyCons t         = errorIds "Type synonym is recursive" [c]
     | otherwise                 = tsynE env {tsyns =p : tsyns env} (p:ls) ps
  where p                        =  (c,(vs,ds1 env t))
 
@@ -81,11 +81,11 @@ selsFromType env c              = case lookup c (sels env) of
                                     Just ss -> ss
                                     Nothing -> if fromMod c == modName env
                                                then selsFromType env (c {fromMod = Nothing})
-                                               else error ("Unknown record constructor: " ++ show c)
+                                               else errorIds "Unknown record constructor" [c]
 
 
 typeFromSels env ss             = f (sels env) ss
-  where f [] ss                 = error ("No record type with selectors " ++ showids ss)
+  where f [] ss                 = errorIds "No record type with selectors" ss
         f  ((c,ss'):se) ss
           | ss == ss'           = c
           | otherwise           = f se ss
@@ -96,14 +96,14 @@ haveSelf env                    = self env /= Nothing
 tSubst env c ts                 = case lookup c (tsyns env) of
                                      Nothing -> foldl TAp (TCon c) ts1
                                      Just (vs,t)
-                                       | length vs > length ts -> error ("Type synonym "++show c++" not fully applied")
+                                       | length vs > length ts -> errorIds "Type synonym not fully applied:" [c]
                                        | otherwise -> foldl TAp (subst (zip vs (take (length vs) ts1)) t) 
                                                                 (drop (length vs) ts1)
   where ts1                     = ds1 env ts
 
 ren env cs                      = map ren' cs     
   where ren' c                  = case lookup c (selSubst env) of
-                                     Nothing -> error ("Unknown record selector: " ++ show c)
+                                     Nothing -> errorIds "Unknown record selector:" [c]
                                      Just c' -> c'
 
 patEnv env                      = env {isPat = True}
@@ -224,13 +224,13 @@ instance Desugar1 Exp where
         | isPat env                = e
         | otherwise                = maybeClone env e e 0
     ds1 env (ERec Nothing fs)
-      | not (null dups)            = error ("Duplicate field definitions in record: " ++ showids dups)
+      | not (null dups)            = errorIds "Duplicate field definitions in record:" dups
       | otherwise                  = ERec (Just (c,True)) (ds1 env fs)
       where c                      = typeFromSels env (sort (ren env (bvars fs)))
             dups                   = duplicates (bvars fs)
     ds1 env (ERec (Just (c,all)) fs)
-      | not (null dups)            = error ("Duplicate field definitions in record: " ++ showids dups)
-      | all && not (null miss)     = error ("Missing selectors in record: " ++ showids miss)
+      | not (null dups)            = errorIds "Duplicate field definitions in record:" dups
+      | all && not (null miss)     = errorIds "Missing selectors in record:" miss
       | otherwise                  = ERec (Just (c,True)) (fs' ++ ds1 env fs)
       where miss                   = ren env (selsFromType env c) \\ ren env (bvars fs)
             dups                   = duplicates (ren env (bvars fs))
@@ -269,12 +269,12 @@ instance Desugar1 Exp where
     ds1 env (EDo Nothing t ss)
       | haveSelf env               = ds1 env (EDo (self env) (ds1 env t) ss)
       | otherwise                  = ds1 env (EDo (Just (name0 "self")) (ds1 env t) ss)
-    ds1 env (EAct Nothing ss)
+    ds1 env e@(EAct Nothing ss)
       | haveSelf env               = ds1 env (EAct (self env) ss)
-      | otherwise                  = error "Illegal action"
-    ds1 env (EReq Nothing ss)
+      | otherwise                  = errorTree "Action outside template" e
+    ds1 env e@(EReq Nothing ss)
       | haveSelf env               = ds1 env (EReq (self env) ss)
-      | otherwise                  = error "Illegal request"
+      | otherwise                  = errorTree "Request outside template" e
 
     ds1 env (ETempl v t ss)      = ETempl v t (ds1T (env{self=v, impArrays = updateTable (imps ss)}) ss)
     ds1 env (EDo v t ss)         = EDo v t (ds1S (env{self=v}) ss)
@@ -295,7 +295,7 @@ instance Desugar1 Field where
 ds1S env []                      = []
 ds1S env (SExp e : ss)           = maybeGen (ds1 env e) (ds1S env ss)
 ds1S env [SRet e]                = [SRet (ds1 env e)]
-ds1S env (SRet e : ss)           = error "Illegal return"
+ds1S env (s@(SRet _) : ss)       = errorTree "Return statement must be last in sequence" s
 ds1S env (SGen p e : ss)         = SGen (ds1 (patEnv env) p) (ds1 env e) : ds1S env ss
 ds1S env (SBind b : ss)          = SBind (ds1 env b) : ds1S env ss
 ds1S env (SAss p e : ss)         = case ds1 (patEnv env) p of
@@ -313,8 +313,8 @@ ds1S env (SIf e ss' : ss)        = doIf (EIf e (EDo (self env) Nothing ss')) ss
   where doIf f (SElsif e ss':ss) = doIf (f . EIf e (EDo (self env) Nothing ss')) ss
         doIf f (SElse ss':ss)    = ds1S env (SExp (f (EDo (self env) Nothing ss')) : ss)
         doIf f ss                = ds1S env (SExp (f (EDo (self env) Nothing [])) : ss)
-ds1S env (SElsif e ss : _)       = error "Illegal elsif"
-ds1S env (SElse ss : _)          = error "Illegal else"
+ds1S env (s@(SElsif _ _) : _)    = errorTree "elsif without corresponding if" s
+ds1S env (s@(SElse _) : _)       = errorTree "else without corresponding if" s
 ds1S env (SForall q ss' : ss)    = ds1S env (SExp (ds1Forall env q ss') : ss) -- error "forall stmt not yet implemented"
 ds1S env (SWhile e ss' : ss)     = error "while stmt not yet implemented"
 
@@ -324,12 +324,13 @@ ds1Forall env (QGen p e : qs) ss = EAp (EAp (EVar (name (0,0) "forallDo")) (ELam
 ds1Forall env (QExp e : qs) ss   = EIf e (EDo (self env) Nothing [])  (EDo (self env) Nothing [SForall qs ss])
 
 ds1T env [SRet e]                = [SRet (ds1 env e)]
+ds1T env (s@(SRet _) : ss)       = errorTree "Return statement must be last in sequence" s
 ds1T env (SBind b : ss)          = SBind (ds1 env b) : ds1T env ss
-ds1T env (SAss p e : ss)         = case ds1 (patEnv env) p of
-                                     EIndex _ _  -> error "Initialisation must be to whole array"
+ds1T env (s@(SAss p e) : ss)     = case ds1 (patEnv env) p of
+                                     EIndex _ _  -> errorTree "Initialisation must be to whole array" s
                                      p' -> SAss p' (maybeClone env p' (ds1 env e) 0) : ds1T env ss
 ds1T env (SGen p e : ss)         = SGen (ds1 (patEnv env) p) (ds1 env e) : ds1T env ss           -- temporary
-ds1T env ss                      = error ("Illegal statement in template: " ++ show ss)
+ds1T env (s : _)                 = errorTree "Illegal statement in template: " s
 
 -- Imperative Arrays ---------------------------
 

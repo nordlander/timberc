@@ -369,8 +369,7 @@ packName n                      = show n
 unpackName x                    = case break (=='_') x of
                                     (s,"") -> name0 s
                                     (s,n)  -> (name0 s) { tag = read n }
-
-------- Binary --------------------------------------------------------
+-- Binary --------------------------------------------------------
 
 instance Binary Name where
   put (Name a b c d) = putWord8 0 >> put a >> put b >> put c >> put d

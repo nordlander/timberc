@@ -9,6 +9,7 @@ import ParseMonad
 import Syntax
 import Fixity
 
+
 parser     :: String -> M s Module
 parser str = runPM2 parse str
 
