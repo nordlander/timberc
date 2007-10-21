@@ -95,8 +95,7 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ render (vpr te) 
                                          (qe1,qe2) = partition (isFixed env1) qe
                                          (vs,qs)   = unzip qe2
                                          es2       = map f es1
-                                         es3       = if rec then map (subst sat) es2 else es2
-                                         sat       = let es = map EVar vs in map (\x -> (x, eAp (EVar x) es)) xs
+                                         es3       = if rec && not (null vs) then map (subst (satSubst vs)) es2 else es2
                                          (es',ts') = unzip (zipWith (qual qe2) es3 (subst s' ts))
                                      -- tr ("Witnesses returned: " ++ show qe1 ++ "   |   " ++ show qe2)
                                      ts'' <- mapM (gen (tevars env1 ++ tvars qe1)) ts'
@@ -107,8 +106,11 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ render (vpr te) 
         (xs,es)                 = unzip eqs
         explWits                = map (explicit . annot) xs
         env'                    = if rec then addTEnv te env else env
-
-
+        satSubst vs             = zipWith f xs ts
+          where es              = map EVar vs
+                f x t           = (x, eLam te (EAp (EVar x) (es ++ map EVar (dom te))))
+                  where te      = abcSupply `zip` ctxt t
+                
 
 
 tiRhs0 env explWits ts es       = do (ss,pes,es') <- fmap unzip3 (mapM (tiExpT' env) (zip3 explWits ts es))

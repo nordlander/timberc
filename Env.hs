@@ -481,7 +481,12 @@ instantiate sc e                = do r <- inst sc
                                      saturate r e
 
 
-qual qe e (Scheme t ps ke)      = (eLam qe e, Scheme t (rng qe ++ ps) ke)
+qual [] e sc                    = (e, sc)
+qual qe e (Scheme t [] ke)      = (ELam qe e, Scheme t (rng qe) ke)
+qual qe (ELam te e) (Scheme t ps ke)
+                                = (ELam (qe++te) e, Scheme t (rng qe ++ ps) ke)
+qual qe e (Scheme t ps ke)      = (ELam (qe++te) (EAp e (map EVar (dom te))), Scheme t (rng qe ++ ps) ke)
+  where te                      = abcSupply `zip` ps
 
 
 gen tvs0 sc@(Scheme t ps ke)    = do ids <- newNames tyvarSym (length tvs)
