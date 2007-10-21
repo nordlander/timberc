@@ -507,7 +507,8 @@ mkTrans env ((w1,p1), (w2,p2))          = do (pe1, R c1, e1) <- instantiate p1 (
                                                  (e',p') = qual qe e (subst s' p)
                                              sc <- gen (tevars env) p'
                                              w <- newNameMod (modName env) coercionSym
-                                             return ((w,sc), (w, redTerm (coercions env) e'))
+                                             e' <- redTerm (coercions env) e'
+                                             return ((w,sc), (w, e'))
 
 -- Handle class predicates
 closeSuperclass env []                  = return (env, [], [])

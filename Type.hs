@@ -261,7 +261,8 @@ tiLhs env alpha tiX xs          = do x <- newName tempSym
                                          pes1 = subst s (map (filter (not . isCoercion . fst)) pes) -- preserve non-coercions for each alt
                                          (es2,ts2) = unzip (zipWith3 qual pes1 es1 ts1)
                                      ts3 <- mapM (gen (tevars (subst s env'))) ts2
-                                     return (subst s alpha, ts3, map (redTerm (coercions env)) es2)
+                                     es2 <- mapM (redTerm (coercions env)) es2
+                                     return (subst s alpha, ts3, es2)
 
 
 -- Build record fields -----------------------------------------------------------------------------------------------------------

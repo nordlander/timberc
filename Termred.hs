@@ -1,12 +1,13 @@
 module Termred(termred, redTerm, finite, env0, constrs) where
 
+import Monad
 import Common
 import Core
 import Depend
 import PP
 import Char
 
-termred (_,_,bs',is') m         = return (redModule (eqnsOf is' ++ eqnsOf bs') m)
+termred (_,_,bs',is') m         = redModule (eqnsOf is' ++ eqnsOf bs') m
 
 
 redTerm coercions e             = redExp (Env {eqns = coercions, args = []}) e
@@ -22,16 +23,17 @@ addArgs env vs                  = env { args = vs ++ args env }
 addEqns env eqs                 = env { eqns = eqs ++ eqns env }
 
 
-redModule impEqs (Module m ns xs ds ie bs) 
-                                = Module m ns xs ds ie' (Binds r te (es1' ++ redEqns env3 es2))
+redModule impEqs (Module m ns xs ds ie bs)
+                                = do es1' <- redEqns env0 es1
+                                     let env1 = addEqns env0 (finiteEqns env0 es1')
+                                         env2 = addEqns env1 (finiteEqns env1 impEqs)
+                                     ie' <- redBinds env2 ie
+                                     let env3 = addEqns env2 (finiteEqns env2 (eqnsOf ie'))
+                                     es2' <- redEqns env3 es2
+                                     return (Module m ns xs ds ie' (Binds r te (es1' ++ es2')))
   where envFree (_,e)           = all (\x -> isGenerated x || x `elem` [Prim Refl noAnnot]) (idents e) && isSmall e
         Binds r te es           = bs
         (es1,es2)               = partition envFree es
-        es1'                    = redEqns env0 es1
-        env1                    = addEqns env0 (finiteEqns env0 es1')
-        env2                    = addEqns env1 (finiteEqns env1 impEqs) -- We know that imported top-level eqns are finite! should change here
-        ie'                     = redBinds env2 ie
-        env3                    = addEqns env2 (finiteEqns env2 (eqnsOf ie'))
 
 
 finiteEqns env eq               = filter (finite env . snd) eq
@@ -78,48 +80,56 @@ finite env e                    = False
 
 
 
-redBinds env (Binds r te eqns)  = Binds r te (redEqns env eqns)
-
-redEqns env []                  = []
-redEqns env ((x,e):eqns)
-  | finite env e' && isSmall e              
-                                = (x,e') : redEqns (addEqns env [(x,e')]) eqns    -- no risk of infinite inlining
-  | otherwise                   = (x,e') : redEqns env eqns
-  where e'                      = redExp env e
+redBinds env (Binds r te eqns)  = liftM (Binds r te) (redEqns env eqns)
 
 
-redExp env (ERec c eqs)         = ERec c (mapSnd (redExp env) eqs)
-redExp env (ETempl x t te c)    = ETempl x t te (redCmd env c)
-redExp env (EAct e e')          = EAct (redExp env e) (redExp env e')
-redExp env (EReq e e')          = EReq (redExp env e) (redExp env e')
-redExp env (EDo x t c)          = EDo x t (redCmd env c)
-redExp env (ELam te e)          = redEta env te (redExp env e)
-redExp env (ESel e s)           = redSel env (redExp env e) s
-redExp env (ECase e alts d)     = redCase env (redExp env e) alts d
-redExp env (ELet bs e)
-  | rec                         = ELet bs' (redExp env e)
-  | otherwise                   = redBeta env te e (map (lookup' eqs) (dom te))
-  where bs'@(Binds rec te eqs)  = redBinds env bs
-redExp env e@(EVar (Prim {}))   = e
-redExp env e@(EVar (Tuple {}))  = e
+redEqns env []                  = return []
+redEqns env ((x,e):eqns)        = do e' <- redExp env e
+                                     let env' = if finite env e' && isSmall e 
+                                                then addEqns env [(x,e')]     -- no risk of infinite inlining
+                                                else env
+                                     liftM ((x,e'):) (redEqns env' eqns)
+
+
+redExp env (ERec c eqs)         = do es' <- mapM (redExp env) es
+                                     return (ERec c (ls `zip` es'))
+  where (ls,es)                 = unzip eqs
+redExp env (ETempl x t te c)    = liftM (ETempl x t te) (redCmd env c)
+redExp env (EAct e e')          = liftM2 EAct (redExp env e) (redExp env e')
+redExp env (EReq e e')          = liftM2 EReq (redExp env e) (redExp env e')
+redExp env (EDo x t c)          = liftM (EDo x t) (redCmd env c)
+redExp env (ELam te e)          = do e <- redExp env e
+                                     redEta env te e
+redExp env (ESel e s)           = do e <- redExp env e
+                                     redSel env e s
+redExp env (ECase e alts d)     = do e <- redExp env e
+                                     redCase env e alts d
+redExp env (ELet bs e)          = do bs'@(Binds rec te eqs) <- redBinds env bs
+                                     if rec then
+                                        liftM (ELet bs') (redExp env e)
+                                      else
+                                        redBeta env te e (map (lookup' eqs) (dom te))
+redExp env e@(EVar (Prim {}))   = return e
+redExp env e@(EVar (Tuple {}))  = return e
 redExp env e@(EVar x)           = case lookup x (eqns env) of
-                                      Just e' -> e'
-                                      _       -> e
-redExp env (EAp e es)           = redApp env (redExp env e) (map (redExp env) es)
-redExp env e                    = e
+                                      Just e' -> alphaConvert e'
+                                      _       -> return e
+redExp env (EAp e es)           = do e <- redExp env e
+                                     es <- mapM (redExp env) es
+                                     redApp env e es
+redExp env e                    = return e
 
 
 -- reduce an application e es (head and args already individually reduced)
 redApp env (EVar (Prim p a)) es 
-                                = redPrim env p a es
+                                = return (redPrim env p a es)
 redApp env e@(EVar x) es        = case lookup x (eqns env) of
-                                       Just e' -> redApp env e' es      -- SHOULD REALLY ALPHA-CONVERT HERE!!!
-                                       Nothing -> EAp e es
+                                       Just e' -> do e' <- alphaConvert e'; redApp env e' es
+                                       Nothing -> return (EAp e es)
 redApp env (ELam te e) es       = redBeta env te e es
-redApp env (ECase e alts d) es  = ECase e (map f alts) (redApp env d es)
-  where f (p,e)                 = (p, redApp env e es)
-redApp env (ELet bs e) es       = ELet bs (redApp env e es)
-redApp env e es                 = EAp e es
+redApp env (ECase e alts d) es  = liftM2 (ECase e) (redAlts env (mapSnd (`EAp` es) alts)) (redApp env d es)
+redApp env (ELet bs e) es       = liftM (ELet bs) (redApp env e es)
+redApp env e es                 = return (EAp e es)
 
 
 -- perform beta reduction (if possible)
@@ -128,35 +138,43 @@ redBeta env ((x,t):te) (EVar y) (e:es)
 redBeta env ((x,t):te) b (e:es)
   | isGenerated x               = redBeta (addEqns env [(x,e)]) te b es    -- must be a witness, is a value & appears only once
   | finite env e && value e     = redBeta (addEqns env [(x,e)]) te b es    -- can be safely ignored
-  | otherwise                   = ELet (Binds False [(x,t)] [(x,e)]) (redBeta env te b es)
+  | otherwise                   = liftM (ELet (Binds False [(x,t)] [(x,e)])) (redBeta env te b es)
 redBeta env [] b []             = redExp env b
 
 
-redEta env te (EAp e es)
-  | ok e                        = redExp env e
-  where ok (ECon _)             = False
-        ok (EVar (Prim _ _))    = False
-        ok _                    = map (redExp env) es == map EVar (dom te)
-redEta env te e                 = ELam te (redExp (addArgs env (dom te)) e)
+redEta env te (EAp e es)        = do es <- mapM (redExp env) es
+                                     e <- redExp env e
+                                     if okEta e && es == map EVar (dom te) then
+                                        return e
+                                      else do
+                                        liftM (ELam te) (redApp env e es)
+  where okEta (ECon _)          = False
+        okEta (EVar (Prim _ _)) = False
+        okEta _                 = True
+redEta env te e                 = liftM (ELam te) (redExp (addArgs env (dom te)) e)
 
 
 redSel env e@(EVar x) s         = case lookup x (eqns env) of
-                                    Just e' -> redSel env e' s
-                                    Nothing -> ESel e s
+                                    Just e' -> do e' <- alphaConvert e'; redSel env e' s
+                                    Nothing -> return (ESel e s)
 redSel env (ERec c eqs) s
   | all value (rng eqs)         = case lookup s eqs of
-                                    Just e  -> e
+                                    Just e  -> return e
                                     Nothing -> error "Internal: redSel"
-redSel env e s                  = ESel e s
+redSel env e s                  = return (ESel e s)
 
 
 redCase env e@(EVar x) alts d   = case lookup x (eqns env) of
-                                    Just e' -> redCase env e' alts d
-                                    Nothing -> ECase e (mapSnd (redExp env) alts) (redExp env d)
+                                    Just e' -> do e' <- alphaConvert e'; redCase env e' alts d
+                                    Nothing -> liftM2 (ECase e) (redAlts env alts) (redExp env d)
 redCase env (ELit l) alts d     = findLit env l alts d
 redCase env e alts d            = case eFlat e of
                                     (ECon k, es) -> findCon env k es alts d
-                                    _            -> ECase e (mapSnd (redExp env) alts) (redExp env d)
+                                    _            -> liftM2 (ECase e) (redAlts env alts) (redExp env d)
+
+redAlts env alts                = do es <- mapM (redExp env) es
+                                     return (ps `zip` es)
+  where (ps,es)                 = unzip alts
 
 
 findCon env k es [] d           = redExp env d
@@ -221,11 +239,12 @@ eBool True                      = ECon (prim TRUE)
 eBool False                     = ECon (prim FALSE)
 
 
-redCmd env (CRet e)             = CRet (redExp env e)
-redCmd env (CExp e)             = CExp (redExp env e)
-redCmd env (CGen p t e c)       = CGen p t (redExp env e) (redCmd env c)
-redCmd env (CLet bs c)          = CLet (redBinds env bs) (redCmd env c)
-redCmd env (CAss x e c)         = CAss x (redExp env e) (redCmd env c)
+redCmd env (CRet e)             = liftM CRet (redExp env e)
+redCmd env (CExp e)             = liftM CExp (redExp env e)
+redCmd env (CGen p t e c)       = liftM2 (CGen p t) (redExp env e) (redCmd env c)
+redCmd env (CLet bs c)          = liftM2 CLet (redBinds env bs) (redCmd env c)
+redCmd env (CAss x e c)         = liftM2 (CAss x) (redExp env e) (redCmd env c)
+
 
 
 -- Constructor presence
