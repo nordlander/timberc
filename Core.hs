@@ -213,6 +213,9 @@ pscheme p                       = Scheme (R p) [] []
 pscheme' p ps ke                = Scheme (R p) ps ke
 
 
+flipSel (Scheme (F t rh) ps ke) = Scheme (F t (tFun ps rh)) [] ke
+
+
 splitInsts (Binds r pe eq)      = (Binds False pe1 eq1, Binds r pe2 eq2)
   where (pe1,pe2)               = partition (isSub' . snd) pe
         (eq1,eq2)               = partition ((`elem` dom pe1) . fst) eq

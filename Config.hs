@@ -208,6 +208,7 @@ data Pass            = Parser
                      | KCheck
                      | TCheck
                      | Termred
+                     | Type2
                      | C2K
                      | LLift
                      | Prepare4C

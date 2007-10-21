@@ -25,6 +25,7 @@ import Syntax2Core
 import Kind
 import Type
 import Termred
+import Type2
 import Kindle
 import Core2Kindle
 import Lambdalift
@@ -179,7 +180,8 @@ compileTimber clo ifs t_file ti_file c_file h_file
                              kc      <- pass (kindcheck e2)   KCheck              co
                              tc      <- pass (typecheck e2)   TCheck              kc
                              rd      <- pass (termred e2)     Termred             tc
-                             (ki,a2) <- pass (core2kindle e2 e3) C2K              rd
+                             tc2     <- pass (typecheck2 e2)  Type2               rd
+                             (ki,a2) <- pass (core2kindle e2 e3) C2K              tc2
                              ll      <- pass (lambdalift e3)  LLift               ki
                              pc      <- pass (prepare4c e2 e3)   Prepare4C           ll
                              c       <- pass (kindle2c (init_order imps)) K2C     pc
