@@ -148,6 +148,7 @@ instance HasPos Name where
                  Nothing    -> Unknown
                  Just (0,0) -> Unknown  -- artificially introduced
                  Just (l,c) -> Between (l,c) (l,c+len n-1)
+                 Nothing    -> Unknown
                where len(Name s _ _ _) = length s
                      len(Prim p _)     = length (strRep p)
                      len(Tuple n _)    = n+2
