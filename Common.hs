@@ -145,6 +145,7 @@ instance HasPos Bool where
 
 instance HasPos Name where
    posInfo n = case location (annot n) of
+                 Nothing    -> Unknown
                  Just (0,0) -> Unknown  -- artificially introduced
                  Just (l,c) -> Between (l,c) (l,c+len n-1)
                where len(Name s _ _ _) = length s
@@ -360,7 +361,7 @@ type Map a b = [(a,b)]
 
 lookup' assoc x                 = case lookup x assoc of
                                     Just e -> e
-                                    Nothing -> internalError "lookup': did nor find" x
+                                    Nothing -> internalError "lookup': did not find" x
 
 inv assoc                       = map (\(a,b) -> (b,a)) assoc
 

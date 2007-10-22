@@ -549,7 +549,7 @@ instance AlphaConv Exp where
     ac s1 s2 (EAp e es)         = liftM2 EAp (ac s1 s2 e) (mapM (ac s1 s2) es)
     ac s1 s2 (ELet bs e)        = do (s1',s2',te') <- freshTE s1 s2 te
                                      es <- mapM (if r then ac s1' s2' else ac s1 s2) es
-                                     liftM (ELet (Binds r te' (xs `zip` es))) (ac s1' s2' e)
+                                     liftM (ELet (Binds r te' (map (acVar s1') xs `zip` es))) (ac s1' s2' e)
       where Binds r te eqs      = bs
             (xs,es)             = unzip eqs
     ac s1 s2 (ERec c eqs)       = liftM (ERec c . (ls `zip`)) (mapM (ac s1 s2) es)
@@ -572,11 +572,10 @@ instance AlphaConv Cmd where
     ac s1 s2 (CExp e)           = liftM CExp (ac s1 s2 e)
     ac s1 s2 (CGen x tx e c)    = do (s1',s2',[(x',tx')]) <- freshTE s1 s2 [(x,tx)]
                                      liftM2 (CGen x' tx') (ac s1 s2 e) (ac s1' s2' c)
-    ac s1 s2 (CAss x e c)       = liftM2 (CAss x') (ac s1 s2 e) (ac s1 s2 c)
-      where x'                  = case lookup x s1 of Just (EVar x') -> x'; _ -> x
+    ac s1 s2 (CAss x e c)       = liftM2 (CAss (acVar s1 x)) (ac s1 s2 e) (ac s1 s2 c)
     ac s1 s2 (CLet bs c)        = do (s1',s2',te') <- freshTE s1 s2 te
                                      es <- mapM (if r then ac s1' s2' else ac s1 s2) es
-                                     liftM (CLet (Binds r te' (xs `zip` es))) (ac s1' s2' c)
+                                     liftM (CLet (Binds r te' (map (acVar s1') xs `zip` es))) (ac s1' s2' c)
       where Binds r te eqs      = bs
             (xs,es)             = unzip eqs
 
@@ -587,6 +586,7 @@ freshTE s1 s2 te                = do xs' <- newNames paramSym (length xs)
   where (xs,ts)                 = unzip te
         tvs                     = tvars ts \\ dom s2
 
+acVar s x                       = case lookup x s of Just (EVar x') -> x'; _ -> x
 
 
 -- Bound variables --------------------------------------------------------------

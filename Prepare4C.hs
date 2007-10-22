@@ -50,6 +50,10 @@ findDecl env n
   | isTuple n                   = Struct (mapSnd ValT (tupleSels n)) []
   | otherwise                   = lookup' (decls env) n
 
+allCons env (ACon n _ : _)
+  | isTuple n                   = [n]
+  | otherwise                   = head [ ns | (_,Struct _ ns) <- decls env, n `elem` ns ]
+allCons env _                   = []
 
 pModule e2 dsi (Module m ns ds bs)      
                                 = do -- tr (render (vcat (map pr dsi))
@@ -107,12 +111,14 @@ pCmd env (CSwitch e alts d)     = do (bs,e) <- pExp env e
                                      alts <- mapM (pAlt env) alts
                                      let (alts0,alts1) = partition nullAlt alts
                                      d <- pCmd env d
-                                     return (cBind bs (pSwitch0 env e alts0 (pSwitch1 env e alts1 d)))
+                                     return (cBind bs (pSwitch0 env e (alts0++absAlts) (pSwitch1 env e alts1 d)))
   where nullAlt (ACon n c)      = n `elem` nulls env
         nullAlt _               = False
+        present                 = [ n | ACon n _ <- alts ]
+        absent                  = allCons env alts \\ present
+        absAlts                 = [ ACon n d | n <- absent, n `elem` nulls env ]
 pCmd env (CSeq c c')            = liftM2 CSeq (pCmd env c) (pCmd env c')
 pCmd env (CBreak)               = return CBreak
-
 
 pSwitch0 env e [] d             = d
 pSwitch0 env e alts d           = CSwitch (ECast (TId (prim Int)) (noTag e)) alts d
