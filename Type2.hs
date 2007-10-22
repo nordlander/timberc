@@ -20,15 +20,18 @@ t2Module (xs',ds',is',bs') (Module v ns xs ds is bs)
         env0                    = addTEnv0 primPredEnv (initEnv { modName = Just (str v) })
         
 
-t2Binds0 env (Binds r te eqs)   = do eqs <- mapM t2Eq eqs
-                                     return (Binds r te eqs)
-  where t2Eq (x,e)              = do s <- t2ExpT env (findType env x) e
-                                     return (x, subst s e)
+t2Binds0 env (Binds r te eqs)   = do (s,eqs) <- t2Eqs eqs
+                                     return (Binds r (subst s te) eqs)
+  where t2Eqs []                = return (nullSubst, [])
+        t2Eqs ((x,e):eqs)       = do (s1,e) <- t2ExpT env sc e
+                                     (s2,eqs) <- t2Eqs eqs
+                                     return (mergeSubsts[restrict s1 (tvars sc),s2], (x, subst s1 e):eqs)
+          where sc              = findType env x
 
 
-t2Binds env (Binds r te eqs)    = do s <- t2ExpTs env1 scs es
-                                     scs <- mapM (t2Gen (subst s env)) (subst s scs)    -- Will we really need to generalize in this pass?
-                                     return (s {-, Binds r (xs `zip` scs) eqs-})        -- If so, here's the place to do it
+t2Binds env (Binds r te eqs)    = do (s,es) <- t2ExpTs env1 scs es
+                                     scs <- mapM (t2Gen (subst s env)) (subst s scs)
+                                     return (s, Binds r (xs `zip` scs) (xs `zip` es))
   where env1                    = if r then addTEnv te env else env
         (xs,es)                 = unzip eqs
         scs                     = rng te
@@ -42,51 +45,52 @@ t2Binds env (Binds r te eqs)    = do s <- t2ExpTs env1 scs es
 -- harmless w.r.t skolemization.
 -- Note also that this short-cut couldn't be taken in Type, since there we want to save the constraint rh < sc for 
 -- reduction at a later time where we'll have no information on which rh tvars that are generalizable and thus harmless.
-t2ExpT env sc e                 = do (s1,rh) <- t2Exp env e
+t2ExpT env sc e                 = do (s1,rh,e) <- t2Exp env e
                                      s2 <- mgi' rh (quickSkolem sc)
-                                     return (mergeSubsts [s1,s2])
+                                     return (mergeSubsts [s1,s2], e)
                                      
 
-t2ExpTs env [] []               = return nullSubst
-t2ExpTs env (sc:scs) (e:es)     = do s1 <- t2ExpT env sc e
-                                     s2 <- t2ExpTs env scs es
-                                     return (mergeSubsts [s1,s2])
+t2ExpTs env [] []               = return (nullSubst, [])
+t2ExpTs env (sc:scs) (e:es)     = do (s1,e) <- t2ExpT env sc e
+                                     (s2,es) <- t2ExpTs env scs es
+                                     return (mergeSubsts [s1,s2], e:es)
 
 
-t2Exps env []                   = return (nullSubst, [])
-t2Exps env (e:es)               = do (s1,t) <- t2Exp env e
-                                     (s2,ts) <- t2Exps env es
+t2Exps env []                   = return (nullSubst, [], [])
+t2Exps env (e:es)               = do (s1,t,e) <- t2Exp env e
+                                     (s2,ts,es) <- t2Exps env es
                                      let s = mergeSubsts [s1,s2]
-                                     return (s, subst s (t:ts))
+                                     return (s, subst s (t:ts), e:es)
                                       
 
-t2Exp env (ELit l)              = return (nullSubst, R (litType l))
+t2Exp env (ELit l)              = return (nullSubst, R (litType l), ELit l)
 t2Exp env (EVar x)              = do rh <- t2Inst (findType env x)
-                                     return (nullSubst, rh)
+                                     return (nullSubst, rh, EVar x)
 t2Exp env (ECon k)              = do rh <- t2Inst (findType env k)
-                                     return (nullSubst, rh)
+                                     return (nullSubst, rh, ECon k)
 t2Exp env (ESel e l)            = do F [t] rh <- t2Inst (flipSel (findType env l))
-                                     s <- t2ExpT env t e
-                                     return (s, subst s rh)
-t2Exp env (ELam te e)           = do (s,rh) <- t2Exp (addTEnv te env) e
-                                     return (s, F (subst s (rng te)) rh)
-t2Exp env (EAp e es)            = do (s,rh) <- t2Exp env e
-                                     t2Ap env s rh es
-t2Exp env (ELet bs e)           = do s1 <- t2Binds env bs
-                                     t2Exp (addTEnv (subst s1 (tsigsOf bs)) env) e
+                                     (s,e) <- t2ExpT env t e
+                                     return (s, subst s rh, ESel e l)
+t2Exp env (ELam te e)           = do (s,rh,e) <- t2Exp (addTEnv te env) e
+                                     return (s, F (subst s (rng te)) rh, ELam te e)
+t2Exp env (EAp e es)            = do (s,rh,e) <- t2Exp env e
+                                     t2Ap env s rh e es
+t2Exp env (ELet bs e)           = do (s1,bs) <- t2Binds env bs
+                                     (s2,rh,e) <- t2Exp (addTEnv (subst s1 (tsigsOf bs)) env) e
+                                     return (mergeSubsts [s1,s2], rh, ELet bs e)
 t2Exp env (ERec c eqs)          = do alphas <- mapM newTVar (kArgs (findKind env c))
                                      (t,scs) <- t2Lhs env (foldl TAp (TId c) alphas) t2Sel ls
-                                     s <- t2ExpTs env scs es
-                                     return (s, R (subst s t))
+                                     (s,es) <- t2ExpTs env scs es
+                                     return (s, R (subst s t), ERec c (ls `zip` es))
   where (ls,es)                 = unzip eqs
         t2Sel env x l           = t2Exp env (ESel (EVar x) l)
 t2Exp env (ECase e alts d)      = do alpha <- newTVar Star
                                      (TFun [t0] t1,scs) <- t2Lhs env alpha t2Pat ps
-                                     s0 <- t2ExpT env (scheme t0) e
-                                     s1 <- t2ExpT env (scheme t1) d
-                                     s2 <- t2ExpTs env scs es
+                                     (s0,e) <- t2ExpT env (scheme t0) e
+                                     (s1,d) <- t2ExpT env (scheme t1) d
+                                     (s2,es) <- t2ExpTs env scs es
                                      let s = mergeSubsts [s0,s1,s2]
-                                     return (s, R (subst s t1))
+                                     return (s, R (subst s t1), ECase e (ps `zip` es) d)
   where (ps,es)                 = unzip alts
         t2Pat env x (PLit l)    = t2Exp env (EAp (EVar x) [ELit l])
         t2Pat env x (PCon k)    = do rh <- t2Inst (findType env k)
@@ -94,58 +98,58 @@ t2Exp env (ECase e alts d)      = do alpha <- newTVar Star
                                      t2Exp env (eLam te (EAp (EVar x) [eAp (ECon k) (map EVar (dom te))]))
 t2Exp env (EReq e1 e2)          = do alpha <- newTVar Star
                                      beta <- newTVar Star
-                                     s1 <- t2ExpT env (scheme (tRef alpha)) e1
-                                     s2 <- t2ExpT env (scheme (tCmd alpha beta)) e2
+                                     (s1,e1) <- t2ExpT env (scheme (tRef alpha)) e1
+                                     (s2,e2) <- t2ExpT env (scheme (tCmd alpha beta)) e2
                                      let s = mergeSubsts [s1,s2]
-                                     return (s, R (tRequest (subst s beta)))
+                                     return (s, R (tRequest (subst s beta)), EReq e1 e2)
 t2Exp env (EAct e1 e2)          = do alpha <- newTVar Star
                                      beta <- newTVar Star
-                                     s1 <- t2ExpT env (scheme (tRef alpha)) e1
-                                     s2 <- t2ExpT env (scheme (tCmd alpha beta)) e2
+                                     (s1,e1) <- t2ExpT env (scheme (tRef alpha)) e1
+                                     (s2,e2) <- t2ExpT env (scheme (tCmd alpha beta)) e2
                                      let s = mergeSubsts [s1,s2]
-                                     return (s, R tAction)
-t2Exp env (EDo x tx c)          = do (s1,t) <- t2Cmd (setSelf x tx env) c
+                                     return (s, R tAction, EAct e1 e2)
+t2Exp env (EDo x tx c)          = do (s1,t,c) <- t2Cmd (setSelf x tx env) c
                                      let s2 = case stateT env of Nothing -> nullSubst; Just t' -> unif [(t',tx)]
                                          s = mergeSubsts [s1,s2]
-                                     return (s, R (subst s (tCmd tx t)))
-t2Exp env (ETempl x tx te c)    = do (s,t) <- t2Cmd (setSelf x tx (addTEnv te env)) c
-                                     return (s, R (tTemplate t))
+                                     return (s, R (subst s (tCmd tx t)), EDo x tx c)
+t2Exp env (ETempl x tx te c)    = do (s,t,c) <- t2Cmd (setSelf x tx (addTEnv te env)) c
+                                     return (s, R (tTemplate t), ETempl x tx te c)
 
         
 t2Cmd env (CRet e)              = do alpha <- newTVar Star
-                                     s <- t2ExpT env (scheme alpha) e
-                                     return (s, subst s alpha)
+                                     (s,e) <- t2ExpT env (scheme alpha) e
+                                     return (s, subst s alpha, CRet e)
 t2Cmd env (CExp e)              = do alpha <- newTVar Star
-                                     s <- t2ExpT env (scheme (tCmd (fromJust (stateT env)) alpha)) e
-                                     return (s, subst s alpha)
-t2Cmd env (CGen x tx e c)       = do s1 <- t2ExpT env (scheme (tCmd (fromJust (stateT env)) tx)) e
-                                     (s2,t) <- t2Cmd (addTEnv [(x,scheme tx)] env) c
+                                     (s,e) <- t2ExpT env (scheme (tCmd (fromJust (stateT env)) alpha)) e
+                                     return (s, subst s alpha, CExp e)
+t2Cmd env (CGen x tx e c)       = do (s1,e) <- t2ExpT env (scheme (tCmd (fromJust (stateT env)) tx)) e
+                                     (s2,t,c) <- t2Cmd (addTEnv [(x,scheme tx)] env) c
                                      let s = mergeSubsts [s1,s2]
-                                     return (s, subst s t)
-t2Cmd env (CAss x e c)          = do s1 <- t2ExpT env (findType env x) e
-                                     (s2,t) <- t2Cmd env c
+                                     return (s, subst s t, CGen x tx e c)
+t2Cmd env (CAss x e c)          = do (s1,e) <- t2ExpT env (findType env x) e
+                                     (s2,t,c) <- t2Cmd env c
                                      let s = mergeSubsts [s1,s2]
-                                     return (s, subst s t)
-t2Cmd env (CLet bs c)           = do s1 <- t2Binds env bs
-                                     (s2,t) <- t2Cmd (addTEnv (tsigsOf bs) env) c
+                                     return (s, subst s t, CAss x e c)
+t2Cmd env (CLet bs c)           = do (s1,bs) <- t2Binds env bs
+                                     (s2,t,c) <- t2Cmd (addTEnv (tsigsOf bs) env) c
                                      let s = mergeSubsts [s1,s2]
-                                     return (s, subst s t)
+                                     return (s, subst s t, CLet bs c)
 
                                      
 
-t2Ap env s1 (F scs rh) es       = do s2 <- t2ExpTs env scs es
+t2Ap env s1 (F scs rh) e es     = do (s2,es) <- t2ExpTs env scs es
                                      let s = mergeSubsts [s1,s2]
-                                     return (s, subst s rh)
-t2Ap env s1 rh es               = do (s2,rhs) <- t2Exps env es
+                                     return (s, subst s rh, EAp e es)
+t2Ap env s1 rh e es             = do (s2,rhs,es) <- t2Exps env es
                                      t <- newTVar Star
                                      s3 <- mgi' rh (F (map scheme' rhs) (R t))
                                      let s = mergeSubsts [s1,s2,s3]
-                                     return (s, R (subst s t))
+                                     return (s, R (subst s t), EAp e es)
 
 
 t2Lhs env alpha t2X xs          = do x <- newName tempSym
                                      let env' = addTEnv [(x,scheme alpha)] env
-                                     (ss,rhs) <- fmap unzip (mapM (t2X env' x) xs)
+                                     (ss,rhs,_) <- fmap unzip3 (mapM (t2X env' x) xs)
                                      let s = mergeSubsts ss
                                      scs <- mapM (t2Gen (subst s env') . scheme') (subst s rhs)
                                      return (subst s alpha, scs)
