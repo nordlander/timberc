@@ -532,62 +532,93 @@ instance Subst Type Int Kind where
 -- Alpha conversion -------------------------------------------------------------
 
 class AlphaConv a where
-    ac                          :: Map Name Exp -> Map TVar Type -> a -> M x a
+    ac                          :: Map Name Name -> a -> M x a
 
 
-alphaConvert e                  = ac nullSubst nullSubst e
+alphaConvert e | mustAc e       = ac nullSubst e
+               | otherwise      = return e
+
+mustAc (ELam te e)              = True
+mustAc (ELet te e)              = True
+mustAc (EDo x tx c)             = True
+mustAc (ETempl x tx te c)       = True
+mustAc (EAp e es)               = any mustAc (e:es)
+mustAc (ESel e l)               = mustAc e
+mustAc (ERec c eqs)             = any mustAc (rng eqs)
+mustAc (EReq e1 e2)             = any mustAc [e1,e2]
+mustAc (EAct e1 e2)             = any mustAc [e1,e2]
+mustAc (ECase e alts d)         = any mustAc (e:d:rng alts)
+mustAc e                        = False
 
 
+instance AlphaConv a => AlphaConv [a] where
+    ac s xs                     = mapM (ac s) xs
+
+instance (AlphaConv a, AlphaConv b) => AlphaConv (a,b) where
+    ac s (p,e)                  = liftM2 (,) (ac s p) (ac s e)
+
+instance AlphaConv Name where
+    ac s x                      = case lookup x s of
+                                    Just x' -> return x'
+                                    _       -> return x
+
+instance AlphaConv Binds where
+    ac s (Binds r te eqs)       = liftM2 (Binds r) (ac s te) (ac s eqs)
+    
 instance AlphaConv Exp where
-    ac s1 s2 e@(ELit l)         = return e
-    ac s1 s2 e@(EVar x)         = return (subst s1 e)
-    ac s1 s2 e@(ECon k)         = return e
-    ac s1 s2 (ESel e l)         = liftM (`ESel` l) (ac s1 s2 e)
-    ac s1 s2 (ELam te e)        = do (s1',s2',te') <- freshTE s1 s2 te
-                                     e <- ac s1' s2' e
-                                     return (ELam te' e)
-    ac s1 s2 (EAp e es)         = liftM2 EAp (ac s1 s2 e) (mapM (ac s1 s2) es)
-    ac s1 s2 (ELet bs e)        = do (s1',s2',te') <- freshTE s1 s2 te
-                                     es <- mapM (if r then ac s1' s2' else ac s1 s2) es
-                                     liftM (ELet (Binds r te' (map (acVar s1') xs `zip` es))) (ac s1' s2' e)
-      where Binds r te eqs      = bs
-            (xs,es)             = unzip eqs
-    ac s1 s2 (ERec c eqs)       = liftM (ERec c . (ls `zip`)) (mapM (ac s1 s2) es)
-      where (ls,es)             = unzip eqs
-    ac s1 s2 (ECase e alts d)   = liftM3 ECase (ac s1 s2 e) (mapM (ac s1 s2) alts) (ac s1 s2 d)
-      where acAlt (p,e)         = liftM (\e -> (p,e)) (ac s1 s2 e)
-    ac s1 s2 (EReq e1 e2)       = liftM2 EReq (ac s1 s2 e1) (ac s1 s2 e2)
-    ac s1 s2 (EAct e1 e2)       = liftM2 EAct (ac s1 s2 e1) (ac s1 s2 e2)
-    ac s1 s2 (EDo x tx c)       = do (s1',s2',[(x',tx')]) <- freshTE s1 s2 [(x,tx)]
-                                     liftM (EDo x' tx') (ac s1' s2' c)
-    ac s1 s2 (ETempl x tx te c) = do (s1',s2',[(x',tx')]) <- freshTE s1 s2 [(x,tx)]
-                                     (s1',s2',te') <- freshTE s1' s2' te
-                                     liftM (ETempl x' tx' te') (ac s1' s2' c)
-  
-instance AlphaConv (a,Exp) where
-    ac s1 s2 (p,e)              = liftM (\e -> (p,e)) (ac s1 s2 e)
+    ac s (ELit l)               = return (ELit l)
+    ac s (EVar x)               = liftM EVar (ac s x)
+    ac s (ECon k)               = return (ECon k)
+    ac s (ESel e l)             = liftM (`ESel` l) (ac s e)
+    ac s (ELam te e)            = do s' <- extSubst s (dom te)
+                                     liftM2 ELam (ac s' te) (ac s' e)
+    ac s (EAp e es)             = liftM2 EAp (ac s e) (mapM (ac s) es)
+    ac s (ELet bs e)            = do s' <- extSubst s (bvars bs)
+                                     liftM2 ELet (ac s bs) (ac s e)
+    ac s (ERec c eqs)           = liftM (ERec c) (ac s eqs)
+    ac s (ECase e alts d)       = liftM3 ECase (ac s e) (ac s alts) (ac s d)
+    ac s (EReq e1 e2)           = liftM2 EReq (ac s e1) (ac s e2)
+    ac s (EAct e1 e2)           = liftM2 EAct (ac s e1) (ac s e2)
+    ac s (EDo x tx c)           = do s' <- extSubst s [x]
+                                     liftM3 EDo (ac s' x) (ac s' tx) (ac s' c)
+    ac s (ETempl x tx te c)     = do s' <- extSubst s (x : dom te)
+                                     liftM4 ETempl (ac s' x) (ac s' tx) (ac s' te) (ac s' c)
+
+instance AlphaConv Pat where
+    ac s p                      = return p
 
 instance AlphaConv Cmd where
-    ac s1 s2 (CRet e)           = liftM CRet (ac s1 s2 e)
-    ac s1 s2 (CExp e)           = liftM CExp (ac s1 s2 e)
-    ac s1 s2 (CGen x tx e c)    = do (s1',s2',[(x',tx')]) <- freshTE s1 s2 [(x,tx)]
-                                     liftM2 (CGen x' tx') (ac s1 s2 e) (ac s1' s2' c)
-    ac s1 s2 (CAss x e c)       = liftM2 (CAss (acVar s1 x)) (ac s1 s2 e) (ac s1 s2 c)
-    ac s1 s2 (CLet bs c)        = do (s1',s2',te') <- freshTE s1 s2 te
-                                     es <- mapM (if r then ac s1' s2' else ac s1 s2) es
-                                     liftM (CLet (Binds r te' (map (acVar s1') xs `zip` es))) (ac s1' s2' c)
-      where Binds r te eqs      = bs
-            (xs,es)             = unzip eqs
+    ac s (CRet e)               = liftM CRet (ac s e)
+    ac s (CExp e)               = liftM CExp (ac s e)
+    ac s (CGen x tx e c)        = do s' <- extSubst s [x]
+                                     liftM4 CGen (ac s' x) (ac s' tx) (ac s' e) (ac s' c)
+    ac s (CAss x e c)           = liftM3 CAss (ac s x) (ac s e) (ac s c)
+    ac s (CLet bs c)            = do s' <- extSubst s (bvars bs)
+                                     liftM2 CLet (ac s' bs) (ac s' c)
 
+instance AlphaConv Type where
+    ac s (TId n)                = liftM TId (ac s n)
+    ac s (TFun t ts)            = liftM2 TFun (ac s t) (ac s ts)
+    ac s (TAp t u)              = liftM2 TAp (ac s t) (ac s u)
+    ac s (TVar n)               = newTVar (tvKind n)
 
-freshTE s1 s2 te                = do xs' <- newNames paramSym (length xs)
-                                     tvs' <- mapM (newTVar . tvKind) tvs
-                                     return (s1 ++ xs `zip` map EVar xs', s2 ++ tvs `zip` tvs', xs' `zip` subst s2 ts)
-  where (xs,ts)                 = unzip te
-        tvs                     = tvars ts \\ dom s2
+instance AlphaConv Rho where
+    ac s (R t)                  = liftM R (ac s t)
+    ac s (F ts t)               = liftM2 F (ac s ts) (ac s t)
 
-acVar s x                       = case lookup x s of Just (EVar x') -> x'; _ -> x
+instance AlphaConv Scheme where
+    ac s (Scheme t ps ke)       = do s' <- extSubst s (dom ke)
+                                     liftM3 Scheme (ac s' t) (ac s' ps) (ac s' ke)
+    
+instance AlphaConv Kind where
+    ac s k                      = return k
+    
 
+extSubst s xs                   = do s' <- mapM ext xs
+                                     return (s'++s)
+  where ext x                   = do n <- newNum
+                                     return (x, x { tag = n })
+                                     
 
 -- Bound variables --------------------------------------------------------------
 
