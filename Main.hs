@@ -200,7 +200,7 @@ compileAll clo ifs []   = return ()
 compileAll clo ifs (t_file:t_files)
                         = do t_exists <- Directory.doesFileExist t_file
                              Monad.when (not t_exists) (fail ("File " ++ t_file ++ " does not exist."))
-                             res <- checkUpToDate t_file ti_file c_file h_file
+                             res <- checkUpToDate clo t_file ti_file c_file h_file
                              if res then do 
                                  putStrLn ("[skipping " ++ show t_file ++ " (output is up to date)]")
                                  compileAll clo ifs t_files
@@ -213,8 +213,8 @@ compileAll clo ifs (t_file:t_files)
         h_file          = base ++ ".h"
 
 
-checkUpToDate t_file ti_file c_file h_file
-                        = do ti_exists <- Directory.doesFileExist ti_file
+checkUpToDate clo t_file ti_file c_file h_file
+  | shortcut clo        = do ti_exists <- Directory.doesFileExist ti_file
                              c_exists  <- Directory.doesFileExist c_file
                              h_exists  <- Directory.doesFileExist h_file
                              if not ti_exists || not c_exists || not h_exists then 
@@ -225,7 +225,7 @@ checkUpToDate t_file ti_file c_file h_file
                                  c_time  <- Directory.getModificationTime c_file
                                  h_time  <- Directory.getModificationTime h_file
                                  return (t_time < ti_time && t_time < c_time && t_time < h_time)
-        
+  | otherwise           = return False
 
 ------------------------------------------------------------------------------
 
@@ -280,6 +280,7 @@ test pass           = compileTimber clo [] "Test.t"
                                     binTarget = "a.out",
                                     target    = "Trivial",
                                     root      = "root",
+                                    shortcut  = False,
                                     stopAtC   = False,
                                     stopAtO   = False,
                                     dumpAfter = (==pass),

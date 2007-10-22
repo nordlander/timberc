@@ -58,6 +58,7 @@ data CmdLineOpts     = CmdLineOpts { isVerbose :: Bool,
                                      binTarget :: String,
                                      target    :: String,
                                      root      :: String,
+                                     shortcut  :: Bool,
                                      stopAtC   :: Bool,
                                      stopAtO   :: Bool,
                                      dumpAfter :: Pass -> Bool,
@@ -65,7 +66,11 @@ data CmdLineOpts     = CmdLineOpts { isVerbose :: Bool,
                                    }
 
 options              :: [OptDescr Flag]
-options              = [ Option ['v'] 
+options              = [ Option []
+                                ["help"]
+                                (NoArg Help)
+                                "Show this message",
+                         Option ['v'] 
                                 ["verbose"] 
                                 (NoArg Verbose)
                                 "Be verbose",
@@ -81,6 +86,10 @@ options              = [ Option ['v']
                                 ["root"]
                                 (ReqArg Root "NAME['MODULE]")
                                 "Define root of executable program",
+                         Option ['s']
+                                ["shortcut"]
+                                (NoArg ShortCut)
+                                "Try to reuse existing .c, .h and .ti files",
                          Option ['C'] 
                                 ["stop-at-c"]
                                 (NoArg StopAtC)
@@ -106,12 +115,13 @@ options              = [ Option ['v']
                        ]
 
 
-data Flag            = Verbose
+data Flag            = Help
+                     | Verbose
                      | Version
                      | BinTarget String
                      | Target String
                      | Root String
-                     | RootMod String
+                     | ShortCut
                      | StopAtC
                      | StopAtO
                      | DumpAfter Pass
@@ -135,10 +145,13 @@ instance Show TimbercException where
 
 cmdLineOpts          :: [String] -> IO (CmdLineOpts,[String])
 cmdLineOpts args     = case getOpt Permute options args of
-                         (flags,n,[])   -> do opts <- mkCmdLineOpts flags
-                                              return (opts,n)
-                         (_,_,errs)     -> do msg <- helpMsg
-                                              Exception.throwDyn (CmdLineError (concat errs ++ msg))
+                         (flags,n,[]) 
+                           | Help `elem` flags -> do msg <- helpMsg
+                                                     Exception.throwDyn (CmdLineError msg)
+                           | otherwise         -> do opts <- mkCmdLineOpts flags
+                                                     return (opts,n)
+                         (_,_,errs)            -> do msg <- helpMsg
+                                                     Exception.throwDyn (CmdLineError (concat errs ++ msg))
 
 
 helpMsg              = do pgm <- getProgName
@@ -161,6 +174,7 @@ mkCmdLineOpts flags  =  do cfg <- System.getEnv "TIMBER_CFG" `catch`
                                                 [ target | (Target target) <- flags ],
                                     root      = first "root"
                                                 [ root | (Root root) <- flags ],
+                                    shortcut  = find ShortCut,
                                     stopAtC   = find StopAtC,
                                     stopAtO   = find StopAtO,
                                     dumpAfter = find . DumpAfter,
