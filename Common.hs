@@ -145,7 +145,6 @@ instance HasPos Bool where
 
 instance HasPos Name where
    posInfo n = case location (annot n) of
-                 Nothing    -> Unknown
                  Just (0,0) -> Unknown  -- artificially introduced
                  Just (l,c) -> Between (l,c) (l,c+len n-1)
                  Nothing    -> Unknown
