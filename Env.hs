@@ -691,11 +691,9 @@ primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
                             (prim TimeGE,       scheme0 [tTime,tTime] tBool),
                             (prim TimeGT,       scheme0 [tTime,tTime] tBool),
 
-                            (prim Fail,         scheme1 [] (tPMC a)),
-                            (prim Commit,       scheme1 [a] (tPMC a)),
-                            (prim Match,        scheme1 [tPMC a] a),
-                            (prim Fatbar,       scheme1 [tPMC a, tPMC a] (tPMC a)),
-
+                            (prim Raise,        scheme1 [tInt] a),          -- temporary
+                            (prim Catch,        scheme0 [] tUnit),          -- temporary
+                            
                             (prim ListArray,    scheme1 [tList a] (tArray a)),
                             (prim ConstArray,   scheme1 [tInt, a] (tArray a)),
                             (prim SizeArray,    scheme1 [tArray a] tInt),
@@ -703,8 +701,14 @@ primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
                             (prim UpdateArray,  scheme2 [tArray a, tInt, a] (tCmd b tUnit)),
                             (prim CloneArray,   scheme1 [tArray a, tInt] (tArray a)),
 
+                            (prim Fail,         scheme1 [] (tPMC a)),
+                            (prim Commit,       scheme1 [a] (tPMC a)),
+                            (prim Match,        scheme1 [tPMC a] a),
+                            (prim Fatbar,       scheme1 [tPMC a, tPMC a] (tPMC a)),
+
                             (prim After,        scheme0 [tTime,tAction] tAction),
                             (prim Before,       scheme0 [tTime,tAction] tAction),
+
                             (prim ASYNC,        scheme0 [tMsg, tTime, tTime] tUnit),
                             (prim LOCK,         scheme0 [tPID] tUnit),
                             (prim UNLOCK,       scheme0 [tPID] tUnit),

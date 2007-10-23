@@ -22,7 +22,9 @@ data Prim                       =
 
                                 -- Constructor identifiers
 
-                                  Action                -- Types
+                                  MIN____TYPE
+
+                                | Action                -- Types
                                 | Request
                                 | Template
                                 | Cmd
@@ -44,6 +46,10 @@ data Prim                       =
 
                                 | LIST                  -- Type
                                 | UNITTYPE              -- Type
+
+                                | MAX____TYPE
+                                
+                                | MIN____CONS
                                 
                                 | UNITTERM              -- Term
                                 | NIL                   -- Term
@@ -54,8 +60,12 @@ data Prim                       =
                                 | FALSE                 -- Terms
                                 | TRUE
 
+                                | MAX____CONS
+                                
                                 -- Variable identifiers
 
+                                | MIN____VAR
+                                
                                 | Refl                  -- Terms
 
                                 | ActToCmd
@@ -122,13 +132,19 @@ data Prim                       =
                                 | TimeGE
                                 | TimeGT
 
+                                | Raise
+                                | Catch
+                                
                                 | ListArray
                                 | ConstArray
                                 | SizeArray
                                 | IndexArray
                                 | UpdateArray
                                 | CloneArray
+                                
+                                | MAX____KINDLEVAR
 
+-- transformed away before Kindle conversion ----------------------------------------------------
 
                                 | Fail
                                 | Commit
@@ -137,13 +153,16 @@ data Prim                       =
 
                                 | After
                                 | Before
+                                
+                                | MAX____VAR
 
 -- invisible ------------------------------------------------------------------------------------
 
+                                | MIN____INVISIBLE
+                                
                                 | ASYNC                 -- RTS entry points
                                 | LOCK
                                 | UNLOCK
-                                | NEW
                                 
                                 | Inherit               -- default Time value
 
@@ -159,20 +178,25 @@ data Prim                       =
                                 | TimeBox 
                                 | Value                 -- selector of struct Box
                                 
-                                | LISTtags              -- The Kindle Enum for built-in LIST tags
+                                | MAX____INVISIBLE
+                                
                                 deriving (Eq,Ord,Enum,Bounded,Show)
 
-isConPrim p                     = p <= TRUE
+minPrim                         = minBound :: Prim
+maxPrim                         = maxBound :: Prim
 
-invisible p                     = p >= ASYNC
+isConPrim p                     = p <= MAX____CONS
+
+invisible p                     = p >= MIN____INVISIBLE
 
 isIdPrim p                      = p `notElem` primSyms
 
 primSyms                        = [LIST, NIL, CONS]
 
-primTypes                       = map primKeyValue [Action .. UNITTYPE] ++ alreadyPrimed [Action .. UNITTYPE]
+primTypes                       = map primKeyValue typerange ++ alreadyPrimed typerange
+  where typerange               = [MIN____TYPE .. MAX____TYPE]
 
-primTerms                       = map primKeyValue [NIL .. Before] ++ alreadyPrimed [UNITTERM,NIL,CONS,LazyAnd,LazyOr]
+primTerms                       = map primKeyValue [MIN____CONS .. MAX____VAR] ++ alreadyPrimed [UNITTERM,NIL,CONS,LazyAnd,LazyOr]
 
 primKeyValue p                  = (name0 (strRep p), prim p)
 
@@ -190,6 +214,8 @@ strRep Sec                      = "sec"
 strRep MilliSec                 = "millisec"
 strRep MicroSec                 = "microsec"
 strRep NanoSec                  = "nanosec"
+strRep Raise                    = "raise"
+strRep Catch                    = "catch"
 strRep Infinity                 = "infinity"
 strRep p                        = strRep2 p
                                 
@@ -369,6 +395,8 @@ packName n                      = show n
 unpackName x                    = case break (=='_') x of
                                     (s,"") -> name0 s
                                     (s,n)  -> (name0 s) { tag = read n }
+
+
 -- Binary --------------------------------------------------------
 
 instance Binary Name where
@@ -388,209 +416,13 @@ instance Binary Annot where
   put (Annot a b c) = put a >> put b >> put c
   get = get >>= \a -> get >>= \b -> get >>= \c -> return (Annot a b c)
 
-instance Binary Prim where
-  put Action = putWord8 0
-  put Request = putWord8 1
-  put Template = putWord8 2
-  put Cmd = putWord8 3
-  put Msg = putWord8 4
-  put Ref = putWord8 5
-  put PID = putWord8 6
-  put PMC = putWord8 7
-  put Time = putWord8 8
-  put Int = putWord8 9
-  put Float = putWord8 10
-  put Char = putWord8 11
-  put Bool = putWord8 12
-  put Array = putWord8 13
-  put LIST = putWord8 14
-  put UNITTYPE = putWord8 15
-  put UNITTERM = putWord8 16
-  put NIL = putWord8 17
-  put CONS = putWord8 18
-  put FALSE = putWord8 19
-  put TRUE = putWord8 20
-  put Refl = putWord8 21
-  put ActToCmd = putWord8 22
-  put ReqToCmd = putWord8 23
-  put TemplToCmd = putWord8 24
-  put RefToPID = putWord8 25
-  put IntPlus = putWord8 26
-  put IntMinus = putWord8 27
-  put IntTimes = putWord8 28
-  put IntDiv = putWord8 29
-  put IntMod = putWord8 30
-  put IntNeg = putWord8 31
-  put IntEQ = putWord8 32
-  put IntNE = putWord8 33
-  put IntLT = putWord8 34
-  put IntLE = putWord8 35
-  put IntGE = putWord8 36
-  put IntGT = putWord8 37
-  put FloatPlus = putWord8 38
-  put FloatMinus = putWord8 39
-  put FloatTimes = putWord8 40
-  put FloatDiv = putWord8 41
-  put FloatNeg = putWord8 42
-  put FloatEQ = putWord8 43
-  put FloatNE = putWord8 44
-  put FloatLT = putWord8 45
-  put FloatLE = putWord8 46
-  put FloatGE = putWord8 47
-  put FloatGT = putWord8 48
-  put IntToFloat = putWord8 49
-  put FloatToInt = putWord8 50
-  put CharToInt = putWord8 51
-  put IntToChar = putWord8 52
-  put LazyOr = putWord8 53
-  put LazyAnd = putWord8 54
-  put MsgEQ = putWord8 55
-  put MsgNE = putWord8 56
-  put PidEQ = putWord8 57
-  put PidNE = putWord8 58
-  put Sec = putWord8 59
-  put MilliSec = putWord8 60
-  put MicroSec = putWord8 61
-  put NanoSec = putWord8 62
-  put Infinity = putWord8 63
-  put TimePlus = putWord8 64
-  put TimeMinus = putWord8 65
-  put TimeMin = putWord8 66
-  put TimeEQ = putWord8 67
-  put TimeNE = putWord8 68
-  put TimeLT = putWord8 69
-  put TimeLE = putWord8 70
-  put TimeGE = putWord8 71
-  put TimeGT = putWord8 72
-  put ListArray = putWord8 73
-  put ConstArray = putWord8 74
-  put SizeArray = putWord8 75
-  put IndexArray = putWord8 76
-  put UpdateArray = putWord8 77
-  put CloneArray = putWord8 78
-  put Fail = putWord8 79
-  put Commit = putWord8 80
-  put Match = putWord8 81
-  put Fatbar = putWord8 82
-  put After = putWord8 83
-  put Before = putWord8 84
-  put ASYNC = putWord8 85
-  put LOCK = putWord8 86
-  put UNLOCK = putWord8 87
-  put NEW = putWord8 88
-  put Inherit = putWord8 89
-  put Tag = putWord8 90
-  put Code = putWord8 91
-  put Baseline = putWord8 92
-  put Deadline = putWord8 93
-  put CharBox = putWord8 94
-  put FloatBox = putWord8 95
-  put IntBox = putWord8 96
-  put TimeBox = putWord8 97
-  put Value = putWord8 98
-  put LISTtags = putWord8 99
 
+maxPrimWord = fromIntegral (fromEnum maxPrim) :: Word8
+
+instance Binary Prim where
+  put p = putWord8 (fromIntegral (fromEnum p))
   get = do
-    tag_ <- getWord8
-    case tag_ of
-      0 -> return Action
-      1 -> return Request
-      2 -> return Template
-      3 -> return Cmd
-      4 -> return Msg
-      5 -> return Ref
-      6 -> return PID
-      7 -> return PMC
-      8 -> return Time
-      9 -> return Int
-      10 -> return Float
-      11 -> return Char
-      12 -> return Bool
-      13 -> return Array
-      14 -> return LIST
-      15 -> return UNITTYPE
-      16 -> return UNITTERM
-      17 -> return NIL
-      18 -> return CONS
-      19 -> return FALSE
-      20 -> return TRUE
-      21 -> return Refl
-      22 -> return ActToCmd
-      23 -> return ReqToCmd
-      24 -> return TemplToCmd
-      25 -> return RefToPID
-      26 -> return IntPlus
-      27 -> return IntMinus
-      28 -> return IntTimes
-      29 -> return IntDiv
-      30 -> return IntMod
-      31 -> return IntNeg
-      32 -> return IntEQ
-      33 -> return IntNE
-      34 -> return IntLT
-      35 -> return IntLE
-      36 -> return IntGE
-      37 -> return IntGT
-      38 -> return FloatPlus
-      39 -> return FloatMinus
-      40 -> return FloatTimes
-      41 -> return FloatDiv
-      42 -> return FloatNeg
-      43 -> return FloatEQ
-      44 -> return FloatNE
-      45 -> return FloatLT
-      46 -> return FloatLE
-      47 -> return FloatGE
-      48 -> return FloatGT
-      49 -> return IntToFloat
-      50 -> return FloatToInt
-      51 -> return CharToInt
-      52 -> return IntToChar
-      53 -> return LazyOr
-      54 -> return LazyAnd
-      55 -> return MsgEQ
-      56 -> return MsgNE
-      57 -> return PidEQ
-      58 -> return PidNE
-      59 -> return Sec
-      60 -> return MilliSec
-      61 -> return MicroSec
-      62 -> return NanoSec
-      63 -> return Infinity
-      64 -> return TimePlus
-      65 -> return TimeMinus
-      66 -> return TimeMin
-      67 -> return TimeEQ
-      68 -> return TimeNE
-      69 -> return TimeLT
-      70 -> return TimeLE
-      71 -> return TimeGE
-      72 -> return TimeGT
-      73 -> return ListArray
-      74 -> return ConstArray
-      75 -> return SizeArray
-      76 -> return IndexArray
-      77 -> return UpdateArray
-      78 -> return CloneArray
-      79 -> return Fail
-      80 -> return Commit
-      81 -> return Match
-      82 -> return Fatbar
-      83 -> return After
-      84 -> return Before
-      85 -> return ASYNC
-      86 -> return LOCK
-      87 -> return UNLOCK
-      88 -> return NEW
-      89 -> return Inherit
-      90 -> return Tag
-      91 -> return Code
-      92 -> return Baseline
-      93 -> return Deadline
-      94 -> return CharBox
-      95 -> return FloatBox
-      96 -> return IntBox
-      97 -> return TimeBox
-      98 -> return Value
-      99 -> return LISTtags
-      _ -> fail "no parse"
+    w <- getWord8
+    if w <= maxPrimWord
+        then return (toEnum (fromIntegral w))
+        else fail "no parse"

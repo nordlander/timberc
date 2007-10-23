@@ -127,7 +127,7 @@ primDecls                               = (prim Bool,       Struct [tagSig] [pri
                                           []
                                           
 
-primKindleTerms                         = map prim [ IntPlus .. CloneArray ]
+primKindleTerms                         = map prim [ MIN____VAR .. MAX____KINDLEVAR ]
 
 primTEnv                                = map cv (Env.primTypeEnv `restrict` primKindleTerms) ++ primTEnv0
   where 

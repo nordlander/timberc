@@ -80,6 +80,7 @@ UNITTYPE ASYNC(Msg, Time, Time);
 UNITTYPE LOCK(PID);
 UNITTYPE UNLOCK(PID);
 
+POLY RAISE(Int);
 
 struct Array {
   Int size;

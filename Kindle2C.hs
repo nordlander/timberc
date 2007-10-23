@@ -120,7 +120,7 @@ k2cBind (x, Fun t te c)         = k2cType t <+> k2cName x <+> parens (commasep k
                                   text "}"
 
 
-newCall t e n                   = k2cName (prim NEW) <+> parens (k2cType t <> text "," <+> 
+newCall t e n                   = text "NEW" <+> parens (k2cType t <> text "," <+> 
                                                                  k2cExp e <> text "," <+> 
                                                                  text "sizeof" <> parens (text "struct" <+> k2cName n))<> text ";"
 
@@ -160,7 +160,8 @@ k2cAlt (ALit l c)               = text "case" <+> pr l <> text ":" <+> k2cNestCm
 k2cNestCmd (CRet e)             = text "return" <+> k2cExp e <> text ";"
 k2cNestCmd (CBreak)             = text "break;"
 k2cNestCmd c                    = text "{" <+> k2cCmd c $$
-                                  text "}"
+                                  text "}" $$
+                                  text "break;"
 
 
 k2cExp (ECall x [e1,e2])
@@ -240,6 +241,9 @@ k2cPrim MilliSec                = text "MILLISEC"
 k2cPrim MicroSec                = text "MICROSEC"
 k2cPrim NanoSec                 = text "NANOSEC"
 k2cPrim Infinity                = text "INFINITY"
+
+k2cPrim Raise                   = text "RAISE"
+k2cPrim Catch                   = text "CATCH"
                                 
 k2cPrim TimePlus                = text "+"
 k2cPrim TimeMinus               = text "-"

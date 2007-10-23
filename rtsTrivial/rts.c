@@ -75,6 +75,11 @@ ADDR force(WORD size) {                 // Heap overflow in from-space...
     return a;
 }
 
+POLY RAISE(Int err) {
+    fprintf(stderr, "Unhandled exception no. %d\n", err);
+    exit(1);
+}
+
 Array primListArray(LIST xs) {
   Int len = 0;
   Int i = 0;
