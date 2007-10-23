@@ -26,6 +26,7 @@ import Name
 compileC cfg clo c_file = do let cmd = cCompiler cfg
                                      ++ compileFlags cfg
                                      ++ " -I " ++ libDir ++ " " 
+                                     ++ " -I " ++ rtsDir clo ++ " " 
                                      ++ c_file
                              execCmd clo cmd
 
@@ -41,6 +42,7 @@ linkO cfg clo r o_files = do let Just rmod  = fromMod r
                                        ++ unwords o_files ++ " "
                                        ++ " -L" ++ rtsDir clo ++ " " 
                                        ++ " -I" ++ libDir ++ " " 
+                                       ++ " -I " ++ rtsDir clo ++ " " 
                                        ++ " -DROOT=" ++ rootId ++ " "
                                        ++ " -DROOTINIT=" ++ initId ++ " "
                                        ++ rtsDir clo ++ "/main.c "

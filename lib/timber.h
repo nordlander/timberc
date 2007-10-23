@@ -4,12 +4,6 @@
 typedef int WORD;
 typedef WORD *ADDR;
 
-extern ADDR hp, lim;
-ADDR force(WORD);
-
-#define WORDS(bytes)      (((bytes)+sizeof(WORD)-1)/sizeof(WORD))
-#define NEW(t,lhs,size)   lhs = (t)hp; hp += WORDS(size); if (hp >= lim) lhs = (t)force(WORDS(size));
-
 #define Int int
 #define Float float
 #define Char char
@@ -20,6 +14,7 @@ ADDR force(WORD);
 #define PID void*
 #define INFINITY 0
 #define Inherit -1
+
 
 struct TUP2;
 typedef struct TUP2 *TUP2;
@@ -75,12 +70,6 @@ struct Msg {
   Time Baseline;
   Time Deadline;
 };
-
-UNITTYPE ASYNC(Msg, Time, Time);
-UNITTYPE LOCK(PID);
-UNITTYPE UNLOCK(PID);
-
-POLY RAISE(Int);
 
 struct Array {
   Int size;

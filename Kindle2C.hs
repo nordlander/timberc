@@ -23,7 +23,7 @@ k2hModule (Module n ns ds bs)   = hHeader n ns $$$
 k2cImport n                     = text "#include \"" <> text (modToundSc (str n)) <> text ".h\""
 
 
-hHeader n []                    = includeGuard n $$ text "#include \"timber.h\""
+hHeader n []                    = includeGuard n $$ text "#include \"timber.h\"" $$ text "#include \"rts.h\""
 hHeader n ns                    = includeGuard n $$ vcat (map k2cImport ns)
 
 includeGuard n                  = text ("#ifndef " ++ g) $$

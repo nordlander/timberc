@@ -17,10 +17,10 @@ LIB_T = $(wildcard lib/*.t)
 LIB_C = $(LIB_T:.t=.c)
 LIB_H = $(LIB_T:.t=.h)
 
-all: $(DEST)
+all: $(DEST) rts
 
 rts: $(DEST)
-	for rts in $(RTSS); do \
+	@for rts in $(RTSS); do \
 		echo Making $$rts; \
 		$(MAKE) -C $$rts; \
 	done
@@ -36,7 +36,7 @@ install: ${DEST}
 	$(INSTALL) -d $(DESTDIR)$(prefix)/lib
 	$(INSTALL) timberc $(DESTDIR)$(prefix)/bin
 	$(INSTALL) lib/* $(DESTDIR)$(prefix)/lib
-	for rts in $(RTSS); do \
+	@for rts in $(RTSS); do \
 		echo Installing $$rts; \
 		$(MAKE) install -C $$rts; \
 	done
@@ -44,14 +44,14 @@ install: ${DEST}
 clean:
 	rm -f *.o *.hi $(DEST) 
 	rm -f $(LIB_C) $(LIB_H)
-	for rts in $(RTSS); do \
+	@for rts in $(RTSS); do \
 		echo Cleaning $$rts; \
 		$(MAKE) clean -C $$rts; \
 	done
 
 distclean: clean
 	rm -f Makefile config.h	
-	for rts in $(RTSS); do \
+	@for rts in $(RTSS); do \
 		echo Distcleaning $$rts; \
 		$(MAKE) distclean -C $$rts; \
 	done
