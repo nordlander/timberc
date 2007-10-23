@@ -120,7 +120,15 @@ redExp env (EAp e es)           = do e <- redExp env e
 redExp env e                    = return e
 
 
+isRaise (EAp (EVar (Prim Raise _)) [_])
+                                = True
+isRaise _                       = False
+
+
 -- reduce an application e es (head and args already individually reduced)
+redApp env e es
+  | not (null es')              = return (head es')
+  where es'                     = filter isRaise (e:es)
 redApp env (EVar (Prim p a)) es 
                                 = return (redPrim env p a es)
 redApp env e@(EVar x) es        = case lookup x (eqns env) of
@@ -154,6 +162,8 @@ redEta env te (EAp e es)        = do es <- mapM (redExp env) es
 redEta env te e                 = liftM (ELam te) (redExp (addArgs env (dom te)) e)
 
 
+redSel env e s
+  | isRaise e                   = return e
 redSel env e@(EVar x) s         = case lookup x (eqns env) of
                                     Just e' -> do e' <- alphaConvert e'; redSel env e' s
                                     Nothing -> return (ESel e s)
@@ -164,6 +174,8 @@ redSel env (ERec c eqs) s
 redSel env e s                  = return (ESel e s)
 
 
+redCase env e alts d
+  | isRaise e                   = return e
 redCase env e@(EVar x) alts d   = case lookup x (eqns env) of
                                     Just e' -> do e' <- alphaConvert e'; redCase env e' alts d
                                     Nothing -> liftM2 (ECase e) (redAlts env alts) (redExp env d)
@@ -190,6 +202,9 @@ findLit env l (_:alts) d        = findLit env l alts d
 
 
 redPrim env Refl _ [e]                          = e
+redPrim env Match _ [EAp (EVar (Prim Commit _)) [e]]
+                                                = e
+redPrim env Match _ [EVar (Prim Fail _)]        = EAp (EVar (prim Raise)) [ELit (LInt 1)]
 redPrim env Fatbar _ [e,e']                     = redFat env e e'
 redPrim env p a [ELit (LInt x), ELit (LInt y)]  
   |p /= ConstArray                              = redInt p x y
