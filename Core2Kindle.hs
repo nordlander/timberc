@@ -483,7 +483,7 @@ ktMsg                                   = Kindle.TId (prim Msg)
 cAlt cBdy env e0 t0 (PLit l, e)         = do (t1,c) <- cBdy env e
                                              return (litType l, t1, Kindle.ALit l c)
 cAlt cBdy env e0 t0 (PCon k, e)         = do (ts,t) <- instCon env k
-                                             -- no need to t with t0 and compute the instantiated field types,
+                                             -- no need to unify t with t0 and compute the instantiated field types,
                                              -- since e will contain typed binders for each field anyway.
                                              e1 <- fmap (Kindle.ECast (Kindle.TId k)) (adapt env t t0 e0)
                                              (t1,c) <- cRhs cBdy env e ts (map (Kindle.ESel e1) (take (length ts) abcSupply))
@@ -554,6 +554,17 @@ raiseExpr                               = EAp (EVar (prim Raise)) [ELit (LInt 1)
 raiseCmd                                = Kindle.CRet (Kindle.ECall (prim Raise) [Kindle.ELit (LInt 1)])
 
 
+-- Note: we don't really handle PMC terms as first class citizens, rather like constructors in a small grammar
+-- of pattern-matching expressions:
+-- e  ::=  ...  |  Match pm
+-- pm ::=  Commit e  |  Fail  |  Fatbar pm pm  |  case e of {p -> pm} pm  |  let bs in pm
+-- This syntax is followed when PMC terms are introduced in module Match, and is also respected by Termred.
+--
+-- However, should we for some reason want to allow abstraction over PMC terms, as in (\e -> Commit e),
+-- the translation below will need to be complemented with a concrete implementation of the PMC type constructor
+-- (using Maybe, for example), and corresponding general implementations of Match, Commit, Fail & Fatbar.
+
+
 -- Translate a Core.Exp into a Kindle.Cmd that returns a value, inferring its result type
 cValBody env (ELet bs e)                = do (te,bf) <- cBinds env bs
                                              (t,c) <- cValBody (addTEnv te env) e
@@ -561,8 +572,8 @@ cValBody env (ELet bs e)                = do (te,bf) <- cBinds env bs
 cValBody env (ECase e ((PCon k,e'):_) _)
   | isTuple k                           = do (bf,t0,e0) <- cValExp env e
                                              (ts,t) <- instCon env k
-                                             -- no need to t with t0 and compute the instantiated field types,
-                                             -- since e will contain typed binders for each field anyway.
+                                             -- no need to unify t with t0 and compute the instantiated field types,
+                                             -- since e' will contain typed binders for each field anyway.
                                              e1 <- adapt env t t0 e0
                                              (t1,c) <- cRhs cValBody env e' ts (map (Kindle.ESel e1) (take (length ts) abcSupply))
                                              return (t1, bf c)
