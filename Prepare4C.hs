@@ -13,6 +13,8 @@ import qualified Core2Kindle
 
 -- Implements boxing and unboxing of non-ptr values that are cast to/from polymorphic type
 -- Replaces tag-only structs with casts from the actual tag value (and corresponding switch cmds)
+-- Removes CBreak commands that appear directly under a CSeq (without any intervening CSwitch)
+-- Removes redundant defaults in CSwitch commands
 
 -- (Not yet):
 -- Flattens the struct subtyping graph by inlining the first coercion field
@@ -111,14 +113,28 @@ pCmd env (CSwitch e alts d)     = do (bs,e) <- pExp env e
                                      alts <- mapM (pAlt env) alts
                                      let (alts0,alts1) = partition nullAlt alts
                                      d <- pCmd env d
-                                     return (cBind bs (pSwitch0 env e (alts0++absAlts) (pSwitch1 env e alts1 d)))
+                                     return (cBind bs (pSwitch0 env e (alts0++absAlts) (pSwitch1 env e alts1 d')))
   where nullAlt (ACon n c)      = n `elem` nulls env
         nullAlt _               = False
         present                 = [ n | ACon n _ <- alts ]
-        absent                  = allCons env alts \\ present
-        absAlts                 = [ ACon n d | n <- absent, n `elem` nulls env ]
-pCmd env (CSeq c c')            = liftM2 CSeq (pCmd env c) (pCmd env c')
+        (absent0,absent1)       = partition (`elem` nulls env) (allCons env alts \\ present)
+        absAlts                 = [ ACon n d | n <- absent0 ]
+        d'                      = if null absent1 then CBreak else d
+pCmd env (CSeq c c')
+  | a == CBreak                 = pCmd env (bf c')
+  | otherwise                   = liftM2 CSeq (pCmd env c) (pCmd env c')
+  where (bf,a)                  = anchor c
 pCmd env (CBreak)               = return CBreak
+
+
+anchor (CBind r bs c)           = (CBind r bs . bf, c')
+  where (bf,c')                 = anchor c
+anchor (CRun e c)               = (CRun e . bf, c')
+  where (bf,c')                 = anchor c
+anchor (CAssign e x e' c)       = (CAssign e x e' . bf, c')
+  where (bf,c')                 = anchor c
+anchor c                        = (id, c)  
+
 
 pSwitch0 env e [] d             = d
 pSwitch0 env e alts d           = CSwitch (ECast (TId (prim Int)) (noTag e)) alts d
