@@ -113,13 +113,13 @@ pCmd env (CSwitch e alts d)     = do (bs,e) <- pExp env e
                                      alts <- mapM (pAlt env) alts
                                      let (alts0,alts1) = partition nullAlt alts
                                      d <- pCmd env d
-                                     return (cBind bs (pSwitch0 env e (alts0++absAlts) (pSwitch1 env e alts1 d')))
+                                     return (cBind bs (pSwitch0 env e (alts0++absAlts d) (pSwitch1 env e alts1 (dflt d))))
   where nullAlt (ACon n c)      = n `elem` nulls env
         nullAlt _               = False
         present                 = [ n | ACon n _ <- alts ]
         (absent0,absent1)       = partition (`elem` nulls env) (allCons env alts \\ present)
-        absAlts                 = [ ACon n d | n <- absent0 ]
-        d'                      = if null absent1 then CBreak else d
+        absAlts d               = [ ACon n d | n <- absent0 ]
+        dflt d                  = if null absent1 then CBreak else d
 pCmd env (CSeq c c')
   | a == CBreak                 = pCmd env (bf c')
   | otherwise                   = liftM2 CSeq (pCmd env c) (pCmd env c')

@@ -330,7 +330,7 @@ instance Pr Exp where
     prn 1 (ENew x bs)                   = text "new" <+> prId2 x <+> text "{" $$
                                           nest 4 (vpr bs) $$
                                           text "}"
-    prn 1 (ECall x es)                  = prId2 x <+> parens (commasep pr es)
+    prn 1 (ECall x es)                  = prId2 x <> parens (commasep pr es)
     prn 1 (ESel e l)                    = prn 1 e <> text "->" <> prId2 l
     prn 1 (EEnter e x es)               = prn 1 e <> text "." <> prId2 x <> parens (commasep pr es)
     prn 1 e                             = parens (prn 0 e)
