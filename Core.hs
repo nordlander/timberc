@@ -574,7 +574,7 @@ instance AlphaConv Exp where
                                      liftM2 ELam (ac s' te) (ac s' e)
     ac s (EAp e es)             = liftM2 EAp (ac s e) (mapM (ac s) es)
     ac s (ELet bs e)            = do s' <- extSubst s (bvars bs)
-                                     liftM2 ELet (ac s bs) (ac s e)
+                                     liftM2 ELet (ac s' bs) (ac s' e)
     ac s (ERec c eqs)           = liftM (ERec c) (ac s eqs)
     ac s (ECase e alts d)       = liftM3 ECase (ac s e) (ac s alts) (ac s d)
     ac s (EReq e1 e2)           = liftM2 EReq (ac s e1) (ac s e2)
