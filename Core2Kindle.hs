@@ -56,14 +56,15 @@ instance Subst FType TVar Type where
 data Env                            = Env { mname   :: String,
                                             tenv    :: FTEnv,
                                             selfN   :: Maybe Name,
-                                            failHow :: FailHow }
+                                            pmc     :: Bool,
+                                            cont    :: Bool }
 
-data FailHow                        = FailIsRaise | FailIsBreak
 
 env0 m                              = Env { mname   = m,
                                             tenv    = [],
                                             selfN   = Nothing,
-                                            failHow = FailIsRaise }
+                                            pmc     = False,
+                                            cont    = False }
 
 addTEnv te env                      = env { tenv = te ++ tenv env }
 
@@ -77,9 +78,11 @@ self env                            = fromJust (selfN env)
 
 nullSelf env                        = env { selfN = Nothing }
 
-failIsRaise env                     = env { failHow = FailIsRaise }
+setPmc env                          = env { pmc = True }
 
-failIsBreak env                     = env { failHow = FailIsBreak }
+unsetPmc env                        = env { pmc = False }
+
+haveCont env                        = env { cont = True }
 
 
 -- Look up a closure type (a Kindle.Struct) in the current store, extending the store if necessary
@@ -530,26 +533,27 @@ cBody env (ELet bs e)                   = do (te,bf) <- cBinds env bs
                                              return (t, comp bf r)
   where comp f (ValB c)                 = ValB (f c)
         comp f (FunB g ts)              = FunB (\es -> f (g es)) ts
-cBody env e@(ECase _ _ _)               = do (t,c) <- cValBody env e
-                                             return (t, ValB c)
 cBody env (EAp (EVar (Prim Refl _)) [e])
                                         = cBody env e
 cBody env (EAp (EVar (Prim Match _)) [e])
-                                        = cBody (failIsRaise env) e
+                                        = cBody (setPmc env) e
 cBody env (EAp (EVar (Prim Commit _)) [e])
-                                        = cBody env e
-cBody env e@(EVar (Prim Fail _))        = do t <- newTVar Star
-                                             case failHow env of
-                                                FailIsBreak -> return (t, ValB Kindle.CBreak)
-                                                FailIsRaise -> return (t, ValB raiseCmd)
-cBody env e@(EAp (EVar (Prim Fatbar _)) _) 
-                                        = do (t,c) <- cValBody (failIsBreak env) e
+                                        = cBody (unsetPmc env) e
+cBody env e
+  | isPMC e                             = do (t,c) <- cValBody env e
                                              return (t, ValB c)
-cBody env e                             = do (bf,t,h) <- cExp env e
+  where isPMC (ECase _ _ _)                  = True
+        isPMC (EVar (Prim Fail _))           = True
+        isPMC (EAp (EVar (Prim Fatbar _)) _) = True
+        isPMC _                              = False
+cBody env e
+  | pmc env                             = error "Internal: pmc syntax invalidated"
+  | otherwise                           = do (bf,t,h) <- cExp env e
                                              case h of
                                                ValE e      -> return (t, ValB (bf (Kindle.CRet e)))
                                                FunE f _ ts -> return (t, FunB (\es -> bf (Kindle.CRet (f es))) ts)
-                                               
+
+       
 raiseExpr                               = EAp (EVar (prim Raise)) [ELit (LInt 1)]
 raiseCmd                                = Kindle.CRet (Kindle.ECall (prim Raise) [Kindle.ELit (LInt 1)])
 
@@ -588,21 +592,24 @@ cValBody env (ECase e alts e')          = do (bf,t0,e0) <- cValExp env e
 cValBody env (EAp (EVar (Prim Refl _)) [e])
                                         = cValBody env e
 cValBody env (EAp (EVar (Prim Match _)) [e])
-                                        = cValBody (failIsRaise env) e
+                                        = cValBody (setPmc env) e
 cValBody env (EAp (EVar (Prim Commit _)) [e])
-                                        = cValBody env e
-cValBody env (EVar (Prim Fail _))       = do t <- newTVar Star
-                                             case failHow env of
-                                                FailIsBreak -> return (t, Kindle.CBreak)
-                                                FailIsRaise -> return (t, raiseCmd)
+                                        = cValBody (unsetPmc env) e
+cValBody env (EVar (Prim Fail _))
+  | not (pmc env)                       = error "Internal: pmc syntax invalidated"
+  | otherwise                           = do t <- newTVar Star
+                                             return (t, if cont env then Kindle.CBreak else raiseCmd)
 cValBody env (EAp (EVar (Prim Fatbar _)) [e,e']) 
-                                        = do (t,c) <- cValBody (failIsBreak env) e
+  | not (pmc env)                       = error "Internal: pmc syntax invalidated"
+  | otherwise                           = do (t,c) <- cValBody (haveCont env) e
                                              (t',c') <- cValBody env e'
                                              let t0 = subst (quickUnify [(t,t')]) t
                                              c <- adaptBody env t0 t c
                                              c' <- adaptBody env t0 t' c'
                                              return (t0, Kindle.CSeq c c')
-cValBody env e                          = do (bf,t,e) <- cValExp env e
+cValBody env e
+  | pmc env                             = error "Internal: pmc syntax invalidated"
+  | otherwise                           = do (bf,t,e) <- cValExp env e
                                              return (t, bf (Kindle.CRet e))
 
 
@@ -637,6 +644,10 @@ cCmd env (CExp e)                       = cCmdExp env e
 
 
 -- Convert a Core.Exp in the monadic execution path into a Kindle.Cmd, inferring a Type
+cCmdExp env (EAp (EVar (Prim ReqToCmd _)) [e])  
+                                        = cCmdExp env e
+cCmdExp env (EAp (EVar (Prim TemplToCmd _)) [e])
+                                        = cCmdExp env e
 cCmdExp env (EDo x tx c)                = do tx <- cValType tx
                                              (t,c) <- cCmd (pushAddSelf x tx env) c
                                              tx <- kindleType env (stripQuant tx)
@@ -718,8 +729,8 @@ cExp env (EAp (EVar (Prim ActToCmd _)) [e])    = do (bf,t,e) <- cValExp env (EAp
 cExp env (EAp (EVar (Prim ReqToCmd _)) [e])    = cExp env e
 cExp env (EAp (EVar (Prim TemplToCmd _)) [e])  = cExp env e
 cExp env (EAp (EVar (Prim RefToPID _)) [e])    = cExp env e
-cExp env (EAp (EVar (Prim Match _)) [e])       = cExp env e
-cExp env (EAp (EVar (Prim Commit _)) [e])      = cExp env e
+cExp env (EAp (EVar (Prim Match _)) [e])       = cExp (setPmc env) e
+cExp env (EAp (EVar (Prim Commit _)) [e])      = cExp (unsetPmc env) e
 cExp env (EVar (Prim Fail _))                  = cExp env raiseExpr
 cExp env (EAp (EVar (Prim After _)) [e,e'])    = do (bf,_,e1) <- cValExpT env tTime e
                                                     (bf',t,f,_,ts) <- cFunExp env e'
