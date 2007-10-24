@@ -25,6 +25,7 @@ import Name
 -- | Compile a C-file. 
 compileC cfg clo c_file = do let cmd = cCompiler cfg
                                      ++ compileFlags cfg
+                                     ++ " -I " ++ libDir ++ " " 
                                      ++ " -I " ++ includeDir ++ " " 
                                      ++ " -I " ++ rtsDir clo ++ " " 
                                      ++ c_file

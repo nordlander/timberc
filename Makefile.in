@@ -37,7 +37,7 @@ install: ${DEST}
 	$(INSTALL) -d $(DESTDIR)$(prefix)/include
 	$(INSTALL) timberc $(DESTDIR)$(prefix)/bin
 	$(INSTALL) lib/* $(DESTDIR)$(prefix)/lib
-	$(INSTALL) include/* $(DESTDIR)$(prefix)/include
+	$(INSTALL) include/timber.h $(DESTDIR)$(prefix)/include
 	@for rts in $(RTSS); do \
 		echo Installing $$rts; \
 		$(MAKE) install -C $$rts; \

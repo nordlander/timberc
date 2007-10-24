@@ -22,6 +22,7 @@ install: $(DEST)
 	$(INSTALL) -d $(DESTDIR)$(prefix)/rts$(TIMBERTARGET)
 	$(INSTALL) $(DEST) $(DESTDIR)$(prefix)/rts$(TIMBERTARGET)
 	$(INSTALL) timberc.cfg $(DESTDIR)$(prefix)/rts$(TIMBERTARGET)
+	$(INSTALL) rts.h $(DESTDIR)$(prefix)/rts$(TIMBERTARGET)	
 	$(INSTALL) main.c $(DESTDIR)$(prefix)/rts$(TIMBERTARGET)
 
 clean:
