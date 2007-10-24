@@ -19,7 +19,9 @@ LIB_H = $(LIB_T:.t=.h)
 
 all: compiler rts
 
-compiler: $(DEST) Parser.hs
+compiler: $(DEST)
+
+$(DEST): Parser.hs
 	$(HCOMPILER) $(HFLAGS) $(DEST) $(SRC) 
 
 Parser.hs: Parser.y
