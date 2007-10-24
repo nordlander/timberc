@@ -17,19 +17,19 @@ LIB_T = $(wildcard lib/*.t)
 LIB_C = $(LIB_T:.t=.c)
 LIB_H = $(LIB_T:.t=.h)
 
-all: $(DEST) rts
+all: compiler rts
+
+compiler: $(DEST) Parser.hs
+	$(HCOMPILER) $(HFLAGS) $(DEST) $(SRC) 
+
+Parser.hs: Parser.y
+	$(HAPPY) Parser.y
 
 rts: $(DEST)
 	@for rts in $(RTSS); do \
 		echo Making $$rts; \
 		$(MAKE) -C $$rts; \
 	done
-
-${DEST}: Parser.hs
-	$(HCOMPILER) $(HFLAGS) $(SRC) $(DEST) 
-
-Parser.hs: Parser.y
-	$(HAPPY) Parser.y
 
 install: ${DEST}
 	$(INSTALL) -d $(DESTDIR)$(prefix)/bin

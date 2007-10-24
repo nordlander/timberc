@@ -2513,14 +2513,14 @@ fi
 # For now - hard code the options and it will work.
 case $HCOMPILER in
 ghc*)
-	HFLAGS="-fglasgow-exts -fallow-undecidable-instances --make"
+	HFLAGS="-fglasgow-exts --make -o"
+	DEST="timberc"
 	SRC="Main.hs"
-	DEST="-o timberc"
 	;;
 hugs*)
-	HFLAGS="-98 -P{Hugs}/libraries -h2500000"
+	HFLAGS="-98 -P{Hugs}/libraries -h2500000 Main"
+	DEST=""
 	SRC=""
-	DEST="Main"
 	;;
 esac
 

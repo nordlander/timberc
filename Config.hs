@@ -22,6 +22,9 @@ module Config (
                -- Path to target-independent library files.
                libDir,
                       
+               -- Path to target-independent RTS files.
+               includeDir,
+                      
                -- Path to target-dependent RTS files.
                rtsDir,
                
@@ -236,3 +239,5 @@ allPasses            = [Parser .. K2C]
 rtsDir clo           = timberRoot ++ "/rts" ++ target clo
 
 libDir               = timberRoot ++ "/lib"
+
+includeDir           = timberRoot ++ "/include"
