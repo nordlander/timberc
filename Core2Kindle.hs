@@ -528,7 +528,7 @@ data BodyResult                         = ValB Kindle.Cmd
 
 
 -- Translate a Core.Exp into a Kindle.Cmd that returns a function or a value, inferring result type and possible parameters
-cBody env (ELet bs e)                   = do (te,bf) <- cBinds env bs
+cBody env (ELet bs e)                   = do (te,bf) <- cBinds (unsetPmc env) bs
                                              (t,r) <- cBody (addTEnv te env) e
                                              return (t, comp bf r)
   where comp f (ValB c)                 = ValB (f c)
@@ -540,14 +540,14 @@ cBody env (EAp (EVar (Prim Match _)) [e])
 cBody env (EAp (EVar (Prim Commit _)) [e])
                                         = cBody (unsetPmc env) e
 cBody env e
-  | isPMC e                             = do (t,c) <- cValBody env e
+  | isPMC e                             = do (t,c) <- cPMC env e
                                              return (t, ValB c)
   where isPMC (ECase _ _ _)                  = True
         isPMC (EVar (Prim Fail _))           = True
         isPMC (EAp (EVar (Prim Fatbar _)) _) = True
         isPMC _                              = False
 cBody env e
-  | pmc env                             = error "Internal: pmc syntax invalidated"
+  | pmc env                             = error "Internal: pmc syntax violated D"
   | otherwise                           = do (bf,t,h) <- cExp env e
                                              case h of
                                                ValE e      -> return (t, ValB (bf (Kindle.CRet e)))
@@ -570,45 +570,45 @@ raiseCmd                                = Kindle.CRet (Kindle.ECall (prim Raise)
 
 
 -- Translate a Core.Exp into a Kindle.Cmd that returns a value, inferring its result type
-cValBody env (ELet bs e)                = do (te,bf) <- cBinds env bs
-                                             (t,c) <- cValBody (addTEnv te env) e
+cPMC env (ELet bs e)                    = do (te,bf) <- cBinds (unsetPmc env) bs
+                                             (t,c) <- cPMC (addTEnv te env) e
                                              return (t, bf c)
-cValBody env (ECase e ((PCon k,e'):_) _)
-  | isTuple k                           = do (bf,t0,e0) <- cValExp env e
+cPMC env (ECase e ((PCon k,e'):_) _)
+  | isTuple k                           = do (bf,t0,e0) <- cValExp (unsetPmc env) e
                                              (ts,t) <- instCon env k
                                              -- no need to unify t with t0 and compute the instantiated field types,
                                              -- since e' will contain typed binders for each field anyway.
                                              e1 <- adapt env t t0 e0
-                                             (t1,c) <- cRhs cValBody env e' ts (map (Kindle.ESel e1) (take (length ts) abcSupply))
+                                             (t1,c) <- cRhs cPMC env e' ts (map (Kindle.ESel e1) (take (length ts) abcSupply))
                                              return (t1, bf c)
-cValBody env (ECase e alts e')          = do (bf,t0,e0) <- cValExp env e
-                                             (ts0,ts,alts) <- fmap unzip3 (mapM (cAlt cValBody env e0 t0) alts)
-                                             (t,c) <- cValBody env e'
+cPMC env (ECase e alts e')              = do (bf,t0,e0) <- cValExp env e
+                                             (ts0,ts,alts) <- fmap unzip3 (mapM (cAlt cPMC env e0 t0) alts)
+                                             (t,c) <- cPMC env e'
                                              let t1 = subst (quickUnify (repeat t `zip` ts)) t
                                              e0 <- adapt env (head ts0) t0 e0
                                              c <- adaptBody env t1 t c
                                              alts <- adaptAlts env t1 ts alts
                                              return (t1, bf (Kindle.CSwitch (scrutinee (head ts0) e0) alts c))
-cValBody env (EAp (EVar (Prim Refl _)) [e])
-                                        = cValBody env e
-cValBody env (EAp (EVar (Prim Match _)) [e])
-                                        = cValBody (setPmc env) e
-cValBody env (EAp (EVar (Prim Commit _)) [e])
-                                        = cValBody (unsetPmc env) e
-cValBody env (EVar (Prim Fail _))
-  | not (pmc env)                       = error "Internal: pmc syntax invalidated"
+cPMC env (EAp (EVar (Prim Refl _)) [e])
+                                        = cPMC env e
+cPMC env (EAp (EVar (Prim Match _)) [e])
+                                        = cPMC (setPmc env) e
+cPMC env (EAp (EVar (Prim Commit _)) [e])
+                                        = cPMC (unsetPmc env) e
+cPMC env (EVar (Prim Fail _))
+  | not (pmc env)                       = error "Internal: pmc syntax violated A"
   | otherwise                           = do t <- newTVar Star
                                              return (t, if cont env then Kindle.CBreak else raiseCmd)
-cValBody env (EAp (EVar (Prim Fatbar _)) [e,e']) 
-  | not (pmc env)                       = error "Internal: pmc syntax invalidated"
-  | otherwise                           = do (t,c) <- cValBody (haveCont env) e
-                                             (t',c') <- cValBody env e'
+cPMC env (EAp (EVar (Prim Fatbar _)) [e,e']) 
+  | not (pmc env)                       = error "Internal: pmc syntax violated B"
+  | otherwise                           = do (t,c) <- cPMC (haveCont env) e
+                                             (t',c') <- cPMC env e'
                                              let t0 = subst (quickUnify [(t,t')]) t
                                              c <- adaptBody env t0 t c
                                              c' <- adaptBody env t0 t' c'
                                              return (t0, Kindle.CSeq c c')
-cValBody env e
-  | pmc env                             = error "Internal: pmc syntax invalidated"
+cPMC env e
+  | pmc env                             = error "Internal: pmc syntax violated C"
   | otherwise                           = do (bf,t,e) <- cValExp env e
                                              return (t, bf (Kindle.CRet e))
 
