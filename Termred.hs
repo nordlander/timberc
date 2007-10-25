@@ -130,7 +130,7 @@ redApp env e es
   | not (null es')              = return (head es')
   where es'                     = filter isRaise (e:es)
 redApp env (EVar (Prim p a)) es 
-                                = return (redPrim env p a es)
+                                = return (redPrim p a es)
 redApp env e@(EVar x) es        = case lookup x (eqns env) of
                                        Just e' -> do e' <- alphaConvert e'; redApp env e' es
                                        Nothing -> return (EAp e es)
@@ -201,26 +201,31 @@ findLit env l ((PLit l',e):_) d
 findLit env l (_:alts) d        = findLit env l alts d
 
 
-redPrim env Refl _ [e]                          = e
-redPrim env Match _ [EAp (EVar (Prim Commit _)) [e]]
-                                                = e
-redPrim env Match _ [EVar (Prim Fail _)]        = EAp (EVar (prim Raise)) [ELit (LInt 1)]
-redPrim env Fatbar _ [e,e']                     = redFat env e e'
-redPrim env p a [ELit (LInt x), ELit (LInt y)]  
-  |p /= ConstArray                              = redInt p x y
-redPrim env p a [ELit (LRat x), ELit (LRat y)]  = redRat p x y
-redPrim env IntNeg _ [ELit (LInt x)]            = ELit (LInt (-x))
-redPrim env IntToFloat _ [ELit (LInt x)]        = ELit (LRat (fromInteger x))
-redPrim env IntToChar _ [ELit (LInt x)]         = ELit (LChr (chr (fromInteger x)))
-redPrim env FloatNeg _ [ELit (LRat x)]          = ELit (LRat (-x))
-redPrim env FloatToInt _ [ELit (LRat x)]        = ELit (LInt (truncate x))
-redPrim env CharToInt _ [ELit (LChr x)]         = ELit (LInt (toInteger (ord x)))
-redPrim env p a es                              = eAp (EVar (Prim p a)) es
+redPrim Refl _ [e]                          = e
+redPrim Match a es                          = redMatch a es
+redPrim Fatbar a [e,e']                     = redFat a e e'
+redPrim ConstArray a es                     = EAp (EVar (Prim ConstArray a)) es
+redPrim p _ [ELit (LInt x), ELit (LInt y)]  = redInt p x y
+redPrim p a [ELit (LRat x), ELit (LRat y)]  = redRat p x y
+redPrim IntNeg _ [ELit (LInt x)]            = ELit (LInt (-x))
+redPrim IntToFloat _ [ELit (LInt x)]        = ELit (LRat (fromInteger x))
+redPrim IntToChar _ [ELit (LInt x)]         = ELit (LChr (chr (fromInteger x)))
+redPrim FloatNeg _ [ELit (LRat x)]          = ELit (LRat (-x))
+redPrim FloatToInt _ [ELit (LRat x)]        = ELit (LInt (truncate x))
+redPrim CharToInt _ [ELit (LChr x)]         = ELit (LInt (toInteger (ord x)))
+redPrim p a es                              = eAp (EVar (Prim p a)) es
 
 
-redFat env (EVar (Prim Fail _)) e               = e
-redFat env (EAp (EVar (Prim Commit _)) [e]) _   = e
-redFat env e e'                                 = EAp (EVar (prim Fatbar)) [e,e']
+redMatch a [ELet bs e]                      = ELet bs (redMatch a [e])
+redMatch a [EAp (EVar (Prim Commit _)) [e]] = e
+redMatch _ [EVar (Prim Fail a)]             = EAp (EVar (Prim Raise a)) [ELit (LInt 1)]
+redMatch a es                               = EAp (EVar (Prim Match a)) es
+
+
+redFat a (ELet bs e) e'                     = ELet bs (redFat a e e')
+redFat a (EVar (Prim Fail _)) e             = e
+redFat a (EAp (EVar (Prim Commit _)) [e]) _ = e
+redFat a e e'                               = EAp (EVar (Prim Fatbar a)) [e,e']
 
 
 redInt IntPlus a b              = ELit (LInt (a + b))
