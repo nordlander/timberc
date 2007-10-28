@@ -145,8 +145,9 @@ instance HasPos Bool where
 
 instance HasPos Name where
    posInfo n = case location (annot n) of
-                 Just (0,0) -> Unknown  -- artificially introduced
-                 Just (l,c) -> Between (l,c) (l,c+len n-1)
+                 Just (l,c)
+                    |l==0 && c==0 -> Unknown  -- artificially introduced name
+                    |otherwise ->    Between (l,c) (l,c+len n-1)
                  Nothing    -> Unknown
                where len(Name s _ _ _) = length s
                      len(Prim p _)     = length (strRep p)
