@@ -91,7 +91,7 @@ findClosureName env ts t            = do ds <- currentStore
 
 findClosureName' env (TFun ts t)    = do (t:ts) <- mapM (kindleType env) (t:ts)
                                          findClosureName env ts t
-findClosureName' env _              = error "Internal: c2k.findClosureName'"
+findClosureName' env _              = internalError0 "c2k.findClosureName'"
 
 
 -- =========================================================================================
@@ -559,7 +559,8 @@ cPMC cE l env (EVar (Prim Fail _))      = do t <- newTVar Star
   where raiseCmd                        = Kindle.CRet (Kindle.ECall (prim Raise) [Kindle.ELit (LInt 1)])
 cPMC cE l env (EAp (EVar (Prim Commit _)) [e])
                                         = cE env e
-cPMC cE l env e                         = error ("Internal: PMC syntax violated: " ++ show e)
+cPMC cE l env e                         = error ("Internal: PMC syntax violated in Core2Kindle: " ++ show e)
+
 
 
 -- Translate the parts of a case expression into a Kindle.Cmd result, and infer its result type
@@ -844,7 +845,7 @@ quickUnify ((t,TVar n):eqs)             = quickUnify (subst s eqs) @@ s
 quickUnify ((TAp t t',TAp u u'):eqs)    = quickUnify ((t,u) : (t',u') : eqs)
 quickUnify ((TFun ts t,TFun us u):eqs)
   | length ts == length us              = quickUnify ((t,u) : (ts `zip` us) ++ eqs)
-  | otherwise                           = error ("Internal: c2k.quickUnify: " ++ show (TFun ts t, TFun us u))
+  | otherwise                           = internalError0 ("c2k.quickUnify: " ++ show (TFun ts t, TFun us u))
 quickUnify ((t,u):eqs)                  = quickUnify eqs
 
 

@@ -131,7 +131,7 @@ k2cSBind e0 (x, Val t (ENew n bs))
 k2cSBind e0 (x, Val t e)        = k2cExp (ESel e0 x) <+> text "=" <+> k2cExp e <> text ";"
 k2cSBind e0 (x, Fun t te (CRet (ECall f es)))
                                 = k2cExp (ESel e0 x) <+> text "=" <+> k2cName f <> text ";"
-k2cSBind e0 (x, _)              = error "Internal: k2cSBind"
+k2cSBind e0 (x, _)              = internalError0 "k2cSBind"
 
 
 k2cCmd (CRet e)                 = text "return" <+> k2cExp e <> text ";"

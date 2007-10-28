@@ -203,7 +203,7 @@ unif ((TId c, TId c'):eqs)
   | c == c'                     = unif eqs
 unif ((TFun ts t, TFun us u):eqs)
   | length ts == length us      = unif ((t,u) : (ts `zip` us) ++ eqs)
-unif eqs                        = error ("Internal: Type2.unif " ++ show eqs)
+unif eqs                        = internalError0 ("Type2.unif " ++ show eqs)
 
 
 mergeSubsts ss                  = unif (mapFst TVar (concat ss))

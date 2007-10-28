@@ -228,13 +228,13 @@ tiExp env (EDo x tx c)
   | isTVar tx                   = do (s,pe,t,c) <- tiCmd (setSelf x tx env) c
                                      let s' = case stateT env of Nothing -> []; Just t' -> [(t',tx)]
                                      return (s'++s, pe, R (tCmd tx t), EDo x tx c)
-  | otherwise                   = error "Explicitly typed do expressions not yet implemented"
+  | otherwise                   = internalError0 "Explicitly typed do expressions not yet implemented"
 tiExp env (ETempl x tx te c)
   | isTVar tx                   = do n <- newNameMod (modName env) stateSym
                                      let env' = setSelf x (TId n) (addTEnv te (addKEnv0 [(n,Star)] env))
                                      (s,pe,t,c) <- tiCmd env' c
                                      return ((TId n, tx):s, pe, R (tTemplate t), ETempl x (TId n) te c)
-  | otherwise                   = error "Explicitly typed template expressions not yet implemented"
+  | otherwise                   = internalError0 "Explicitly typed template expressions not yet implemented"
 
 
 tiCmd env (CRet e)              = do alpha <- newTVar Star

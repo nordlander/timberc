@@ -88,7 +88,7 @@ data Cmd        = CGen    Name Type Exp Cmd
 litType (LInt i)                = TId (prim Int)
 litType (LRat r)                = TId (prim Float)
 litType (LChr c)                = TId (prim Char)
-litType (LStr s)                = error "Internal chaos: Core.litType LStr"
+litType (LStr s)                = internalError0 "Core.litType LStr"
 
 
 tupleKind n                     = foldr KFun Star (replicate n Star)
@@ -187,7 +187,7 @@ isClass c                       = not (isSub c)
 
 
 subs (TFun [l] u)               = (l,u)
-subs t                          = error ("Internal: subs of " ++ show t)
+subs t                          = internalError "subs of" t
 
 subsyms p                       = (tId (tHead t), tId (tHead t'))
   where (t,t')                  = subs (body p)
@@ -263,7 +263,7 @@ matchTs ((t,TVar n):eqs)                = matchTs (subst s eqs) @@ s
 matchTs ((TAp t u,TAp t' u'):eqs)       = matchTs ((t,t'):(u,u'):eqs)
 matchTs ((TId c,TId c'):eqs)            = matchTs eqs
 matchTs ((TFun ts t,TFun ts' t'):eqs)   = matchTs ((t,t') : ts `zip` ts' ++ eqs)
-matchTs _                               = error "Internal: Core.match"
+matchTs _                               = internalError0 "Core.match"
 
 
 -- Equality up to renaming ----------------------------------------------
@@ -649,6 +649,9 @@ prImports ns                     = text "import" <+> hpr ',' ns
 instance Pr (Module,a) where
   pr (m,_)                       = pr m
 
+instance Pr (a,Inst,Inst) where
+  pr (_,i1,i2)                   = text "default" <+> prNode i1 <+> text "<" <+> prNode i2
+
 -- Type declarations ---------------------------------------------------------
 
 instance Pr Types where
@@ -812,6 +815,9 @@ instance Pr Cmd where
 
 -- HasPos --------------------------------------------------
 
+instance HasPos Default where
+  posInfo (_,i1,i2)             = between (posInfo i1) (posInfo i2)
+
 instance HasPos Types where
   posInfo (Types ke ds)         = between (posInfo ke) (posInfo ds)
 
@@ -848,6 +854,7 @@ instance HasPos Exp where
   posInfo (ESel e l)            = between (posInfo e) (posInfo l)
   posInfo (EVar n)              = posInfo n
   posInfo (ELam te e)           = between (posInfo te) (posInfo e)
+  posInfo (EAp e es)            = foldr1 between (map posInfo (e : es))
   posInfo (ELet bs e)           = between (posInfo bs) (posInfo e)
   posInfo (ECase e as d)        = foldr1 between [posInfo e, posInfo as, posInfo d]
   posInfo (ERec n es)           = between (posInfo n) (posInfo es)

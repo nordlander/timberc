@@ -38,8 +38,8 @@ the IFace.
  
 ifaceMod                   :: (Map Name [Name], Map Name ([Name], Syntax.Type)) -> Module -> Kindle.Decls -> IFace
 ifaceMod (rs,ss) (Module _ ns xs ds is bs) kds
-   | not(null vis)                   = error ("Private types visible in interface: " ++ showids vis)
-   | not(null ys)                    = error ("Public default declaration mentions private instance: "++ render(prDefault ys))
+   | not(null vis)                   = errorIds "Private types visible in interface" vis
+   | not(null ys)                    = errorTree "Public default declaration mentions private instance" (head ys)
    | otherwise                       = IFace ns xs' rs ss ds1 is' bs' kds
   where Types ke te                  = ds
         Binds r1 ts1 es1             = is
@@ -104,7 +104,7 @@ chaseImports imps ifs                = do bms <- mapM (readImport ifs) imps
 transImps (_,_,ifc)                  = impsOf ifc
 
 init_order imps                      = case topSort transImps imps of
-                                         Left ms  -> error ("Mutually recursive modules: " ++ showids ms)
+                                         Left ms  -> errorIds "Mutually recursive modules" ms
                                          Right is -> map fst is
 
 decodeModule f                       = catch (decodeFile f) (\e -> decodeFile (Config.libDir ++ "/" ++ f))
@@ -170,7 +170,7 @@ instance LocalTypes Type where
   localTypes ns (TId n) 
      | n `elem` ns || not (isPrivate n) = []
      | otherwise                  = [n]
-  localTypes _ (TVar t)           = error "Internal: ChaseImports.localTypes: TVar in interface file"
+  localTypes _ (TVar t)           = internalError0 ("ChaseImports.localTypes: TVar in interface file")
   localTypes ns (TFun ts t)       = localTypes ns (t : ts)
   localTypes ns (TAp t1 t2)       = localTypes ns [t1, t2]
 

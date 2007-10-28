@@ -274,7 +274,7 @@ dsStmts (SGen p e : ss)
                                      return (SGen p e : ss)
   | otherwise                   = do v <- newEVar tempSym
                                      dsStmts (SGen v e : SBind (BEqn (LPat p) (RExp v)) : ss)
-dsStmts (s : _)                 = internalError "Internal error in dsStmts; did not expect" s
+dsStmts (s : _)                 = internalError "dsStmts; did not expect" s
 
 
 -- Alternatives -----------------------------------------------------------------------

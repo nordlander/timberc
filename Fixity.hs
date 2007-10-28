@@ -65,7 +65,7 @@ transFix e              = push e [] []
            case os of
               o':os' 
                 |prec==prec'&&(ass/=ass'||ass==NonAss) -> 
-                    error ("Operator ambiguity: " ++ show o ++ " with " ++ show o')
+                    errorIds "Operator associativity ambiguity with operators" [o,o']
                 |prec<prec'||(prec==prec'&&ass==RightAss) ->
                     push (Cons l o (opApp r o' (head es))) os' (tail es)
                          where Fixity ass  prec  = fixity (str' o)
@@ -82,6 +82,6 @@ transFix e              = push e [] []
         str' (Name s _ _ _) = s
         str' (Prim LazyOr _) = "||"
         str' (Prim LazyAnd _) = "&&"
-        str' (Prim p _) = error ("Internal: unknown predefined op: "++ strRep p)
+        str' (Prim p _) = internalError0 ("Unknown predefined op: "++ strRep p)
 
         

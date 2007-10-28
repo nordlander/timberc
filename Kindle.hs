@@ -110,7 +110,7 @@ data Exp        = EVar    Name                -- local or global value name, enu
 litType (LInt _)                        = TId (prim Int)
 litType (LRat _)                        = TId (prim Float)
 litType (LChr _)                        = TId (prim Char)
-litType (LStr _)                        = error "Internal chaos: Kindle.litType LStr"
+litType (LStr _)                        = internalError0 "Kindle.litType LStr"
 
 tagSig                                  = (prim Tag, ValT (TId (prim Int)))
 

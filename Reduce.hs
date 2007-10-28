@@ -330,7 +330,7 @@ auTerms gs es1 es2                      = auZip auTerm gs es1 es2
     auZip f (g:gs) (e1:es1) (e2:es2)    = do (s,q,e) <- f g e1 e2
                                              (s',q',es) <- auZip f (subst s gs) es1 es2
                                              return (s'@@s, subst s' q ++ q', e:es)
-    auZip f gs es1 es2                  = error ("Internal: auZip " ++ show gs ++ "\n" ++ show es1 ++ "\n" ++ show es2)
+    auZip f gs es1 es2                  = internalError0 ("auZip " ++ show gs ++"\n" ++ show es1 ++ "\n" ++ show es2) 
     auTerm g@(env,c) e1 e2              = auTerm' g (eFlat e1) (eFlat e2)
 
 
@@ -355,7 +355,7 @@ auTerms gs es1 es2                      = auZip auTerm gs es1 es2
                                              return (s, q, ELam pe1 e)
       where s0                          = dom pe2 `zip` map EVar (dom pe1)
             env'                        = addPEnv pe1 (addKEnv ke env)
-    auSc _ _ _                          = error "Internal: auTerms"
+    auSc _ _ _                          = internalError0 "auTerms"
 
 
 newHyp (env,c)                          = do -- tr ("newHyp " ++ render (prPScheme 0 p))

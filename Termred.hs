@@ -172,7 +172,7 @@ redSel env e@(EVar x) s         = case lookup x (eqns env) of
 redSel env (ERec c eqs) s
   | all value (rng eqs)         = case lookup s eqs of
                                     Just e  -> return e
-                                    Nothing -> error "Internal: redSel"
+                                    Nothing -> internalError0 "redSel: did not find selector" s
 redSel env e s                  = return (ESel e s)
 
 
@@ -241,7 +241,7 @@ redInt IntLT a b                = eBool (a < b)
 redInt IntLE a b                = eBool (a <= b)
 redInt IntGE a b                = eBool (a >= b)
 redInt IntGT a b                = eBool (a > b)
-redInt p _ _                    = error ("Internal: redInt " ++ show p)
+redInt p _ _                    = internalError0 ("redInt: unknown primitive " ++ show p)
 
 
 redRat FloatPlus a b            = ELit (LRat (a + b))
@@ -254,7 +254,7 @@ redRat FloatLT a b              = eBool (a < b)
 redRat FloatLE a b              = eBool (a <= b)
 redRat FloatGE a b              = eBool (a >= b)
 redRat FloatGT a b              = eBool (a > b)
-redRat p _ _                    = error ("Internal: redRat " ++ show p)
+redRat p _ _                    = internalError0 ("redRat " ++ show p)
 
 
 eBool True                      = ECon (prim TRUE)

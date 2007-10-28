@@ -219,12 +219,12 @@ tFlat t                         = flat t []
 type2cons (TQual t ps)          = type2cons t
 type2cons t                     = case tFlat t of
                                     (TCon c,ts) -> Constr c ts []
-                                    _           -> error "Bad constructor..."
+                                    _           -> errorTree "Bad type constructor in" t
 
 type2head (TQual t ps)          = type2head t
 type2head t                     = case tFlat t of
                                     (TCon c,ts) -> c
-                                    _           -> error "Bad instance head..."
+                                    _           -> errorTree "Bad instance head in" t
 
 stripSigs (ESig p _)            = p
 stripSigs p                     = p

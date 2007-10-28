@@ -52,12 +52,12 @@ renS env v                         = case lookup v (rS env) of
 
 renL env v                         = case lookup v (rL env) of
                                        Just n  -> n { annot = annot v }
-                                       Nothing -> error ("Undefined selector: " ++ show v)
+                                       Nothing -> errorIds "Undefined selector" [v]
 
 renT env n@(Tuple _ _)             = n
 renT env v                         = case lookup v (rT env) of
                                        Just n  -> n { annot = annot v }
-                                       Nothing -> error ("Undefined type identifier: " ++ show v)
+                                       Nothing -> errorIds "Undefined type identifier" [v]
 
 extRenE env vs
   | not (null shadowed)            = errorIds "Illegal shadowing of state variables" shadowed

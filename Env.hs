@@ -90,7 +90,7 @@ addPEnv0 pe env                         = env { predEnv0    = pe ++ predEnv0 env
 
 addPEnv pe env
   | null (tvars pe)                     = env { predEnv    = pe ++ predEnv env }
-  | otherwise                           = error "Internal: Positive predicate with free variables (not yet implemented)"
+  | otherwise                           = internalError0 "Positive predicate with free variables (not yet implemented)"
 --                                        = env { predEnv    = pe ++ predEnv env,
 --                                                pevars     = nub (tvars pe `union` pevars env) }
 
@@ -129,8 +129,8 @@ insertClassPred pre n@(w,p) post env    = env { classEnv = insert c wg' (classEn
         wg'                             = WG { nodes = insertBefore n post (nodes wg),
                                                arcs  = pre `zip` ws ++ ws `zip` post ++ arcs wg }
 
-insertDefault (_,i1,i2) env                 
-  |c1 /= c2                             = error ("Illegal defaulting; heads "++str c1++" and "++str c2++".")
+insertDefault d@(_,i1,i2) env                 
+  |c1 /= c2                             = errorTree ("Illegal defaulting; instances of different classes") d
   |otherwise                            = env { classEnv = insert c1 wg' (classEnv env) }
   where c1                              = headsym (snd i1)
         c2                              = headsym (snd i2)
@@ -139,10 +139,10 @@ insertDefault (_,i1,i2) env
         n2                              = findInst wg i2
         wg'                             = wg { arcs = (n1,n2) : arcs wg }
         findInst wg (i,p)               = case lookup p [(p,n) | (n,p) <- nodes wg] of
-                                            Nothing -> error ("No instance " ++ render(pr p))
+                                            Nothing -> errorTree "Cannot find instance of" p
                                             Just n ->  case i of
                                                          Just n'
-                                                          |n /= n' -> error ("Wrong instance name "++show n')
+                                                          |n /= n' -> errorIds "Wrong instance name" [n']
                                                          _         -> n
 insertDefaults env ds                   = env2
   where env1                            = foldr insertDefault env ds
@@ -151,7 +151,7 @@ insertDefaults env ds                   = env2
         reorderWG ((n,wg) : ps)         = (n,tsort wg) : reorderWG ps
         tsort (WG ns as)                = case dropWhile (null . tail) is of
                                             [] -> WG (order ns is1) (closeTrans g')
-                                            xs : _ -> error ("Cyclic default decls: " ++ render(hpr ',' (map (fromJust . flip lookup ns) xs)))
+                                            xs : _ -> errorIds "Cyclic default declarations for" xs
                                           where g = [(n,[m | (a,m) <- as, a==n]) | n <- dom ns]
                                                 is = scc g
                                                 is1 = reverse (concat is)
@@ -254,7 +254,7 @@ findKind env c                          = findKind0 (kindEnv env ++ kindEnv0 env
 findType0 te (Tuple n _)                = tupleType n
 findType0 te v                          = case lookup v te of
                                             Just sc -> sc
-                                            Nothing -> error ("Internal: Unknown identifier: " ++ show v)
+                                            Nothing -> internalError0 ("Unknown identifier: " ++ show v)
 
 findType env v                         = findType0 (typeEnv env ++ typeEnv0 env) v
 
@@ -266,7 +266,7 @@ findExplType env x
 
 findPred env w                          = case lookup w (predEnv env ++ predEnv0 env) of
                                             Just p  -> p
-                                            Nothing -> error ("Internal: Unknown witness identifier: " ++ show w)
+                                            Nothing -> internalError0 ("Unknown witness identifier: " ++ show w)
 
 
 findAbove env c                         = case lookup c (aboveEnv env) of
@@ -281,7 +281,7 @@ findBelow env c                         = case lookup c (belowEnv env) of
 
 findClass env c                         = case lookup c (classEnv env) of
                                             Just wg -> wg
-                                            Nothing -> error ("Internal: unknown class identifier: " ++ show c)
+                                            Nothing -> internalError0 ("Unknown class identifier: " ++ show c)
 
 
 
@@ -371,7 +371,7 @@ reflWG                                  = unitWG (reflAll)
 isNullWG wg                             = null (nodes wg)
 
 takeWG (WG (n:nodes) a)                 = (n, WG nodes a)
-takeWG _                                = error "Internal: takeWG"
+takeWG _                                = internalError0 "takeWG: empty node list"
 
 concatWG wg1 wg2                        = WG { nodes = nodes wg1 ++ nodes wg2, arcs = [] }
 

@@ -186,7 +186,7 @@ lexToken cont =
                            ("", _ ) -> Nothing
                            (ds, r3) -> Just (r1++ds,r3)
     lexToken' _  _ _ =
-        error "Lexer.lexToken: Internal error: empty input stream."
+        internalError0 "Lexer.lexToken: empty input stream."
 
 
 lexInt ('0':o:d:r) | toLower o == 'o' && isOctDigit d
@@ -211,7 +211,7 @@ lexChar cont = PM lexChar'
             in
                 charEnd e s2 loc (x + i)
         c:s  -> charEnd c s  loc (x + 1)
-        []   -> error "Lexer.lexChar: Internal error: empty list."
+        []   -> internalError0 "Lexer.lexChar: empty list."
 
     charEnd c ('\'':s)   =
         \loc x -> (unPM $ cont (Character c)) s loc (x + 1)
@@ -246,7 +246,7 @@ lexString cont = PM lexString'
                      | otherwise ->
                          (unPM $ parseError "illegal character in string gap.")
                          s  loc x
-                []     -> error "Lexer.stringGap: Internal error: empty list."
+                []     -> internalError0 "Lexer.stringGap: empty list."
 
 
 escapeChar :: String -> PM (Char, String, Int)

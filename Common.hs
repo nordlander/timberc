@@ -101,8 +101,9 @@ errorTree mess t                = error (mess ++ pos ++ (if length(lines str) >1
   where str                     = render (pr t)
         pos                     = " ("++ show(posInfo t)++"): "
  
-internalError mess t            = errorTree ("**** InternalError ****\n" ++ mess) t
+internalError mess t            = errorTree ("**** Internal compiler error ****\n" ++ mess) t
 
+internalError0 mess             = error ("**** Internal compiler error ****\n" ++ mess)
 -- PosInfo ---------------------------------------------------------
    
 
@@ -114,8 +115,8 @@ instance Show PosInfo where
                                 = case l1==l2 of
                                     True ->  case c1 == c2 of
                                               True -> "close to line "++show l1++", column "++show c1
-                                              False -> "close to line "++show l1++", columns "++show c1++" to "++show c2
-                                    False -> "close to lines "++show l1++" to "++show l2
+                                              False -> "close to line "++show l1++", columns "++show c1++" -- "++show c2
+                                    False -> "close to lines "++show l1++" -- "++show l2
    show Unknown                 = "unknown position"
 
 
