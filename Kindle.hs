@@ -6,6 +6,7 @@ import PP
 import qualified Core
 import qualified Env
 import Data.Binary
+import Control.Monad.Identity
 
 -- Kindle is the main back-end intermediate language.  It is a typed imerative language with dynamic 
 -- memory allocation and garbage-collection, that can be described as a slightly extended version of
@@ -181,7 +182,7 @@ cBind bs c                              = CBind False bs c
 cBindR r [] c                           = c
 cBindR r bs c                           = CBind r bs c
 
-protect x t c                           = liftM (CRun (ECall (prim LOCK) [e0])) (cMap f c)
+protect x t c                           = liftM (CRun (ECall (prim LOCK) [e0])) (cMapM f c)
   where e0                              = ECast (TId (prim PID)) (EVar x)
         f e | safe e                    = return (CRun (ECall (prim UNLOCK) [e0]) (CRet e))
             | t == tUNIT                = return (CRun e (CRun (ECall (prim UNLOCK) [e0]) (CRet (EVar(prim UNITTERM)))))
@@ -195,23 +196,41 @@ protect x t c                           = liftM (CRun (ECall (prim LOCK) [e0])) 
         safe' (x,Val _ e)               = safe e
         safe' _                         = False
 
-cMap f (CRet e)                         = f e
-cMap f (CRun e c)                       = liftM (CRun e) (cMap f c)
-cMap f (CBind r bs c)                   = liftM (CBind r bs) (cMap f c)
-cMap f (CAssign e y e' c)               = liftM (CAssign e y e') (cMap f c)
-cMap f (CSwitch e alts c)               = liftM2 (CSwitch e) (mapM (aMap f) alts) (cMap f c)
-cMap f (CSeq c c')                      = liftM2 CSeq (cMap f c) (cMap f c')
-cMap f (CBreak)                         = return CBreak
+cMapM f (CRet e)                        = f e
+cMapM f (CRun e c)                      = liftM (CRun e) (cMapM f c)
+cMapM f (CBind r bs c)                  = liftM (CBind r bs) (cMapM f c)
+cMapM f (CAssign e y e' c)              = liftM (CAssign e y e') (cMapM f c)
+cMapM f (CSwitch e alts c)              = liftM2 (CSwitch e) (mapM (aMapM f) alts) (cMapM f c)
+cMapM f (CSeq c c')                     = liftM2 CSeq (cMapM f c) (cMapM f c')
+cMapM f (CBreak)                        = return CBreak
 
-aMap f (ACon y c)                       = liftM (ACon y) (cMap f c)
-aMap f (ALit l c)                       = liftM (ALit l) (cMap f c)
+aMapM f (ACon y c)                      = liftM (ACon y) (cMapM f c)
+aMapM f (ALit l c)                      = liftM (ALit l) (cMapM f c)
 
+aMap f a                                = runIdentity (aMapM (return . CRet . f) a)
 
-enter xs e                              = return (CRet (EEnter e (prim Code) (map EVar xs)))
+cMap f c                                = runIdentity (cMapM (return . CRet . f) c)
+
+enter es e@(ECall (Prim Raise _) _)     = e
+enter es e                              = EEnter e (prim Code) es
+
 
 
 mkSig (n,Val at _)                      = (n,ValT at)
 mkSig (n,Fun at ats _)                  = (n,FunT (map snd ats) at)
+
+
+class CMap a where
+    cmap :: (Exp -> Exp) -> a -> a
+
+instance CMap Exp where
+    cmap = id
+
+instance CMap Cmd where
+    cmap = cMap
+
+instance CMap Alt where
+    cmap = aMap
 
 
 -- Free variables ------------------------------------------------------------------------------------

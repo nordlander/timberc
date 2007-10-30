@@ -370,6 +370,8 @@ instance Subst Cmd Name Exp where
 instance Subst Exp a b => Subst Alt a b where
     subst s (p,rh)              = (p, subst s rh)
 
+instance Subst (Exp, Exp) Name Exp where
+    subst s (e,e')              = (subst s e, subst s e')
 
 
 instance Subst Binds TVar Type where
