@@ -1,7 +1,7 @@
 TIMBERTARGET = Trivial
 
 TIMBERC      = ../timberc
-TIMBERLIBS   = $(notdir $(wildcard ../lib/*.t))
+TIMBERLIBS   = Prelude.t $(filter-out Prelude.t,$(notdir $(wildcard ../lib/*.t)))
 OBJS         = $(TIMBERLIBS:.t=.o)
 
 

@@ -13,16 +13,19 @@ SRC   = @SRC@
 
 DEST  = @DEST@
 
-LIB_T = $(wildcard lib/*.t)
-LIB_C = $(LIB_T:.t=.c)
-LIB_H = $(LIB_T:.t=.h)
+LIB_T  = $(wildcard lib/*.t)
+LIB_TI = $(LIB_T:.t=.ti)
+LIB_C  = $(LIB_T:.t=.c)
+LIB_H  = $(LIB_T:.t=.h)
+
+SRC_HS = $(wildcard *.hs)
 
 all: compiler rts
 
-compiler: $(DEST)
+compiler: $(DEST) Parser.hs
 
-$(DEST): Parser.hs
-	$(HCOMPILER) $(HFLAGS) $(DEST) $(SRC) 
+$(DEST): $(SRC_HS)
+	$(HCOMPILER) $(HFLAGS) $(DEST) $(SRC)
 
 Parser.hs: Parser.y
 	$(HAPPY) Parser.y
@@ -47,7 +50,7 @@ install: ${DEST}
 
 clean:
 	rm -f *.o *.hi $(DEST) 
-	rm -f $(LIB_C) $(LIB_H)
+	rm -f $(LIB_TI) $(LIB_C) $(LIB_H)
 	@for rts in $(RTSS); do \
 		echo Cleaning $$rts; \
 		$(MAKE) clean -C $$rts; \
