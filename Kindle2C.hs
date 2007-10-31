@@ -20,7 +20,7 @@ k2hModule (Module n ns ds bs)   = hHeader n ns $$$
                                   vcat (map k2cHBind bs) $$$
                                   hFooter n
   
-k2cImport n                     = text "#include \"" <> text (modToundSc (str n)) <> text ".h\""
+k2cImport n                     = text "#include \"" <> text (concat(intersperse "/" (splitString (str n)))) <> text ".h\""
 
 
 hHeader n []                    = includeGuard n $$ text "#include \"timber.h\"" $$ text "#include \"rts.h\""
@@ -92,7 +92,7 @@ k2cBindStubActual (x, Val t _)  = k2cType t <+> k2cName x <> text ";"
 k2cBindStubActual _             = empty
 
 
-cHeader n                       = k2cImport n 
+cHeader n                       = text "#include \"" <> text (last(splitString (str n))) <> text ".h\"" 
 cFooter n                       = empty
 
 k2cInitProc n ns bs             = text "void _init_" <> text (modToundSc (str n)) <+> text "() {" $$
