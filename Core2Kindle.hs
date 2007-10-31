@@ -559,9 +559,7 @@ cPMC cE l env (EVar (Prim Fail _))      = do t <- newTVar Star
   where raiseCmd                        = Kindle.CRet (Kindle.ECall (prim Raise) [Kindle.ELit (LInt 1)])
 cPMC cE l env (EAp (EVar (Prim Commit _)) [e])
                                         = cE env e
-cPMC cE l env e                         = error ("Internal: PMC syntax violated in Core2Kindle: " ++ show e)
-
-
+cPMC cE l env e                         = internalError "PMC syntax violated in Core2Kindle" e
 
 -- Translate the parts of a case expression into a Kindle.Cmd result, and infer its result type
 cCase cE env e ((PCon k,e'):_) _
