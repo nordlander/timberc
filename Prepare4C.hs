@@ -119,7 +119,11 @@ pCmd env (CSwitch e alts d)     = do (bs,e) <- pExp env e
         present                 = [ n | ACon n _ <- alts ]
         (absent0,absent1)       = partition (`elem` nulls env) (allCons env alts \\ present)
         absAlts d               = [ ACon n d | n <- absent0 ]
-        dflt d                  = if null absent1 then CBreak else d
+        dflt d | any litA alts  = d
+               | null absent1   = CBreak
+               | otherwise      = d
+        litA (ALit _ _)         = True
+        litA _                  = False
 pCmd env (CSeq c c')
   | a == CBreak                 = pCmd env (bf c')
   | otherwise                   = liftM2 CSeq (pCmd env c) (pCmd env c')
