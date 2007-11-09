@@ -222,11 +222,11 @@ k2cPrim FloatLE                 = text "<="
 k2cPrim FloatGE                 = text ">="
 k2cPrim FloatGT                 = text ">"
 
-k2cPrim IntToFloat              = text "(float)"
-k2cPrim FloatToInt              = text "(int)"
+k2cPrim IntToFloat              = text "(Float)"
+k2cPrim FloatToInt              = text "(Int)"
 
-k2cPrim CharToInt               = text "(int)"
-k2cPrim IntToChar               = text "(char)"
+k2cPrim CharToInt               = text "(Int)"
+k2cPrim IntToChar               = text "(Char)"
 
 k2cPrim LazyOr                  = text "||"
 k2cPrim LazyAnd                 = text "&&"

@@ -71,7 +71,8 @@ tiModule (xs',ds',bs',is') (Module v ns xs ds is bs) =
                                      (ss2,pe2,classInsts) <- tiBinds (addTEnv0 (tsigsOf bs) env4) classInsts
                                      assert (null (ss0++ss1++ss2)) "Internal: top-level type inference 1"
                                      assert (null (pe0++pe1++pe2)) "Internal: top-level type inference 2"
-                                     return (Module v ns xs ds1 (is0 `catBinds` classInsts) bs)
+                                     let isFinal = concatBinds (groupBinds (is0 `catBinds` classInsts))
+                                     return (Module v ns xs ds1 isFinal bs)
   where env0                    = addTEnv0 (tsigsOf bs') (impDecls (initEnv { modName = Just (str v) }) ds')
         ieTot                   = tsigsOf is' ++ tsigsOf is
         (subInsts,classInsts)   = splitInsts is

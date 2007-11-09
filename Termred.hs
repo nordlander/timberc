@@ -31,9 +31,11 @@ redModule impEqs (Module m ns xs ds ie bs)
                                      let env3 = addEqns env2 (finiteEqns env2 (eqnsOf ie'))
                                      es2' <- redEqns env3 es2
                                      return (Module m ns xs ds ie' (Binds r te (es1' ++ es2')))
-  where envFree (_,e)           = all (\x -> isGenerated x || x `elem` [Prim Refl noAnnot]) (idents e) && isSmall e
+  where envFree (_,e)           = all isSafeId (idents e) && isSmall e
         Binds r te es           = bs
         (es1,es2)               = partition envFree es
+        isSafeId (Prim _ _)     = True
+        isSafeId x              = isGenerated x
 
 
 finiteEqns env eq               = filter (finite env . snd) eq
