@@ -13,7 +13,7 @@ data Name                       = Name  { str :: String, tag :: Int, fromMod :: 
                                 | Tuple { width :: Int, annot :: Annot }
 
 
-data Annot                      = Annot { location :: Maybe (Int,Int), explicit :: Bool, stateVar :: Bool }
+data Annot                      = Annot { location :: Maybe (Int,Int), explicit :: Bool, stateVar :: Bool , generated :: Bool}
 
 
 -- The built-in primitives ----------------------------------------------------------------
@@ -226,23 +226,19 @@ strRep2 p
 
 -- Name construction ------------------------------------------------------------
 
-noAnnot                         = Annot { location = Nothing, explicit = False, stateVar = False }
-
-loc l                           = noAnnot { location = Just l }
-
+noAnnot                         = Annot { location = Nothing, explicit = False, stateVar = False, generated = False }
 
 name l s                        = qualName (Name s 0 Nothing (loc l))
 
+name' s                         = Name s 0 Nothing noAnnot
 
-opName l "||"                   = prim LazyOr
-opName l "&&"                   = prim LazyAnd
+loc l                           = noAnnot { location = Just l }
+
+opName l "||"                   = (prim LazyOr) {annot = loc l}
+opName l "&&"                   = (prim LazyAnd) {annot = loc l}
 opName l s                      = name l s
 
-name0 s                         = Name s 0 Nothing noAnnot
-
 mName m c                       = c {fromMod = m}
-
-qName m n                       = mName (Just m) (name0 n)
 
 prim p                          = Prim p noAnnot
 
@@ -288,6 +284,14 @@ annotExplicit n                 = n { annot = a { explicit = True } }
 annotState n                    = n { annot = a { stateVar = True } }
   where a                       = annot n
 
+-- Generated names ----------------------------------------------------------------
+
+genAnnot                        = noAnnot { generated = True }
+
+name0 s                         = Name s 0 Nothing genAnnot
+
+qName m n                       = mName (Just m) (name0 n)
+
 
 -- Textual name supply ---------------------------------------------------------------------------
 
@@ -314,7 +318,7 @@ isCon (Prim p _)                = isConPrim p
 
 isVar i                         = not (isCon i)
 
-isGenerated (Name _ _ _ a)      = location a == Nothing
+isGenerated (Name _ _ _ a)      = generated a 
 isGenerated _                   = False
 
 isState n                       = stateVar (annot n)
@@ -413,8 +417,8 @@ instance Binary Name where
 
 
 instance Binary Annot where
-  put (Annot a b c) = put a >> put b >> put c
-  get = get >>= \a -> get >>= \b -> get >>= \c -> return (Annot a b c)
+  put (Annot _ b c d) = put b >> put c >> put d
+  get = get >>= \b -> get >>= \c -> get >>= \d -> return (Annot Nothing b c d)
 
 
 maxPrimWord = fromIntegral (fromEnum maxPrim) :: Word8

@@ -253,17 +253,16 @@ instance Desugar1 Exp where
     ds1 env (EIf e1 e2 e3)         = EIf (ds1 env e1) (ds1 env e2) (ds1 env e3)
     ds1 env (ENeg (ELit (LInt i))) = ELit (LInt (-i))
     ds1 env (ENeg (ELit (LRat r))) = ELit (LRat (-r))
-    ds1 env (ENeg e)               = EAp (EVar (name (0,0) "negate")) (ds1 env e)
-    ds1 env (ESeq e1 Nothing e3)   = EAp (EAp (EVar (name (0,0) "enumFromTo")) (ds1 env e1)) (ds1 env e3)
-    ds1 env (ESeq e1 (Just e2) e3) = EAp (EAp (EAp (EVar (name (0,0) "enumFromThenTo")) (ds1 env e1)) (ds1 env e2)) (ds1 env e3)
+    ds1 env (ENeg e)               = EAp (EVar (name' "negate")) (ds1 env e)
+    ds1 env (ESeq e1 Nothing e3)   = EAp (EAp (EVar (name' "enumFromTo")) (ds1 env e1)) (ds1 env e3)
+    ds1 env (ESeq e1 (Just e2) e3) = EAp (EAp (EAp (EVar (name' "enumFromThenTo")) (ds1 env e1)) (ds1 env e2)) (ds1 env e3)
     ds1 env (EComp e qs)           = EComp (ds1 env e) (ds1 env qs)
     ds1 env (ESectR e op)          = ESectR (ds1 env e) op
     ds1 env (ESectL op e)          = ESectL op (ds1 env e)
     ds1 env (ESelect e s)          = ESelect (ds1 env e) s
     ds1 env e@(ELit (LInt n))
       | isPat env                  = e
-      | otherwise                  = EAp (EVar (name (0,0) "fromInt")) e 
-     -- need a location to avoid being considered generated when C identifiers are rendered.
+      | otherwise                  = EAp (EVar (name' "fromInt")) e 
 
     ds1 env (ETempl Nothing t ss)  = ds1 env (ETempl (Just (name0 "self")) (ds1 env t) ss)
     ds1 env (EDo Nothing t ss)

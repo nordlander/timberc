@@ -101,6 +101,9 @@ errorTree mess t                = error (mess ++ pos ++ (if length(lines str) >1
   where str                     = render (pr t)
         pos                     = " ("++ show(posInfo t)++"): "
  
+
+typeError p msg                 = fail ("Type error "++show p++": "++msg)
+
 internalError mess t            = errorTree ("**** Internal compiler error ****\n" ++ mess) t
 
 internalError0 mess             = error ("**** Internal compiler error ****\n" ++ mess)
@@ -217,7 +220,7 @@ localStore (M m)                = M $ \(n0,s0) ->
 
 newNameMod m s                  = do n <- newNum
                                      return (Name s n m ann)
-  where ann                     = if s `elem` explicitSyms then noAnnot { explicit = True } else noAnnot
+  where ann                     = if s `elem` explicitSyms then genAnnot { explicit = True } else genAnnot
 
 newName s                       = newNameMod Nothing s
 
@@ -305,10 +308,10 @@ instanceSym                     = "inst"
 closureSym                      = "CLOS"
 
 isCoercion n                    = isGenerated n && str n == coercionSym
-isTemp n                        = isGenerated n && str n == tempSym
+-- isTemp n                        = isGenerated n && str n == tempSym
 isClosure n                     = isGenerated n && str n == closureSym
 isDummy n                       = isGenerated n && str n == dummySym
-isTag n                         = isGenerated n && str n == tagSym
+-- isTag n                         = isGenerated n && str n == tagSym
 
 explicitSyms                    = [coercionSym, assumptionSym, witnessSym]
 
