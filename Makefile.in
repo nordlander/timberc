@@ -22,9 +22,9 @@ SRC_HS = $(wildcard *.hs)
 
 all: compiler rts
 
-compiler: $(DEST) Parser.hs
+compiler: $(DEST)
 
-$(DEST): $(SRC_HS)
+$(DEST): Parser.hs $(SRC_HS)
 	$(HCOMPILER) $(HFLAGS) $(DEST) $(SRC)
 
 Parser.hs: Parser.y
