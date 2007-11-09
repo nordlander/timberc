@@ -202,8 +202,9 @@ simpleEqn x e                   = BEqn (LFun x []) (RExp e)
 
 
 exp2lhs e                       = case eFlat e of
-                                       (EVar v, ps) -> LFun v ps
-                                       _            -> LPat e
+                                       (EVar v, ps)
+                                         |not(null ps) -> LFun v ps
+                                       _               -> LPat e
 
 tFun [] t                       = t
 tFun ts t                       = TFun ts t
@@ -418,7 +419,7 @@ instance Pr Pred where
 -- Left hand sides ------------------------------------------------------
 
 instance Pr Lhs where
-   pr (LFun v ps)               = prId v <+> hsep (map (prn 13) ps) 
+   pr (LFun v ps)               = prId v <+> hsep (map (prn 13) ps)
    pr (LPat p)                  = pr p
 
 {-
