@@ -28,6 +28,7 @@ compileC cfg clo c_file = do let cmd = cCompiler cfg
                                      ++ " -I " ++ libDir ++ " " 
                                      ++ " -I " ++ includeDir ++ " " 
                                      ++ " -I " ++ rtsDir clo ++ " " 
+                                     ++ " -I . "
                                      ++ c_file
                              execCmd clo cmd
 
