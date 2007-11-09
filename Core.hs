@@ -746,7 +746,10 @@ instance Pr Type where
     prn 0 (TFun [] t)           = prn 1 t
     prn 0 t                     = prn 1 t
     
-    prn 1 (TAp t t')            = prn 1 t <+> prn 2 t'
+    prn 1 (TAp (TId (Prim LIST _)) t) = text "[" <> prn 0 t <> text "]"
+    prn 1 t@(TAp _ _)           = prTAp (tFlat t)
+      where prTAp (TId (Tuple n _),ts) = text "(" <> hpr ',' ts <> text ")"
+            prTAp (t,ts)        = hang (prn 1 t) 2 (sep (map (prn 2) ts))
     prn 1 t                     = prn 2 t
 
     prn 2 (TId c)               = prId c
@@ -822,7 +825,7 @@ instance HasPos Types where
   posInfo (Types ke ds)         = between (posInfo ke) (posInfo ds)
 
 instance HasPos Binds where
-  posInfo (Binds _ te es)       = between (posInfo te) (posInfo es)
+  posInfo (Binds _ te es)       = posInfo es
 
 instance HasPos Decl where
   posInfo (DData ns ts ce)      = foldr1 between [posInfo ns, posInfo ts, posInfo ce]
@@ -853,7 +856,7 @@ instance HasPos Exp where
   posInfo (ECon n)              = posInfo n
   posInfo (ESel e l)            = between (posInfo e) (posInfo l)
   posInfo (EVar n)              = posInfo n
-  posInfo (ELam te e)           = between (posInfo te) (posInfo e)
+  posInfo (ELam te e)           = between (posInfo (dom te)) (posInfo e)
   posInfo (EAp e es)            = foldr1 between (map posInfo (e : es))
   posInfo (ELet bs e)           = between (posInfo bs) (posInfo e)
   posInfo (ECase e as d)        = foldr1 between [posInfo e, posInfo as, posInfo d]
@@ -861,11 +864,11 @@ instance HasPos Exp where
   posInfo (ELit l)              = Unknown
   posInfo (EAct e e')           = between (posInfo e) (posInfo e')
   posInfo (EReq e e')           = between (posInfo e) (posInfo e')
-  posInfo (ETempl n t te c)     = foldr1 between [posInfo n, posInfo t, posInfo te, posInfo c]
-  posInfo (EDo n t c)           = foldr1 between [posInfo n, posInfo t, posInfo c]
+  posInfo (ETempl n t te c)     = foldr1 between [posInfo n, posInfo te, posInfo c]
+  posInfo (EDo n t c)           = foldr1 between [posInfo n, posInfo c]
 
 instance HasPos Cmd where
-  posInfo (CGen n t e c)        = foldr1 between [posInfo n, posInfo t, posInfo e, posInfo c]
+  posInfo (CGen n t e c)        = foldr1 between [posInfo n, posInfo e, posInfo c]
   posInfo (CAss n e c)          = foldr1 between [posInfo n, posInfo e, posInfo c]
   posInfo (CLet bs c)           = between (posInfo bs) (posInfo c)
   posInfo (CRet e)              = posInfo e
