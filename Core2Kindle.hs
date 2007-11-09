@@ -393,20 +393,16 @@ cFun env (ELam te e)                    = do te <- cValTEnv te
                                              (te',t,c) <- cFun (addTEnv te env) e
                                              return (mapSnd stripQuant te ++ te', t, c)
 cFun env (EReq (EVar x) e)              = do (t,c) <- cCmdExp (pushSelf x env) e
-                                             t' <- kindleType env t
-                                             c <- Kindle.protect x t' c
                                              y <- newName dummySym
                                              u <- newTVar Star
-                                             return ([(y,u)], t, c)
+                                             return ([(y,u)], t, Kindle.protect x c)
 cFun env (EReq e e')                    = do (bf,tx,e) <- cValExp env e
                                              x <- newName selfSym
                                              (t,c) <- cCmdExp (pushAddSelf x (ValT [] tx) env) e'
-                                             t' <- kindleType env t
-                                             c <- Kindle.protect x t' c
                                              y <- newName dummySym
                                              u <- newTVar Star
                                              tx' <- kindleType env tx
-                                             return ([(y,u)], t, bf (Kindle.cBind [(x,Kindle.Val tx' e)] c))
+                                             return ([(y,u)], t, bf (Kindle.cBind [(x,Kindle.Val tx' e)] (Kindle.protect x c)))
 cFun env e@(EAct _ _)                   = cAct env id id e
 cFun env e@(EAp (EVar (Prim After _)) _) 
                                         = cAct env id id e
@@ -455,13 +451,13 @@ cAct env fa fb (EAct e e')              = do (_,_,c) <- cFun env (EReq e e')
                                              a  <- newName paramSym
                                              b  <- newName paramSym
                                              m  <- newName tempSym
-                                             let c'  = Kindle.cBind bs (Kindle.CRun e1 (Kindle.CRet (Kindle.EVar m)))
-                                                 c'' = Kindle.cmap (\_ -> Kindle.EVar (prim UNITTERM)) c
+                                             let c1  = Kindle.cBind bs (Kindle.CRun e1 (Kindle.CRet (Kindle.EVar m)))
+                                                 c2  = Kindle.cmap (\_ -> Kindle.EVar (prim UNITTERM)) c
                                                  bs  = [(m, Kindle.Val ktMsg (Kindle.ENew (prim Msg) bs'))]
-                                                 bs' = [(prim Code, Kindle.Fun (Kindle.TId (prim UNITTYPE)) [] c'')]
+                                                 bs' = [(prim Code, Kindle.Fun (Kindle.TId (prim UNITTYPE)) [] c2)]
                                                  es  = [Kindle.EVar m, fa (Kindle.EVar a), fb (Kindle.EVar b)]
                                                  e1  = Kindle.ECall (prim ASYNC) es
-                                             return ([(a,tTime),(b,tTime)], tMsg, c')
+                                             return ([(a,tTime),(b,tTime)], tMsg, c1)
 cAct env fa fb e                        = do (bf,t0,f,_,[ta,tb]) <- cFunExp env e
                                              -- ignore resulting type equalities, no unification variables to instantiate in a tMsg
                                              a  <- newName paramSym
@@ -609,7 +605,13 @@ isValR _                                = False
 -- Convert a Core.Cmd into a Kindle.Cmd, inferring a Type
 cCmd env (CRet e)                       = do (bf,te,e) <- freezeState env e
                                              (bf',t,e) <- cValExp (addTEnv te env) e
-                                             return (t, bf (bf' (Kindle.CRet e)))
+                                             if Kindle.simpleExp e then         -- No state references or non-termination in e
+                                                 return (t, bf (bf' (Kindle.CRet e)))   -- Can be ignored (see CGen alternative)
+                                              else do
+                                                 x <- newName tempSym
+                                                 t' <- kindleType env t
+                                                 let bf'' = Kindle.cBind [(x, Kindle.Val t' e)]
+                                                 return (t, bf (bf' (bf'' (Kindle.CRet (Kindle.EVar x)))))
 cCmd env (CAss x e c)                   = do (bf,te,e) <- freezeState env e
                                              (bf',_,e) <- cValExpT (addTEnv te env) (stripQuant tx) e
                                              -- Skolemize tx, type is an *upper* bound
@@ -623,9 +625,9 @@ cCmd env (CLet bs c)                    = do (bf,te,bs) <- freezeState env bs
                                              return (t, bf (bf' c))
 cCmd env (CGen x tx e c)
   | isDummy x                           = do (bf,te,e) <- freezeState env e
-                                             (bf',_,e) <- cValExp (addTEnv te env) (EAp e [EVar (self env)])
-                                             (t,c) <- cCmd env c
-                                             return (t, bf (bf' (Kindle.CRun e c)))
+                                             (_,c1) <- cCmdExp (addTEnv te env) e
+                                             (t,c2) <- cCmd env c
+                                             return (t, bf (Kindle.CSeq (Kindle.cMap (\_ -> Kindle.CBreak) c1) c2))
   | otherwise                           = do (bf,te,e) <- freezeState env e
                                              tx <- cValType tx
                                              (bf',_,e) <- cValExpT (addTEnv te env) (stripQuant tx) (EAp e [EVar (self env)])
@@ -633,7 +635,7 @@ cCmd env (CGen x tx e c)
                                              -- Ignore returned type equalities, no unification variables in tx
                                              (t,c) <- cCmd (addTEnv [(x,tx)] env) c
                                              tx <- kindleType env (stripQuant tx)
-                                             return (t, bf (bf' (Kindle.CBind False [(x,Kindle.Val tx e)] c)))
+                                             return (t, bf (bf' (Kindle.cBind [(x,Kindle.Val tx e)] c)))
 cCmd env (CExp e)                       = cCmdExp env e
 
 
@@ -658,7 +660,10 @@ cCmdExp env (EAp m [e]) | isMatch m     = do (bf,te,e) <- freezeState env e
                                              return (t, bf c)
 cCmdExp env e                           = do (bf,te,e) <- freezeState env e
                                              (bf',t,e) <- cValExp (addTEnv te env) (EAp e [EVar (self env)])
-                                             return (t, bf (bf' (Kindle.CRet e)))
+                                             x <- newName tempSym
+                                             t' <- kindleType env t
+                                             let bf'' = Kindle.cBind [(x, Kindle.Val t' e)]
+                                             return (t, bf (bf' (bf'' (Kindle.CRet (Kindle.EVar x)))))
 
 
 cValCmdExp env e                        = do (t,c) <- cCmdExp env e
@@ -674,12 +679,12 @@ cValCmdExp env e                        = do (t,c) <- cCmdExp env e
 -- when the closure is defined, not when it is invoked.  Here's a challenging example:
 --     x := 7; f = \y->x+y; x := 2; return (f 1);
 -- If we naively translate the x reference in f to self->x, we end up with the wrong behavior:
---     self->x := 77; int f(int y) { return self->x + y }; self->x := 7; return f(1);    -- gives 3, not 8
+--     self->x := 7; int f(int y) { return self->x + y }; self->x := 2; return f(1);    -- gives 3, not 8
 --
--- A correct translation can instead be achieved if we make sure that no state variables are ever referenced 
+-- A correct translation can instead be obtained if we make sure that no state variables are ever referenced 
 -- from within a lambda abstraction, as in the equivalent example
 --     x := 7; x' = x; f = \y->x'+y; x := 2; return (f 1);                      (for some fresh variable x')
--- Acheiving this is the job of function freezeState below.  It takes an expression e and returns a renaming 
+-- Achieving this is the job of function freezeState below.  It takes an expression e and returns a renaming 
 -- of e with the "fragile" free variables (i.e., state vars inside lambdas) replaced by fresh variables, 
 -- together with a type environment and Kindle bindings for the new variables.  For the example above, 
 -- input (\y->x+y) results in output (\y->x'+y) together with the Kindle binding (int x' = self->x).  When
@@ -716,7 +721,7 @@ freezeState env e
   | null vs                             = return (id, [], e)
   | otherwise                           = do vs' <- newNames paramSym (length vs)
                                              (bf,_,bs) <- cEqs env (vs' `zip` ts) (vs' `zip` sels)
-                                             return (bf . Kindle.CBind False bs, vs' `zip` ts, subst (vs `zip` map EVar vs') e)
+                                             return (bf . Kindle.cBind bs, vs' `zip` ts, subst (vs `zip` map EVar vs') e)
   where vs                              = nub (fragile e)
         ts                              = map (lookup' (tenv env)) vs
         sels                            = map (ESel (EVar (self env))) vs
