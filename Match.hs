@@ -37,7 +37,7 @@ fat (m:ms)                      = do e1 <- m
 -- Pattern-matching compiler proper -----------------------------------------------------
 
 match0 (EVar w) alts            = match [w] [ ([p], rh) | Alt p rh <- alts ]
-match0 e alts                   = do w <- newName tempSym
+match0 e alts                   = do w <- newNamePos tempSym e
                                      e' <- match0 (EVar w) alts
                                      return (ELet [BEqn (LFun w []) (RExp e)] e')
 
@@ -96,11 +96,15 @@ matchCons ws ceqs eqs'          = matchCon ws (reverse ceqs) : match1 ws eqs'
 matchCon (w:ws) ceqs            = do alts <- mapM matchAlt cs
                                      return (ECase (EVar w) alts)
   where cs                      = nub [ c | (c,_,_,_) <- ceqs ]
-        matchAlt c              = do vs <- newNames tempSym arity_c
+        matchAlt c              = do vs <- newNamesPos tempSym (maxPat [] 0 eqs_c)
                                      e  <- match (vs++ws) (map (mkeq vs) eqs_c)
                                      return (Alt (ECon c) (RExp (eLam (map EVar vs) e)))
           where eqs_c           = [ (ps', ps, rhs) | (c',ps',ps,rhs) <- ceqs, c==c' ]
-                arity_c         = maximum [ length ps' | (ps', ps, rhs) <- eqs_c ]
+                maxPat ps _ []  = ps
+                maxPat ps n ((ps',_,_) : ceqs)
+                   |length ps' > n = maxPat ps' (length ps') ceqs
+                   |otherwise      = maxPat ps n ceqs
+--                arity_c         = maximum [ length ps' | (ps', ps, rhs) <- eqs_c ]
         mkeq vs (ps',ps,rhs)    = (ps'++vs' ++ ps, rAp rhs vs')
           where vs'             = map EVar (drop (length ps') vs)
 

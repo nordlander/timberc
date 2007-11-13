@@ -42,6 +42,7 @@ data Env = Env { kindEnv0      :: KEnv,              -- Kind for each global tyc
                  pols          :: ([TVar],[TVar]),   -- Pair of tvars occurring in (positive,negative) position in reduction target
                  equalities    :: [(Name,Name)],     -- List of witness names that must be equivalent
 
+                 errPos        :: Maybe (Int,Int),
                  ticked        :: Bool,              -- Root constraint is an automatically generated coercion (must be removed!)
                  forced        :: Bool,              -- Non-conservative reduction turned on
                  frozen        :: Bool               -- Treat tvars as constants (during env closure)       -- Not yet meaningful
@@ -69,6 +70,7 @@ nullEnv                                 = Env { kindEnv0   = [],
                                                 skolEnv    = [],
                                                 pols       = ([],[]),
                                                 equalities = [],
+                                                errPos     = Nothing,
                                                 ticked     = False,
                                                 forced     = False,
                                                 frozen     = False

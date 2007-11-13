@@ -323,7 +323,7 @@ cBindsList env (bs:bss)                 = do (te,bf) <- cBinds env bs
 
 -- Translate a list of (mutually recursive) Core bindings into a list of Kindle bindings on basis of declared type
 cBinds env (Binds rec te eqs)           = do te <- cTEnv te
-                                             assert (not rec || all okRec (rng te)) "Illegal value recursion"
+                                             assert (not rec || all okRec (rng te)) "Illegal value recursion" (dom te)
                                              (bf,_,bs) <- cEqs (if rec then addTEnv te env else env) te eqs
                                              -- (Ignore returned type equalities, because te will have no unification variables)
                                              return (te, bf . Kindle.CBind rec bs)
@@ -556,7 +556,7 @@ cPMC cE l env (EAp (EVar (Prim Fatbar _)) [e1,e2])
                                              return (mkSeq r1' r2')
 cPMC cE l env (EVar (Prim Fail _))      = do t <- newTVar Star
                                              return (t, ValR (if l then Kindle.CBreak else raiseCmd))
-  where raiseCmd                        = Kindle.CRet (Kindle.ECall (prim Raise) [Kindle.ELit (LInt 1)])
+  where raiseCmd                        = Kindle.CRet (Kindle.ECall (prim Raise) [Kindle.ELit (LInt Nothing 1)])
 cPMC cE l env (EAp (EVar (Prim Commit _)) [e])
                                         = cE env e
 cPMC cE l env e                         = internalError "PMC syntax violated in Core2Kindle" e

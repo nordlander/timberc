@@ -385,10 +385,10 @@ bexp    :: { Exp }
         | '(' commas ')'                        { ECon (tuple ($2+1)) }
 
 lit     :: { Lit }
-        : INT                                   { LInt (readInteger $1) }
-        | RATIONAL                              { LRat (readRational $1) }
-        | CHAR                                  { LChr $1 }
-        | STRING                                { LStr $1 }
+: loc INT                                   { LInt (Just $1) (readInteger $2) }
+| loc RATIONAL                              { LRat (Just $1) (readRational $2) }
+| loc CHAR                                  { LChr (Just $1) $2 }
+| loc STRING                                { LStr (Just $1) $2 }
 
 -- List expressions -------------------------------------------------------------
 

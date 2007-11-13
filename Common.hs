@@ -1,4 +1,4 @@
-module Common (module Common, module Name) where
+module Common (module Common, module Name, isDigit) where
 
 import PP
 import qualified List
@@ -90,7 +90,7 @@ dropDigits xs                   = drop 0 xs
 
 -- Error reporting ---------------------------------------------------------
 
-errorIds mess ns                = error (unlines(mess : map pos ns))
+errorIds mess ns                = error (unlines((mess++":") : map pos ns))
   where pos n                   = case loc n of
                                     Just (r,c) -> rJust 15 (show n) ++ "  at line " ++ show r ++ ", column " ++ show c
                                     Nothing ->    rJust 15 (show n) ++ "  (internally generated)"
@@ -102,7 +102,7 @@ errorTree mess t                = error (mess ++ pos ++ (if length(lines str) >1
         pos                     = " ("++ show(posInfo t)++"): "
  
 
-typeError p msg                 = fail ("Type error "++show p++": "++msg)
+posError info p msg             = fail (info ++ " error "++show p ++ ": " ++ msg)
 
 internalError mess t            = errorTree ("**** Internal compiler error ****\n" ++ mess) t
 
@@ -129,6 +129,9 @@ between (Between s1 e1) (Between s2 e2)
 between b@(Between _ _) Unknown = b
 between Unknown b@(Between _ _) = b
 between Unknown Unknown         = Unknown 
+
+startPos (Between s _)          = Just s
+startPos Unknown                = Nothing
 
 class HasPos a where
   posInfo :: a -> PosInfo
@@ -159,19 +162,25 @@ instance HasPos Name where
 
 -- Literals ----------------------------------------------------------------
 
-data Lit                        = LInt    Integer
-                                | LRat    Rational
-                                | LChr    Char
-                                | LStr    String
+data Lit                        = LInt  (Maybe (Int,Int)) Integer
+                                | LRat  (Maybe (Int,Int)) Rational
+                                | LChr  (Maybe (Int,Int)) Char
+                                | LStr  (Maybe (Int,Int)) String
                                 deriving  (Eq,Show)
 
 instance Pr Lit where
-    pr (LInt i)                 = integer i
-    pr (LRat r)                 = rational r
-    pr (LChr c)                 = litChar c
-    pr (LStr s)                 = litString s
+    pr (LInt p i)                 = integer i
+    pr (LRat _ r)                 = rational r
+    pr (LChr _ c)                 = litChar c
+    pr (LStr _ s)                 = litString s
 
-
+instance HasPos Lit where
+    posInfo (LInt (Just (l,c)) i) = Between (l,c) (l,c+length(show i)-1) 
+    posInfo (LRat (Just (l,c)) r) = Between (l,c) (l,c) -- check length of rationals) 
+    posInfo (LChr (Just (l,c)) _) = Between (l,c) (l,c) 
+    posInfo (LStr (Just (l,c)) cs) = Between (l,c) (l,c+length cs+1)
+    posInfo _                     = Unknown
+ 
 -- Underlying monad ----------------------------------------------------------------------
 
 newtype M s a                   = M ((Int,[s]) -> Either String ((Int,[s]), a))
@@ -226,6 +235,11 @@ newName s                       = newNameMod Nothing s
 
 newNames s n                    = mapM (const (newName s)) [1..n]
 
+newNamesPos s ps                = mapM (newNamePos s) ps
+
+newNamePos s p                  = do n <- newName s
+                                     return (n {annot = genAnnot {location = startPos(posInfo p)}})
+
 renaming vs                     = mapM f vs
   where f v | tag v == 0        = do n <- newNum
                                      return (v, v { tag = n })
@@ -267,10 +281,9 @@ mergeRenamings2 rn1 rn2         = case ns of
         deleteNames [] rn       = rn
         deleteNames (n:ns) rn   = deleteNames ns (snd (deleteName n rn))
 
-assert e msg
+assert e msg ns
   | e                           = return ()
-  | otherwise                   = fail msg
-
+  | otherwise                   = errorIds msg ns
 
 -- Poor man's exception datatype ------------------------------------------------------
 
@@ -282,6 +295,10 @@ decodeCircular str
   where (ok, rest)              = dropPrefix circularMsg str
 
 circularMsg                     = "Circular subtyping: "
+
+assert0 e msg
+  | e                           = return ()
+  | otherwise                   = fail msg
 
 
 
@@ -532,17 +549,17 @@ instance TVars a => TVars (Name,a) where
 -- Binary --------------------------------------------
 
 instance Binary Lit where
-  put (LInt a) = putWord8 0 >> put a
-  put (LRat a) = putWord8 1 >> put a
-  put (LChr a) = putWord8 2 >> put a
-  put (LStr a) = putWord8 3 >> put a
+  put (LInt _ a) = putWord8 0 >> put a
+  put (LRat _ a) = putWord8 1 >> put a
+  put (LChr _ a) = putWord8 2 >> put a
+  put (LStr _ a) = putWord8 3 >> put a
   get = do
     tag_ <- getWord8
     case tag_ of
-      0 -> get >>= \a -> return (LInt a)
-      1 -> get >>= \a -> return (LRat a)
-      2 -> get >>= \a -> return (LChr a)
-      3 -> get >>= \a -> return (LStr a)
+      0 -> get >>= \a -> return (LInt Nothing a)
+      1 -> get >>= \a -> return (LRat Nothing a)
+      2 -> get >>= \a -> return (LChr Nothing a)
+      3 -> get >>= \a -> return (LStr Nothing a)
       _ -> fail "no parse"
 
 instance Binary Kind where

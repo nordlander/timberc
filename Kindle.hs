@@ -107,10 +107,10 @@ data Exp        = EVar    Name                -- local or global value name, enu
 -- explicitly closing the struct functions via extra value fields accessed through "this".
 
 
-litType (LInt _)                        = TId (prim Int)
-litType (LRat _)                        = TId (prim Float)
-litType (LChr _)                        = TId (prim Char)
-litType (LStr _)                        = internalError0 "Kindle.litType LStr"
+litType (LInt _ _)                        = TId (prim Int)
+litType (LRat _ _)                        = TId (prim Float)
+litType (LChr _ _)                        = TId (prim Char)
+litType (LStr _ _)                        = internalError0 "Kindle.litType LStr"
 
 tagSig                                  = (prim Tag, ValT (TId (prim Int)))
 

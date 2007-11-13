@@ -30,7 +30,7 @@ kunify ((Star,Star):cs)                 = kunify cs
 kunify ((KVar n,k):cs)                  = kvarBind n k cs
 kunify ((k,KVar n):cs)                  = kvarBind n k cs
 kunify ((KFun k1 k2,KFun k1' k2'):cs)   = kunify ((k1,k1'):(k2,k2'):cs)
-kunify eqs                              = fail ("Kind error " ++ show eqs)
+kunify ((k1,k2):eqs)                    = fail ("Kinds do not unify: " ++ render (pr k1 <+> text "and" <+> pr k2))
 
 kvarBind n k cs
   | k == KVar n                         = kunify cs
@@ -73,7 +73,7 @@ kiDefault env (t,i1,i2)                  = do i1' <- kiInst env i1
                                               return (t,i1',i2')
 
 kiInst env (v,t)                         = do cs <- kiScheme env t
-                                              s <- kindUnify cs
+                                              s <- kindUnify cs `handle` posError "Kind" t
                                               return (v,subst s t)
 
 -- Handle type declarations ----------------------------------------------------
@@ -84,8 +84,8 @@ kiDeclsList env (ds:dss)                = do ds1 <- kiDecls env ds
                                              return (catDecls ds1 ds2)
 
 
-kiDecls env (Types ke ds)               = do css <- mapM (kiDecl (addKEnv0 ke env)) ds
-                                             s <- kindUnify (concat css)
+kiDecls env t@(Types ke ds)             = do css <- mapM (kiDecl (addKEnv0 ke env)) ds
+                                             s <- kindUnify (concat css) `handle` posError "Kind" t
                                              return (Types (subst s ke) (subst s ds))
 
 
@@ -122,7 +122,7 @@ kiScheme env (Scheme t ps ke)           = do cs <- kiRho env' t
 
 
 kiTEnv env te                           = do css <- mapM (kiScheme env . snd) te
-                                             s <- kindUnify (concat css)
+                                             s <- kindUnify (concat css) `handle` posError "Kind" te
                                              return (subst s te)
 
 kiMaybeScheme env Nothing               = return []
@@ -185,7 +185,7 @@ kiCmd env (CAss x e c)                  = do e <- kiExp env e
                                              c <- kiCmd env c
                                              return (CAss x e c)
 kiCmd env (CGen x t e c)                = do cs <- kiType env t
-                                             s <- kindUnify cs
+                                             s <- kindUnify cs `handle` posError "Kind" t
                                              e <- kiExp env e
                                              c <- kiCmd env c
                                              return (CGen x (subst s t) e c)

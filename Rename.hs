@@ -129,13 +129,13 @@ instance Rename a => Rename (Maybe a) where
 
 
 instance Rename Module where
-  rename env (Module c is ds ps)   = do assert (null kDups) ("Duplicate kind signatures " ++ showids kDups)
-                                        assert (null tDups) ("Duplicate type constructors " ++ showids tDups)
-                                        assert (null sDups) ("Duplicate selectors " ++ showids sDups)
-                                        assert (null cDups) ("Duplicate constructors " ++ showids cDups)
-                                        assert (null wDups) ("Duplicate instance signatures " ++ showids wDups)
-                                        assert (null eDups) ("Duplicate top-level variable " ++ showids eDups)
-                                        assert (null dks)   ("Dangling kind signatures " ++ showids dks)
+  rename env (Module c is ds ps)   = do assert (null kDups) "Duplicate kind signatures" kDups
+                                        assert (null tDups) "Duplicate type constructors" tDups
+                                        assert (null sDups) "Duplicate selectors" sDups
+                                        assert (null cDups) "Duplicate constructors" cDups
+                                        assert (null wDups) "Duplicate instance signatures" wDups
+                                        assert (null eDups) "Duplicate top-level variable" eDups
+                                        assert (null dks)   "Dangling kind signatures" dks
                                         env1 <- extRenTMod True  c env  (ts1 ++ ks1')
                                         env2 <- extRenEMod True  c env1 (cs1 ++ vs1 ++ vs1' ++ vss)
                                         env3 <- extRenLMod True  c env2 ss1

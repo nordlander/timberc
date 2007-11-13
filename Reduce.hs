@@ -47,8 +47,7 @@ reduce env pe                           = do -- tr ("###reduce\n" ++ render (vpr
                                              (s,q,[],es) <- red [] (map mkGoal pe)
                                              -- tr ("###result: " ++ show (dom pe `zip` es))
                                              return (s, q, eLet pe (dom pe `zip` es))
-  where mkGoal (v,p)                    = (tick env (isCoercion v || isDummy v), p)
-
+  where mkGoal (v,p)                    = (tick env{errPos = pos v} (isCoercion v || isDummy v), p)
 
 -- Simplification ------------------------------------------------------------------------------
 
@@ -103,7 +102,7 @@ resolve env pe                          = do -- tr "RESOLVING"
                                              (s,q,[],es) <- red [] (map mkGoal pe)
                                              -- tr ("############### After resolve: " ++ show q)
                                              let q' = filter badDummy q
-                                             assert (null q') ("Cannot resolve predicates: " ++ show q')
+                                             assert (null q') "Cannot resolve predicates with heads" (map (headsym . snd) q')
                                              -- tr "DONE RESOLVING"
                                              return (s, q, eLet pe (dom pe `zip` es))
   where env_tvs                         = tevars env
@@ -178,7 +177,7 @@ resolve env pe                          = do -- tr "RESOLVING"
 red [] []                               = return (nullSubst, [], [], [])
 red gs []                               = do -- tr ("%%%%%%%% Simple goals:")
                                              -- tr (render (vpr (map snd gs)))
-                                             -- let str = if forced (fst g) then "%%%%%%%% Force " else "%%%%%%%% Solve "
+                                             let str = if forced (fst g) then "%%%%%%%% Force " else "%%%%%%%% Solve "
                                              -- tr (str ++ show r ++ " : " ++ render (pr (snd g)) ++ ",  info: " ++ show info)
                                              (s,q,e:es) <- solve r g (gs1++gs2)
                                              let (es1,es2) = splitAt i es
@@ -259,15 +258,17 @@ solve RUnif (env,p) gs                  = do -- tr ("unif: " ++ show p)
                                              return (s'@@s, q, EVar (prim Refl) : es)
   where (a,b)                           = subs p
 solve r g gs
-  | mayLoop g                           = do assert (conservative g) "Recursive constraint"
+  | mayLoop g                           = do assert0 (conservative g) "Recursive constraint"
                                              -- tr ("Avoiding loop: " ++ show g)
                                              (s,q,es,_) <- red gs []
                                              (q',e) <- newHyp g
                                              return (s, q'++q, e:es)
   | otherwise                           = do -- tr ("Solving " ++ show r ++ " : " ++ render (pr (snd g)))
                                              try r (Left msg) (findWG r g) (logHistory g) gs
-  where msg                             = "Cannot solve typing constraint " ++ render (prPred (snd g))
-
+  where msg                             = case errPos (fst g) of
+                                             Just p   -> show p ++ " " ++ msg0
+                                             Nothing  -> msg0
+        msg0                            = "Cannot solve typing constraint "++render(prPred (snd g))
 
 try r accum wg g gs
   | isNullWG wg || isNull accum         = unexpose accum
@@ -294,6 +295,10 @@ hyp (w,p) (env,c) gs                    = do (R c',ps) <- inst p
                                              return (s'@@s, q, eAp (EVar w) es' : es)
 
 
+plus gs (Left a) (Left b)
+  |take 5 (drop 7 a)=="solve" &&
+   take 5 (drop 7 b)=="unify"           = return (Left a)
+  |otherwise                            = return (Left b)
 plus gs (Left a) b                      = return b
 plus gs a (Left b)                      = return a
 plus gs (Right (s1,_,es1)) (Right (s2,_,es2))   
@@ -382,8 +387,7 @@ unify env ((TId c,TId c'):eqs)
   | c == c'                             = unify env eqs
 unify env ((TFun ts t, TFun ts' t'):eqs)
   | length ts == length ts'             = unify env ((t,t') : ts `zip` ts' ++ eqs)
-unify env eqs                           = fail ("Unification error: " ++ show (head eqs))
-
+unify env ((t1,t2):_)                   = fail ("Cannot unify " ++ render(pr t1) ++ " with " ++ render(pr t2))
 
 tvarBind env n t eqs
   | t == TVar n                         = unify env eqs
@@ -480,11 +484,11 @@ mapSuccess f xs                         = do xs' <- mapM (expose . f) xs
 -- Handle subtype predicates
 closeTransitive env []                  = return (env, [], [])
 closeTransitive env ((w,p):pe)
-  | isSub' p                            = do assert (a /= b) ("Illegal subtype predicate" ++ show p)
+  | isSub' p                            = do assert (a /= b) "Illegal subtype predicate with head" [headsym p]
                                              (pe1,eq1) <- mapSuccess (mkTrans env) [ (n1,n2) | n1 <- below_a, n2 <- [(w,p)] ]
                                              (pe2,eq2) <- mapSuccess (mkTrans env) [ (n1,n2) | n1 <- (w,p):pe1, n2 <- above_b ]
                                              let cycles = filter (uncurry (==)) (map (subsyms . predOf) (pe1++pe2))
-                                             assert (null cycles) (encodeCircular (nub (a:b:map fst cycles)))
+                                             assert0 (null cycles) (encodeCircular (nub (a:b:map fst cycles)))
                                              env2 <- addPreds env ((w,p):pe1++pe2)
                                              (env3,pe3,eq3) <- closeTransitive env2 pe
                                              return (env3, pe1++pe2++pe3, eq1++eq2++eq3)

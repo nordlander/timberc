@@ -269,20 +269,16 @@ qualName n@(Name s _ Nothing _) = case splitString s of
                                     (x : xs) -> n {str = x, fromMod = Just(joinString xs)}
 qualName n                      = n
 
-isQual m n                      = fromMod n == Just (str m)
-
-
 tag0 (Name s t m a)             = Name s 0 m a
 tag0 n                          = n
-
-isTuple (Tuple _ _)             = True
-isTuple _                       = False
 
 annotExplicit n                 = n { annot = a { explicit = True } }
   where a                       = annot n
 
 annotState n                    = n { annot = a { stateVar = True } }
   where a                       = annot n
+
+pos n                           = location (annot n)
 
 -- Generated names ----------------------------------------------------------------
 
@@ -316,7 +312,12 @@ isCon (Name (c:_) _ _ _)        = isIdent c && isUpper c || c == ':'
 isCon (Tuple _ _)               = True
 isCon (Prim p _)                = isConPrim p
 
+isTuple (Tuple _ _)             = True
+isTuple _                       = False
+
 isVar i                         = not (isCon i)
+
+isQual m n                      = fromMod n == Just (str m)
 
 isGenerated (Name _ _ _ a)      = generated a 
 isGenerated _                   = False
@@ -362,9 +363,11 @@ instance Show Name where
 
 instance Pr Name where
   pr (Name s 0 Nothing a)       = {- prExpl a <> -} text s
-  pr (Name s n Nothing a)       = {- prExpl a <> -} text (s ++ "_" ++ show n)
+  pr (Name s n Nothing a)
+        |generated a            =  {- prExpl a <> -} text (s ++ "_" ++ show n)
+        |otherwise              =  {- prExpl a <> -} text s
   pr (Name s n (Just m) a)      
-        |location a == Nothing  =  {- prExpl a <> -} text (s ++ "_" ++ show n ++ "'" ++ m)
+        |generated a            =  {- prExpl a <> -} text (s ++ "_" ++ show n ++ "'" ++ m)
         |otherwise              =  {- prExpl a <> -} text (s ++ "'" ++ m)
   pr (Tuple n a)                = text ('(' : replicate (n-1) ',' ++ ")")
   pr (Prim p a)                 = text (strRep p)

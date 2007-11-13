@@ -137,9 +137,9 @@ dsEqns ((LPat p,RExp (EVar v)):eqns)
                                      sels <- mapM (sel (EVar v)) vs
                                      dsEqns (sels ++ eqns)
   where vs                      = pvars p
-        sel e0 v                = do es <- mapM (const (newEVar paramSym)) vs
+        sel e0 v                = do es <- mapM (newEVarPos paramSym) vs
                                      return (LFun v [], RExp (selectFrom e0 (vs `zip` es) p v))
-dsEqns ((LPat p,rh):eqns)       = do v <- newName tempSym
+dsEqns ((LPat p,rh):eqns)       = do v <- newNamePos tempSym p
                                      dsFunBind v [([], rh)] ((LPat p, RExp (EVar v)) : eqns)
 dsEqns ((LFun v ps,rh):eqns)    = dsFunBind v [(ps,rh)] eqns
 
@@ -151,7 +151,7 @@ dsFunBind v [(ps,rh)] eqns      = do e <- dsExp (eLam ps (rh2exp rh))
                                      return ((LFun v [], RExp e) : eqns)
 dsFunBind v alts eqns
   | length arities /= 1         = errorIds "Different arities for function" [v]
-  | otherwise                   = do ws <- newNames paramSym (head arities)
+  | otherwise                   = do ws <- newNamesPos paramSym (fst (head alts))
                                      alts <- mapM dsA alts
                                      e <- pmc' ws alts
                                      eqns <- dsEqns eqns 
@@ -189,26 +189,26 @@ selectFrom e0 s p v             = ECase e0 [Alt (subst s p) (RExp (subst s (EVar
 
 
 dsExp (EAp e e')                = liftM2 EAp (dsExp e) (dsExp e')
-dsExp (ESig e qt)               = do x <- newName tempSym
+dsExp (ESig e qt)               = do x <- newNamePos tempSym e
                                      dsExp (ELet [BSig [x] qt, BEqn (LFun x []) (RExp e)] (EVar x))
 dsExp (ELam ps e)            
   | all isESigVar ps            = liftM2 ELam (mapM dsPat ps) (dsExp e)
   | otherwise                   = do ps <- mapM dsPat ps
                                      e <- dsExp e
-                                     ws <- newNames paramSym (length ps)
+                                     ws <- newNamesPos paramSym ps
                                      e' <- pmc' ws [(ps,RExp e)]
                                      return (ELam (zipSigs ws ps) e')
 dsExp (ELet bs e)               = liftM2 ELet (dsBinds bs) (dsExp e)
 dsExp (EIf e e1 e2)             = dsExp (ECase e [Alt true  (RExp e1), Alt false (RExp e2)])
 dsExp (ESectR e op)             = dsExp (EAp (op2exp op) e)
-dsExp (ESectL op e)             = do x <- newEVar paramSym
+dsExp (ESectL op e)             = do x <- newEVarPos paramSym op
                                      dsExp (ELam [x] (EAp (EAp (op2exp op) x) e))
 dsExp (ECase e alts)            = do e <- dsExp e
                                      alts <- mapM dsA alts
                                      pmc e alts
   where dsA (Alt p rh)          = liftM2 Alt (dsPat p) (dsRh rh)
 dsExp (ESelect e s)             = liftM (flip ESelect s) (dsExp e)
-dsExp (ESel s)                  = do x <- newName paramSym
+dsExp (ESel s)                  = do x <- newNamePos paramSym s
                                      return (ELam [EVar x] (ESelect (EVar x) s))
 dsExp (EWild)                   = errorTree "Non-pattern use of wildcard variable" EWild
 dsExp (EVar v)                  = return (EVar v)
@@ -235,8 +235,8 @@ comp2exp e (QExp e' : qs) r     = do e <- comp2exp e qs r
                                      return (EIf e' e r)
 comp2exp e (QLet bs : qs) r     = do e <- comp2exp e qs r
                                      return (ELet bs e)
-comp2exp e (QGen p e' : qs) r   = do f <- newName functionSym
-                                     x <- newEVar paramSym
+comp2exp e (QGen p e' : qs) r   = do f <- newNamePos functionSym p
+                                     x <- newEVarPos paramSym p
                                      e <- comp2exp e qs (EAp (EVar f) x)
                                      return (ELet (binds f x e) (EAp (EVar f) e'))
   where binds f x e             = [BEqn (LFun f [nil]) (RExp r),
@@ -257,11 +257,11 @@ dsStmts (s@(SAss p e) : ss)
   | isEVar p                    = do e <- dsExp e
                                      ss <- dsStmts ss
                                      return (SAss p e : ss)
-  | otherwise                   = do v0 <- newName tempSym
+  | otherwise                   = do v0 <- newNamePos tempSym p
                                      assigns <- mapM (assign (EVar v0)) vs
                                      dsStmts (SBind (BEqn (LFun v0 []) (RExp e)) : assigns ++ ss)
   where vs                      = pvars p
-        assign e0 v             = do vs' <- newNames paramSym (length vs)
+        assign e0 v             = do vs' <- newNamesPos paramSym vs
                                      return (SAss (EVar v) (selectFrom e0 (vs `zip` map EVar vs') p v))
 dsStmts [SRet e]                = do e <- dsExp e
                                      return [SRet e]
@@ -272,7 +272,7 @@ dsStmts (SGen p e : ss)
                                      e <- dsExp e
                                      ss <- dsStmts ss
                                      return (SGen p e : ss)
-  | otherwise                   = do v <- newEVar tempSym
+  | otherwise                   = do v <- newEVarPos tempSym p
                                      dsStmts (SGen v e : SBind (BEqn (LPat p) (RExp v)) : ss)
 dsStmts (s : _)                 = internalError "dsStmts; did not expect" s
 
@@ -298,8 +298,8 @@ dsPat (ESig p qt)
 dsPat (EVar v)                  = return (EVar v)
 dsPat (EWild)                   = do v <- newName dummySym
                                      return (EVar v)
-dsPat (ENeg (ELit (LInt i)))    = return (ELit (LInt (-i)))
-dsPat (ENeg (ELit (LRat r)))    = return (ELit (LRat (-r)))
+dsPat (ENeg (ELit (LInt p i)))    = return (ELit (LInt p (-i)))
+dsPat (ENeg (ELit (LRat p r)))    = return (ELit (LRat p (-r)))
 dsPat (ELit l)                  = dsLit l
 dsPat (ETup ps)                 = dsPat (foldl EAp (ECon (tuple (length ps))) ps)
 dsPat (EList ps)                = dsPat (foldr cons nil ps)
@@ -317,7 +317,9 @@ dsInnerPat p                    = dsPat p
 
 -- Literals ------------------------------------------------------------------
 
-dsLit (LStr s)                  = return (foldr cons nil (map (ELit . LChr) s))
+dsLit (LStr (Just (l,c)) s)     = return (foldr cons nil (map mkLit (zipWith f s [c..])))
+  where f s n                   = (s,Just (l,n))
+        mkLit (c,p)             = (ELit (LChr p c))
 dsLit l                         = return (ELit l)
 
 

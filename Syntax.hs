@@ -132,7 +132,7 @@ imports c is
 
 mkModule c (is,ds,ps)           = Module c (imports c is) ds ps
 
-newEVar v                       = do i <- newName v
+newEVarPos v p                  = do i <- newNamePos v p
                                      return (EVar i)
 
 op2exp c                        = if isCon c then ECon c else EVar c
@@ -672,6 +672,7 @@ instance HasPos Exp where
   posInfo (EReq n ss)           = between (posInfo n) (posInfo ss)
   posInfo (EAfter e e')         = between (posInfo e) (posInfo e')
   posInfo (EBefore e e')        = between (posInfo e) (posInfo e')
+  posInfo (ELit l)              = posInfo l
   posInfo _                     = Unknown
 
 instance HasPos Field where

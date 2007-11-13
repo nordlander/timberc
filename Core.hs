@@ -85,10 +85,10 @@ data Cmd        = CGen    Name Type Exp Cmd
 
 
 
-litType (LInt i)                = TId (prim Int)
-litType (LRat r)                = TId (prim Float)
-litType (LChr c)                = TId (prim Char)
-litType (LStr s)                = internalError0 "Core.litType LStr"
+litType (LInt _ i)              = TId (prim Int)
+litType (LRat _ r)              = TId (prim Float)
+litType (LChr _ c)              = TId (prim Char)
+litType (LStr _ s)              = internalError0 "Core.litType LStr"
 
 
 tupleKind n                     = foldr KFun Star (replicate n Star)
@@ -753,8 +753,8 @@ instance Pr Type where
     prn 1 t                     = prn 2 t
 
     prn 2 (TId c)               = prId c
-    prn 2 (TVar _)              = text "_"
---    prn 2 (TVar n)              = text "_" <> pr n
+--    prn 2 (TVar _)              = text "_"
+    prn 2 (TVar n)              = text "_" <> pr n
 
     prn 2 t                     = parens (prn 0 t)
 
@@ -850,7 +850,7 @@ instance HasPos Type where
 
 instance HasPos Pat where
   posInfo (PCon n)              = posInfo n
-  posInfo (PLit l)              = Unknown
+  posInfo (PLit l)              = posInfo l
 
 instance HasPos Exp where
   posInfo (ECon n)              = posInfo n
@@ -861,7 +861,7 @@ instance HasPos Exp where
   posInfo (ELet bs e)           = between (posInfo bs) (posInfo e)
   posInfo (ECase e as d)        = foldr1 between [posInfo e, posInfo as, posInfo d]
   posInfo (ERec n es)           = between (posInfo n) (posInfo es)
-  posInfo (ELit l)              = Unknown
+  posInfo (ELit l)              = posInfo l
   posInfo (EAct e e')           = between (posInfo e) (posInfo e')
   posInfo (EReq e e')           = between (posInfo e) (posInfo e')
   posInfo (ETempl n t te c)     = foldr1 between [posInfo n, posInfo te, posInfo c]

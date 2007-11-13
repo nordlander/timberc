@@ -69,8 +69,8 @@ tiModule (xs',ds',bs',is') (Module v ns xs ds is bs) =
                                          env4 = addCoercions (eqnsOf is' ++ eqnsOf is0) env3
                                      (ss1,pe1,bs) <- tiBindsList (addTEnv0 ieTot env4) (groupBinds bs)
                                      (ss2,pe2,classInsts) <- tiBinds (addTEnv0 (tsigsOf bs) env4) classInsts
-                                     assert (null (ss0++ss1++ss2)) "Internal: top-level type inference 1"
-                                     assert (null (pe0++pe1++pe2)) "Internal: top-level type inference 2"
+                                     assert0 (null (ss0++ss1++ss2)) "Internal: top-level type inference 1"
+                                     assert0 (null (pe0++pe1++pe2)) "Internal: top-level type inference 2"
                                      let isFinal = concatBinds (groupBinds (is0 `catBinds` classInsts))
                                      return (Module v ns xs ds1 isFinal bs)
   where env0                    = addTEnv0 (tsigsOf bs') (impDecls (initEnv { modName = Just (str v) }) ds')
@@ -90,7 +90,7 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ render (vpr te) 
                                      (s,pe,es1)   <- tiRhs0 env' explWits ts es
                                      -- tr ("RESULT: " ++ render (vpr pe))
                                      -- tr ("    " ++ render (vpr es1))
-                                     (s',qe,f)    <- fullreduce (target te env) s pe
+                                     (s',qe,f) <- fullreduce (target te env) s pe `handle` posHandler es
                                      -- tr ("PREDICATES OBTAINED: " ++ show qe)
                                      let env1      = subst s' env
                                          (qe1,qe2) = partition (isFixed env1) qe
@@ -112,6 +112,13 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ render (vpr te) 
                 f x t           = (x, eLam te (EAp (EVar x) (es ++ map EVar (dom te))))
                   where te      = abcSupply `zip` ctxt t
                 
+posHandler es msg  
+  | head msg == '('             = do 
+                                     -- tr ("xs = "++show xs)
+                                     posError "Type" (Between p p) (unwords rest)
+  | otherwise                   = posError "Type" (posInfo es) msg
+  where ps:rest                 = words msg
+        p                       = read ps
 
 
 tiRhs0 env explWits ts es       = do (ss,pes,es') <- fmap unzip3 (mapM (tiExpT' env) (zip3 explWits ts es))
@@ -125,11 +132,11 @@ tiExpT env t e                  = tiExpT' env (False, t, e)
 
 tiExpT' env (False, Scheme t0 [] [], e)
                                 = do (ss,pe,t,e)  <- tiExp env e
-                                     c            <- newName coercionSym
+                                     c            <- newNamePos coercionSym e
                                      return (ss, (c, Scheme (F [scheme' t] t0) [] []) : pe, EAp (EVar c) [e])
 tiExpT' env (False, Scheme t0 ps [], e) 
                                 = do (ss,qe,t,e)  <- tiExp env e
-                                     c            <- newName coercionSym
+                                     c            <- newNamePos coercionSym e
                                      pe0          <- newEnv assumptionSym ps
                                      let ws        = map EVar (dom pe0)
                                          e1        = eLam pe0 (EAp (eAp (EVar c) ws) [e])
@@ -137,8 +144,8 @@ tiExpT' env (False, Scheme t0 ps [], e)
 tiExpT' env (explWit, Scheme t0 ps ke, e)
                                 = do (ss,qe,t,e)  <- tiExp env e
                                      -- tr ("INFERRED: " ++ show e ++ "   ::  " ++ render (pr t) ++ "\n" ++ render (vpr qe))
-                                     (s,qe,f)     <- normalize (target t env) ss qe
-                                     c            <- newName coercionSym
+                                     (s,qe,f)     <- normalize (target t env) ss qe `handle` posHandler e
+                                     c            <- newNamePos coercionSym e
                                      pe0          <- newEnv assumptionSym ps
                                      let env1      = subst s env
                                          (qe1,qe2) = partition (isFixed env1) (subst s qe)
@@ -169,7 +176,7 @@ tiAp env s pe (F scs rho) e es
 tiAp env s pe (R (TFun ts t)) e es
                                 = tiAp env s pe (F (map scheme ts) (R t)) e es
 tiAp env s pe rho e es          = do t <- newTVar Star
-                                     c <- newName coercionSym
+                                     c <- newNamePos coercionSym e
                                      (ss,pes,ts,es) <- fmap unzip4 (mapM (tiExp env) es)
                                      let p = Scheme (F [scheme' rho] (F (map scheme' ts) (R t))) [] []
                                      return (s++concat ss, (c,p):pe++concat pes, R t, EAp (EAp (EVar c) [e]) es)
@@ -307,7 +314,7 @@ mkCase env e t0 alts d          = liftM (\a -> ECase e a d) (mapM mkAlt ps)
   where ps                      = nub (map (head . fst) alts)
         mkAlt p                 = case [ (ps,e) | (p':ps,e) <- alts, p==p' ] of
                                     ([],e):_ -> return (p, e)
-                                    alts_p   -> do x <- newName tempSym
+                                    alts_p   -> do x <- newNamePos tempSym p
                                                    (R (TFun [t1] t2),_) <- inst (findType env (let PCon k = p in k))
                                                    let s = matchTs [(t0,t2)]
                                                        tx = subst s t1

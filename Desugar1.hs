@@ -57,15 +57,15 @@ mkEnv c ds (rs,rn,ss)           = (env {sels = map transClose recEnv, modName = 
         sels (Sig vs _)         = map (mName (Just (str c))) vs
         transClose (c,(cs,ss))  = (c, sort (ss ++ nub(concat (map (selectors [c]) cs))))
         selectors cs0 c
-          | c `elem` cs0        = errorIds "Circular record dependencies:" (c:cs0)
+          | c `elem` cs0        = errorIds "Circular record dependencies" (c:cs0)
           | otherwise           = case lookup c recEnv of
                                     Just (cs,ss) -> ss ++ concat (map (selectors (c:cs0)) cs)
-                                    Nothing      -> errorIds "Unknown record constructor:"  [c]
+                                    Nothing      -> errorIds "Unknown record constructor"  [c]
 
         tsynDecls                
-          | not (null dups)     = errorIds "Duplicate type synonym declarations:" dups
+          | not (null dups)     = errorIds "Duplicate type synonym declarations" dups
           | otherwise           = case topSort (tyCons . snd) syns of
-                                    Left ns     -> errorIds "Mutually recursive type synonyms:" ns
+                                    Left ns     -> errorIds "Mutually recursive type synonyms" ns
                                     Right syns' -> syns'
         syns                    = [(c,(vs,t)) | DType c vs t <- ds]
         dups                    = duplicates (map fst syns)
@@ -96,14 +96,14 @@ haveSelf env                    = self env /= Nothing
 tSubst env c ts                 = case lookup c (tsyns env) of
                                      Nothing -> foldl TAp (TCon c) ts1
                                      Just (vs,t)
-                                       | length vs > length ts -> errorIds "Type synonym not fully applied:" [c]
+                                       | length vs > length ts -> errorIds "Type synonym not fully applied" [c]
                                        | otherwise -> foldl TAp (subst (zip vs (take (length vs) ts1)) t) 
                                                                 (drop (length vs) ts1)
   where ts1                     = ds1 env ts
 
 ren env cs                      = map ren' cs     
   where ren' c                  = case lookup c (selSubst env) of
-                                     Nothing -> errorIds "Unknown record selector:" [c]
+                                     Nothing -> errorIds "Unknown record selector" [c]
                                      Just c' -> c'
 
 patEnv env                      = env {isPat = True}
@@ -119,7 +119,7 @@ indexArray e es                 = foldl f e es
  where f x y                    = EAp (EAp (prim0 IndexArray) x) y      
 
 cloneArray e 0                  = e
-cloneArray e k                  = EAp (EAp (prim0 CloneArray) e) (ELit (LInt (fromIntegral k)))
+cloneArray e k                  = EAp (EAp (prim0 CloneArray) e) (ELit (LInt Nothing (fromIntegral k)))
 
 updateArray e k r               = EAp (EAp (EAp (prim0 UpdateArray) e) k) r
 
@@ -224,13 +224,13 @@ instance Desugar1 Exp where
         | isPat env                = e
         | otherwise                = maybeClone env e e 0
     ds1 env (ERec Nothing fs)
-      | not (null dups)            = errorIds "Duplicate field definitions in record:" dups
+      | not (null dups)            = errorIds "Duplicate field definitions in record" dups
       | otherwise                  = ERec (Just (c,True)) (ds1 env fs)
       where c                      = typeFromSels env (sort (ren env (bvars fs)))
             dups                   = duplicates (bvars fs)
     ds1 env (ERec (Just (c,all)) fs)
-      | not (null dups)            = errorIds "Duplicate field definitions in record:" dups
-      | all && not (null miss)     = errorIds "Missing selectors in record:" miss
+      | not (null dups)            = errorIds "Duplicate field definitions in record" dups
+      | all && not (null miss)     = errorIds "Missing selectors in record" miss
       | otherwise                  = ERec (Just (c,True)) (fs' ++ ds1 env fs)
       where miss                   = ren env (selsFromType env c) \\ ren env (bvars fs)
             dups                   = duplicates (ren env (bvars fs))
@@ -251,8 +251,8 @@ instance Desugar1 Exp where
     ds1 env (ELam ps e)            = ELam (ds1 (patEnv env) ps) (ds1 env e)
     ds1 env (ECase e as)           = ECase (ds1 env e) (ds1 env as)
     ds1 env (EIf e1 e2 e3)         = EIf (ds1 env e1) (ds1 env e2) (ds1 env e3)
-    ds1 env (ENeg (ELit (LInt i))) = ELit (LInt (-i))
-    ds1 env (ENeg (ELit (LRat r))) = ELit (LRat (-r))
+    ds1 env (ENeg (ELit (LInt p i))) = ELit (LInt p (-i))
+    ds1 env (ENeg (ELit (LRat p r))) = ELit (LRat p (-r))
     ds1 env (ENeg e)               = EAp (EVar (name' "negate")) (ds1 env e)
     ds1 env (ESeq e1 Nothing e3)   = EAp (EAp (EVar (name' "enumFromTo")) (ds1 env e1)) (ds1 env e3)
     ds1 env (ESeq e1 (Just e2) e3) = EAp (EAp (EAp (EVar (name' "enumFromThenTo")) (ds1 env e1)) (ds1 env e2)) (ds1 env e3)
@@ -260,7 +260,7 @@ instance Desugar1 Exp where
     ds1 env (ESectR e op)          = ESectR (ds1 env e) op
     ds1 env (ESectL op e)          = ESectL op (ds1 env e)
     ds1 env (ESelect e s)          = ESelect (ds1 env e) s
-    ds1 env e@(ELit (LInt n))
+    ds1 env e@(ELit (LInt _ n))
       | isPat env                  = e
       | otherwise                  = EAp (EVar (name' "fromInt")) e 
 

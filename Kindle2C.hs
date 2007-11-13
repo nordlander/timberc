@@ -172,7 +172,7 @@ k2cExp e                        = k2cExp' e
 
 k2cExp' (EVar x) | isCon x      = k2cTag x
                  | otherwise    = k2cName x
-k2cExp' (ELit (LRat r))         = text (show (fromRational r :: Double))
+k2cExp' (ELit (LRat _ r))       = text (show (fromRational r :: Double))
 k2cExp' (ELit l)                = pr l
 k2cExp' (ESel e l)              = k2cExp' e <> text "->" <> k2cName l
 k2cExp' (EEnter (EVar x) f es)  = k2cExp' (ESel (EVar x) f) <> parens (commasep k2cExp (EVar x : es))

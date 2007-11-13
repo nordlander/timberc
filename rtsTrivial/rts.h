@@ -1,7 +1,7 @@
 #ifndef RTS_H_
 #define RTS_H_
 
-#include "timber.h"
+
 
 #define WORDS(bytes)      (((bytes)+sizeof(WORD)-1)/sizeof(WORD))
 #define NEW(t,lhs,size)   lhs = (t)hp; hp += WORDS(size); if (hp >= lim) lhs = (t)force(WORDS(size));

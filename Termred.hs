@@ -59,8 +59,8 @@ value (ELam _ _)                = True
 value (ERec _ eqs)              = all (value . snd) eqs
 value e                         = False
 
-nonzero (ELit (LInt n))         = n /= 0
-nonzero (ELit (LRat n))         = n /= 0
+nonzero (ELit (LInt _ n))       = n /= 0
+nonzero (ELit (LRat _ n))       = n /= 0
 nonzero _                       = False
 
 
@@ -207,20 +207,20 @@ redPrim Refl _ [e]                          = e
 redPrim Match a es                          = redMatch a es
 redPrim Fatbar a [e,e']                     = redFat a e e'
 redPrim ConstArray a es                     = EAp (EVar (Prim ConstArray a)) es
-redPrim p _ [ELit (LInt x), ELit (LInt y)]  = redInt p x y
-redPrim p a [ELit (LRat x), ELit (LRat y)]  = redRat p x y
-redPrim IntNeg _ [ELit (LInt x)]            = ELit (LInt (-x))
-redPrim IntToFloat _ [ELit (LInt x)]        = ELit (LRat (fromInteger x))
-redPrim IntToChar _ [ELit (LInt x)]         = ELit (LChr (chr (fromInteger x)))
-redPrim FloatNeg _ [ELit (LRat x)]          = ELit (LRat (-x))
-redPrim FloatToInt _ [ELit (LRat x)]        = ELit (LInt (truncate x))
-redPrim CharToInt _ [ELit (LChr x)]         = ELit (LInt (toInteger (ord x)))
+redPrim p _ [ELit (LInt _ x), ELit (LInt _ y)]  = redInt p x y
+redPrim p a [ELit (LRat _ x), ELit (LRat _ y)]  = redRat p x y
+redPrim IntNeg _ [ELit (LInt _ x)]            = ELit (LInt Nothing (-x))
+redPrim IntToFloat _ [ELit (LInt _ x)]        = ELit (LRat Nothing (fromInteger x))
+redPrim IntToChar _ [ELit (LInt _ x)]         = ELit (LChr Nothing (chr (fromInteger x)))
+redPrim FloatNeg _ [ELit (LRat _ x)]          = ELit (LRat Nothing (-x))
+redPrim FloatToInt _ [ELit (LRat _ x)]        = ELit (LInt Nothing (truncate x))
+redPrim CharToInt _ [ELit (LChr _ x)]         = ELit (LInt Nothing (toInteger (ord x)))
 redPrim p a es                              = eAp (EVar (Prim p a)) es
 
 
 redMatch a [ELet bs e]                      = ELet bs (redMatch a [e])
 redMatch a [EAp (EVar (Prim Commit _)) [e]] = e
-redMatch _ [EVar (Prim Fail a)]             = EAp (EVar (Prim Raise a)) [ELit (LInt 1)]
+redMatch _ [EVar (Prim Fail a)]             = EAp (EVar (Prim Raise a)) [ELit (LInt Nothing 1)]
 redMatch a es                               = EAp (EVar (Prim Match a)) es
 
 
@@ -230,11 +230,11 @@ redFat a (EAp (EVar (Prim Commit _)) [e]) _ = e
 redFat a e e'                               = EAp (EVar (Prim Fatbar a)) [e,e']
 
 
-redInt IntPlus a b              = ELit (LInt (a + b))
-redInt IntMinus a b             = ELit (LInt (a - b))
-redInt IntTimes a b             = ELit (LInt (a * b))
-redInt IntDiv a b               = ELit (LInt (a `div` b))
-redInt IntMod a b               = ELit (LInt (a `mod` b))
+redInt IntPlus a b              = ELit (LInt Nothing (a + b))
+redInt IntMinus a b             = ELit (LInt Nothing (a - b))
+redInt IntTimes a b             = ELit (LInt Nothing (a * b))
+redInt IntDiv a b               = ELit (LInt Nothing (a `div` b))
+redInt IntMod a b               = ELit (LInt Nothing (a `mod` b))
 redInt IntEQ a b                = eBool (a == b)
 redInt IntNE a b                = eBool (a /= b)
 redInt IntLT a b                = eBool (a < b)
@@ -244,10 +244,10 @@ redInt IntGT a b                = eBool (a > b)
 redInt p _ _                    = internalError0 ("redInt: unknown primitive " ++ show p)
 
 
-redRat FloatPlus a b            = ELit (LRat (a + b))
-redRat FloatMinus a b           = ELit (LRat (a - b))
-redRat FloatTimes a b           = ELit (LRat (a * b))
-redRat FloatDiv a b             = ELit (LRat (a / b))
+redRat FloatPlus a b            = ELit (LRat Nothing (a + b))
+redRat FloatMinus a b           = ELit (LRat Nothing (a - b))
+redRat FloatTimes a b           = ELit (LRat Nothing (a * b))
+redRat FloatDiv a b             = ELit (LRat Nothing (a / b))
 redRat FloatEQ a b              = eBool (a == b)
 redRat FloatNE a b              = eBool (a /= b)
 redRat FloatLT a b              = eBool (a < b)
