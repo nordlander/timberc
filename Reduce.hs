@@ -265,10 +265,7 @@ solve r g gs
                                              return (s, q'++q, e:es)
   | otherwise                           = do -- tr ("Solving " ++ show r ++ " : " ++ render (pr (snd g)))
                                              try r (Left msg) (findWG r g) (logHistory g) gs
-  where msg                             = case errPos (fst g) of
-                                             Just p   -> show p ++ " " ++ msg0
-                                             Nothing  -> msg0
-        msg0                            = "Cannot solve typing constraint "++render(prPred (snd g))
+  where msg                             = "Cannot solve typing constraint "++render(prPred (snd g))
 
 try r accum wg g gs
   | isNullWG wg || isNull accum         = unexpose accum
