@@ -200,7 +200,7 @@ instance Pr IFace where
                                   text "Default declarations: " <+> prDefault xs $$
                                   text ("Record types and their selectors: "++show rs) $$
                                   text "Type synonyms: " <+> hsep (map (prId . fst) ss) $$ 
-                                  pr ds1 $$ pr is  $$ pr bs
+                                  pr ds1 $$ prInsts is  $$ pr bs
                                   $$$ text "Kindle declarations" 
                                   $$$ vcat (map pr kds)
                                   
