@@ -140,7 +140,7 @@ dsDecls env (DInst t bs : ds)   = do w <- newName instanceSym
                                      s <- renaming xs
                                      let bs' = map (substB s) bs
                                          r   = ERec (Just (type2head t,True)) (map mkField s)
-                                     dsDecls env (DPSig w t : DBind (BEqn (LFun w []) (RWhere (RExp r) bs')) : ds)
+                                     dsDecls env (DPSig w t : DBind (BEqn (LPat (EVar w)) (RWhere (RExp r) bs')) : ds)
   where mkField (x,x')          = Field x (EVar x')
         xs                      = nub (bvars bs)
         substB s (BSig vs t)    = BSig (substVars s vs) t
@@ -168,7 +168,7 @@ instance Desugar1 a => Desugar1 (Maybe a) where
     ds1 env (Just a)            = Just (ds1 env a)
 
 instance Desugar1 Default where
-   ds1 env (Default _ a b)        = Default (isPublic env) (ds1 env a) (ds1 env b)
+   ds1 env (Default _ a b)      = Default (isPublic env) (ds1 env a) (ds1 env b)
 
 instance Desugar1 Inst where
    ds1 env (Inst v t)           = Inst v (ds1 env t)

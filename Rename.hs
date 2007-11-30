@@ -376,10 +376,9 @@ shuffle insts sigs (BSig vs t : bs)
 shuffle insts sigs (b@(BEqn (LFun v _) _) : bs)
                                    = case lookup v sigs of
                                        Just t  -> BSig [v] t : b : shuffle insts (prune sigs [v]) bs
-                                       Nothing -> b : shuffle (insts \\ [v]) sigs bs
+                                       Nothing -> b : shuffle insts sigs bs
 shuffle insts sigs (BEqn (LPat p) rh : bs)
-  | not (null illegal)             = errorIds "Illegal instance binding for" illegal
-  | otherwise                      = BEqn (LPat p') rh : shuffle insts sigs' bs
+                                   = BEqn (LPat p') rh : shuffle (insts \\ pvars p) sigs' bs
   where illegal                    = pvars p `intersect` insts
         (sigs',p')                 = attach sigs p
 
