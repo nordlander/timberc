@@ -225,7 +225,10 @@ completeP env t ps
 
 
 renameQT env (TQual t ps)          = rename env (TQual t (completeP env t ps))
-renameQT env t                     = renameQT env (TQual t [])
+renameQT env t
+  | null ps                        = rename env t
+  | otherwise                      = rename env (TQual t ps)
+  where ps                         = completeP env t []
 
 
 renameQTs env ts                   = mapM (renameQT env) ts
