@@ -123,10 +123,14 @@ primDecls                               = (prim Bool,       Struct [tagSig] [pri
                                           (prim NIL,        Struct [tagSig] []) :
                                           (prim CONS,       Struct (tagSig : abcSupply `zip` [ValT TWild, ValT (TId (prim LIST))]) []) :
                                           (prim Msg,        Struct [(prim Code, FunT [] tUNIT),
-                                                                    (prim Baseline, ValT (TId (prim Time))),
-                                                                    (prim Deadline, ValT (TId (prim Time)))] []) :
+                                                                    (prim Baseline, ValT (TId (prim AbsTime))),
+                                                                    (prim Deadline, ValT (TId (prim AbsTime))),
+                                                                    (prim Next, ValT (TId (prim Msg)))] []) :
                                           []
                                           
+objTEnv                                 = [(prim Obj, ValT tObject)]
+
+objInit                                 = [(prim Obj, Val tObject (EVar (prim ObjInit)))]
 
 primKindleTerms                         = map prim [ MIN____VAR .. MAX____KINDLEVAR ]
 
@@ -147,6 +151,7 @@ tTime                                   = TId (prim Time)
 tMsg                                    = TId (prim Msg)
 tPID                                    = TId (prim PID)
 tUNIT                                   = TId (prim UNITTYPE)
+tObject                                 = TId (prim Object)
 
 primTEnv0                               = (prim ASYNC,   FunT [tMsg,tTime,tTime] tUNIT) :
                                           (prim LOCK,    FunT [tPID] tUNIT) :

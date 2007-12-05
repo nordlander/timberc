@@ -413,10 +413,11 @@ cFun env (ETempl x tx te c)             = do tx <- cValType tx     -- Type-check
                                              te <- cValTEnv te
                                              (t,c) <- cCmd (pushAddSelf x tx (addTEnv te env)) c
                                              te' <- kindleTEnv env te
-                                             addToStore (n, Kindle.Struct te' [])
+                                             addToStore (n, Kindle.Struct (Kindle.objTEnv ++ te') [])
                                              y <- newName dummySym
                                              u <- newTVar Star
-                                             return ([(y,u)], t, Kindle.cBind [(x,Kindle.Val tx' (Kindle.ENew n []))] c)
+                                             let e = Kindle.ENew n Kindle.objInit
+                                             return ([(y,u)], t, Kindle.cBind [(x,Kindle.Val tx' e)] c)
 cFun env (EDo x tx c)                   = do tx <- cValType tx
                                              (t,c) <- cCmd (pushAddSelf x tx env) c
                                              return ([(x,stripQuant tx)], t, c)

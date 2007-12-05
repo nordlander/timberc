@@ -215,7 +215,7 @@ take n []           = []
 take n (x : xs) 
         | n > 0     = take (n-1) xs
 
-(++)               :: [a] -> [a] -> [a] 
+(++)               :: [a] -> [a] -> [a]
 [] ++ ys            = ys
 (x:xs) ++ ys        = x : xs ++ ys
 

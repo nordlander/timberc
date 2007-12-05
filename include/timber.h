@@ -1,20 +1,9 @@
 #ifndef TIMBER_H_
 #define TIMBER_H_
 
-typedef int WORD;
-typedef WORD *ADDR;
 
-#define Int int
-#define Float float
-#define Char char
-#define Bool char
-#define UNITTYPE char
-#define POLY void*
-#define Time int
-#define PID void*
 #define INFINITY 0
 #define Inherit -1
-
 
 struct TUP2;
 typedef struct TUP2 *TUP2;
@@ -32,7 +21,6 @@ struct TimeBox;
 typedef struct TimeBox *TimeBox;
 struct Msg;
 typedef struct Msg *Msg;
-
 
 enum {_UNITTERM};
 
@@ -67,8 +55,9 @@ struct IntBox {
 
 struct Msg {
   Int (*Code)(Msg);
-  Time Baseline;
-  Time Deadline;
+  AbsTime baseline;
+  AbsTime deadline;
+  Msg next;
 };
 
 struct Array {
@@ -78,7 +67,13 @@ struct Array {
 
 typedef struct Array *Array;
 
+UNITTYPE ASYNC(Msg, Time, Time);
+UNITTYPE LOCK(PID);
+UNITTYPE UNLOCK(PID);
+POLY     RAISE(Int);
+
 Array primListArray(LIST);
 Array primConstArray(Int,POLY);
 Array primCloneArray(Array,Int);
+
 #endif

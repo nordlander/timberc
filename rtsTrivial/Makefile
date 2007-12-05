@@ -15,8 +15,8 @@ $(OBJS): %.o: ../lib/%.t ../include/timber.h
 $(DEST): $(OBJS) rts.o
 	libtool -static -o $(DEST) $(OBJS) rts.o
 
-rts.o: rts.c rts.h ../include/timber.h
-	$(CC) $(CFLAGS) -I../include -c rts.c
+rts.o: rts.c rts.h ../include/timber.h ../include/arrays.c
+	$(CC) $(CFLAGS) -I../include -I../lib -I. -c rts.c
 
 install: $(DEST)
 	$(INSTALL) -d $(DESTDIR)$(prefix)/rts$(TIMBERTARGET)

@@ -73,12 +73,13 @@ data Prim                       =
                                 | TemplToCmd
                                 | RefToPID
 
+                                | MIN____KINDLE_INFIX
+                                
                                 | IntPlus
                                 | IntMinus
                                 | IntTimes
                                 | IntDiv
                                 | IntMod
-                                | IntNeg
 
                                 | IntEQ
                                 | IntNE
@@ -91,7 +92,6 @@ data Prim                       =
                                 | FloatMinus
                                 | FloatTimes
                                 | FloatDiv
-                                | FloatNeg
                                 
                                 | FloatEQ
                                 | FloatNE
@@ -100,31 +100,6 @@ data Prim                       =
                                 | FloatGE
                                 | FloatGT
 
-                                | IntToFloat
-                                | FloatToInt
-
-                                | CharToInt
-                                | IntToChar
-
-                                | LazyOr
-                                | LazyAnd
-
-                                | MsgEQ
-                                | MsgNE
-
-                                | PidEQ
-                                | PidNE
-                                
-                                | Sec
-                                | MilliSec
-                                | MicroSec
-                                | NanoSec
-                                | Infinity
-                                
-                                | TimePlus
-                                | TimeMinus
-                                | TimeMin
-                                
                                 | TimeEQ
                                 | TimeNE
                                 | TimeLT
@@ -132,6 +107,36 @@ data Prim                       =
                                 | TimeGE
                                 | TimeGT
 
+                                | MsgEQ
+                                | MsgNE
+
+                                | PidEQ
+                                | PidNE
+                                
+                                | LazyOr
+                                | LazyAnd               
+                                
+                                | MAX____KINDLE_INFIX
+
+                                | IntNeg
+                                | FloatNeg
+
+                                | IntToFloat
+                                | FloatToInt
+
+                                | CharToInt
+                                | IntToChar
+
+                                | Sec
+                                | Millisec
+                                | Microsec
+                                | Nanosec
+                                | Infinity
+                                
+                                | TimePlus
+                                | TimeMinus
+                                | TimeMin
+                                
                                 | Raise
                                 | Catch
                                 
@@ -168,11 +173,21 @@ data Prim                       =
 
                                 | Tag                   -- first selector of every datatype/constructor struct
                                 
+                                | Obj                   -- first selector of every state struct
+                                | Object                -- its type
+                                | ObjInit               -- its initializer
+                                
                                 | Code                  -- selectors of struct Msg
                                 | Baseline
                                 | Deadline
+                                | Next
                                 
-                                | CharBox               -- The Kindle Struct for boxed values
+                                | AbsTime               -- type of selectors Baseline and Deadline
+                                
+                                | OwnedBy               -- selectors of struct Object
+                                | WantedBy
+                                
+                                | CharBox               -- The Kindle structs for boxed values
                                 | FloatBox                
                                 | IntBox                 
                                 | TimeBox 
@@ -202,6 +217,7 @@ primKeyValue p                  = (name0 (strRep p), prim p)
 
 alreadyPrimed ps                = map (\p -> (prim p, prim p)) ps
 
+lowPrims                        = [Sec,Millisec,Microsec,Nanosec,Raise,Catch,Baseline,Deadline,Next,OwnedBy,WantedBy,Infinity]
 
 strRep LIST                     = "[]"
 strRep UNITTYPE                 = "()"
@@ -210,18 +226,13 @@ strRep NIL                      = "[]"
 strRep CONS                     = ":"
 strRep TRUE                     = "True"
 strRep FALSE                    = "False"
-strRep Sec                      = "sec"
-strRep MilliSec                 = "millisec"
-strRep MicroSec                 = "microsec"
-strRep NanoSec                  = "nanosec"
-strRep Raise                    = "raise"
-strRep Catch                    = "catch"
-strRep Infinity                 = "infinity"
 strRep p                        = strRep2 p
                                 
 strRep2 p
-  | isConPrim p || invisible p  = show p
-  | otherwise                   = "prim" ++ show p
+  | p `elem` lowPrims           = toLower (head s) : tail s
+  | isConPrim p || invisible p  = s
+  | otherwise                   = "prim" ++ s
+  where s                       = show p
 
 
 -- Name construction ------------------------------------------------------------

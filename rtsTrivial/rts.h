@@ -2,6 +2,29 @@
 #define RTS_H_
 
 
+typedef int WORD;
+typedef WORD *ADDR;
+
+#define Int int
+#define Float float
+#define Char char
+#define Bool char
+#define UNITTYPE char
+#define POLY void*
+#define Time int
+
+#define AbsTime Time
+
+struct Thread;
+typedef struct Thread *Thread;
+
+struct Object {
+};
+typedef struct Object Object;
+typedef Object *PID;
+
+#define InitObj  { }
+
 
 #define WORDS(bytes)      (((bytes)+sizeof(WORD)-1)/sizeof(WORD))
 #define NEW(t,lhs,size)   lhs = (t)hp; hp += WORDS(size); if (hp >= lim) lhs = (t)force(WORDS(size));
@@ -9,14 +32,7 @@
 extern ADDR hp, lim;
 ADDR force(WORD);
 
-UNITTYPE ASYNC(Msg, Time, Time);
-UNITTYPE LOCK(PID);
-UNITTYPE UNLOCK(PID);
-POLY     RAISE(Int);
 
-void putStr(LIST);
-LIST getStr(char *);
-
-void init_rts(void);
+void init_rts(int, char**);
 
 #endif

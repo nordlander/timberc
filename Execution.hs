@@ -45,6 +45,7 @@ linkO cfg clo r o_files = do let Just rmod  = fromMod r
                                        ++ " -L" ++ rtsDir clo ++ " " 
                                        ++ " -I" ++ includeDir ++ " " 
                                        ++ " -I " ++ rtsDir clo ++ " " 
+                                       ++ " -I " ++ libDir ++ " " 
                                        ++ " -DROOT=" ++ rootId ++ " "
                                        ++ " -DROOTINIT=" ++ initId ++ " "
                                        ++ rtsDir clo ++ "/main.c "

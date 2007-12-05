@@ -1,12 +1,12 @@
 #include <stdio.h>
-#include "timber.h"
 #include "rts.h"
+#include "timber.h"
 
 void ROOTINIT(void);
 extern LIST ROOT(LIST);
 
 int main(int argc, char **argv) {
-    init_rts();
+    init_rts(argc, argv);
     ROOTINIT();
     LIST w = (LIST)_NIL;
     for (; argc; argc--) {

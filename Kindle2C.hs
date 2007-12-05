@@ -23,7 +23,7 @@ k2hModule (Module n ns ds bs)   = hHeader n ns $$$
 k2cImport n                     = text "#include \"" <> text (concat(intersperse "/" (splitString (str n)))) <> text ".h\""
 
 
-hHeader n []                    = includeGuard n $$ text "#include \"timber.h\"" $$ text "#include \"rts.h\""
+hHeader n []                    = includeGuard n $$ text "#include \"rts.h\"" $$ text "#include \"timber.h\""
 hHeader n ns                    = includeGuard n $$ vcat (map k2cImport ns)
 
 includeGuard n                  = text ("#ifndef " ++ g) $$
@@ -190,8 +190,7 @@ k2cName n                       = prId3 n
 
 k2cTag n                        = char '_' <> prId3 n
 
-isInfix (Prim p _)              = p `elem` [IntPlus .. TimeGT] \\ 
-                                  ([IntNeg, FloatNeg ,IntToFloat, FloatToInt, CharToInt, IntToChar] ++ [Sec .. Infinity])
+isInfix (Prim p _)              = p `elem` [MIN____KINDLE_INFIX .. MAX____KINDLE_INFIX]
 isInfix _                       = False
 
 
@@ -237,17 +236,17 @@ k2cPrim PidEQ                   = text "=="
 k2cPrim PidNE                   = text "!="
                                 
 k2cPrim Sec                     = text "SEC"
-k2cPrim MilliSec                = text "MILLISEC"
-k2cPrim MicroSec                = text "MICROSEC"
-k2cPrim NanoSec                 = text "NANOSEC"
+k2cPrim Millisec                = text "MILLISEC"
+k2cPrim Microsec                = text "MICROSEC"
+k2cPrim Nanosec                 = text "NANOSEC"
 k2cPrim Infinity                = text "INFINITY"
 
 k2cPrim Raise                   = text "RAISE"
 k2cPrim Catch                   = text "CATCH"
                                 
-k2cPrim TimePlus                = text "+"
-k2cPrim TimeMinus               = text "-"
-k2cPrim TimeMin                 = text "MIN"
+k2cPrim TimePlus                = text "TPLUS"
+k2cPrim TimeMinus               = text "TMINUS"
+k2cPrim TimeMin                 = text "TMIN"
                                 
 k2cPrim TimeEQ                  = text "=="
 k2cPrim TimeNE                  = text "!="

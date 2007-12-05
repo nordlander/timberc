@@ -677,9 +677,9 @@ primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
                             (prim PidNE,        scheme0 [tPID,tPID] tBool),
 
                             (prim Sec,          scheme0 [tInt] tTime),
-                            (prim MilliSec,     scheme0 [tInt] tTime),
-                            (prim MicroSec,     scheme0 [tInt] tTime),
-                            (prim NanoSec,      scheme0 [tInt] tTime),
+                            (prim Millisec,     scheme0 [tInt] tTime),
+                            (prim Microsec,     scheme0 [tInt] tTime),
+                            (prim Nanosec,      scheme0 [tInt] tTime),
                             (prim Infinity,     scheme0 [] tTime),
                                 
                             (prim TimePlus,     scheme0 [tTime,tTime] tTime),

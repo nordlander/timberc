@@ -2,10 +2,17 @@ module POSIX where
     
 type RootType = Env -> Template Prog
 
+record File =
+    read  :: Request String
+    write :: String -> Request String
+    
 record Env =
     argv   :: [String]
-    output :: String -> Request ()
+    stdin  :: File
+    stdout :: File
     exit   :: Int -> Request ()
 
 record Prog =
-    input :: String -> Action
+    start :: Action
+    io    :: Action
+

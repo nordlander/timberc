@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include "timber.h"
 #include "rts.h"
+#include "timber.h"
 
 
 // Memory management --------------------------------------------------------------------------------
@@ -48,9 +48,39 @@ POLY RAISE(Int err) {
 }
 
 
-// String marshalling ----------------------------------------------------------------------------------
+// String marshalling and output -----------------------------------------------------------------------
 
-#include "timberstrings.c"
+void putStr(LIST xs) {
+  Char x;
+  while(1) {
+    switch ((Int)xs) {
+    case _NIL: 
+      putchar('\n');
+      return;
+    default: 
+      x = (Char)(Int)((CONS)xs)->a;
+      xs = ((CONS)xs)->b;
+      putchar(x);
+      break;
+    }
+  }
+}
+
+LIST getStr(char *p) {
+    if (!*p)
+        return (LIST)_NIL;
+    CONS n0; NEW(CONS, n0, sizeof(struct CONS));
+    CONS n = n0;
+    n->a = (POLY)(Int)*p++;
+    while (*p) {
+        NEW(LIST, n->b, sizeof(struct CONS));
+        n = (CONS)n->b;
+        n->a = (POLY)(Int)*p++;
+    }
+    n->b = (LIST)_NIL;
+    return (LIST)n0;
+}
+
 
 // Arrays ---------------------------------------------------------------------------------------------
 
@@ -58,7 +88,7 @@ POLY RAISE(Int err) {
 
 // Initialization -------------------------------------------------------------------------------------
 
-void init_rts(void) {
+void init_rts(int argc, char **argv) {
     base = (ADDR)allocwords(HEAPSIZE);
     base[0] = 0;
     hp = base + 1;
