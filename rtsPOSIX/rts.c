@@ -14,11 +14,11 @@
 
 
 #define NTHREADS        5
-#define STACKSIZE       0x100000
+#define STACKSIZE       0x40000                 // words
 
-#define SLEEP()         sigsuspend(&previous_mask)
-#define DISABLE()       sigprocmask(SIG_SETMASK, &disabled_mask, &previous_mask)
-#define ENABLE()        sigprocmask(SIG_SETMASK, &previous_mask, NULL)
+#define SLEEP()         sigsuspend(&enabled_mask)
+#define DISABLE(prev)   sigprocmask(SIG_SETMASK, &disabled_mask, prev)
+#define ENABLE(mask)    sigprocmask(SIG_SETMASK, mask, NULL)
 
 #if     defined(__APPLE__)
 #if     defined(__i386__)
@@ -69,7 +69,24 @@
 #define INF             0x7fffffff
 
 
-sigset_t disabled_mask, previous_mask;
+sigset_t disabled_mask, enabled_mask;
+
+
+// Last resort -----------------------------------------------------------------------------------
+
+void panic(char *str) {
+        DISABLE(NULL);
+        fprintf(stderr, "Timber RTS panic: %s. Quitting...\n", str);
+        exit(1);
+}
+
+
+// Memory management --------------------------------------------------------------------------------
+
+#include "gc.c"
+
+
+// Thread management --------------------------------------------------------------------------------
 
 struct Thread {
         Thread next;             // for use in linked lists
@@ -96,14 +113,6 @@ Thread activeStack      = &thread1;
 Thread current          = &thread1;
 
 Prog_1_POSIX prog       = NULL;                         // Must be set by main()
-
-
-// Last resort -----------------------------------------------------------------------------------
-
-void panic(char *str) {
-        fprintf(stderr, "Timber RTS panic: %s. Quitting...\n", str);
-        exit(1);
-}
 
 
 // Queue management ------------------------------------------------------------------------------
@@ -165,8 +174,7 @@ void dispatch( Thread next ) {
 }
 
 void idle(void) {
-        sigemptyset(&previous_mask);
-        ENABLE();
+        ENABLE(&enabled_mask);
         while (1) {
                 SLEEP();
         }
@@ -180,7 +188,6 @@ void INTERRUPT_PROLOGUE() {
 
 void INTERRUPT_EPILOGUE() {
         current->msg = savedMsg;
-        sigemptyset(&previous_mask);
         Msg topMsg = activeStack->msg;
         if (msgQ && threadPool && ((!topMsg) || LESS(msgQ->deadline, topMsg->deadline))) {
                 push(pop(&threadPool), &activeStack);
@@ -205,10 +212,9 @@ void io_handler(int signo) {
 void run(void) {
         while (1) {
                 Msg this = current->msg = dequeue(&msgQ);
-                sigemptyset(&previous_mask);
-                ENABLE();
+                ENABLE(&enabled_mask);
                 this->Code(this);
-                DISABLE();
+                DISABLE(NULL);
                 current->msg = NULL;
                 Msg oldMsg = activeStack->next->msg;
                 
@@ -226,7 +232,8 @@ void run(void) {
 // Major primitives ---------------------------------------------------------------------
 
 UNITTYPE ASYNC( Msg m, Time bl, Time dl ) {
-        DISABLE();
+        sigset_t previous_mask;
+        DISABLE(&previous_mask);
         AbsTime now;
         TIMERGET(now);
 
@@ -252,12 +259,13 @@ UNITTYPE ASYNC( Msg m, Time bl, Time dl ) {
         } else {
                 enqueueByDeadline(m, &msgQ);
         }
-        ENABLE();
+        ENABLE(&previous_mask);
 }
 
 
 UNITTYPE LOCK( PID to ) {
-        DISABLE();
+        sigset_t previous_mask;
+        DISABLE(&previous_mask);
         Thread t = to->ownedBy;
         if (t) {                                                // "to" is already locked
                 while (t->waitsFor)
@@ -271,11 +279,12 @@ UNITTYPE LOCK( PID to ) {
                 dispatch(t);
         }
         to->ownedBy = current;
-        ENABLE();
+        ENABLE(&previous_mask);
 }
 
 UNITTYPE UNLOCK( PID to ) {
-        DISABLE();
+        sigset_t previous_mask;
+        DISABLE(&previous_mask);
         to->ownedBy = NULL;
         Thread t = to->wantedBy;
         if (t) {                                                // we have run on someone's behalf
@@ -283,13 +292,12 @@ UNITTYPE UNLOCK( PID to ) {
                 t->waitsFor = NULL;
                 dispatch(t);
         }
-        ENABLE();
+        ENABLE(&previous_mask);
 }
 
 void init_threads(void) {
-        int pagesize = sysconf(_SC_PAGESIZE);
-        int stacksize = (STACKSIZE / pagesize) * pagesize;
-        void *adr;
+        WORD stacksize = (((STACKSIZE-1) / pagesize) + 1) * pagesize;
+        ADDR adr;
         int i;
 
         for (i=0; i<NTHREADS-1; i++)
@@ -299,7 +307,7 @@ void init_threads(void) {
         for (i=0; i<NTHREADS; i++) {
                 if (setjmp( threads[i].context ))
                         run();
-                if (!(adr = malloc(stacksize)))
+                if (!(adr = allocwords(stacksize)))
                         panic("Cannot allocate stack memory");
                 if (mprotect(adr, pagesize, PROT_NONE))
                         panic("Cannot protect end-of-stack page");
@@ -313,7 +321,7 @@ void init_threads(void) {
         thread0.msg = NULL;
         if (setjmp( thread0.context ))
                 idle();
-        if (!(adr = malloc(pagesize)))
+        if (!(adr = allocwords(pagesize)))
                 panic("Cannot allocate idle stack memory");
         SETSTACK( &thread0.context, pagesize, adr);
                 
@@ -325,10 +333,6 @@ void init_threads(void) {
         activeStack = &thread1;
 }
 
-
-// Memory management --------------------------------------------------------------------------------
-
-#include "gc.c"
 
 // Exception handling ----------------------------------------------------------------------------------
 
@@ -361,82 +365,21 @@ LIST getStr(char *p) {
 
 // Environment object ---------------------------------------------------------------------------------
 
-struct DescFile {
-        struct File_3_POSIX super;
-        int desc;
-};
-typedef struct DescFile *DescFile;
-
-LIST read_fun( File_3_POSIX this, POLY self ) {
-        char buf[1024];
-        LIST xs = (LIST)_NIL;
-        while (1) {
-                DISABLE();
-                int r = read(((DescFile)this)->desc, buf, 1023);
-                ENABLE();
-                if (r <= 0)
-                        return xs;
-                while (r) {
-                        CONS n; NEW(CONS, n, sizeof(struct CONS));
-                        n->a = (POLY)(Int)buf[--r];
-                        n->b = xs;
-                        xs = (LIST)n;
-                }
-        }
-}
-
-LIST write_fun( File_3_POSIX this, LIST xs, POLY self ) {
-        char buf[1024];
-        while (xs) {
-                LIST xs0 = xs;
-                int len = 0;
-                while (xs && len < 1024) {
-                        buf[len++] = (Char)(Int)((CONS)xs)->a;
-                        xs = ((CONS)xs)->b;
-                }
-                DISABLE();
-                int r = write(((DescFile)this)->desc, buf, len);
-                ENABLE();
-                if (r < 0) r = 0;
-                if (r < len) {
-                        while (r--)
-                                xs0 = ((CONS)xs0)->b;
-                        return xs0;
-                }
-        }
-        return (LIST)_NIL;
-}
-
-UNITTYPE exit_fun( Env_2_POSIX this, Int n, POLY self ) {
-        DISABLE();
-        exit(n);
-}
-
-struct DescFile stdin_struct  = { { read_fun, write_fun }, 0 };
-
-struct DescFile stdout_struct = { { read_fun, write_fun }, 1 };
-
-struct Env_2_POSIX env_struct = { NULL, (File_3_POSIX)&stdin_struct, (File_3_POSIX)&stdout_struct, exit_fun };
-Env_2_POSIX env = &env_struct;
-
-void init_env() {
-        fcntl(0, F_SETFL, O_NONBLOCK + O_ASYNC);
-        fcntl(1, F_SETFL, O_NONBLOCK + O_ASYNC);
-}
+#include "env.c"
 
 
 // Initialization -------------------------------------------------------------------------------------
 
-void init_rts(int argc, char **argv) {        
+void init_rts(int argc, char **argv) {
+        sigemptyset(&enabled_mask);
         sigemptyset(&disabled_mask);
         sigaddset(&disabled_mask, SIGALRM);
         sigaddset(&disabled_mask, SIGIO);
-        DISABLE();
-        sigemptyset(&previous_mask);
+        DISABLE(NULL);
         
+        gcinit();
         init_threads();
         init_env();
-        gcinit();
 
         struct sigaction act;
         act.sa_handler = timer_handler;

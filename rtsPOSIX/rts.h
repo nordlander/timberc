@@ -47,7 +47,7 @@ extern Object ObjInit;
                               if (top >= lim2) addr = force2(WORDS(size)); }
 
 #define GCINFO(addr)        ((ADDR)addr[0])
-#define PROLOGUE(obj)       { if (GCINFO(obj)[0] < 0) obj = (ADDR)obj[1]; }
+#define PROLOGUE(obj)       { if (!ISSTATIC(GCINFO(obj))) obj = GCINFO(obj); }
 #define EPILOGUE(obj)       { if (hp2) { \
                                  if (obj==scanning) scanning = 0; \
                                  if (obj==copying) copying = 0; \
