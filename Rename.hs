@@ -254,13 +254,12 @@ instance Rename Type where
   rename env (TFun t1 t2)          = liftM2 TFun (rename env t1) (rename env t2)
 
 instance Rename Bind where
-  rename env (BEqn lh rh)          = do env' <- extRenE env (bvars lh)
-                                        liftM2 BEqn (rename env' lh) (rename env' rh)
+  rename env (BEqn (LFun v ps) rh) = do env' <- extRenE env (pvars ps)
+                                        ps' <- rename env' ps
+                                        liftM (BEqn (LFun (renE env v) ps')) (rename env' rh)
+  rename env (BEqn (LPat p) rh)    = do p' <- rename env p
+                                        liftM (BEqn (LPat p')) (rename env rh)
   rename env (BSig vs t)           = liftM (BSig (map (renE env) vs)) (renameQT env t)
-
-instance Rename Lhs where
-  rename env (LFun v ps)           = liftM (LFun (renE env v)) (rename env ps)
-  rename env (LPat p)              = liftM LPat (rename env p)
 
 instance Rename Exp where
   rename env (EVar v)
