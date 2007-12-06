@@ -47,9 +47,10 @@ ifaceMod (rs,ss) (Module _ ns xs ds is bs) kds
         xs'                          = [d | d@(True,i1,i2) <- xs]
         ys                           = [d | d <- xs', localInst [(b,a) | (a,b) <- ts1] d]
         ds1                          = Types (filter exported ke) (filter exported' te)
-        is'                          = Binds r1 (filter exported ts1) (filter exported es1)
+        is'                          = Binds r1  (ws1 ++ is1) (filter exported es1)
         bs'                          = Binds r2 (filter exported ts2) (filter (\ eqn -> fin eqn &&  exported eqn) es2)
         vis                          = nub (localTypes [] (rng (tsigsOf is') ++ rng (tsigsOf bs')))
+        (ws1,is1)                    = partition (\(n,_) -> isWitness n) (filter exported ts1)
         exported (n,_)               = isQualified n
         exported' p@(n,_)            = isQualified n && (not(isAbstract p)) --Constructors/selectors are exported
         fin (_,e)                    = finite env0 e && null(filter isPrivate (constrs e))
