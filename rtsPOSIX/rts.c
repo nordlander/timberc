@@ -71,8 +71,6 @@
 
 sigset_t disabled_mask, previous_mask;
 
-Object ObjInit = { NULL, NULL };
-
 struct Thread {
         Thread next;             // for use in linked lists
         Msg msg;                 // message under execution
@@ -80,6 +78,8 @@ struct Thread {
         int num;                 // identifier
         jmp_buf context;         // machine state
 };
+
+Object ObjInit          = { NULL, NULL };
 
 struct Msg msg0         = { 0, { 0, 0 }, { INF, 0 }, NULL };
 
