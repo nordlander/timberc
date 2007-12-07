@@ -41,7 +41,7 @@ tscope env                         = dom (rT env)
 
 renE env n@(Tuple _ _)             = n
 renE env v                         = case lookup v (rE env) of
-                                       Just n  -> n { annot = annot v }
+                                       Just n  -> n { annot = (annot v) {suppressMod = suppressMod (annot n)} }
                                        Nothing -> errorIds "Undefined identifier" [v]
 
 renS env n@(Tuple _ _)             = n
@@ -51,12 +51,12 @@ renS env v                         = case lookup v (rS env) of
   where a                          = annot v
 
 renL env v                         = case lookup v (rL env) of
-                                       Just n  -> n { annot = annot v }
+                                       Just n  -> n { annot = (annot v){suppressMod = suppressMod (annot n)} }
                                        Nothing -> errorIds "Undefined selector" [v]
 
 renT env n@(Tuple _ _)             = n
 renT env v                         = case lookup v (rT env) of
-                                       Just n  -> n { annot = annot v }
+                                       Just n  -> n { annot = (annot v) {suppressMod = suppressMod (annot n)} }
                                        Nothing -> errorIds "Undefined type identifier" [v]
 
 extRenE env vs
@@ -80,12 +80,16 @@ unvoidAll env                      = env { void = [] }
 
 extRenT env vs                     = do rT' <- renaming (noDups "Duplicate type variables" vs)
                                         return (env { rT = rT' ++ rT env })
+
+extRenEMod _ _ env []              = return env
 extRenEMod pub m env vs            = do rE' <- extRenXMod pub m (rE env) vs
                                         return (env {rE = rE'})
 
+extRenTMod _ _ env []              = return env
 extRenTMod pub m env vs            = do rT' <- extRenXMod pub m (rT env) vs
                                         return (env {rT = rT'})
 
+extRenLMod _ _ env []              = return env
 extRenLMod pub m env vs            = do rL' <- extRenXMod pub m (rL env) vs
                                         return (env {rL = rL'})
 
@@ -94,11 +98,12 @@ extRenSelf env s                   = do rE' <- renaming [s]
 
 extRenXMod pub m rX vs             = do rX' <- renaming (map (mName (qual pub)) (noQual vs))
                                         let rX'' = if pub 
-                                                   then (mergeRenamings1 (mapFst (mName Nothing) rX') rX) ++ rX'
+                                                   then (mergeRenamings1 (map suppressPair rX') rX) ++ rX'
                                                    else mergeRenamings1 rX' rX
                                         return (rX'') 
   where qual True                  = Just (str m)
         qual False                 = Nothing
+        suppressPair (n1,n2)       = (mName Nothing n1, n2 {annot = (annot n2) {suppressMod = True}}) 
 
 noQual vs                          = map checkQual vs
   where checkQual v

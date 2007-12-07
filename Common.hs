@@ -229,7 +229,8 @@ localStore (M m)                = M $ \(n0,s0) ->
 
 newNameMod m s                  = do n <- newNum
                                      return (Name s n m ann)
-  where ann                     = if s `elem` explicitSyms then genAnnot { explicit = True } else genAnnot
+  where ann                     = if s `elem` explicitSyms then suppAnnot { explicit = True } else suppAnnot
+        suppAnnot               = genAnnot { suppressMod = True }
 
 newName s                       = newNameMod Nothing s
 

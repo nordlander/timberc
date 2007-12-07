@@ -4,6 +4,7 @@ import List
 import PP
 import Token
 import Char
+import Maybe
 import Data.Binary 
 
 -- The type of names ---------------------------------------------------------------------
@@ -13,7 +14,11 @@ data Name                       = Name  { str :: String, tag :: Int, fromMod :: 
                                 | Tuple { width :: Int, annot :: Annot }
 
 
-data Annot                      = Annot { location :: Maybe (Int,Int), explicit :: Bool, stateVar :: Bool , generated :: Bool}
+data Annot                      = Annot { location :: Maybe (Int,Int), 
+                                          explicit :: Bool, 
+                                          stateVar :: Bool , 
+                                          generated :: Bool,
+                                          suppressMod :: Bool}
 
 
 -- The built-in primitives ----------------------------------------------------------------
@@ -237,7 +242,7 @@ strRep2 p
 
 -- Name construction ------------------------------------------------------------
 
-noAnnot                         = Annot { location = Nothing, explicit = False, stateVar = False, generated = False }
+noAnnot                         = Annot { location = Nothing, explicit = False, stateVar = False, generated = False, suppressMod = False }
 
 name l s                        = qualName (Name s 0 Nothing (loc l))
 
@@ -363,26 +368,35 @@ instance Ord Name where
 -- Printing Names -----------------------------------------------------------------
 
 instance Show Name where
+  show (Name s n m a)           = s ++ tag ++ mod
+     where tag                  = if n/=0 && generated a then '_' : show n else ""
+           mod                  = if m==Nothing || suppressMod a then "" else "'" ++ fromJust m
+{-
   show (Name s 0 Nothing _)     = show s
   show (Name s n Nothing _)     = show (s ++ "_" ++ show n)
   show (Name s n (Just m) a) 
      |location a == Nothing     = show (s ++ "_" ++ show n ++ "'" ++ m)
      |otherwise                 = show (s ++ "'" ++ m)
+-}
   show (Tuple n _)              = show ('(' : replicate (n-1) ',' ++ ")")
-  show (Prim p _)               = "Prim "++show p
+  show (Prim p _)               = strRep p
 
 
 instance Pr Name where
-  pr (Name s 0 Nothing a)       = {- prExpl a <> -} text s
+  pr n                          = text (show n)
+{-
+--  pr (Name s 0 Nothing a)       = {- prExpl a <> -} text s
+{-
   pr (Name s n Nothing a)
         |generated a            =  {- prExpl a <> -} text (s ++ "_" ++ show n)
         |otherwise              =  {- prExpl a <> -} text s
   pr (Name s n (Just m) a)      
         |generated a            =  {- prExpl a <> -} text (s ++ "_" ++ show n ++ "'" ++ m)
         |otherwise              =  {- prExpl a <> -} text (s ++ "'" ++ m)
+-}
   pr (Tuple n a)                = text ('(' : replicate (n-1) ',' ++ ")")
   pr (Prim p a)                 = text (strRep p)
-
+-}
 
 prExpl a                        = if explicit a then text "~" else empty
 
@@ -431,8 +445,8 @@ instance Binary Name where
 
 
 instance Binary Annot where
-  put (Annot _ b c d) = put b >> put c >> put d
-  get = get >>= \b -> get >>= \c -> get >>= \d -> return (Annot Nothing b c d)
+  put (Annot _ b c d e) = put b >> put c >> put d >> put e
+  get = get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> return (Annot Nothing b c d e)
 
 
 maxPrimWord = fromIntegral (fromEnum maxPrim) :: Word8
