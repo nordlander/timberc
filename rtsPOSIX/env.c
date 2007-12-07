@@ -1,3 +1,6 @@
+#include <fcntl.h>
+
+
 
 struct DescFile {
         struct File_3_POSIX super;
@@ -52,16 +55,45 @@ UNITTYPE exit_fun( Env_2_POSIX this, Int n, POLY self ) {
         exit(n);
 }
 
-struct DescFile stdin_struct  = { { read_fun, write_fun }, 0 };
+struct DescFile stdin_struct    = { { read_fun, write_fun }, 0 };
 
-struct DescFile stdout_struct = { { read_fun, write_fun }, 1 };
+struct DescFile stdout_struct   = { { read_fun, write_fun }, 1 };
 
-struct Env_2_POSIX env_struct = { NULL, (File_3_POSIX)&stdin_struct, (File_3_POSIX)&stdout_struct, exit_fun };
-Env_2_POSIX env = &env_struct;
+struct Env_2_POSIX env_struct   = { NULL, (File_3_POSIX)&stdin_struct, (File_3_POSIX)&stdout_struct, exit_fun };
 
-void init_env() {
-        fcntl(0, F_SETFL, O_NONBLOCK + O_ASYNC);
-        fcntl(1, F_SETFL, O_NONBLOCK + O_ASYNC);
+Env_2_POSIX env                 = &env_struct;
+
+Prog_1_POSIX prog               = NULL;                         // Must be set by main()
+
+
+int copyEnvRoots() {        
+        prog = (Prog_1_POSIX)copy((ADDR)prog);
+        env->argv_7_POSIX = (LIST)copy((ADDR)env->argv_7_POSIX);
+}
+
+void io_handler(int signo) {
+        INTERRUPT_PROLOGUE();
+        prog->io_6_POSIX(prog, -1, -1);
+        INTERRUPT_EPILOGUE();
 }
 
 
+void init_env(int argc, char **argv) {
+        struct sigaction act;
+        act.sa_flags = 0;
+        sigemptyset( &act.sa_mask );
+        act.sa_handler = io_handler;
+        sigaction( SIGIO, &act, NULL );
+
+        LIST w = (LIST)_NIL;
+        for (; argc; argc--) {
+                CONS n; NEW(CONS, n, sizeof(struct CONS));
+                n->a = getStr(argv[argc-1]);
+                n->b = w;
+                w = (LIST)n;
+        }
+        env->argv_7_POSIX = w;
+
+        fcntl(0, F_SETFL, O_NONBLOCK + O_ASYNC);
+        fcntl(1, F_SETFL, O_NONBLOCK + O_ASYNC);
+}

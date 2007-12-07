@@ -6,7 +6,6 @@
 #include <setjmp.h>
 #include <signal.h>
 #include <sys/time.h>
-#include <fcntl.h>
 #include <string.h>
 #include "rts.h"
 #include "timber.h"
@@ -81,18 +80,12 @@ void panic(char *str) {
 }
 
 
-// Memory management --------------------------------------------------------------------------------
-
-#include "gc.c"
-
-
 // Thread management --------------------------------------------------------------------------------
 
 struct Thread {
         Thread next;             // for use in linked lists
         Msg msg;                 // message under execution
         PID waitsFor;            // deadlock detection link
-        int num;                 // identifier
         jmp_buf context;         // machine state
 };
 
@@ -112,7 +105,10 @@ Thread threadPool       = threads;
 Thread activeStack      = &thread1;
 Thread current          = &thread1;
 
-Prog_1_POSIX prog       = NULL;                         // Must be set by main()
+
+// Memory management --------------------------------------------------------------------------------
+
+#include "gc.c"
 
 
 // Queue management ------------------------------------------------------------------------------
@@ -203,12 +199,6 @@ void timer_handler(int signo) {
         INTERRUPT_EPILOGUE();
 }
 
-void io_handler(int signo) {
-        INTERRUPT_PROLOGUE();
-        prog->io_6_POSIX(prog, -1, -1);
-        INTERRUPT_EPILOGUE();
-}
-
 void run(void) {
         while (1) {
                 Msg this = current->msg = dequeue(&msgQ);
@@ -232,8 +222,6 @@ void run(void) {
 // Major primitives ---------------------------------------------------------------------
 
 UNITTYPE ASYNC( Msg m, Time bl, Time dl ) {
-        sigset_t previous_mask;
-        DISABLE(&previous_mask);
         AbsTime now;
         TIMERGET(now);
 
@@ -253,9 +241,14 @@ UNITTYPE ASYNC( Msg m, Time bl, Time dl ) {
         } else
                 m->deadline = current->msg->deadline;
         
+        sigset_t previous_mask;
+        DISABLE(&previous_mask);
         if (LESS(now, m->baseline)) {
+                Msg oldTimerQ = timerQ;
                 enqueueByBaseline(m, &timerQ);
-                TIMERSET(timerQ, now);
+                if (timerQ != oldTimerQ)
+                        TIMERSET(timerQ, now);
+                timerQchanged = 1;
         } else {
                 enqueueByDeadline(m, &msgQ);
         }
@@ -313,7 +306,6 @@ void init_threads(void) {
                         panic("Cannot protect end-of-stack page");
                 SETSTACK( &threads[i].context, stacksize, adr );
                 threads[i].waitsFor = NULL;
-                threads[i].num = 2+i;
         }
 
         thread0.next = NULL;
@@ -379,24 +371,12 @@ void init_rts(int argc, char **argv) {
         
         gcinit();
         init_threads();
-        init_env();
+        init_env(argc, argv);
 
         struct sigaction act;
         act.sa_handler = timer_handler;
         act.sa_flags = 0;
         sigemptyset( &act.sa_mask );
         sigaction( SIGALRM, &act, NULL );        
-
-        act.sa_handler = io_handler;
-        sigaction( SIGIO, &act, NULL );
-
-        LIST w = (LIST)_NIL;
-        for (; argc; argc--) {
-                CONS n; NEW(CONS, n, sizeof(struct CONS));
-                n->a = getStr(argv[argc-1]);
-                n->b = w;
-                w = (LIST)n;
-        }
-        env->argv_7_POSIX = w;
 }
 
