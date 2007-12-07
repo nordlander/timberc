@@ -48,8 +48,10 @@ install: ${DEST}
 		$(MAKE) install -C $$rts; \
 	done
 
-clean:
+clean: libclean
 	rm -f *.o *.hi $(DEST) 
+	
+libclean:
 	rm -f $(LIB_TI) $(LIB_C) $(LIB_H)
 	@for rts in $(RTSS); do \
 		echo Cleaning $$rts; \
