@@ -31,6 +31,19 @@ struct TUP2 {
   POLY b;
 };
 
+struct TUP3 {
+  POLY a;
+  POLY b;
+  POLY c;
+};
+
+struct TUP4 {
+  POLY a;
+  POLY b;
+  POLY c;
+  POLY d;
+};
+
 struct LIST {};
 enum {_NIL,_CONS};
 
