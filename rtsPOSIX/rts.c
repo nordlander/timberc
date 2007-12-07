@@ -244,11 +244,12 @@ UNITTYPE ASYNC( Msg m, Time bl, Time dl ) {
         sigset_t previous_mask;
         DISABLE(&previous_mask);
         if (LESS(now, m->baseline)) {
+                TIMERQ_PROLOGUE();
                 Msg oldTimerQ = timerQ;
                 enqueueByBaseline(m, &timerQ);
                 if (timerQ != oldTimerQ)
                         TIMERSET(timerQ, now);
-                timerQchanged = 1;
+                TIMERQ_EPILOGUE();
         } else {
                 enqueueByDeadline(m, &msgQ);
         }

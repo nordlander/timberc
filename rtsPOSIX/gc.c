@@ -1,23 +1,24 @@
 #include <stdlib.h>
 #include <mach-o/getsect.h>
 
-#define NEW2(addr,size)     { ADDR top; do { addr = hp2; top = (ADDR)addr + WORDS(size); } while (!CAS(addr,top,&hp2)); \
-                              if (top >= lim2) addr = force2(WORDS(size)); }
+#define NEW2(addr,size)         { ADDR top; do { addr = hp2; top = (ADDR)addr + WORDS(size); } while (!CAS(addr,top,&hp2)); \
+                                  if (top >= lim2) addr = force2(WORDS(size)); }
 
-#define GCINFO(addr)        ((ADDR)(addr)[0])
-#define GC_PROLOGUE(obj)    { if (!ISSTATIC(GCINFO((ADDR)obj))) obj = (PID)GCINFO((ADDR)obj); }         // read barrier
-#define GC_EPILOGUE(obj)    { if (hp2) { \
-                                 if ((ADDR)obj==scanning) scanning = 0; \
-                                 if ((ADDR)obj==copying) copying = 0; \
-                                 if (ISBLACK((ADDR)obj)) { ADDR a; NEW2(a,1); a[0] = (WORD)obj; } } }   // write barrier
+#define GCINFO(obj)             ((ADDR)obj)[0]
+#define GC_PROLOGUE(obj)        { if (ISFORWARD(GCINFO(obj))) obj = (PID)GCINFO(obj); }                         // read barrier
+#define GC_EPILOGUE(obj)        { if (hp2) { \
+                                      if (!GCINFO(obj)) GCINFO(obj) = 1; \
+                                      if (ISBLACK(obj)) { ADDR a; NEW2(a,1); a[0] = (WORD)obj; } } }    // write barrier
+#define TIMERQ_PROLOGUE()       { if (timerQchanged) timerQ = timerQchanged; }                          // read barrier
+#define TIMERQ_EPILOGUE()       { timerQchanged = timerQ; }                                             // write barrier
 
-#define allocwords(size)    (ADDR)malloc(size*sizeof(WORD))
-#define HEAPSIZE            0x10000000                  // in words
-#define STARTGC(hp,lim)     (hp >= 3 * (lim/8))
-#define NEEDEXTRA(hp,lim)   (hp >= 7 * (lim/8))
-#define ISWHITE(a)          (a >= heapMin && a < heapMax)
-#define ISSTATIC(a)         (a <= edata)
-#define ISBLACK(a)          (a >= base2 && a < scanp)
+#define allocwords(size)        (ADDR)malloc(size*sizeof(WORD))
+#define HEAPSIZE                0x10000000                  // in words
+#define STARTGC(hp,lim)         ((hp) >= 3 * ((lim)/8))
+#define NEEDEXTRA(hp,lim)       ((hp) >= 7 * ((lim)/8))
+#define ISWHITE(a)              ((ADDR)(a) >= heapMin && (ADDR)(a) < heapMax)
+#define ISBLACK(a)              ((ADDR)(a) >= base2 && (ADDR)(a) < scanp)
+#define ISFORWARD(a)            ((ADDR)(a) > edata)
 
 
 WORD pagesize;                          // obtained from OS, measured in wors
@@ -25,13 +26,11 @@ ADDR base, lim, hp;                     // start, end, and current pos of latest
 ADDR base2, lim2, hp2;                  // start, end and current pos of "tospace" (only used during gc)
 ADDR heapchain, heapMin, heapMax;       // chain of fromspaces formed by extension, with accumulated limits
 WORD heapsize, thissize;                // accumulated size of all fromspaces, size of current fromspace
-ADDR edata, rootp, scanp;               // end of static data, root pointer, scan pointer
+ADDR edata, scanp;                      // end of static data, scan pointer (only used during gc)
+
+Msg timerQchanged = 0;                  // ptr signalling the need to rescan the timerQ 
 
 char emergency = 0;                     // flag signalling heap overflow during gc
-char timerQchanged = 0;                 // flag signalling the need to rescan the timerQ 
-
-volatile ADDR scanning, copying;        // node currently being scanned (copied), normally null
-                                        // (may be asynchronously reset by mutator)
 
 
 void gcinit() {
@@ -39,14 +38,14 @@ void gcinit() {
         base = allocwords(HEAPSIZE);
         if (!base)
                 panic("Cannot allocate initial heap");
-        base[0] = 0;                    // first word in a heap is the "next" link
+        base[0] = 0;                                    // first word in a heap is the "next" link
         hp = base + 1;
         lim = base + HEAPSIZE;
         heapchain = base;
         heapMin = base;
         heapMax = lim;
         heapsize = thissize = HEAPSIZE;
-        base2 = lim2 = hp2 = (ADDR)0;   // no active tospace
+        base2 = lim2 = hp2 = (ADDR)0;                   // no active tospace
         edata = (ADDR)get_end();
 }
 
@@ -57,8 +56,8 @@ void extend(WORD size) {
         ADDR a = allocwords(thissize);
         if (!a)
                 panic("Cannot allocate more memory");
-        base[0] = (WORD)a;              // add link to new heap in first word of previous heap
-        a[0] = 0;                       // null terminate chain of heaps
+        base[0] = (WORD)a;                              // add link to new heap in first word of previous heap
+        a[0] = 0;                                       // null terminate chain of heaps
         base = a;
         lim = a + thissize;
         hp = a + 1;
@@ -70,67 +69,69 @@ void extend(WORD size) {
         ENABLE(&previous_mask);
 }
 
-ADDR force2(WORD size) {                // Overflow in tospace
+ADDR force2(WORD size) {                                // Overflow in tospace
         DISABLE(NULL);
         emergency = 1;
-        panic("Overlow in tospace");    // for now...
+        panic("Overlow in tospace");                    // for now...
 }
 
 
-ADDR force(WORD size) {                 // Heap overflow in from-space...
+ADDR force(WORD size) {                                 // Heap overflow in from-space...
         ADDR a;
-        if (!hp2) {                     // GC not running, simply extend the heap
+        if (!hp2) {                                     // GC not running, simply extend the heap
                 extend(size);
                 NEW(ADDR,a,size);
-        } else {                        // GC is running, allocate in to-space and hope for the best
+        } else {                                        // GC is running, allocate in to-space and hope for the best
                 NEW2(a,size);
         }
         return a;
 }
 
-ADDR copy(ADDR source) {
-        if (!ISWHITE(source))                   // tospace address, or a low range constant
-                return source;
-        ADDR dest, info = GCINFO(source);
-        if (!ISSTATIC(info))                    // gcinfo should point to static data;
-                return info;                    // if not, we have a forwarding node
+ADDR copy(ADDR obj) {
+        if (!ISWHITE(obj))                              // don't copy if obj is a tospace address or a low range constant
+                return obj;
+        ADDR dest, info = (ADDR)GCINFO(obj);
+        if (ISFORWARD(info))                            // gcinfo should point to static data;
+                return info;                            // if not, we have a forward ptr
         WORD i, size = info[0];
         NEW2(dest,size);
-        do {    copying = source;
-                for (i=0; i<size; i++)
-                        dest[i] = source[i];                
-        } while (!CAS(source,0,&copying));
-        source[0] = (WORD)dest;                 // make forwarded
+        GCINFO(dest) = (WORD)info;                      // gcinfo ptr is immutable
+        do {    GCINFO(obj) = 0;                        // flag copying in progress by nulling out gcinfo ptr
+                for (i=1; i<size; i++)
+                        dest[i] = obj[i];                
+        } while (!CAS(0,(WORD)dest,&GCINFO(obj)));      // repeat copying if dirty, else set forward ptr
         return dest;
 }
 
 
 ADDR scan(ADDR obj) {
-        ADDR info = GCINFO(obj);
-        if (!ISSTATIC(info)) {                  // gcinfo should point to static data;
-                scan(info);                     // if not, we have a write barrier (rescan request)
+        ADDR info = (ADDR)GCINFO(obj);
+        if (ISFORWARD(info)) {                          // gcinfo should point to static data;
+                scan(info);                             // if not, we have a write barrier (rescan request)
                 return obj + 1;
         }
-        do {    scanning = obj;
+        do {    GCINFO(obj) = 0;                        // flag scanning in progress by nulling out gcinfo ptr
                 WORD i = 1, offset = info[i];
-                while (scanning && offset) {
+                while (offset && !GCINFO(obj)) {
                         obj[offset] = (WORD)copy((ADDR)obj[offset]);
                         offset = info[++i];
                 }
-        } while (!CAS(obj,0,&scanning));
+        } while (!CAS(0,(WORD)info,&GCINFO(obj)));      // repeat scanning if dirty, else reinstall gcinfo ptr
         return obj + info[0];
 }
 
 void copyTimerQ() {
-        timerQchanged = 0;
-        Msg *tp = &timerQ;
-        Msg t = *tp;
-        while (t) {
-                *tp = (Msg)copy((ADDR)t);
-                (*tp)->next = t->next;          // copy 2nd time, as a kind of write barrier for Msgs
-                tp = &t->next;
-                t = *tp;
-        }
+        Msg old, new, new0;
+        do {    timerQchanged = 0;
+                old = timerQ;
+                new0 = new = (Msg)copy((ADDR)old);
+                while (old) {
+                        new->next = (Msg)copy((ADDR)old->next);
+                        new = new->next;
+                        old = old->next;
+                }
+        } while (!CAS(0,new0,&timerQchanged));          // an interrupt immediately after this test could be dangerous
+        timerQ = new0;                                  // luckily the mutator uses timerQchanged instead of timerQ if it is set
 }
 
 void gc() {
@@ -145,7 +146,7 @@ void gc() {
 
         if (NEEDEXTRA(level,heapsize))
                 extend(HEAPSIZE);
-        base2 = (ADDR)allocwords(heapsize);     // allocate tospace, size equals sum of all fromspace heaps
+        base2 = (ADDR)allocwords(heapsize);             // allocate tospace, with size equal to sum of all fromspace heaps
         lim2 = base2 + heapsize;
         base2[0] = 0;
         hp2 = base2 + 1;
@@ -153,10 +154,9 @@ void gc() {
         ENABLE(&previous_mask);
 
         copyEnvRoots();
-        do {    copyTimerQ();
-                while (scanp != hp2)
-                        scanp = scan(scanp);
-        } while (timerQchanged);
+        copyTimerQ();
+        while (scanp != hp2)
+                scanp = scan(scanp);
 
         DISABLE(&previous_mask);
         do {    base = heapchain;
@@ -169,14 +169,5 @@ void gc() {
         thissize = heapsize;
         base2 = lim2 = hp2 = (ADDR)0;
         ENABLE(&previous_mask);
-}
-
-
-
-void test(ADDR self) {
-    PROLOGUE(self);
-    LIST p;
-    NEW(LIST,p,WORDS(3));
-    EPILOGUE(self);
 }
 
