@@ -392,17 +392,14 @@ cFunT env ts t e                        = do (te,u,c) <- cFun env e
 cFun env (ELam te e)                    = do te <- cValTEnv te
                                              (te',t,c) <- cFun (addTEnv te env) e
                                              return (mapSnd stripQuant te ++ te', t, c)
-cFun env (EReq (EVar x) e)              = do (t,c) <- cCmdExp (pushSelf x env) e
-                                             y <- newName dummySym
-                                             u <- newTVar Star
-                                             return ([(y,u)], t, Kindle.protect x c)
 cFun env (EReq e e')                    = do (bf,tx,e) <- cValExp env e
                                              x <- newName selfSym
                                              (t,c) <- cCmdExp (pushAddSelf x (ValT [] tx) env) e'
                                              y <- newName dummySym
                                              u <- newTVar Star
                                              tx' <- kindleType env tx
-                                             return ([(y,u)], t, bf (Kindle.cBind [(x,Kindle.Val tx' e)] (Kindle.protect x c)))
+                                             let bf' = Kindle.cBind [(x,Kindle.Val tx' (Kindle.lock tx' e))] . Kindle.unlock x
+                                             return ([(y,u)], t, bf (bf' c))
 cFun env e@(EAct _ _)                   = cAct env id id e
 cFun env e@(EAp (EVar (Prim After _)) _) 
                                         = cAct env id id e

@@ -256,7 +256,8 @@ UNITTYPE ASYNC( Msg m, Time bl, Time dl ) {
 }
 
 
-UNITTYPE LOCK( PID to ) {
+PID LOCK( PID to ) {
+        GC_PROLOGUE(to);
         sigset_t previous_mask;
         DISABLE(&previous_mask);
         Thread t = to->ownedBy;
@@ -273,6 +274,7 @@ UNITTYPE LOCK( PID to ) {
         }
         to->ownedBy = current;
         ENABLE(&previous_mask);
+        return to;
 }
 
 UNITTYPE UNLOCK( PID to ) {
@@ -286,6 +288,7 @@ UNITTYPE UNLOCK( PID to ) {
                 dispatch(t);
         }
         ENABLE(&previous_mask);
+        GC_EPILOGUE(to);
 }
 
 void init_threads(void) {

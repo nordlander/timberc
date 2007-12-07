@@ -4,12 +4,12 @@
 #define NEW2(addr,size)     { ADDR top; do { addr = hp2; top = (ADDR)addr + WORDS(size); } while (!CAS(addr,top,&hp2)); \
                               if (top >= lim2) addr = force2(WORDS(size)); }
 
-#define GCINFO(addr)        ((ADDR)addr[0])
-#define PROLOGUE(obj)       { if (!ISSTATIC(GCINFO(obj))) obj = GCINFO(obj); }
-#define EPILOGUE(obj)       { if (hp2) { \
-                                 if (obj==scanning) scanning = 0; \
-                                 if (obj==copying) copying = 0; \
-                                 if (ISBLACK(obj)) { ADDR a; NEW2(a,1); a[0] = (WORD)obj; } } }     // write barrier
+#define GCINFO(addr)        ((ADDR)(addr)[0])
+#define GC_PROLOGUE(obj)    { if (!ISSTATIC(GCINFO((ADDR)obj))) obj = (PID)GCINFO((ADDR)obj); }         // read barrier
+#define GC_EPILOGUE(obj)    { if (hp2) { \
+                                 if ((ADDR)obj==scanning) scanning = 0; \
+                                 if ((ADDR)obj==copying) copying = 0; \
+                                 if (ISBLACK((ADDR)obj)) { ADDR a; NEW2(a,1); a[0] = (WORD)obj; } } }   // write barrier
 
 #define allocwords(size)    (ADDR)malloc(size*sizeof(WORD))
 #define HEAPSIZE            0x10000000                  // in words

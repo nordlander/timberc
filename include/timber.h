@@ -81,7 +81,7 @@ struct Array {
 typedef struct Array *Array;
 
 UNITTYPE ASYNC(Msg, Time, Time);
-UNITTYPE LOCK(PID);
+PID      LOCK(PID);
 UNITTYPE UNLOCK(PID);
 POLY     RAISE(Int);
 

@@ -200,12 +200,10 @@ simpleExp (ELit _)                      = True
 simpleExp (ECast _ e)                   = simpleExp e
 simpleExp _                             = False
 
+lock t e                                = ECast t (ECall (prim LOCK) [ECast (TId (prim PID)) e])
 
-protect x c                             = lock (cMap unlock c)
-  where lock                            = CRun (ECall (prim LOCK) [e0])
-        unlock                          = CRun (ECall (prim UNLOCK) [e0]) . CRet
-        e0                              = ECast (TId (prim PID)) (EVar x)
-
+unlock x c                              = cMap (CRun (ECall (prim UNLOCK) [e0]) . CRet) c
+  where e0                              = ECast (TId (prim PID)) (EVar x)
 
 cMap f (CRet e)                         = f e
 cMap f (CRun e c)                       = CRun e (cMap f c)
