@@ -9,7 +9,6 @@
 #include <string.h>
 #include "rts.h"
 #include "timber.h"
-#include "POSIX.h"
 
 
 #define NTHREADS        5
@@ -91,7 +90,7 @@ struct Thread {
 
 Object ObjInit          = { NULL, NULL };
 
-struct Msg msg0         = { 0, { 0, 0 }, { INF, 0 }, NULL };
+struct Msg msg0         = { NULL, 0, { 0, 0 }, { INF, 0 }, NULL };
 
 struct Thread threads[NTHREADS];
 struct Thread thread0   = { NULL, NULL, NULL, 0 };         // the idle process
@@ -109,6 +108,11 @@ Thread current          = &thread1;
 // Memory management --------------------------------------------------------------------------------
 
 #include "gc.c"
+
+
+// GCINFO definitions for the built-in types -----------------------------------------------------
+
+#include "timber.c"
 
 
 // Queue management ------------------------------------------------------------------------------

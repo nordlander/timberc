@@ -24,6 +24,7 @@ typedef struct Thread *Thread;
 typedef struct timeval AbsTime;
 
 struct Object {
+        WORD *gcinfo;
         Thread ownedBy;
         Thread wantedBy;
 };
@@ -33,19 +34,21 @@ typedef Object *PID;
 
 extern Object ObjInit;
 
-#define WORDS(bytes)        (((bytes)+sizeof(WORD)-1)/sizeof(WORD))
+#define WORDS(bytes)            (((bytes)+sizeof(WORD)-1)/sizeof(WORD))
+#define offsetof(type, member)  ((WORD)(&(((type*)0)->member)))
+
 
 #if defined(__APPLE__)
 #include <libkern/OSAtomic.h>
-#define CAS(old,new,mem)    OSAtomicCompareAndSwap32((WORD)old,(WORD)new,(ADDR)mem)
+#define CAS(old,new,mem)        OSAtomicCompareAndSwap32((WORD)old,(WORD)new,(ADDR)mem)
 #endif
 
-#define NEW(t,addr,size)    { ADDR top; do { addr = (t)hp; top = (ADDR)addr+WORDS(size); } while (!CAS(addr,top,&hp)); \
-                              if (top>=lim) addr = (t)force(WORDS(size)); }
+#define NEW(t,addr,size)        { ADDR top; do { addr = (t)hp; top = (ADDR)addr+WORDS(size); } while (!CAS(addr,top,&hp)); \
+                                  if (top>=lim) addr = (t)force(WORDS(size)); }
 
-#define TMIN(a,b)           ( (a) > 0 && (a) < (b) ? (a) : (b) )
-#define TPLUS(a,b)          ( (a) > 0 ? (a) + (b) : (b) )
-#define TMINUS(a,b)         ( (a) > (b) ? (a) - (b) : 0 )
+#define TMIN(a,b)               ( (a) > 0 && (a) < (b) ? (a) : (b) )
+#define TPLUS(a,b)              ( (a) > 0 ? (a) + (b) : (b) )
+#define TMINUS(a,b)             ( (a) > (b) ? (a) - (b) : 0 )
 
 extern ADDR hp, lim;
 

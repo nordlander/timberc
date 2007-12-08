@@ -1,12 +1,16 @@
 #include <fcntl.h>
+#include "POSIX.h"
 
 
 
 struct DescFile {
-        struct File_3_POSIX super;
+        WORD *gcinfo;
+        LIST (*read_11_POSIX) (File_3_POSIX, POLY);
+        LIST (*write_12_POSIX) (File_3_POSIX, LIST, POLY);
         int desc;
 };
 typedef struct DescFile *DescFile;
+WORD __GC__DescFile[] = { sizeof(struct DescFile), 0 };
 
 LIST read_fun( File_3_POSIX this, POLY self ) {
         sigset_t previous_mask;
@@ -55,11 +59,11 @@ UNITTYPE exit_fun( Env_2_POSIX this, Int n, POLY self ) {
         exit(n);
 }
 
-struct DescFile stdin_struct    = { { read_fun, write_fun }, 0 };
+struct DescFile stdin_struct    = { __GC__DescFile, read_fun, write_fun , 0 };
 
-struct DescFile stdout_struct   = { { read_fun, write_fun }, 1 };
+struct DescFile stdout_struct   = { __GC__DescFile, read_fun, write_fun, 1 };
 
-struct Env_2_POSIX env_struct   = { NULL, (File_3_POSIX)&stdin_struct, (File_3_POSIX)&stdout_struct, exit_fun };
+struct Env_2_POSIX env_struct   = { __GC__Env_2_POSIX, NULL, (File_3_POSIX)&stdin_struct, (File_3_POSIX)&stdout_struct, exit_fun };
 
 Env_2_POSIX env                 = &env_struct;
 

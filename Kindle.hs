@@ -159,6 +159,7 @@ primTEnv0                               = (prim ASYNC,   FunT [tMsg,tTime,tTime]
                                           (prim Inherit, ValT tTime) :
                                           []
 
+ptrPrims                                = [Msg, Ref, PID, Array, LIST]
 
 boxedPrims                              = [Int, Float, Time]
 

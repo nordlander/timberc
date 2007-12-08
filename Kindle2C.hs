@@ -36,9 +36,14 @@ k2cStructStub n                 = text "struct" <+> k2cName n <> text ";" $$
                                   text "typedef" <+> text "struct" <+> k2cName n <+> text "*" <> k2cName n <> text ";"
 
 k2cDecl (n, Struct te cs)       = text "struct"  <+> k2cName n <+> text "{" $$
-                                     nest 4 (vcat (map (k2cSig n) te)) $$
+                                     nest 4 (k2cGCsig $$ vcat (map (k2cSig n) te)) $$
                                   text "}" <> text ";" $$
-                                  k2cEnum cs
+                                  k2cEnum cs $$
+                                  k2cGCinfoStub n
+                                  
+k2cGCinfoStub n                 = text "extern" <+> text "WORD" <+> k2cGCinfoName n <> text "[]" <> text ";"
+
+k2cGCsig                        = text "WORD *gcinfo;"
 
 k2cEnum []                      = empty
 k2cEnum cs                      = text "enum" <+> braces (commasep k2cTag cs) <> text ";"
@@ -77,12 +82,32 @@ k2cType (TWild)                 = text "POLY"
 -}
 
 k2cModule is (Module n ns ds bs)= cHeader n $$$
+                                  vcat (map k2cGCinfo ds) $$$
                                   vcat (map k2cBindStub [ b | b@(n,_) <- bs, not(isQualified n) ]) $$$
                                   vcat (map k2cBindStubActual bs2) $$$
                                   vcat (map k2cBind bs1) $$$
                                   k2cInitProc n ns bs2 $$$
                                   cFooter n
   where (bs1,bs2)               = partition k2cIsSimple bs
+
+k2cGCinfo (n, Struct te cs)     = text "WORD" <+> k2cGCinfoName n <> text "[]" <+> text "=" <+> 
+                                  braces (k2cSize n <> text "," <+> k2cOffsets n te) <> text ";"
+
+k2cSize n                       = text "sizeof(struct" <+> k2cName n <> text ")"
+
+k2cOffsets n []                 = text "0"
+k2cOffsets n ((x,FunT _ _):te)  = k2cOffsets n te
+k2cOffsets n ((x,ValT t):te)
+  | not (isPtr t)               = k2cOffsets n te
+  | otherwise                   = text "offsetof(struct" <+> k2cName n <> text "," <+> k2cName x <> text ")," <+>
+                                  k2cOffsets n te
+
+k2cGCinfoName n                 = text "__GC__" <> k2cName n
+
+k2cGCinit n e                   = k2cExp e <> text "->gcinfo" <+> text "=" <+> k2cGCinfoName n <> text ";"
+
+isPtr (TId (Prim p _))          = p `elem` ptrPrims
+isPtr _                         = True
 
 k2cBindStubLocal b@(x,_)
   | fromMod x /= Nothing        = empty
@@ -108,6 +133,7 @@ k2cOnce p                       = text "static int INITIALIZED = 0;" $$
 
                                   -- temporary, only works for non-recursive values
 k2cInit (x, Val t (ENew n bs))  = newCall t e n $$
+                                  k2cGCinit n e $$
                                   vcat (map (k2cSBind e) bs)
   where e                       = EVar x
 k2cInit (x, Val t e)            = k2cName x <+> text "=" <+> k2cExp e <> text ";"
@@ -126,6 +152,7 @@ newCall t e n                   = text "NEW" <+> parens (k2cType t <> text "," <
 
 k2cSBind e0 (x, Val t (ENew n bs))
                                 = newCall t e n  <> text ";" $$
+                                  k2cGCinit n e $$
                                   vcat (map (k2cSBind e) bs)
   where e                       = ESel e0 x
 k2cSBind e0 (x, Val t e)        = k2cExp (ESel e0 x) <+> text "=" <+> k2cExp e <> text ";"
