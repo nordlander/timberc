@@ -23,7 +23,7 @@ struct Object {
 typedef struct Object Object;
 typedef Object *PID;
 
-#define InitObj  { }
+extern Object ObjInit;
 
 #define offsetof(type, member)  ((WORD)(&(((type*)0)->member)))
 
@@ -33,6 +33,15 @@ typedef Object *PID;
 
 extern ADDR hp, lim;
 ADDR force(WORD);
+
+#define SEC(x)          ((x)*1000000)
+#define MILLISEC(x)     ((x)*1000)
+#define MICROSEC(x)     (x)
+
+
+#define TMIN(a,b)               ( (a) > 0 && (a) < (b) ? (a) : (b) )
+#define TPLUS(a,b)              ( (a) > 0 ? (a) + (b) : (b) )
+#define TMINUS(a,b)             ( (a) > (b) ? (a) - (b) : 0 )
 
 
 void init_rts(int, char**);

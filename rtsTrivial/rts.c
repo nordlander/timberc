@@ -4,6 +4,14 @@
 #include "timber.h"
 
 
+Object ObjInit = { };
+
+
+// GCINFO definitions for the built-in types -----------------------------------------------------
+
+#include "timber.c"
+
+
 // Memory management --------------------------------------------------------------------------------
 
 #define allocwords(size)   malloc(size*sizeof(WORD))
@@ -47,6 +55,12 @@ POLY RAISE(Int err) {
     exit(1);
 }
 
+
+// Stubs for the threading operations (can never be called) --------------------------------------------
+
+UNITTYPE ASYNC(Msg m, Time bl, Time dl) { }
+PID      LOCK(PID p) { return p; }
+UNITTYPE UNLOCK(PID p) { }
 
 // String marshalling and output -----------------------------------------------------------------------
 

@@ -5,6 +5,9 @@
 void ROOTINIT(void);
 extern LIST ROOT(LIST);
 
+LIST getStr(char *);
+void putStr(LIST);
+
 int main(int argc, char **argv) {
     init_rts(argc, argv);
     ROOTINIT();
