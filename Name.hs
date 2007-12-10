@@ -18,7 +18,8 @@ data Annot                      = Annot { location :: Maybe (Int,Int),
                                           explicit :: Bool, 
                                           stateVar :: Bool , 
                                           generated :: Bool,
-                                          suppressMod :: Bool}
+                                          suppressMod :: Bool, 
+                                          forceTag :: Bool}
 
 
 -- The built-in primitives ----------------------------------------------------------------
@@ -242,7 +243,8 @@ strRep2 p
 
 -- Name construction ------------------------------------------------------------
 
-noAnnot                         = Annot { location = Nothing, explicit = False, stateVar = False, generated = False, suppressMod = False }
+noAnnot                         = Annot { location = Nothing, explicit = False, stateVar = False, 
+                                          generated = False, suppressMod = False, forceTag = False }
 
 name l s                        = qualName (Name s 0 Nothing (loc l))
 
@@ -369,34 +371,14 @@ instance Ord Name where
 
 instance Show Name where
   show (Name s n m a)           = s ++ tag ++ mod
-     where tag                  = if n/=0 && generated a then '_' : show n else ""
+     where tag                  = if n/=0 && generated a  then '_' : show n else ""
            mod                  = if m==Nothing || suppressMod a then "" else "'" ++ fromJust m
-{-
-  show (Name s 0 Nothing _)     = show s
-  show (Name s n Nothing _)     = show (s ++ "_" ++ show n)
-  show (Name s n (Just m) a) 
-     |location a == Nothing     = show (s ++ "_" ++ show n ++ "'" ++ m)
-     |otherwise                 = show (s ++ "'" ++ m)
--}
   show (Tuple n _)              = show ('(' : replicate (n-1) ',' ++ ")")
   show (Prim p _)               = strRep p
 
 
 instance Pr Name where
   pr n                          = text (show n)
-{-
---  pr (Name s 0 Nothing a)       = {- prExpl a <> -} text s
-{-
-  pr (Name s n Nothing a)
-        |generated a            =  {- prExpl a <> -} text (s ++ "_" ++ show n)
-        |otherwise              =  {- prExpl a <> -} text s
-  pr (Name s n (Just m) a)      
-        |generated a            =  {- prExpl a <> -} text (s ++ "_" ++ show n ++ "'" ++ m)
-        |otherwise              =  {- prExpl a <> -} text (s ++ "'" ++ m)
--}
-  pr (Tuple n a)                = text ('(' : replicate (n-1) ',' ++ ")")
-  pr (Prim p a)                 = text (strRep p)
--}
 
 prExpl a                        = if explicit a then text "~" else empty
 
@@ -409,12 +391,32 @@ prId2 (Prim p _)                = text (strRep2 p)
 prId2 (Tuple n _)               = text ("TUP" ++ show n)
 prId2 n                         = prId n
 
-prId3 (Name s n m a)
-  | n == 0                      = text s
-  | otherwise                   = pre <> text ('_' : show n) <> text post
-  where pre                     = if isAlpha (head s) && all isAlphaNum (tail s) then text s else text "SYM"
-        post                    = maybe "" (('_' :) . modToundSc) m
+prId3 (Name s 0 m a)            = text s
+prId3 (Name s n m a)            = text (id ++ tag ++ mod++suff)
+  where 
+    id                          = if okForC s && noClash s m then s else "_S"
+    tag                         = if forceTag a || mod=="" || generated a || id=="_S"  then '_':show n else ""
+    suff                        = if take 2 id == "_S" then "/* "++s++" */" else ""
+    mod                         = maybe "" (('_' :) . modToundSc) m
+    okForC cs                   = all (\c -> isAlphaNum c || c=='_') cs
+    noClash cs m                = True
 prId3 n                         = prId2 n
+
+{-
+The above is WRONG; function noClash should return True when there is no risk to omit the tag when
+generating a C identifier (for a qualified name that is not internally generated). The above code
+claims that this is always OK. However, the example
+
+module M_2 where
+
+f f_M = f 1
+
+shows this to be false; after renaming one will get (illegal) C code equivalent to
+
+f_M_2 f_M_2 = f_M_2 1
+
+where the variable in the RHS refers to the parameter of the LHS rather than the function. 
+-}
 
 name2str n                      = render (prId3 n)
 
@@ -445,8 +447,8 @@ instance Binary Name where
 
 
 instance Binary Annot where
-  put (Annot _ b c d e) = put b >> put c >> put d >> put e
-  get = get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> return (Annot Nothing b c d e)
+  put (Annot _ b c d e f) = put b >> put c >> put d >> put e >> put f
+  get = get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> get >>= \f -> return (Annot Nothing b c d e f)
 
 
 maxPrimWord = fromIntegral (fromEnum maxPrim) :: Word8
