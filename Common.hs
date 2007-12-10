@@ -326,7 +326,7 @@ instanceSym                     = "inst"
 closureSym                      = "CLOS"
 
 isCoercion n                    = isGenerated n && str n == coercionSym
--- isTemp n                        = isGenerated n && str n == tempSym
+isTemp n                        = isGenerated n && str n == tempSym
 isClosure n                     = isGenerated n && str n == closureSym
 isDummy n                       = isGenerated n && str n == dummySym
 -- isTag n                         = isGenerated n && str n == tagSym

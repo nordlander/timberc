@@ -30,13 +30,19 @@ redModule impEqs (Module m ns xs ds ie bs)
                                      ie' <- redBinds env2 ie
                                      let env3 = addEqns env2 (finiteEqns env2 (eqnsOf ie'))
                                      es2' <- redEqns env3 es2
-                                     return (Module m ns xs ds ie' (Binds r te (es1' ++ es2')))
+                                     let es' = es1' ++ es2'
+                                         vs  = idents es'
+                                         necessary (v,_) = maybe (elem v vs) (\_ -> True) (fromMod v)
+                                     return (Module m ns xs ds ie' (Binds r (filter necessary te) (filter necessary es')))
   where envFree (_,e)           = all isSafeId (idents e) && isSmall e
         Binds r te es           = bs
         (es1,es2)               = partition envFree es
         isSafeId (Prim _ _)     = True
-        isSafeId x              = isGenerated x
-
+        isSafeId x              = isGenerated x && not(isTemp x)
+     
+{-
+Definition of isSafeId should be reconsidered. Which generated names are safe? 
+-}   
 
 finiteEqns env eq               = filter (finite env . snd) eq
 
@@ -221,6 +227,7 @@ redPrim p a es                              = eAp (EVar (Prim p a)) es
 redMatch a [ELet bs e]                      = ELet bs (redMatch a [e])
 redMatch a [EAp (EVar (Prim Commit _)) [e]] = e
 redMatch _ [EVar (Prim Fail a)]             = EAp (EVar (Prim Raise a)) [ELit (LInt Nothing 1)]
+redMatch _ [e@(ELit _)]                     = e
 redMatch a es                               = EAp (EVar (Prim Match a)) es
 
 
