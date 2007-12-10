@@ -5,14 +5,14 @@
 
 struct DescFile {
         WORD *gcinfo;
-        LIST (*read_11_POSIX) (File_3_POSIX, POLY);
-        LIST (*write_12_POSIX) (File_3_POSIX, LIST, POLY);
+        LIST (*read_POSIX) (File_POSIX, POLY);
+        LIST (*write_POSIX) (File_POSIX, LIST, POLY);
         int desc;
 };
 typedef struct DescFile *DescFile;
 WORD __GC__DescFile[] = { sizeof(struct DescFile), 0 };
 
-LIST read_fun( File_3_POSIX this, POLY self ) {
+LIST read_fun( File_POSIX this, POLY self ) {
         sigset_t previous_mask;
         char buf[1024];
         LIST xs = (LIST)_NIL;
@@ -31,7 +31,7 @@ LIST read_fun( File_3_POSIX this, POLY self ) {
         }
 }
 
-LIST write_fun( File_3_POSIX this, LIST xs, POLY self ) {
+LIST write_fun( File_POSIX this, LIST xs, POLY self ) {
         sigset_t previous_mask;
         char buf[1024];
         while (xs) {
@@ -54,30 +54,31 @@ LIST write_fun( File_3_POSIX this, LIST xs, POLY self ) {
         return (LIST)_NIL;
 }
 
-UNITTYPE exit_fun( Env_2_POSIX this, Int n, POLY self ) {
+UNITTYPE exit_fun( Env_POSIX this, Int n, POLY self ) {
         DISABLE(NULL);
         exit(n);
 }
+
 
 struct DescFile stdin_struct    = { __GC__DescFile, read_fun, write_fun , 0 };
 
 struct DescFile stdout_struct   = { __GC__DescFile, read_fun, write_fun, 1 };
 
-struct Env_2_POSIX env_struct   = { __GC__Env_2_POSIX, NULL, (File_3_POSIX)&stdin_struct, (File_3_POSIX)&stdout_struct, exit_fun };
+struct Env_POSIX env_struct   = { __GC__Env_POSIX, NULL, (File_POSIX)&stdin_struct, (File_POSIX)&stdout_struct, exit_fun };
 
-Env_2_POSIX env                 = &env_struct;
+Env_POSIX env                 = &env_struct;
 
-Prog_1_POSIX prog               = NULL;                         // Must be set by main()
+Prog_POSIX prog               = NULL;                         // Must be set by main()
 
 
 int copyEnvRoots() {        
-        prog = (Prog_1_POSIX)copy((ADDR)prog);
-        env->argv_7_POSIX = (LIST)copy((ADDR)env->argv_7_POSIX);
+        prog = (Prog_POSIX)copy((ADDR)prog);
+        env->argv_POSIX = (LIST)copy((ADDR)env->argv_POSIX);
 }
 
 void io_handler(int signo) {
         INTERRUPT_PROLOGUE();
-        prog->io_6_POSIX(prog, -1, -1);
+        prog->io_POSIX(prog, -1, -1);
         INTERRUPT_EPILOGUE();
 }
 
@@ -96,7 +97,7 @@ void init_env(int argc, char **argv) {
                 n->b = w;
                 w = (LIST)n;
         }
-        env->argv_7_POSIX = w;
+        env->argv_POSIX = w;
 
         fcntl(0, F_SETFL, O_NONBLOCK + O_ASYNC);
         fcntl(1, F_SETFL, O_NONBLOCK + O_ASYNC);
