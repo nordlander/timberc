@@ -124,6 +124,14 @@ data Stmt   = SExp    Exp
             deriving  (Eq,Show)
 
 
+-- Primitives ----------------------------------------------------------------
+
+cons x xs                       = EAp (EAp (ECon (prim CONS)) x) xs
+nil                             = ECon (prim NIL)
+true                            = ECon (prim TRUE)
+false                           = ECon (prim FALSE)
+
+
 -- Helper functions ----------------------------------------------------------------
 
 imports c is 

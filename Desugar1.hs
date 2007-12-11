@@ -39,7 +39,8 @@ data Env                        = Env { sels :: Map Name [Name],
 } deriving Show
 
 
-env0 ss                       = Env { sels = [], self = Nothing, selSubst = [], modName = Nothing, isPat = False, isPublic = True, tsyns = ss, impArrays = [] }
+env0 ss                       = Env { sels = [], self = Nothing, selSubst = [], modName = Nothing, isPat = False, 
+                                      isPublic = True, tsyns = ss, impArrays = [] }
 
 
 mkEnv c ds (rs,rn,ss)           = (env {sels = map transClose recEnv, modName = Just(str c), selSubst = rnSels },
@@ -250,6 +251,7 @@ instance Desugar1 Exp where
     ds1 env (ESig e t)             = ESig (ds1 env e) (ds1 env t)
     ds1 env (ELam ps e)            = ELam (ds1 (patEnv env) ps) (ds1 env e)
     ds1 env (ECase e as)           = ECase (ds1 env e) (ds1 env as)
+--    ds1 env (EIf e e1 e2)          = ds1 env (ECase e [Alt true  (RExp e1), Alt false (RExp e2)])
     ds1 env (EIf e1 e2 e3)         = EIf (ds1 env e1) (ds1 env e2) (ds1 env e3)
     ds1 env (ENeg (ELit (LInt p i))) = ELit (LInt p (-i))
     ds1 env (ENeg (ELit (LRat p r))) = ELit (LRat p (-r))
@@ -308,11 +310,14 @@ ds1S env (SCase e as : ss)       = ds1S env (SExp (ECase e (map doAlt as)) : ss)
         doRhs (RGrd gs)          = RGrd (map doGrd gs)
         doRhs (RWhere r bs)      = RWhere (doRhs r) bs
         doGrd (GExp qs ss)       = GExp qs (EDo (self env) Nothing ss)
-ds1S env (SIf e ss' : ss)        = doIf (EIf e (EDo (self env) Nothing (ss'++[dummyRet]))) ss
-  where doIf f (SElsif e ss':ss) = doIf (f . EIf e (EDo (self env) Nothing (ss'++[dummyRet]))) ss
-        doIf f (SElse ss':ss)    = ds1S env (SExp (f (EDo (self env) Nothing (ss'++[dummyRet]))) : ss)
-        doIf f ss                = ds1S env (SExp (f (EDo (self env) Nothing [dummyRet])) : ss)
-        dummyRet                 = SRet (EVar (prim UNITTERM))
+ds1S env (SIf e ss' : ss)        = doIf (SCase e) (Alt true (RExp ss')) ss
+  where doIf f a (SElsif e ss':ss) = doIf (\alts -> f [a, Alt false (RExp [SCase e alts])]) (Alt true (RExp ss')) ss
+        doIf f a (SElse ss':ss)  = ds1S env (f [a, Alt false (RExp ss')] : ss)
+        doIf f a ss              = ds1S env (f [a] : ss)
+ds1S env (SIf e ss' : ss)        = doIf (EIf e (EDo (self env) Nothing ss')) ss
+  where doIf f (SElsif e ss':ss) = doIf (f . EIf e (EDo (self env) Nothing ss')) ss
+        doIf f (SElse ss':ss)    = ds1S env (SExp (f (EDo (self env) Nothing ss')) : ss)
+        doIf f ss                = ds1S env (SExp (f (EDo (self env) Nothing [])) : ss)
 ds1S env (s@(SElsif _ _) : _)    = errorTree "elsif without corresponding if" s
 ds1S env (s@(SElse _) : _)       = errorTree "else without corresponding if" s
 ds1S env (SForall q ss' : ss)    = ds1S env (SExp (ds1Forall env q ss') : ss) -- error "forall stmt not yet implemented"

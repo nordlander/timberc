@@ -323,13 +323,3 @@ dsLit (LStr (Just (l,c)) s)     = return (foldr cons nil (map mkLit (zipWith f s
 dsLit l                         = return (ELit l)
 
 
--- Primitives ----------------------------------------------------------------
-
-cons x xs                       = EAp (EAp (ECon (prim CONS)) x) xs
-nil                             = ECon (prim NIL)
-true                            = ECon (prim TRUE)
-false                           = ECon (prim FALSE)
-
-
-
-

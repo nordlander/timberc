@@ -217,7 +217,9 @@ primSyms                        = [LIST, NIL, CONS]
 primTypes                       = map primKeyValue typerange ++ alreadyPrimed typerange
   where typerange               = [MIN____TYPE .. MAX____TYPE]
 
-primTerms                       = map primKeyValue [MIN____CONS .. MAX____VAR] ++ alreadyPrimed [UNITTERM,NIL,CONS,LazyAnd,LazyOr]
+primTerms                       = map primKeyValue [MIN____CONS .. MAX____VAR] ++ 
+                                  alreadyPrimed [MIN____CONS .. MAX____CONS] ++
+                                  alreadyPrimed [LazyAnd,LazyOr]
 
 primKeyValue p                  = (name0 (strRep p), prim p)
 

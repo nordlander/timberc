@@ -25,7 +25,7 @@ struct Msg {
   Msg next;
 };
 */
-WORD __GC__Msg[] = {sizeof(struct Msg), 0};     // field "next" is costom handled by the gc
+WORD __GC__Msg[] = {sizeof(struct Msg), 0};     // sole pointer field "next" is custom handled by the gc
 
 /*
 struct Array {

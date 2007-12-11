@@ -5,11 +5,11 @@
                                   if (top >= lim2) addr = force2(WORDS(size)); }
 
 #define GCINFO(obj)             ((ADDR)obj)[0]
-#define GC_PROLOGUE(obj)        { if (ISFORWARD(GCINFO(obj))) obj = (PID)GCINFO(obj); }                         // read barrier
+#define GC_PROLOGUE(obj)        { if (ISFORWARD(GCINFO(obj))) obj = (PID)GCINFO(obj); }                 // read barrier
 #define GC_EPILOGUE(obj)        { if (hp2) { \
                                       if (!GCINFO(obj)) GCINFO(obj) = 1; \
                                       if (ISBLACK(obj)) { ADDR a; NEW2(a,1); a[0] = (WORD)obj; } } }    // write barrier
-#define TIMERQ_PROLOGUE()       { if (timerQchanged) timerQ = timerQchanged; }                          // read barrier
+#define TIMERQ_PROLOGUE()       { if (hp2 && timerQchanged) timerQ = timerQchanged; }                   // read barrier
 #define TIMERQ_EPILOGUE()       { timerQchanged = timerQ; }                                             // write barrier
 
 #define allocwords(size)        (ADDR)malloc(size*sizeof(WORD))

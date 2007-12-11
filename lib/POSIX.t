@@ -15,4 +15,3 @@ record Env =
 record Prog =
     start :: Action
     io    :: Action
-
