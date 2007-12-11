@@ -162,10 +162,10 @@ k2cSBind e0 (x, _)              = internalError0 "k2cSBind"
 
 
 k2cCmd (CRet e)                 = text "return" <+> k2cExp e <> text ";"
-k2cCmd (CRun (ECall (Prim UpdateArray _) [e1,e2,e3,_]) c)
-                                = k2cExp' (ECall (prim IndexArray) [e1,e2]) <+> text "=" <+> k2cExp e3 <> text ";" $$
-                                  k2cCmd c
 k2cCmd (CRun e c)               = k2cExp e <> text ";" $$
+                                  k2cCmd c
+k2cCmd (CBind False [(_,Val _ (ECall (Prim UpdateArray _) [e1,e2,e3,_]))] c)
+                                = k2cExp' (ECall (prim IndexArray) [e1,e2]) <+> text "=" <+> k2cExp e3 <> text ";" $$
                                   k2cCmd c
 k2cCmd (CBind False bs c)       = vcat (map k2cBind bs) $$
                                   k2cCmd c
