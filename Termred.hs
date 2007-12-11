@@ -120,6 +120,7 @@ redExp env (ELet bs e)          = do bs'@(Binds rec te eqs) <- redBinds env bs
 redExp env e@(EVar (Prim {}))   = return e
 redExp env e@(EVar (Tuple {}))  = return e
 redExp env e@(EVar x)           = case lookup x (eqns env) of
+                                      Just (ERec _ _) -> return e
                                       Just e' -> alphaConvert e'
                                       _       -> return e
 redExp env (EAp e es)           = do e <- redExp env e
