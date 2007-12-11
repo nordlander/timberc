@@ -1,26 +1,28 @@
 module Histo where
 
-record Histogram =
-  addObs    :: Float -> Action
-  getResult :: Request (Array Int)
+size = primSizeArray
 
-histo cs = template
+record Histogram a =
+   addObs    :: a -> Action
+   getResult :: Request (Array Int)
 
-   obs := primConstArray (length cs + 1) 0
+  
+histo bds = template
+   
+   cn  = size bds
+   obs := primConstArray (cn + 1) 0
+   
+   classIndex x k
+       | k >= cn || x < bds!k   = k
+       | otherwise = classIndex x (k+1)
+
 
    addObs x = action
-
-     classIndex x k [] = k
-     classIndex x k (y : ys)
-            | x < y = k
-            | otherwise = classIndex x (k+1) ys
-
-     k = classIndex x 0 cs
-
-     obs!k := obs!k + 1
+      k = classIndex x 0
+      obs!k := obs!k + 1
 
    getResult = request
-     return obs
+       return obs
 
    return Histogram {..}
 
