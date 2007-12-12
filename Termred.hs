@@ -234,7 +234,7 @@ redMatch a es                               = EAp (EVar (Prim Match a)) es
 
 redFat a (ELet bs e) e'                     = ELet bs (redFat a e e')
 redFat a (EVar (Prim Fail _)) e             = e
-redFat a (EAp (EVar (Prim Commit _)) [e]) _ = e
+redFat a e@(EAp (EVar (Prim Commit _)) _) _ = e
 redFat a e e'                               = EAp (EVar (Prim Fatbar a)) [e,e']
 
 
