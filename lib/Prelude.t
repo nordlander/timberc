@@ -209,12 +209,17 @@ lookup x ((a,b) : xs)
      | x == a        = Just b
      | otherwise     = lookup x xs
 
-take               :: Int -> [a] -> [a]
-take 0 xs           = xs
+take, drop          :: Int -> [a] -> [a]
+take 0 xs           = []
 take n []           = []
 take n (x : xs) 
-        | n > 0     = take (n-1) xs
+        | n > 0     = x : take (n-1) xs
 
+drop 0 xs           = xs
+drop n []           = []
+drop n (x : xs)
+       | n > 0      = drop (n-1) xs
+         
 (++)               :: [a] -> [a] -> [a]
 [] ++ ys            = ys
 (x:xs) ++ ys        = x : xs ++ ys

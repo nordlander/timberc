@@ -1,7 +1,7 @@
 module Reflex0 where
 
 import POSIX
-import Timer
+use Timer
 
 format n = show secs ++ '.' : fracs
   where secs  = n `div` 100 
@@ -9,17 +9,17 @@ format n = show secs ++ '.' : fracs
         fracs = if n100<10 then '0':show n100 else show n100 
 
 root env = template
-  t <- timer
+  t <- timer'Timer
   start = action
      env.stdout.write "Wait...\n"
      after (sec 2) action
         env.stdout.write "Go!\n"
-        t.startT
+        t.start'Timer
   io = action
      env.stdin.read
-     t.stop
-     n <- t.readT
-     t.reset
+     t.stop'Timer
+     n <- t.read'Timer
+     t.reset'Timer
      env.stdout.write ("Time is "++format n++" secs\n")
      start
 

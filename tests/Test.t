@@ -15,5 +15,6 @@ root env =
                 if head s == 'q' then
                    env.exit 1
                 env.stdout.write ("You said: "++s)
+
       return Prog {..}
 

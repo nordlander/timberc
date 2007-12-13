@@ -39,3 +39,51 @@ sort               :: [a] -> [a] \\ Ord a
 sort []             = []
 sort (x : xs)       = sort small ++ x : sort big
   where (small,big) = partition (\y -> y <= x) xs
+
+span, break         :: (a -> Bool) -> [a] -> ([a],[a])
+span p []            = ([],[])
+span p (x:xs)
+         | p x       = let (ys,zs) = span p xs in (x:ys,zs)
+         | otherwise = ([],x:xs)
+
+break p              = span (\x -> not (p x))
+
+lines               :: String -> [String]
+lines ""            = []
+lines s             = let (l,s') = break ('\n'==) s
+                      in l : case s' of 
+                               []      -> []
+                               (_:s'') -> lines s''
+
+words               :: String -> [String]
+words s             = case dropWhile isSpace s of
+                        "" -> []
+                        s' -> w : words s''
+                           where (w,s'') = break isSpace s'
+
+isSpace c           = elem c " \t\n"
+
+unlines             :: [String] -> String
+unlines ls          = concat (map (\l -> l ++ "\n") ls)
+
+unwords             :: [String] -> String
+unwords []          = []
+unwords ws          = foldr1 (\w s -> w ++ ' ':s) ws
+
+takeWhile p []      = []
+takeWhile p (x:xs)
+  | p x             = x : takeWhile p xs
+  | otherwise       = []
+
+dropWhile p []      = []
+dropWhile p (x:xs)
+  | p x             = dropWhile p xs
+  | otherwise       = x:xs
+
+foldr1 f [x]        = x
+foldr1 f (x:xs)     = f x (foldr1 f xs)
+
+sum                 = foldl (+) 0
+
+null []             = True
+null _              = False

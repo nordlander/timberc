@@ -1,10 +1,10 @@
 module Timer where
 
 record Timer =
-  startT :: Action
+  start  :: Action
   stop   :: Action
   reset  :: Action
-  readT  :: Request Int
+  read   :: Request Int
 
 timer = template
 
@@ -15,8 +15,8 @@ timer = template
      if running then
         time := time+1
         after (millisec 10) tick
-   
-  startT = action
+
+  start = action
      running := True
      after (millisec 10) tick
 
@@ -25,9 +25,8 @@ timer = template
 
   reset = action
      time := 0
-     running := False
  
-  readT = request
+  read = request
      return time
 
   return Timer{..}
