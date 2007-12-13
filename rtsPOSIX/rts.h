@@ -35,7 +35,7 @@ typedef Object *PID;
 extern Object ObjInit;
 
 #define WORDS(bytes)            (((bytes)+sizeof(WORD)-1)/sizeof(WORD))
-#define offsetof(type, member)  ((WORD)(&(((type*)0)->member)))
+#define offsetof(type, member)  WORDS(&(((type*)0)->member))
 
 
 #if defined(__APPLE__)

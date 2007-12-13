@@ -9,8 +9,8 @@
 #define GC_EPILOGUE(obj)        { if (hp2) { \
                                       if (!GCINFO(obj)) GCINFO(obj) = 1; \
                                       if (ISBLACK(obj)) { ADDR a; NEW2(a,1); a[0] = (WORD)obj; } } }    // write barrier
-#define TIMERQ_PROLOGUE()       { if (hp2 && timerQchanged) timerQ = timerQchanged; }                   // read barrier
-#define TIMERQ_EPILOGUE()       { timerQchanged = timerQ; }                                             // write barrier
+#define TIMERQ_PROLOGUE()       { if (hp2 && !timerQ) timerQ = timerQcopy; }                            // reinstall timerQ if null
+#define TIMERQ_EPILOGUE()                                               
 
 #define allocwords(size)        (ADDR)malloc(size*sizeof(WORD))
 #define HEAPSIZE                0x10000000                  // in words
@@ -21,14 +21,14 @@
 #define ISFORWARD(a)            ((ADDR)(a) > edata)
 
 
-WORD pagesize;                          // obtained from OS, measured in wors
+WORD pagesize;                          // obtained from OS, measured in words
 ADDR base, lim, hp;                     // start, end, and current pos of latest "fromspace" (normal space)
 ADDR base2, lim2, hp2;                  // start, end and current pos of "tospace" (only used during gc)
 ADDR heapchain, heapMin, heapMax;       // chain of fromspaces formed by extension, with accumulated limits
 WORD heapsize, thissize;                // accumulated size of all fromspaces, size of current fromspace
 ADDR edata, scanp;                      // end of static data, scan pointer (only used during gc)
 
-Msg timerQchanged = 0;                  // ptr signalling the need to rescan the timerQ 
+Msg timerQcopy = 0;                     // ptr holding old timerQ while copying
 
 char emergency = 0;                     // flag signalling heap overflow during gc
 
@@ -122,16 +122,17 @@ ADDR scan(ADDR obj) {
 
 void copyTimerQ() {
         Msg old, new, new0;
-        do {    timerQchanged = 0;
-                old = timerQ;
+        do {    do { timerQcopy = timerQ;
+                } while (!CAS(timerQcopy, 0, timerQ));  // null out timerQ, put old value in timerQcopy
+                old = timerQcopy;
                 new0 = new = (Msg)copy((ADDR)old);
                 while (old) {
                         new->next = (Msg)copy((ADDR)old->next);
                         new = new->next;
                         old = old->next;
                 }
-        } while (!CAS(0,new0,&timerQchanged));          // an interrupt immediately after this test could be dangerous
-        timerQ = new0;                                  // luckily the mutator uses timerQchanged instead of timerQ if it is set
+        } while (!CAS(0,new0,&timerQ));                 // set timerQ = new0 if still null, else repeat
+        timerQcopy = 0;
 }
 
 void gc() {
