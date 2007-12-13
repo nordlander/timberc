@@ -94,6 +94,8 @@ ADDR copy(ADDR obj) {
         if (ISFORWARD(info))                            // gcinfo should point to static data;
                 return info;                            // if not, we have a forward ptr
         WORD i, size = info[0];
+        if (!size)                                      // dynamic size (i.e., an array)? 
+                size = obj[1];                          // if so, find actual size in second slot of obj
         NEW2(dest,size);
         GCINFO(dest) = (WORD)info;                      // gcinfo ptr is immutable
         do {    GCINFO(obj) = 0;                        // flag copying in progress by nulling out gcinfo ptr
@@ -104,12 +106,30 @@ ADDR copy(ADDR obj) {
 }
 
 
+ADDR scandyn(ADDR obj) {
+        ADDR info = (ADDR)GCINFO(obj);
+        WORD size = obj[1];                             // find actual size in second slot of obj
+        if (info[1])
+                return obj + size;                      // return immediately if obj contains no pointers
+        do {    GCINFO(obj) = 0;                        // flag scanning in progress by nulling out gcinfo ptr
+                WORD i = 2;
+                while (i<size && !GCINFO(obj)) {
+                        obj[i] = (WORD)copy((ADDR)obj[i]);
+                        i++;
+                }
+        } while (!CAS(0,(WORD)info,&GCINFO(obj)));      // repeat scanning if dirty, else resinstall gcinfo ptr
+        return obj + size;
+}
+
 ADDR scan(ADDR obj) {
         ADDR info = (ADDR)GCINFO(obj);
         if (ISFORWARD(info)) {                          // gcinfo should point to static data;
                 scan(info);                             // if not, we have a write barrier (rescan request)
                 return obj + 1;
         }
+        WORD size = info[0];
+        if (!size)                                      // scan dynamic objects separately
+                return scandyn(obj);
         do {    GCINFO(obj) = 0;                        // flag scanning in progress by nulling out gcinfo ptr
                 WORD i = 1, offset = info[i];
                 while (offset && !GCINFO(obj)) {
@@ -117,7 +137,7 @@ ADDR scan(ADDR obj) {
                         offset = info[++i];
                 }
         } while (!CAS(0,(WORD)info,&GCINFO(obj)));      // repeat scanning if dirty, else reinstall gcinfo ptr
-        return obj + info[0];
+        return obj + size;
 }
 
 void copyTimerQ() {

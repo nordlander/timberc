@@ -33,4 +33,4 @@ struct Array {
   POLY elems[];
 };
 */
-WORD __GC__Array[] = {sizeof(struct Array), 0}; // this is not a correct def, just a temporary placeholder...
+WORD __GC__Array[] = {0, 1};                    // zero size => dynamic, flag 1 => node contains all pointers
