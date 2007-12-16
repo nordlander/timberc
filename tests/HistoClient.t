@@ -6,6 +6,7 @@ import Histo
 size = primSizeArray
 
 root env = template
+             bds :: Array Int
              bds = primListArray [10, 20, 30]
              h <- histo bds
 
@@ -20,6 +21,7 @@ root env = template
                    env.exit 0
                 else
                    h.addObs(read d)
+                   return ()
 
              showResults rs = do
                    forall i <- [0..size bds-1] do
