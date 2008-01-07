@@ -29,7 +29,7 @@ extern Object ObjInit;
 
 
 #define WORDS(bytes)      (((bytes)+sizeof(WORD)-1)/sizeof(WORD))
-#define NEW(t,lhs,size)   lhs = (t)hp; hp += WORDS(size); if (hp >= lim) lhs = (t)force(WORDS(size));
+#define NEW(t,lhs,words)   lhs = (t)hp; hp += (words); if (hp >= lim) lhs = (t)force(words);
 
 extern ADDR hp, lim;
 ADDR force(WORD);
