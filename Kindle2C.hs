@@ -93,7 +93,7 @@ k2cModule is (Module n ns ds bs)= cHeader n $$$
 k2cGCinfo (n, Struct te cs)     = text "WORD" <+> k2cGCinfoName n <> text "[]" <+> text "=" <+> 
                                   braces (k2cSize n <> text "," <+> k2cOffsets n te) <> text ";"
 
-k2cSize n                       = text "sizeof(struct" <+> k2cName n <> text ")"
+k2cSize n                       = text "WORDS(sizeof(struct" <+> k2cName n <> text "))"
 
 k2cOffsets n []                 = text "0"
 k2cOffsets n ((x,FunT _ _):te)  = k2cOffsets n te
@@ -148,7 +148,8 @@ k2cBind (x, Fun t te c)         = k2cType t <+> k2cName x <+> parens (commasep k
 
 newCall t e n                   = text "NEW" <+> parens (k2cType t <> text "," <+> 
                                                                  k2cExp e <> text "," <+> 
-                                                                 text "sizeof" <> parens (text "struct" <+> k2cName n))<> text ";"
+                                                                 k2cSize n) <> text ";"
+
 
 k2cSBind e0 (x, Val t (ENew n bs))
                                 = newCall t e n  <> text ";" $$

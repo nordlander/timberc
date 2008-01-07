@@ -43,8 +43,8 @@ extern Object ObjInit;
 #define CAS(old,new,mem)        OSAtomicCompareAndSwap32((WORD)old,(WORD)new,(ADDR)mem)
 #endif
 
-#define NEW(t,addr,size)        { ADDR top; do { addr = (t)hp; top = (ADDR)addr+WORDS(size); } while (!CAS(addr,top,&hp)); \
-                                  if (top>=lim) addr = (t)force(WORDS(size)); }
+#define NEW(t,addr,words)       { ADDR top; do { addr = (t)hp; top = (ADDR)addr+(words); } while (!CAS(addr,top,&hp)); \
+                                  if (top>=lim) addr = (t)force(words); }
 
 #define TMIN(a,b)               ( (a) > 0 && (a) < (b) ? (a) : (b) )
 #define TPLUS(a,b)              ( (a) > 0 ? (a) + (b) : (b) )

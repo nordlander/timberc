@@ -18,13 +18,21 @@
 #define DISABLE(prev)   sigprocmask(SIG_SETMASK, &disabled_mask, prev)
 #define ENABLE(mask)    sigprocmask(SIG_SETMASK, mask, NULL)
 
-#if     defined(__APPLE__)
-#if     defined(__i386__)
-#define SETSTACK(buf,s,a) { (((struct sigcontext *) (buf))->sc_ebp) = (int)(a) + (s) - 64; \
-                            (((struct sigcontext *) (buf))->sc_esp) = (int)(a) + (s) - 64; }
-#elif   defined(__ppc__)
-#define SETSTACK(buf,s,a) { (((struct sigcontext *) (buf))->sc_onstack) = (int)(a) + (s) - 64; }
-#endif
+#if defined(__APPLE__)
+#  if defined(__i386__)
+#    if defined(__MAC_OS_X_VERSION_10_5)
+#      define SETSTACK(buf,s,a) {(*(buf))[9] = (int)(a) + (s) - 64;}
+#    else
+#      define SETSTACK(buf,s,a) { (((struct sigcontext *) (buf))->sc_ebp) = (int)(a) + (s) - 64; \
+                                  (((struct sigcontext *) (buf))->sc_esp) = (int)(a) + (s) - 64; }
+#    endif
+#  elif defined(__ppc__)
+#    if defined(__DARWIN_UNIX3)
+#      define SETSTACK(buf,s,a) { (((struct __darwin_sigcontext *) (buf))->__sc_onstack) = (int)(a) + (s) - 64; }
+#    else
+#      define SETSTACK(buf,s,a) { (((struct sigcontext *) (buf))->sc_onstack) = (int)(a) + (s) - 64; }
+#    endif
+#  endif
 #elif   defined(__linux__)
 #define SETSTACK(buf,s,a) { ((buf)->__jmpbuf[JB_SP]) = (int)(a) + (s) - 4; }
 #elif   defined(__NetBSD__)

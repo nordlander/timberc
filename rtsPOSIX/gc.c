@@ -1,8 +1,8 @@
 #include <stdlib.h>
 #include <mach-o/getsect.h>
 
-#define NEW2(addr,size)         { ADDR top; do { addr = hp2; top = (ADDR)addr + WORDS(size); } while (!CAS(addr,top,&hp2)); \
-                                  if (top >= lim2) addr = force2(WORDS(size)); }
+#define NEW2(addr,words)        { ADDR top; do { addr = hp2; top = (ADDR)addr + (words); } while (!CAS(addr,top,&hp2)); \
+                                  if (top >= lim2) addr = force2(words); }
 
 #define GCINFO(obj)             ((ADDR)obj)[0]
 #define GC_PROLOGUE(obj)        { if (ISFORWARD(GCINFO(obj))) obj = (PID)GCINFO(obj); }                 // read barrier
@@ -95,7 +95,7 @@ ADDR copy(ADDR obj) {
                 return info;                            // if not, we have a forward ptr
         WORD i, size = info[0];
         if (!size)                                      // dynamic size (i.e., an array)? 
-                size = obj[1];                          // if so, find actual size in second slot of obj
+                size = obj[1] + 2;                      // if so, find dynamic size in second slot of obj, add static size
         NEW2(dest,size);
         GCINFO(dest) = (WORD)info;                      // gcinfo ptr is immutable
         do {    GCINFO(obj) = 0;                        // flag copying in progress by nulling out gcinfo ptr
@@ -108,7 +108,7 @@ ADDR copy(ADDR obj) {
 
 ADDR scandyn(ADDR obj) {
         ADDR info = (ADDR)GCINFO(obj);
-        WORD size = obj[1];                             // find actual size in second slot of obj
+        WORD size = obj[1] + 2;                         // find size of dynamic part in second slot of obj, add static size
         if (info[1])
                 return obj + size;                      // return immediately if obj contains no pointers
         do {    GCINFO(obj) = 0;                        // flag scanning in progress by nulling out gcinfo ptr
