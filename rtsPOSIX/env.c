@@ -93,6 +93,7 @@ void init_env(int argc, char **argv) {
         LIST w = (LIST)_NIL;
         for (; argc; argc--) {
                 CONS n; NEW(CONS, n, sizeof(struct CONS));
+                n->gcinfo = __GC__CONS;
                 n->a = getStr(argv[argc-1]);
                 n->b = w;
                 w = (LIST)n;
