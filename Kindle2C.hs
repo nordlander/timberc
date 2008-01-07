@@ -118,7 +118,7 @@ k2cBindStubActual _             = empty
 
 
 cHeader n                       = text "#include \"" <> text (last(splitString (str n))) <> text ".h\"" 
-cFooter n                       = "\n"
+cFooter n                       = text "\n"
 
 k2cInitProc n ns bs             = text "void _init_" <> text (modToundSc (str n)) <+> text "() {" $$
 	                              nest 4 (k2cOnce (vcat (map k2cInitImport ns ++ map k2cInit bs))) $$
