@@ -30,7 +30,7 @@ includeGuard n                  = text ("#ifndef " ++ g) $$
 	                              text ("#define " ++ g)
   where g                       = map toUpper (modToundSc (str n)) ++ "_H_"
                          
-hFooter n                       = text "#endif"
+hFooter n                       = text "#endif\n"
 
 k2cStructStub n                 = text "struct" <+> k2cName n <> text ";" $$
                                   text "typedef" <+> text "struct" <+> k2cName n <+> text "*" <> k2cName n <> text ";"
@@ -118,7 +118,7 @@ k2cBindStubActual _             = empty
 
 
 cHeader n                       = text "#include \"" <> text (last(splitString (str n))) <> text ".h\"" 
-cFooter n                       = empty
+cFooter n                       = "\n"
 
 k2cInitProc n ns bs             = text "void _init_" <> text (modToundSc (str n)) <+> text "() {" $$
 	                              nest 4 (k2cOnce (vcat (map k2cInitImport ns ++ map k2cInit bs))) $$
