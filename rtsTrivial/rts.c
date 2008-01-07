@@ -14,7 +14,7 @@ Object ObjInit = { };
 
 // Memory management --------------------------------------------------------------------------------
 
-#define allocwords(size)   malloc(size*sizeof(WORD))
+#define allocwords(words)  malloc((words)*sizeof(WORD))
 #define HEAPSIZE           0x100000
 
 
