@@ -112,12 +112,13 @@ noQual vs                          = map checkQual vs
 
 -- Binding of overloaded names ------------------------------------------------------------------------
 
-oloadBinds xs ds                   = concat [ binds c vs sels | DRec True c vs _ sels <- ds ]
-  where binds c vs sels            = concat [ binds' s t | Sig ss t <- sels, s <- ss, s `notElem` xs ]
-          where p0                 = PType (foldl TAp (TCon c) (map TVar vs))
-                binds' s t         = [ BSig [s] (tQual [p0] t),
-                                       BEqn (LFun (annotExplicit s) [w]) (RExp (ESelect w s)) ]
-        w                          = EVar (name0 paramSym)
+oloadBinds xs ds                    = map mkSig te ++ map mkEqn te
+  where te                          = [ (s,t') | DRec True c vs _ sels <- ds, let p = PType (foldl TAp (TCon c) (map TVar vs)),
+                                                 Sig ss t <- sels, s <- ss, s `notElem` xs, let t' = tQual [p] t ]
+        mkSig (s,t)                 = BSig [s] t
+        mkEqn (s,TQual t ps)        = BEqn (LFun s' (w:ws)) (RExp (foldl EAp (ESelect w s') ws))
+          where w:ws                = map EVar (take (length ps) abcSupply)
+                s'                  = annotExplicit s
 
 
 -- Renaming -----------------------------------------------------------------------------------------
