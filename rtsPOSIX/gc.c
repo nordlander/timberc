@@ -143,7 +143,7 @@ ADDR scan(ADDR obj) {
 void copyTimerQ() {
         Msg old, new, new0;
         do {    do { timerQcopy = timerQ;
-                } while (!CAS(timerQcopy, 0, timerQ));  // null out timerQ, put old value in timerQcopy
+                } while (!CAS(timerQcopy, 0, &timerQ));  // null out timerQ, put old value in timerQcopy
                 old = timerQcopy;
                 new0 = new = (Msg)copy((ADDR)old);
                 while (old) {
