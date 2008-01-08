@@ -213,9 +213,6 @@ pscheme p                       = Scheme (R p) [] []
 pscheme' p ps ke                = Scheme (R p) ps ke
 
 
-flipSel (Scheme (F t rh) ps ke) = Scheme (F t (tFun ps rh)) [] ke
-
-
 splitInsts (Binds r pe eq)      = (Binds False pe1 eq1, Binds r pe2 eq2)
   where (pe1,pe2)               = partition (isSub' . snd) pe
         (eq1,eq2)               = partition ((`elem` dom pe1) . fst) eq
@@ -749,12 +746,13 @@ instance Pr Type where
     prn 1 (TAp (TId (Prim LIST _)) t) = text "[" <> prn 0 t <> text "]"
     prn 1 t@(TAp _ _)           = prTAp (tFlat t)
       where prTAp (TId (Tuple n _),ts) = text "(" <> hpr ',' ts <> text ")"
-            prTAp (t,ts)        = hang (prn 1 t) 2 (sep (map (prn 2) ts))
+--            prTAp (t,ts)        = hang (prn 1 t) 2 (sep (map (prn 2) ts))
+            prTAp (t,ts)        = prn 1 t <+> sep (map (prn 2) ts)
     prn 1 t                     = prn 2 t
 
     prn 2 (TId c)               = prId c
---    prn 2 (TVar _)              = text "_"
-    prn 2 (TVar n)              = text "_" <> pr n
+    prn 2 (TVar _)              = text "_"
+--    prn 2 (TVar n)              = text "_" <> pr n
 
     prn 2 t                     = parens (prn 0 t)
 

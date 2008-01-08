@@ -28,16 +28,20 @@ fullreduce env eqs pe                   = do -- tr ("FULLREDUCE\n" ++ render (vp
                                              -- tr ("END FULLREDUCE " ++ show pe2)
                                              return (s2@@s1, pe2, f2 . f1)
 
-normalize env eqs pe                    = do s0 <- unify env eqs
+normalize env eqs pe                    = do -- tr ("NORMALIZE: " ++ render (vpr pe))
+                                             s0 <- unify env eqs
+                                             -- tr ("NORMALZE B: " ++ show s0)
                                              let env0 = subst s0 env
                                              (s1,pe1,f1) <- norm env0 (subst s0 pe)
+                                             -- tr ("END NORMALZE ")
                                              return (s1@@s0, pe1, f1)
                                              
 
-norm env pe                             = do -- tr ("NORMALIZE\n" ++ render (vpr pe))
+norm env pe                             = do -- tr ("NORM\n" ++ render (vpr pe))
                                              (s1, pe1, f1) <- reduce env pe
+                                             -- tr ("NORM B")
                                              (s2, pe2, f2) <- simplify (subst s1 env) pe1
-                                             -- tr ("END NORMALIZE " ++ show pe2)
+                                             -- tr ("END NORM " ++ show pe2)
                                              return (s2@@s1, pe2, f2 . f1)
 
 

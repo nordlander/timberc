@@ -89,7 +89,7 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ render (vpr te) 
                                      -- tr ("tevars: " ++ show (tevars env))
                                      (s,pe,es1)   <- tiRhs0 env' explWits ts es
                                      -- tr ("RESULT: " ++ render (vpr pe))
-                                     -- tr ("    " ++ render (vpr es1))
+                                     -- tr ("  EXPS: " ++ render (vpr es1))
                                      (s',qe,f) <- fullreduce (target te env) s pe `handle` posHandler es
                                      -- tr ("PREDICATES OBTAINED: " ++ show qe)
                                      let env1      = subst s' env
@@ -186,7 +186,7 @@ tiExp env (EVar x)              = do (pe,t,e) <- instantiate (findExplType env x
                                      return ([], pe, t, e)
 tiExp env (ECon k)              = do (pe,t,e) <- instantiate (findExplType env k) (ECon (annotExplicit k))
                                      return ([], pe, t, e)
-tiExp env (ESel e l)            = do (F [t0] t, ps) <- inst (findType env l)
+tiExp env (ESel e l)            = do (t, t0:ps) <- inst (findType env l)
                                      (s,pe,e) <- tiExpT env t0 e
                                      let r = if explicit (annot l) then (tFun ps t,[]) else (t,ps)
                                      (pe',t',e') <- saturate r (ESel e (annotExplicit l))
@@ -293,7 +293,7 @@ mkRec env c eqs                 = liftM (ERec c) (mapM mkEqn ls)
                                     ([],e):_ -> return (l, e)
                                     eqs_l    -> do e <- mkRec env (tId (tHead t)) eqs_l
                                                    return (l, e)
-                                      where Scheme (F _ (R t)) _ _ = findType env l
+                                      where Scheme (R t) _ _ = findType env l
 
 
 -- Build case alternatives -------------------------------------------------------------------------------------------------------

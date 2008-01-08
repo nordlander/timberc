@@ -68,9 +68,9 @@ t2Exp env (EVar x)              = do rh <- t2Inst (findType env x)
                                      return (nullSubst, rh, EVar x)
 t2Exp env (ECon k)              = do rh <- t2Inst (findType env k)
                                      return (nullSubst, rh, ECon k)
-t2Exp env (ESel e l)            = do F [t] rh <- t2Inst (flipSel (findType env l))
+t2Exp env (ESel e l)            = do F (t:ts) rh <- t2Inst (findType env l)
                                      (s,e) <- t2ExpT env t e
-                                     return (s, subst s rh, ESel e l)
+                                     return (s, subst s (tFun ts rh), ESel e l)
 t2Exp env (ELam te e)           = do (s,rh,e) <- t2Exp (addTEnv te env) e
                                      return (s, F (subst s (rng te)) rh, ELam te e)
 t2Exp env (EAp e es)            = do (s,rh,e) <- t2Exp env e

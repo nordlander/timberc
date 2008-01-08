@@ -53,7 +53,7 @@ tenvSelsCons (Types ke ds)              = concatMap (tenvSelCon ke) ds
 
 tenvSelCon ke0 (c,DRec _ vs _ ss)       = map (f t ke) ss
   where (t,ke)                          = mkHead ke0 c vs
-        f t ke (l, Scheme rh ps ke')    = (l, Scheme (F [scheme t] rh) ps (ke++ke'))
+        f t ke (l, Scheme rh ps ke')    = (l, Scheme rh (scheme t : ps) (ke++ke'))
 tenvSelCon ke0 (c,DData vs _ cs)        = map (f t ke) cs
   where (t,ke)                          = mkHead ke0 c vs
         f t ke (k, Constr ts ps ke')    = (k, Scheme (tFun' ts t) ps (ke++ke'))
