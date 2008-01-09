@@ -352,9 +352,9 @@ cEqs env te eqs                         = do (bfs,eqs,bs) <- fmap unzip3 (mapM c
 
 
 -- Translate a Core.Exp with a known Type into a Kindle.Exp
-cValExpT env t e                        = do (bf,t0,e) <- cValExp env e
+cValExpT env t e                        = do (bf,t0,e') <- cValExp env e
                                              f <- adapt env t t0
-                                             return (bf, (t0,t), f e)
+                                             return (bf, (t0,t), f e')
                                              
 cValExpTs env [] []                     = return (id, [], [])
 cValExpTs env (t:ts) (e:es)             = do (bf,eq,e) <- cValExpT env t e
@@ -789,13 +789,13 @@ cExp env (ECon k)                       = do (ts,t1) <- instCon env k
                                                _  -> do ts' <- mapM (kindleType env) ts
                                                         return (id, t1, FunR (newK . mkBinds abcSupply ts') [] ts)
 cExp env e                              = do (te,t,c) <- cFun env e
-                                             x <- newName tempSym
                                              t' <- kindleType env t
-                                             let bf te = Kindle.cBind [(x, Kindle.Fun t' te c)]
                                              case te of
-                                               [] -> return (bf [], t, ValR (Kindle.ECall x []))
+                                               [] -> do x <- newName tempSym
+                                                        return (Kindle.cBind [(x, Kindle.Fun t' [] c)], t, ValR (Kindle.ECall x []))
                                                _  -> do te' <- kindleATEnv env te
-                                                        return (bf te', t, FunR (Kindle.ECall x) [] (rng te))
+                                                        n <- findClosureName env (rng te') t'
+                                                        return (id, TFun (rng te) t, ValR (Kindle.ENew n [(prim Code, Kindle.Fun t' te' c)]))
 
 
 -- Translate a Core.Exp into a Kindle value expression, inferring its Type and overflowing into a list of Kindle.Binds if necessary
