@@ -27,6 +27,7 @@ import Type
 import Termred
 import Type2
 import Kindle
+import Kindlered
 import Core2Kindle
 import Lambdalift
 import Prepare4C
@@ -182,8 +183,9 @@ compileTimber clo ifs t_file ti_file c_file h_file
                              rd      <- pass (termred e2)     Termred             tc
                              tc2     <- pass (typecheck2 e2)  Type2               rd
                              (ki,a2) <- pass (core2kindle e2 e3) C2K              tc2
-                             ll      <- pass (lambdalift e3)  LLift               ki
-                             pc      <- pass (prepare4c e2 e3)   Prepare4C           ll
+                             ki'     <- pass (kindlered e3)   Kindlered           ki
+                             ll      <- pass (lambdalift e3)  LLift               ki'
+                             pc      <- pass (prepare4c e2 e3)   Prepare4C        ll
                              c       <- pass (kindle2c (init_order imps)) K2C     pc
                              return (c,ifaceMod a0 rd a2)
 
