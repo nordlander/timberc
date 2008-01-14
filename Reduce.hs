@@ -208,16 +208,28 @@ red gs ((env, Scheme (R t) ps' ke):ps)  = do pe <- newEnv assumptionSym ps'
                                              let bss = preferParams env' pe qe eq
                                              return (s, q, es, eLam pe (eLet' bss e) : es')
 
+{-
+   ts   -> t    <        ts'   -> t'
+ts1,ts2 -> t    <    ts1',ts2' -> t'
 
+es1 :: ts1' < ts1
+e   :: ts2->t < ts2'->t'
+
+e0  = \(v::ts->t) -> \(ys1:ts1',ys2:ts2') -> e1
+
+e1  :: t'      =  e e2 ys2
+e2  :: ts2->t  =  \(xs2:ts2) -> v (es3,xs2)
+es3 :: ts1     =  es1@ys1
+-}
 
 redf gs env (F ts t) (F ts' t') ps      = do te1' <- newEnv assumptionSym ts1'
                                              te2' <- newEnv assumptionSym ts2'
                                              te2  <- newEnv assumptionSym ts2
                                              v    <- newName coercionSym
-                                             (s,q,es,e,es1,es2) <- redf1 gs env t (tFun ts2' t') ts1' ts1 ps
+                                             (s,q,es,e,es1,es2) <- redf1 gs env (tFun ts2 t) (tFun ts2' t') ts1' ts1 ps
                                              let e0  = ELam [(v,scheme' (F ts t))] (ELam (te1'++te2') e1)
-                                                 e1  = eAp (EAp e [eLam te2 e2]) (map EVar (dom te2'))
-                                                 e2  = EAp (EVar v) (es3 ++ map EVar (dom te2))
+                                                 e1  = eAp (EAp e [e2]) (map EVar (dom te2'))
+                                                 e2  = eLam te2 (EAp (EVar v) (es3 ++ map EVar (dom te2)))
                                                  es3 = zipWith eAp1 es1 (map EVar (dom te1'))
                                              return (s, q, es, e0, es2)
   where (ts1 ,ts2 )                     = splitAt (length ts') ts
