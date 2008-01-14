@@ -227,6 +227,7 @@ data Pass            = Parser
                      | Termred
                      | Type2
                      | C2K
+                     | Kindlered
                      | LLift
                      | Prepare4C
                      | K2C

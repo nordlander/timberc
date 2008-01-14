@@ -18,6 +18,7 @@ k2hModule (Module n ns ds bs)   = hHeader n ns $$$
                                   vcat (map k2cStructStub [ n | (n, Struct te _) <- ds ]) $$$
                                   vcat (map k2cDecl ds) $$$
                                   vcat (map k2cHBind bs) $$$
+                                  k2cInitProcStub n <> text ";" $$$
                                   hFooter n
   
 k2cImport n                     = text "#include \"" <> text (concat(intersperse "/" (splitString (str n)))) <> text ".h\""
@@ -99,7 +100,7 @@ k2cOffsets n []                 = text "0"
 k2cOffsets n ((x,FunT _ _):te)  = k2cOffsets n te
 k2cOffsets n ((x,ValT t):te)
   | not (isPtr t)               = k2cOffsets n te
-  | otherwise                   = text "offsetof(struct" <+> k2cName n <> text "," <+> k2cName x <> text ")," <+>
+  | otherwise                   = text "WORDS(offsetof(struct" <+> k2cName n <> text "," <+> k2cName x <> text "))," <+>
                                   k2cOffsets n te
 
 k2cGCinfoName n                 = text "__GC__" <> k2cName n
@@ -120,7 +121,9 @@ k2cBindStubActual _             = empty
 cHeader n                       = text "#include \"" <> text (last(splitString (str n))) <> text ".h\"" 
 cFooter n                       = text "\n"
 
-k2cInitProc n ns bs             = text "void _init_" <> text (modToundSc (str n)) <+> text "() {" $$
+k2cInitProcStub n               = text "void _init_" <> text (modToundSc (str n)) <+> text "()"
+
+k2cInitProc n ns bs             = k2cInitProcStub n <+> text "{" $$
 	                              nest 4 (k2cOnce (vcat (map k2cInitImport ns ++ map k2cInit bs))) $$
                                   text "}"
 

@@ -1,21 +1,21 @@
-WORD __GC__TUP2[] = {sizeof(struct TUP2), offsetof(struct TUP2, a), offsetof(struct TUP2, b), 0};
+WORD __GC__TUP2[] = {WORDS(sizeof(struct TUP2)), WORDS(offsetof(struct TUP2, a)), WORDS(offsetof(struct TUP2, b)), 0};
 
-WORD __GC__TUP3[] = {sizeof(struct TUP3), offsetof(struct TUP3, a), offsetof(struct TUP3, b), 
-                     offsetof(struct TUP3, c), 0};
+WORD __GC__TUP3[] = {WORDS(sizeof(struct TUP3)), WORDS(offsetof(struct TUP3, a)), WORDS(offsetof(struct TUP3, b)), 
+                     WORDS(offsetof(struct TUP3, c)), 0};
 
-WORD __GC__TUP4[] = {sizeof(struct TUP4), offsetof(struct TUP4, a), offsetof(struct TUP4, b), 
-                     offsetof(struct TUP4, c), offsetof(struct TUP4, d), 0};
+WORD __GC__TUP4[] = {WORDS(sizeof(struct TUP4)), WORDS(offsetof(struct TUP4, a)), WORDS(offsetof(struct TUP4, b)), 
+                     WORDS(offsetof(struct TUP4, c)), WORDS(offsetof(struct TUP4, d)), 0};
 
 // Note: tuple types will eventually be implemented by arrays...
 
 
-WORD __GC__CONS[] = {sizeof(struct CONS), offsetof(struct CONS, a), offsetof(struct CONS, b), 0};
+WORD __GC__CONS[] = {WORDS(sizeof(struct CONS)), WORDS(offsetof(struct CONS, a)), WORDS(offsetof(struct CONS, b)), 0};
 
-WORD __GC__FloatBox[] = {sizeof(struct FloatBox), 0};
+WORD __GC__FloatBox[] = {WORDS(sizeof(struct FloatBox)), 0};
 
-WORD __GC__TimeBox[] = {sizeof(struct TimeBox), 0};
+WORD __GC__TimeBox[] = {WORDS(sizeof(struct TimeBox)), 0};
 
-WORD __GC__IntBox[] = {sizeof(struct IntBox), 0};
+WORD __GC__IntBox[] = {WORDS(sizeof(struct IntBox)), 0};
 
 /*
 struct Msg {
@@ -25,7 +25,7 @@ struct Msg {
   Msg next;
 };
 */
-WORD __GC__Msg[] = {sizeof(struct Msg), 0};     // sole pointer field "next" is custom handled by the gc
+WORD __GC__Msg[] = {WORDS(sizeof(struct Msg)), 0};      // sole pointer field "next" is custom handled by the gc
 
 /*
 struct Array {
@@ -33,4 +33,4 @@ struct Array {
   POLY elems[];
 };
 */
-WORD __GC__Array[] = {0, 1};                    // zero size => dynamic, flag 1 => node contains all pointers
+WORD __GC__Array[] = {0, 1};                            // zero size => dynamic, flag 1 => node contains all pointers

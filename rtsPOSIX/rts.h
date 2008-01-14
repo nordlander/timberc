@@ -1,6 +1,7 @@
 #ifndef RTS_H_
 #define RTS_H_
 
+#include <stddef.h>
 #include <sys/time.h>
 
 typedef int WORD;
@@ -34,8 +35,7 @@ typedef Object *PID;
 
 extern Object ObjInit;
 
-#define WORDS(bytes)            (((bytes)+sizeof(WORD)-1)/sizeof(WORD))
-#define offsetof(type, member)  WORDS(&(((type*)0)->member))
+#define WORDS(bytes)                    (((bytes)+sizeof(WORD)-1)/sizeof(WORD))
 
 
 #if defined(__APPLE__)

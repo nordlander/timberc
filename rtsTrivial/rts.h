@@ -2,6 +2,8 @@
 #define RTS_H_
 
 
+#include <stddef.h>
+
 typedef int WORD;
 typedef WORD *ADDR;
 
@@ -25,11 +27,10 @@ typedef Object *PID;
 
 extern Object ObjInit;
 
-#define offsetof(type, member)  ((WORD)(&(((type*)0)->member)))
 
+#define WORDS(bytes)                    (((bytes)+sizeof(WORD)-1)/sizeof(WORD))
 
-#define WORDS(bytes)      (((bytes)+sizeof(WORD)-1)/sizeof(WORD))
-#define NEW(t,lhs,words)   lhs = (t)hp; hp += (words); if (hp >= lim) lhs = (t)force(words);
+#define NEW(t,lhs,words)  lhs = (t)hp; hp += (words); if (hp >= lim) lhs = (t)force(words);
 
 extern ADDR hp, lim;
 ADDR force(WORD);
