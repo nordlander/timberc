@@ -193,9 +193,6 @@ cBind bs c                              = CBind False bs c
 cBindR r [] c                           = c
 cBindR r bs c                           = CBind r bs c
 
-enter es e@(ECall (Prim Raise _) _)     = e
-enter es e                              = EEnter e (prim Code) es
-
 
 mkSig (n,Val at _)                      = (n,ValT at)
 mkSig (n,Fun at ats _)                  = (n,FunT (map snd ats) at)
@@ -211,29 +208,46 @@ lock t e                                = ECast t (ECall (prim LOCK) [ECast (TId
 unlock x c                              = cMap (CRun (ECall (prim UNLOCK) [e0]) . CRet) c
   where e0                              = ECast (TId (prim PID)) (EVar x)
 
+
 cMap f (CRet e)                         = f e
 cMap f (CRun e c)                       = CRun e (cMap f c)
 cMap f (CBind r bs c)                   = CBind r bs (cMap f c)
-cMap f (CAssign e y e' c)               = CAssign e y e' (cMap f c)
-cMap f (CSwitch e alts d)               = CSwitch e (map (aMap f) alts) (cMap f d)
+cMap f (CUpd y e c)                     = CUpd y e (cMap f c)
+cMap f (CUpdS e y e' c)                 = CUpdS e y e' (cMap f c)
+cMap f (CUpdA e i e' c)                 = CUpdA e i e' (cMap f c)
+cMap f (CSwitch e alts d)               = CSwitch e (clift (cMap f) alts) (cMap f d)
+  where g (ACon y c)                    = ACon y (cMap f c)
+        g (ALit l c)                    = ALit l (cMap f c)
 cMap f (CSeq c c')                      = CSeq (cMap f c) (cMap f c')
 cMap f (CBreak)                         = CBreak
 
-aMap f (ACon y c)                       = ACon y (cMap f c)
-aMap f (ALit l c)                       = ALit l (cMap f c)
+
+cMap' f = cMap (CRet . f)
 
 
-class CMap a where
-    cmap :: (Exp -> Exp) -> a -> a
+class CLift a where
+    clift                               :: (Cmd -> Cmd) -> a -> a
 
-instance CMap Exp where
-    cmap = id
+instance CLift Cmd where
+    clift f                             = f
 
-instance CMap Cmd where
-    cmap f = cMap (CRet . f)
+instance CLift Alt where
+    clift f (ACon y c)                  = ACon y (f c)
+    clift f (ALit l c)                  = ALit l (f c)
 
-instance CMap Alt where
-    cmap f = aMap (CRet . f)
+instance CLift a => CLift [a] where
+    clift f                             = map (clift f)
+
+
+cmap f                                  = clift (cMap (CRet . f))
+
+
+enter e es                              = EEnter e (prim Code) es
+
+enter2                                  = flip enter
+
+new n t te c                            = ENew n [(prim Code, Fun t te c)]
+
 
 
 -- Free variables ------------------------------------------------------------------------------------
@@ -267,6 +281,40 @@ instance Ids Alt where
 instance Ids Bind where
     idents (Val t e)                    = idents e
     idents (Fun t te c)                 = idents c \\ dom te
+
+
+-- Substitutions ------------------------------------------------------------------------------------------
+
+instance Subst Exp Name Exp where
+    subst s (EVar v)                    = case lookup v s of
+                                            Just e -> e
+                                            _      -> EVar v
+    subst s (EThis)                     = EThis
+    subst s (ELit l)                    = ELit l
+    subst s (ESel e l)                  = ESel (subst s e) l
+    subst s (ENew x bs)                 = ENew x (subst s bs)
+    subst s (ECall x es)                = ECall x (subst s es)
+    subst s (EEnter e x es)             = EEnter (subst s e) x (subst s es)
+    subst s (ECast t e)                 = ECast t (subst s e)
+
+instance Subst Cmd Name Exp where
+    subst s (CRet e)                    = CRet (subst s e)
+    subst s (CRun e c)                  = CRun (subst s e) (subst s c)
+    subst s (CBind r bs c)              = CBind r (subst s bs) (subst s c)
+    subst s (CUpd x e c)                = CUpd x (subst s e) (subst s c)
+    subst s (CUpdS e x e' c)            = CUpdS (subst s e) x (subst s e') (subst s c)
+    subst s (CUpdA e i e' c)            = CUpdA (subst s e) (subst s i) (subst s e') (subst s c)
+    subst s (CSwitch e alts d)          = CSwitch (subst s e) (subst s alts) (subst s d)
+    subst s (CSeq c c')                 = CSeq (subst s c) (subst s c')
+    subst s (CBreak)                    = CBreak
+
+instance Subst Alt Name Exp where
+    subst s (ACon x c)                  = ACon x (subst s c)
+    subst s (ALit l c)                  = ALit l (subst s c)
+
+instance Subst Bind Name Exp where
+    subst s (Val t e)                   = Val t (subst s e)
+    subst s (Fun t te c)                = Fun t te (subst s c)
 
 
 -- Tentative concrete syntax ------------------------------------------------------------------------------
