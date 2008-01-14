@@ -10,7 +10,7 @@ struct DescFile {
         int desc;
 };
 typedef struct DescFile *DescFile;
-WORD __GC__DescFile[] = { sizeof(struct DescFile), 0 };
+WORD __GC__DescFile[] = { WORDS(sizeof(struct DescFile)), 0 };
 
 LIST read_fun( File_POSIX this, POLY self ) {
         sigset_t previous_mask;
