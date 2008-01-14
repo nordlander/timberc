@@ -106,9 +106,14 @@ pCmd env (CRun e c)             = do (bs,e) <- pExp env e
 pCmd env (CBind r bs c)         = do (bs1,bs) <- pMap (pBind (if r then env' else env)) bs
                                      liftM (cBind bs1 . CBind r bs) (pCmd env' c)
   where env'                    = addBinds bs env
-pCmd env (CAssign e x e' c)     = do (bs,e) <- pExp env e
+pCmd env (CUpd x e c)           = do (bs,e) <- pExp env e
+                                     liftM (cBind bs . CUpd x e) (pCmd env c)
+pCmd env (CUpdS e x e' c)       = do (bs,e) <- pExp env e
                                      (bs',e') <- pExp env e'
-                                     liftM (cBind bs . cBind bs' . CAssign e x e') (pCmd env c)
+                                     liftM (cBind bs . cBind bs' . CUpdS e x e') (pCmd env c)
+pCmd env (CUpdA e i e' c)       = do (bs,e) <- pExp env e
+                                     (bs',e') <- pExp env e'
+                                     liftM (cBind bs . cBind bs' . CUpdA e i e') (pCmd env c)
 pCmd env (CSwitch e alts d)     = do (bs,e) <- pExp env e
                                      alts <- mapM (pAlt env) alts
                                      let (alts0,alts1) = partition nullAlt alts
@@ -135,7 +140,11 @@ anchor (CBind r bs c)           = (CBind r bs . bf, c')
   where (bf,c')                 = anchor c
 anchor (CRun e c)               = (CRun e . bf, c')
   where (bf,c')                 = anchor c
-anchor (CAssign e x e' c)       = (CAssign e x e' . bf, c')
+anchor (CUpd x e c)             = (CUpd x e . bf, c')
+  where (bf,c')                 = anchor c
+anchor (CUpdS e x e' c)         = (CUpdS e x e' . bf, c')
+  where (bf,c')                 = anchor c
+anchor (CUpdA e i e' c)         = (CUpdA e i e' . bf, c')
   where (bf,c')                 = anchor c
 anchor c                        = (id, c)  
 
@@ -172,14 +181,18 @@ pExp env e                      = do (bs,t,e) <- pExp' env e
                                      
 
 -- Prepare an expression in an arbitrary position and compute its type
-pExp' env e@(EVar x) | isCon x      = return ([], TId x, e)
-                     | otherwise    = return ([], rngType (lookup' (tenv env) x), e)
+pExp' env e@(EVar x)
+  | isCon x                         = return ([], TId x, e)
+  | stateVar (annot x)              = pIndexArray env e []
+  | otherwise                       = return ([], rngType (lookup' (tenv env) x), e)
 pExp' env e@(ELit l)                = return ([], litType l, e)
 pExp' env (EThis)                   = return ([], t, EVar x)
   where (x,t)                       = fromJust (this env)
 pExp' env (ESel e l)                = do (bs,TId n,e) <- pExp' env e
                                          let Struct te _ = findDecl env n
                                          return (bs, rngType (lookup' te l), ESel e l)
+pExp' env e@(ECall (Prim IndexArray _) _)
+                                    = pIndexArray env e []
 pExp' env (ECall f es)              = do (bs,es) <- pMap (pExp env) es
                                          return (bs, rngType (lookup' (tenv env) f), ECall f es)
 pExp' env (EEnter (EVar x) f es)    = do (bs1,TId n,e) <- pExp' env (EVar x)
@@ -225,3 +238,26 @@ smallPrim _                         = False
 box (TId (Prim Time _))             = prim TimeBox
 box (TId (Prim Int _))              = prim IntBox
 box (TId (Prim Float _))            = prim FloatBox
+
+
+pIndexArray env (ECall (Prim IndexArray _) [a,i]) is
+                                    = pIndexArray env a (i:is)
+pIndexArray env (EVar x) is
+  | stateVar (annot x)              = do (bs,e) <- mkIndex env (EVar x) is
+                                         return (bs, TWild, clone (arrayDepth t - length is) e)
+  where t                           = rngType (lookup' (tenv env) x)
+pIndexArray env e is                = do (bs,e) <- pExp env e
+                                         (bs',e') <- mkIndex env e is
+                                         return (bs++bs', TWild, e')
+
+
+mkIndex env e is                    = do (bs,is) <- pMap (pExp env) is
+                                         return (bs, foldl f e is)
+  where f a i                       = ECall (prim IndexArray) [a,i]
+                                         
+
+arrayDepth (TArray t)               = 1 + arrayDepth t
+arrayDepth _                        = 0
+
+
+clone 0 e                           = e

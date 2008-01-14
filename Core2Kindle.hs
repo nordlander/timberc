@@ -614,7 +614,7 @@ cCmd env (CAss x e c)                   = do (bf,te,e) <- freezeState env e
                                              -- Skolemize tx, type is an *upper* bound
                                              -- Ignore returned type equalities, no unification variables in tx
                                              (t,c) <- cCmd env c
-                                             return (t, bf (bf' (Kindle.CAssign (Kindle.EVar (self env)) x e c)))
+                                             return (t, bf (bf' (Kindle.CUpdS (Kindle.EVar (self env)) x e c)))
   where tx                              = lookup' (tenv env) x
 cCmd env (CLet bs c)                    = do (bf,te,bs) <- freezeState env bs
                                              (te',bf') <- cBinds (addTEnv te env) bs

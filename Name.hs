@@ -151,7 +151,6 @@ data Prim                       =
                                 | SizeArray
                                 | IndexArray
                                 | UpdateArray
-                                | CloneArray
                                 
                                 | MAX____KINDLEVAR
 
@@ -175,6 +174,8 @@ data Prim                       =
                                 | LOCK
                                 | UNLOCK
                                 
+                                | CloneArray            -- To open up for destructive updates in Kindle
+
                                 | Inherit               -- default Time value
 
                                 | Tag                   -- first selector of every datatype/constructor struct
@@ -219,7 +220,8 @@ primTypes                       = map primKeyValue typerange ++ alreadyPrimed ty
 
 primTerms                       = map primKeyValue [MIN____CONS .. MAX____VAR] ++ 
                                   alreadyPrimed [MIN____CONS .. MAX____CONS] ++
-                                  alreadyPrimed [LazyAnd,LazyOr]
+                                  alreadyPrimed [LazyAnd,LazyOr] ++
+                                  alreadyPrimed [ListArray .. UpdateArray]
 
 primKeyValue p                  = (name0 (strRep p), prim p)
 

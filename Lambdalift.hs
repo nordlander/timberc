@@ -80,8 +80,11 @@ llCmd env (CBind r bs c)                = do vals' <- mapM (llBind env') vals
         liftFun (x, Fun t te c)         = addToStore (Right (x, Fun t (fte++te) c))
 llCmd env (CRet e)                      = liftM CRet (llExp env e)
 llCmd env (CRun e c)                    = liftM2 CRun (llExp env e) (llCmd env c)
-llCmd env (CAssign e x e' c)            = do e <- llExp env e
-                                             liftM2 (CAssign e x) (llExp env e') (llCmd env c)
+llCmd env (CUpd x e c)                  = liftM2 (CUpd x) (llExp env e) (llCmd env c)
+llCmd env (CUpdS e x e' c)              = do e <- llExp env e
+                                             liftM2 (CUpdS e x) (llExp env e') (llCmd env c)
+llCmd env (CUpdA e i e' c)              = do e <- llExp env e
+                                             liftM2 (CUpdA e i) (llExp env e') (llCmd env c)
 llCmd env (CSwitch e alts d)            = liftM3 CSwitch (llExp env e) (mapM (llAlt env) alts) (llCmd env d)
 llCmd env (CSeq c c')                   = liftM2 CSeq (llCmd env c) (llCmd env c')
 llCmd env (CBreak)                      = return CBreak

@@ -76,7 +76,9 @@ data AType      = TId    Name
 data Cmd        = CRet    Exp                 -- simply return $1
                 | CRun    Exp Cmd             -- evaluate $1 for its side-effects only, then execure tail $2
                 | CBind   Bool Binds Cmd      -- introduce (recursive? $1) local bindings $2, then execute tail $3
-                | CAssign Exp Name Exp Cmd    -- overwrite value field $2 of struct $1 with value $3, execute tail $4
+                | CUpd    Name Exp Cmd        -- overwrite variable $1 with value $2, execute tail $3
+                | CUpdS   Exp Name Exp Cmd    -- overwrite value field $2 of struct $1 with value $3, execute tail $4
+                | CUpdA   Exp Exp Exp Cmd     -- overwrite index $2 of array $1 with value $3, execute tail $4
                 | CSwitch Exp [Alt] Cmd       -- depending on the value of $1, choose tails from $2, default to $3
                 | CSeq    Cmd Cmd             -- execute $1; if fall-through, continue with $2
                 | CBreak                      -- break out of a surrounding switch
@@ -152,11 +154,14 @@ tMsg                                    = TId (prim Msg)
 tPID                                    = TId (prim PID)
 tUNIT                                   = TId (prim UNITTYPE)
 tObject                                 = TId (prim Object)
+tInt                                    = TId (prim Int)
+tArray                                  = TId (prim Array)
 
-primTEnv0                               = (prim ASYNC,   FunT [tMsg,tTime,tTime] tUNIT) :
-                                          (prim LOCK,    FunT [tPID] tUNIT) :
-                                          (prim UNLOCK,  FunT [tPID] tUNIT) :
-                                          (prim Inherit, ValT tTime) :
+primTEnv0                               = (prim ASYNC,      FunT [tMsg,tTime,tTime] tUNIT) :
+                                          (prim LOCK,       FunT [tPID] tUNIT) :
+                                          (prim UNLOCK,     FunT [tPID] tUNIT) :
+                                          (prim Inherit,    ValT tTime) :
+                                          (prim CloneArray, FunT[tArray,tInt] tArray) :
                                           []
 
 ptrPrims                                = [Msg, Ref, PID, Array, LIST]
@@ -248,7 +253,9 @@ instance Ids Cmd where
     idents (CRun e c)                   = idents e ++ idents c
     idents (CBind False bs c)           = idents bs ++ (idents c \\ dom bs)
     idents (CBind True bs c)            = (idents bs ++ idents c) \\ dom bs
-    idents (CAssign e x e' c)           = idents e ++ idents e' ++ idents c
+    idents (CUpd x e c)                 = idents e ++ idents c
+    idents (CUpdS e x e' c)             = idents e ++ idents e' ++ idents c
+    idents (CUpdA e i e' c)             = idents e ++ idents i ++ idents e' ++ idents c
     idents (CSwitch e alts d)           = idents e ++ idents alts ++ idents d
     idents (CSeq c c')                  = idents c ++ idents c'
     idents (CBreak)                     = []
@@ -311,7 +318,11 @@ instance Pr Cmd where
                                           pr c
     pr (CBind r bs c)                   = vpr bs $$
                                           pr c
-    pr (CAssign e x e' c)               = pr e <> text "->" <> prId2 x <+> text "=" <+> pr e' <> text ";" $$
+    pr (CUpd x e c)                     = prId2 x <+> text "=" <+> pr e <> text ";" $$
+                                          pr c
+    pr (CUpdS e x e' c)                 = pr e <> text "->" <> prId2 x <+> text "=" <+> pr e' <> text ";" $$
+                                          pr c
+    pr (CUpdA e i e' c)                 = pr e <> brackets (pr i) <+> text "=" <+> pr e' <> text ";" $$
                                           pr c
     pr (CSwitch e alts d)               = text "switch" <+> parens (pr e) <+> text "{" $$
                                           nest 2 (vpr alts $$ prDefault d) $$

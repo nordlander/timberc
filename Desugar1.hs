@@ -34,13 +34,12 @@ data Env                        = Env { sels :: Map Name [Name],
                                         modName :: Maybe String,
                                         isPat :: Bool,
                                         isPublic :: Bool,
-                                        tsyns :: Map Name ([Name],Type),
-                                        impArrays :: Map Name Int
-} deriving Show
+                                        tsyns :: Map Name ([Name],Type)
+                                  } deriving Show
 
 
 env0 ss                       = Env { sels = [], self = Nothing, selSubst = [], modName = Nothing, isPat = False, 
-                                      isPublic = True, tsyns = ss, impArrays = [] }
+                                      isPublic = True, tsyns = ss }
 
 
 mkEnv c ds (rs,rn,ss)           = (env {sels = map transClose recEnv, modName = Just(str c), selSubst = rnSels },
@@ -109,28 +108,24 @@ ren env cs                      = map ren' cs
 
 patEnv env                      = env {isPat = True}
 
-updateTable is                  = merge (sort is)
-  where merge []                = []
-        merge [p]               = [p]
-        merge ((n,x):(n',x'):ps)
-                |str n==str n'  = merge ((n,x'):ps) 
-                |otherwise      = (n,x):merge ((n',x'):ps)
+mergeIndex (EIndex e e') es     = mergeIndex e (e' ++ es)
+mergeIndex e es                 = (e,es)
 
-indexArray e es                 = foldl f e es
- where f x y                    = EAp (EAp (prim0 IndexArray) x) y      
+indArray e i                    = EAp (EAp (EVar (prim IndexArray)) e) i
 
-cloneArray e 0                  = e
-cloneArray e k                  = EAp (EAp (prim0 CloneArray) e) (ELit (LInt Nothing (fromIntegral k)))
+indexArray a is                 = foldl indArray a is
 
-updateArray e k r               = EAp (EAp (EAp (prim0 UpdateArray) e) k) r
+updArray a i e                  = EAp (EAp (EAp (EVar (prim UpdateArray)) a) i) e
 
-prim0 n                         = EVar (name0 (strRep2 n))
+updateArray a [] e              = e
+updateArray a (i:is) e          = updArray a i (updateArray (indArray a i) is e)
 
-
-maybeClone env (EVar n) e sub   = case lookup n (impArrays env) of
-                                     Just lev -> cloneArray e (lev - sub)
-                                     Nothing -> e
-maybeClone env _ e _            = e
+{-
+    a|x|y|z := e
+    a|x|y   := a|x|y \\ (z,e)
+    a|x     := a|x \\ (y, a|x|y \\ (z,e))
+    a       := a \\ (x, a|x \\ (y, a|x|y \\ (z,e)))
+-}
 
 maybeGen e []                   = [SExp e]
 maybeGen e ss                   = SGen EWild e : ss
@@ -148,11 +143,11 @@ dsDecls env (DInst t bs : ds)   = do w <- newName instanceSym
         substB s (BEqn lh rh)   = BEqn (substL s lh) rh
         substL s (LPat p)       = LPat (subst (mapSnd EVar s) p)
         substL s (LFun v ps)    = LFun (substVar s v) ps
-dsDecls env (DType c vs t : ds)  = liftM (DType c vs (ds1 env t) :) (dsDecls env ds)
+dsDecls env (DType c vs t : ds) = liftM (DType c vs (ds1 env t) :) (dsDecls env ds)
 dsDecls env (DData c vs ss cs : ds) = liftM (DData c vs (ds1 env ss) (ds1 env cs) :) (dsDecls env ds)
 dsDecls env (DRec b c vs ss ss' : ds) = liftM (DRec b c vs (ds1 env ss) (ds1 env ss') :) (dsDecls env ds)
 dsDecls env (DPSig n t : ds)    = liftM (DPSig n (ds1 env t) :) (dsDecls env ds)
-dsDecls env (DDefault ts : ds) = liftM (DDefault (ds1 env ts) :) (dsDecls env ds)
+dsDecls env (DDefault ts : ds)  = liftM (DDefault (ds1 env ts) :) (dsDecls env ds)
 dsDecls env (DBind b : ds)      = liftM (DBind (ds1 env b) :) (dsDecls env ds)
 dsDecls env (d : ds)            = liftM (d :) (dsDecls env ds)
 dsDecls env []                  = return []
@@ -221,9 +216,7 @@ instance Desugar1 Qual where
     ds1 env (QLet bs)           = QLet (ds1 env bs)
 
 instance Desugar1 Exp where
-    ds1 env e@(EVar _)
-        | isPat env                = e
-        | otherwise                = maybeClone env e e 0
+    ds1 env e@(EVar _)             = e
     ds1 env (ERec Nothing fs)
       | not (null dups)            = errorIds "Duplicate field definitions in record" dups
       | otherwise                  = ERec (Just (c,True)) (ds1 env fs)
@@ -237,14 +230,13 @@ instance Desugar1 Exp where
             dups                   = duplicates (ren env (bvars fs))
             fs'                    = map (\s -> Field (tag0 (mkLocal s)) (EVar (mName Nothing (tag0 s)))) miss
             mkLocal s
-              |fromMod s == modName env = mName Nothing s
-              |otherwise           = s
+              | fromMod s == modName env = mName Nothing s
+              | otherwise          = s
     ds1 env (ELet bs e)            = ELet (ds1 env bs) (ds1 env e)
     ds1 env e@(EIndex _ _)
-         |isPat env                = EIndex e' es    -- if lhs of statement, desugered there; otherwise illegal and caught in rename.
-         |otherwise                = maybeClone env e' e'' (length es)
-       where (e',es)               = mergeIndex e []
-             e''                   = indexArray e' (ds1 env es) 
+      | isPat env                  = EIndex e' es    -- if lhs of statement, desugered there; otherwise illegal and caught in rename.
+      | otherwise                  = indexArray e' (ds1 env es)
+      where (e',es)                = mergeIndex e []
     ds1 env (EAp e1 e2)            = EAp (ds1 env e1) (ds1 env e2)
     ds1 env (ETup es)              = ETup (ds1 env es)
     ds1 env (EList es)             = EList (ds1 env es)
@@ -277,7 +269,7 @@ instance Desugar1 Exp where
       | haveSelf env               = ds1 env (EReq (self env) ss)
       | otherwise                  = errorTree "Request outside template" e
 
-    ds1 env (ETempl v t ss)      = ETempl v t (ds1T (env{self=v, impArrays = updateTable (imps ss)}) ss)
+    ds1 env (ETempl v t ss)      = ETempl v t (ds1T (env{self=v}) ss)
     ds1 env (EDo v t ss)         = EDo v t (ds1S (env{self=v}) ss)
     ds1 env (EAct v ss)          = EAct v [SExp (EDo v Nothing (ds1S env ss))]
     ds1 env (EReq v ss)          = EReq v [SExp (EDo v Nothing (ds1S env ss))]
@@ -300,10 +292,8 @@ ds1S env (s@(SRet _) : ss)       = errorTree "Return statement must be last in s
 ds1S env (SGen p e : ss)         = SGen (ds1 (patEnv env) p) (ds1 env e) : ds1S env ss
 ds1S env (SBind b : ss)          = SBind (ds1 env b) : ds1S env ss
 ds1S env (SAss p e : ss)         = case ds1 (patEnv env) p of
-                                     EIndex e' es -> maybeGen (mkUpdate e' es (ds1 env e)) (ds1S env ss)    
+                                     EIndex a is -> SAss a (updateArray a is (ds1 env e)) : ds1S env ss
                                      p' -> SAss p' (ds1 env e) : ds1S env ss
-                                     -- we know (from imps) that e' is a (state) variable
-  where mkUpdate e es r          = updateArray (indexArray e (init es)) (last es) (maybeClone env e r (length es))
 ds1S env (SCase e as : ss)       = ds1S env (SExp (ECase e (map doAlt as)) : ss)
   where doAlt (Alt p r)          = Alt (ds1 (patEnv env) p) (doRhs r)
         doRhs (RExp ss)          = RExp (EDo (self env) Nothing ss)
@@ -314,10 +304,6 @@ ds1S env (SIf e ss' : ss)        = doIf (SCase e) (Alt true (RExp ss')) ss
   where doIf f a (SElsif e ss':ss) = doIf (\alts -> f [a, Alt false (RExp [SCase e alts])]) (Alt true (RExp ss')) ss
         doIf f a (SElse ss':ss)  = ds1S env (f [a, Alt false (RExp ss')] : ss)
         doIf f a ss              = ds1S env (f [a] : ss)
-ds1S env (SIf e ss' : ss)        = doIf (EIf e (EDo (self env) Nothing ss')) ss
-  where doIf f (SElsif e ss':ss) = doIf (f . EIf e (EDo (self env) Nothing ss')) ss
-        doIf f (SElse ss':ss)    = ds1S env (SExp (f (EDo (self env) Nothing ss')) : ss)
-        doIf f ss                = ds1S env (SExp (f (EDo (self env) Nothing [])) : ss)
 ds1S env (s@(SElsif _ _) : _)    = errorTree "elsif without corresponding if" s
 ds1S env (s@(SElse _) : _)       = errorTree "else without corresponding if" s
 ds1S env (SForall q ss' : ss)    = ds1S env (SExp (ds1Forall env q ss') : ss) -- error "forall stmt not yet implemented"
@@ -334,71 +320,10 @@ ds1T env (s@(SRet _) : ss)       = errorTree "Return statement must be last in s
 ds1T env (SBind b : ss)          = SBind (ds1 env b) : ds1T env ss
 ds1T env (s@(SAss p e) : ss)     = case ds1 (patEnv env) p of
                                      EIndex _ _  -> errorTree "Initialisation must be to whole array" s
-                                     p' -> SAss p' (maybeClone env p' (ds1 env e) 0) : ds1T env ss
+                                     p' -> SAss p' (ds1 env e) : ds1T env ss
 ds1T env (SGen p e : ss)         = SGen (ds1 (patEnv env) p) (ds1 env e) : ds1T env ss           -- temporary
 ds1T env (s : _)                 = errorTree "Illegal statement in template: " s
 
--- Imperative Arrays ---------------------------
-
-mergeIndex (EIndex e e') es     = mergeIndex e (e' ++ es)
-mergeIndex e es                 = (e,es)
-
--- imps x will only be called once, in ds1 when entering a template.
--- It should return a map giving apparent dimension of all arrays,
--- which are destructively updated in the methods of the template.
--- So we need to traverse all SGen statements in the methods; 
--- how much of the syntax does that force us to traverse?
-
-
-class ImpArrays a where
-  imps :: a -> [(Name,Int)]
-
-instance ImpArrays a => ImpArrays [a] where
-  imps xs                    = concatMap imps xs
-
-
-instance ImpArrays Stmt where
-  imps (SAss e@(EIndex _ _) _) = case mergeIndex e [] of
-                                    (EVar n, es) -> [(n,length es)]
-                                    (e',  _) -> errorTree "Illegal array pattern" e
-  imps (SBind b)             = imps b
-  imps (SForall e ss)        = imps ss
-  imps (SWhile e ss)         = imps ss
-  imps (SIf e ss)            = imps ss
-  imps (SElsif e ss)         = imps ss
-  imps (SElse ss)            = imps ss
-  imps (SCase e alts)        = imps alts
-  imps _                     = []
-
-instance ImpArrays Bind where
-  imps (BSig _ _)            = []
-  imps (BEqn _ r)            = imps r
-
-instance ImpArrays Exp where
-    imps (EDo v t st)        = imps st
-    imps (EAct v st)         = imps st
-    imps (EReq v st)         = imps st
-    imps (ERec m fs)         = imps fs
-    imps _                   = []
-
-instance ImpArrays Field where
-    imps (Field l e)         = imps e
-
-instance ImpArrays a => ImpArrays (Rhs a) where
-    imps (RExp e)            = imps e
-    imps (RGrd gs)           = imps gs
-    imps (RWhere rhs bs)     = imps rhs ++ imps bs
-
-instance ImpArrays a => ImpArrays (GExp a) where
-    imps (GExp qs e)         = imps qs ++ imps e
-
-instance ImpArrays Qual where
-    imps (QExp e)            = imps e
-    imps (QGen p e)          = imps e
-    imps (QLet bs)           = imps bs
-
-instance ImpArrays a => ImpArrays (Alt a)  where
-    imps (Alt p rhs)         = imps rhs
 
 -- Printing --------
 

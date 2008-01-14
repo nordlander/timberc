@@ -173,7 +173,11 @@ k2cCmd (CBind False [(_,Val _ (ECall (Prim UpdateArray _) [e1,e2,e3,_]))] c)
                                   k2cCmd c
 k2cCmd (CBind False bs c)       = vcat (map k2cBind bs) $$
                                   k2cCmd c
-k2cCmd (CAssign e x e' c)       = k2cExp (ESel e x) <+> text "=" <+> k2cExp e' <> text ";" $$
+k2cCmd (CUpd x e c)             = k2cName x <+> text "=" <+> k2cExp e <> text ";" $$
+                                  k2cCmd c
+k2cCmd (CUpdS e x e' c)         = k2cExp (ESel e x) <+> text "=" <+> k2cExp e' <> text ";" $$
+                                  k2cCmd c
+k2cCmd (CUpdA e i e' c)         = k2cExp e <> brackets (k2cExp i) <+> text "=" <+> k2cExp e' <> text ";" $$
                                   k2cCmd c
 k2cCmd (CSwitch e alts d)       = text "switch" <+> parens (k2cExp e) <+> text "{" $$
                                     nest 4 (vcat (map k2cAlt alts)) $$
