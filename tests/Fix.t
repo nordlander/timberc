@@ -1,4 +1,4 @@
-module Test where
+module Fix where
 
 fix f = f (fix f)
 
