@@ -400,6 +400,18 @@ data Rank                               = RFun                  -- function type
                                         deriving (Ord,Eq,Show)
 
 
+unique i []                             = Nothing
+unique i (g:gs)                         = case uniqueRank g of
+                                            Just r  -> Just (r,i)
+                                            Nothing -> unique (i+1) gs
+  where uniqueRank (_,TFun [l] u)       = uniqueRank' (tHead l) (tHead u)
+        uniqueRank (_,t)                = if null (tvars t) then Just (RClass (tId (tHead t))) else Nothing
+        uniqueRank' (TFun _ _) _        = Just RFun
+        uniqueRank' _ (TFun _ _)        = Just RFun
+        uniqueRank' (TId i) (TId j)     = Just (RConCon i j)
+        uniqueRank' _ _                 = Nothing
+
+
 rank info (env,TFun [l] u)              = subrank (tFlat l) (tFlat u)
   where 
     (emb,vs,lb,ub,lb',ub',pvs)          = info

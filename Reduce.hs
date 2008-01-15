@@ -177,19 +177,19 @@ resolve env pe                          = do -- tr "RESOLVING"
 --
 -------------------------------------------------------------------------------------------------
 
-
-red [] []                               = return (nullSubst, [], [], [])
-red gs []                               = do -- tr ("%%%%%%%% Simple goals:")
-                                             -- tr (render (vpr (map snd gs)))
-                                             let str = if forced (fst g) then "%%%%%%%% Force " else "%%%%%%%% Solve "
-                                             -- tr (str ++ show r ++ " : " ++ render (pr (snd g)) ++ ",  info: " ++ show info)
-                                             (s,q,e:es) <- solve r g (gs1++gs2)
+redg r i gs                             = do (s,q,e:es) <- solve r g (gs1++gs2)
                                              let (es1,es2) = splitAt i es
                                              return (s, q, es1++[e]++es2, [])
+  where (gs1, g:gs2)                    = splitAt i gs
+
+
+red [] []                               = return (nullSubst, [], [], [])
+red gs []                               = case unique 0 gs of
+                                            Just (r,i) -> redg r i gs   -- goal can be selected without computing costly varInfo
+                                            Nothing    -> redg r i gs   -- goal must be selected on basis of varInfo
   where rs                              = map (rank info) gs
         r                               = minimum rs
         i                               = length (takeWhile (/=r) rs)
-        (gs1, g:gs2)                    = splitAt i gs
         info                            = varInfo gs
 red gs ((env, p@(Scheme (F [sc1] t2) ps2 ke2)):ps)
                                         = do (t1,ps1) <- inst sc1
