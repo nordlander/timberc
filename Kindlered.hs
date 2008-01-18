@@ -9,16 +9,19 @@ import PP
 kindlered ds m                          = redModule ds m
 
 
-data Env                                = Env { }
+data Env                                = Env { decls :: Decls }
 
-nullEnv                                 = Env { }
+nullEnv                                 = Env { decls = [] }
 
+addDecls ds env                         = env { decls = ds ++ decls env }
+
+findSel env l                           = head [ t | (_,Struct te _) <- decls env, (l',t) <- te, l'==l ]
 
 
 -- Convert a module
 redModule dsi (Module m ns ds bs)       = do bs <- mapM (redBind env0) bs
                                              return (Module m ns ds bs)
-  where env0                            = nullEnv
+  where env0                            = addDecls (ds++dsi) nullEnv
 
 
 -- Convert a binding
@@ -68,17 +71,23 @@ redAlt env (ALit l c)                   = liftM (ALit l) (redCmd env c)
 redAlt env (AWild c)                    = liftM AWild (redCmd env c)
 
 
+
+
 -- Convert an expression
 redExp env (EEnter e f es)              = do e <- redExp env e
                                              es <- mapM (redExp env) es
                                              redEnter env e f es
+redExp env e@(ECall (Prim IndexArray _) _)
+                                        = redIndexArray env e []
 redExp env (ECall x es)                 = do es <- mapM (redExp env) es
                                              return (ECall x es)
 redExp env (ENew n bs)                  = liftM (ENew n) (mapM (redBind env) bs)
 redExp env (EVar x)                     = return (EVar x)
 redExp env (EThis)                      = return (EThis)
 redExp env (ELit l)                     = return (ELit l)
-redExp env (ESel e l)                   = liftM (flip ESel l) (redExp env e)
+redExp env a@(ESel e l)
+  | stateVar (annot l)                  = redIndexArray env a []
+  | otherwise                           = liftM (flip ESel l) (redExp env e)
 redExp env (ECast t e)                  = liftM (ECast t) (redExp env e)
 
 
@@ -89,3 +98,26 @@ redEnter env e@(ENew n bs) f es         = case c of
 redEnter env e f es                     = return (EEnter e f es)
 
 
+-- Convert an array indexing expression
+redIndexArray env (ECall (Prim IndexArray _) [a,i]) is
+                                    = redIndexArray env a (i:is)
+redIndexArray env a@(ESel e l) is
+  | stateVar (annot l)              = do e <- mkIndex env a is
+                                         return (clone (arrayDepth t - length is) e)
+  where ValT t                      = findSel env l
+redIndexArray env a is              = do a <- redExp env a
+                                         e <- mkIndex env a is
+                                         return e
+
+
+mkIndex env a is                    = do is <- mapM (redExp env) is
+                                         return (foldl f a is)
+  where f a i                       = ECall (prim IndexArray) [a,i]
+                                         
+
+arrayDepth (TArray t)               = 1 + arrayDepth t
+arrayDepth _                        = 0
+
+
+clone 0 e                           = e
+clone n e                           = ECall (prim CloneArray) [ELit (LInt Nothing (toInteger n)), e]

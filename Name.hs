@@ -174,6 +174,7 @@ data Prim                       =
                                 | LOCK
                                 | UNLOCK
                                 
+                                | EmptyArray            -- For efficient creation of listArrays with constant lists
                                 | CloneArray            -- To open up for destructive updates in Kindle
 
                                 | Inherit               -- default Time value

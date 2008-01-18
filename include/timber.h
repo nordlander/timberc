@@ -105,6 +105,7 @@ POLY     RAISE(Int);
 
 Array primListArray(LIST);
 Array primConstArray(Int,POLY);
+Array primEmptyArray(Int);
 Array primCloneArray(Array,Int);
 
 #endif

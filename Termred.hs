@@ -85,7 +85,7 @@ nonzero _                       = False
 
 
 -- may be safely inlined (can't lead to infinite expansion even if part of a recursive binding group)
-finite env (EVar (Prim c _))    = c `notElem` [ListArray, ConstArray, CloneArray, UpdateArray]
+finite env (EVar (Prim c _))    = c `notElem` [ListArray, ConstArray, UpdateArray]
 finite env (EVar (Tuple _ _))   = True
 finite env (EVar x)             = x `elem` args env || maybe False (finite env )(lookup x (eqns env))
 finite env (ECon _)             = True

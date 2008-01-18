@@ -159,10 +159,13 @@ tObject                                 = TId (prim Object)
 tInt                                    = TId (prim Int)
 tArray                                  = TId (prim Array)
 
+
+-- Primitive names only visible after translation into Kindle
 primTEnv0                               = (prim ASYNC,      FunT [tMsg,tTime,tTime] tUNIT) :
                                           (prim LOCK,       FunT [tPID] tUNIT) :
                                           (prim UNLOCK,     FunT [tPID] tUNIT) :
                                           (prim Inherit,    ValT tTime) :
+                                          (prim EmptyArray, FunT[tInt] tArray) :
                                           (prim CloneArray, FunT[tArray,tInt] tArray) :
                                           []
 

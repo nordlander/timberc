@@ -192,7 +192,6 @@ pExp env e                      = do (bs,t,e) <- pExp' env e
 -- Prepare an expression in an arbitrary position and compute its type
 pExp' env e@(EVar x)
   | isCon x                         = return ([], TId x, e)
-  | stateVar (annot x)              = pIndexArray env e []
   | otherwise                       = return ([], rngType (lookup' (tenv env) x), e)
 pExp' env e@(ELit l)                = return ([], litType l, e)
 pExp' env (EThis)                   = return ([], t, EVar x)
@@ -200,8 +199,6 @@ pExp' env (EThis)                   = return ([], t, EVar x)
 pExp' env (ESel e l)                = do (bs,TId n,e) <- pExp' env e
                                          let Struct te _ = findDecl env n
                                          return (bs, rngType (lookup' te l), ESel e l)
-pExp' env e@(ECall (Prim IndexArray _) _)
-                                    = pIndexArray env e []
 pExp' env (ECall f es)              = do (bs,es) <- pMap (pExp env) es
                                          return (bs, rngType (lookup' (tenv env) f), ECall f es)
 pExp' env (EEnter (EVar x) f es)    = do (bs1,TId n,e) <- pExp' env (EVar x)
@@ -248,25 +245,3 @@ box (TId (Prim Time _))             = prim TimeBox
 box (TId (Prim Int _))              = prim IntBox
 box (TId (Prim Float _))            = prim FloatBox
 
-
-pIndexArray env (ECall (Prim IndexArray _) [a,i]) is
-                                    = pIndexArray env a (i:is)
-pIndexArray env (EVar x) is
-  | stateVar (annot x)              = do (bs,e) <- mkIndex env (EVar x) is
-                                         return (bs, TWild, clone (arrayDepth t - length is) e)
-  where t                           = rngType (lookup' (tenv env) x)
-pIndexArray env e is                = do (bs,e) <- pExp env e
-                                         (bs',e') <- mkIndex env e is
-                                         return (bs++bs', TWild, e')
-
-
-mkIndex env e is                    = do (bs,is) <- pMap (pExp env) is
-                                         return (bs, foldl f e is)
-  where f a i                       = ECall (prim IndexArray) [a,i]
-                                         
-
-arrayDepth (TArray t)               = 1 + arrayDepth t
-arrayDepth _                        = 0
-
-
-clone 0 e                           = e
