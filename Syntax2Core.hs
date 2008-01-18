@@ -164,7 +164,7 @@ s2cKSig (v,k)                   = do k <- s2cKind k
 -- Expressions and bindings ============================================================
 
 -- the translated default case alternative
-dflt                                    = Core.EVar (prim Fail)
+dflt                                    = [(Core.PWild, Core.EVar (prim Fail))]
 
 
 -- translate a case alternative, inheriting type signature t top-down
@@ -220,7 +220,7 @@ s2cEc env t (ELet bs e)         = do (te',bs') <- s2cBinds env te eqs
   where (te,eqs)                = splitBinds bs
 s2cEc env t (ECase e alts)      = do e <- s2cEc env TWild e
                                      alts <- mapM (s2cA env t) alts
-                                     return (Core.ECase e alts dflt)
+                                     return (Core.ECase e (alts++dflt))
 s2cEc env t (ESelect e s)       = do e <- s2cEc env (peel t1) e
                                      return (Core.ESel e s)
   where (t1,_)                  = splitT (lookupT s env)
@@ -312,7 +312,7 @@ s2cEi env (ELet bs e)           = do (te',bs') <- s2cBinds env te eqs
   where (te,eqs)                = splitBinds bs
 s2cEi env (ECase e alts)        = do e <- s2cEc env TWild e
                                      alts <- mapM (s2cA env TWild) alts
-                                     return (TWild, Core.ECase e alts dflt)
+                                     return (TWild, Core.ECase e (alts++dflt))
 s2cEi env (ESelect e s)         = do e <- s2cEc env (peel t1) e
                                      return (t2, Core.ESel e s)
   where (t1,t2)                 = splitT (lookupT s env)

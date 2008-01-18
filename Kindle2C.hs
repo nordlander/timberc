@@ -179,24 +179,26 @@ k2cCmd (CUpdS e x e' c)         = k2cExp (ESel e x) <+> text "=" <+> k2cExp e' <
                                   k2cCmd c
 k2cCmd (CUpdA e i e' c)         = k2cExp e <> brackets (k2cExp i) <+> text "=" <+> k2cExp e' <> text ";" $$
                                   k2cCmd c
-k2cCmd (CSwitch e alts d)       = text "switch" <+> parens (k2cExp e) <+> text "{" $$
+k2cCmd (CSwitch e alts)         = text "switch" <+> parens (k2cExp e) <+> text "{" $$
                                     nest 4 (vcat (map k2cAlt alts)) $$
-                                    nest 4 (text "default:" <+> k2cNestCmd d) $$
                                   text "}"
 k2cCmd (CSeq c c')              = k2cCmd c $$
                                   k2cCmd c'
 k2cCmd (CBreak)                 = text "break;"
+k2cCmd (CRaise e)               = text "RAISE" <> parens (k2cExp e) <> text ";"
 
 
 k2cAlt (ACon n c)               = text "case" <+> k2cTag n <> text ":" <+> k2cNestCmd c
 k2cAlt (ALit l c)               = text "case" <+> pr l <> text ":" <+> k2cNestCmd c
+k2cAlt (AWild c)                = text "default:" <+> k2cNestCmd c
 
 
 k2cNestCmd (CRet e)             = text "return" <+> k2cExp e <> text ";"
 k2cNestCmd (CBreak)             = text "break;"
+k2cNestCmd (CRaise e)           = text "RAISE" <> parens (k2cExp e) <> text ";"
 k2cNestCmd c                    = text "{" <+> k2cCmd c $$
                                   text "}" $$
-                                  text "break;"
+                                  text "break;"     -- important in case contains a switch that might break
 
 
 k2cExp (ECall x [e1,e2])

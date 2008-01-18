@@ -45,9 +45,10 @@ redCmd env (CUpdS e x e' c)             = do e <- redExp env e
                                              liftM2 (CUpdS e x) (redExp env e') (redCmd env c)
 redCmd env (CUpdA e i e' c)             = do e <- redExp env e
                                              liftM2 (CUpdA e i) (redExp env e') (redCmd env c)
-redCmd env (CSwitch e alts d)           = liftM3 CSwitch (redExp env e) (mapM (redAlt env) alts) (redCmd env d)
+redCmd env (CSwitch e alts)             = liftM2 CSwitch (redExp env e) (mapM (redAlt env) alts)
 redCmd env (CSeq c c')                  = liftM2 CSeq (redCmd env c) (redCmd env c')
 redCmd env (CBreak)                     = return CBreak
+redCmd env (CRaise e)                   = liftM CRaise (redExp env e)
 
 
 redRet env (EEnter e f es)              = do c <- redRet env e
@@ -64,6 +65,7 @@ ff env f es e                           = CRet (EEnter e f es)
 -- Convert a switch alternative
 redAlt env (ACon x c)                   = liftM (ACon x) (redCmd env c)
 redAlt env (ALit l c)                   = liftM (ALit l) (redCmd env c)
+redAlt env (AWild c)                    = liftM AWild (redCmd env c)
 
 
 -- Convert an expression

@@ -1,4 +1,4 @@
-module Termred(termred, redTerm, finite, env0, constrs) where
+module Termred(termred, redTerm, isFinite, constrs) where
 
 import Monad
 import Common
@@ -7,23 +7,36 @@ import Depend
 import PP
 import Char
 
-termred (_,_,bs',is') m         = redModule (eqnsOf is' ++ eqnsOf bs') m
+termred (_,ds',bs',is') m       = redModule (consOf ds') (eqnsOf is' ++ eqnsOf bs') m
 
+redTerm coercions e             = redExp (Env {eqns = coercions, args = [], cons = cons0}) e
 
-redTerm coercions e             = redExp (Env {eqns = coercions, args = []}) e
+isFinite e                      = finite initEnv e
+
 
 data Env                        = Env { eqns :: Map Name Exp,
-                                        args :: [Name]
+                                        args :: [Name],
+                                        cons :: [[Name]]
                                       }
 
-env0                            = Env { eqns = [], args = [] }
+initEnv                         = Env { eqns = [], args = [], cons = cons0 }
+
+cons0                           = [ [prim TRUE,prim FALSE] , [prim NIL,prim CONS] ]
+
+consOf (Types _ ds)             = [ dom ce | (_,DData _ _ ce) <- ds ]
+
+complete _ []                   = False
+complete [] cs0                 = False
+complete (cs:css) cs0           = all (`elem`cs0) cs  ||  complete css cs0
 
 addArgs env vs                  = env { args = vs ++ args env }
 
 addEqns env eqs                 = env { eqns = eqs ++ eqns env }
 
+addCons env css                 = env { cons = css ++ cons env }
 
-redModule impEqs (Module m ns xs ds ie bs)
+
+redModule impCons impEqs (Module m ns xs ds ie bs)
                                 = do es1' <- redEqns env0 es1
                                      let env1 = addEqns env0 (finiteEqns env0 es1')
                                          env2 = addEqns env1 (finiteEqns env1 impEqs)
@@ -39,6 +52,7 @@ redModule impEqs (Module m ns xs ds ie bs)
         (es1,es2)               = partition envFree es
         isSafeId (Prim _ _)     = True
         isSafeId x              = isGenerated x && not(isTemp x)
+        env0                    = addCons initEnv (impCons ++ consOf ds)
      
 {-
 Definition of isSafeId should be reconsidered. Which generated names are safe? 
@@ -83,7 +97,7 @@ finite env (EAp e es)           = all (finite env) (e:es)
 finite env (ELet bs e)          = fin bs && finite (addArgs env (bvars bs)) e
   where fin (Binds True _ _)    = False
         fin (Binds _ _ eqns)    = all (finite env . snd) eqns
-finite env (ECase e alts d)     = finite env e && all (finite env . snd) alts && finite env d
+finite env (ECase e alts)       = finite env e && all (finite env . snd) alts
 finite env e                    = False
 
 
@@ -110,8 +124,8 @@ redExp env (ELam te e)          = do e <- redExp env e
                                      redEta env te e
 redExp env (ESel e s)           = do e <- redExp env e
                                      redSel env e s
-redExp env (ECase e alts d)     = do e <- redExp env e
-                                     redCase env e alts d
+redExp env (ECase e alts)       = do e <- redExp env e
+                                     redCase env e alts
 redExp env (ELet bs e)          = do bs'@(Binds rec te eqs) <- redBinds env bs
                                      if rec then
                                         liftM (ELet bs') (redExp env e)
@@ -139,12 +153,12 @@ redApp env e es
   | not (null es')              = return (head es')
   where es'                     = filter isRaise (e:es)
 redApp env (EVar (Prim p a)) es 
-                                = return (redPrim p a es)
+                                = return (redPrim env p a es)
 redApp env e@(EVar x) es        = case lookup x (eqns env) of
                                        Just e' -> do e' <- alphaConvert e'; redApp env e' es
                                        Nothing -> return (EAp e es)
 redApp env (ELam te e) es       = redBeta env te e es
-redApp env (ECase e alts d) es  = liftM2 (ECase e) (redAlts env (mapSnd (`EAp` es) alts)) (redApp env d es)
+redApp env (ECase e alts) es    = liftM (ECase e) (redAlts env (mapSnd (`EAp` es) alts))
 redApp env (ELet bs e) es       = liftM (ELet bs) (redApp env e es)
 redApp env e es                 = return (EAp e es)
 
@@ -183,53 +197,57 @@ redSel env (ERec c eqs) s
 redSel env e s                  = return (ESel e s)
 
 
-redCase env e alts d
+redCase env e alts
   | isRaise e                   = return e
-redCase env e@(EVar x) alts d   = case lookup x (eqns env) of
-                                    Just e' -> do e' <- alphaConvert e'; redCase env e' alts d
-                                    Nothing -> liftM2 (ECase e) (redAlts env alts) (redExp env d)
-redCase env (ELit l) alts d     = findLit env l alts d
-redCase env e alts d            = case eFlat e of
-                                    (ECon k, es) -> findCon env k es alts d
-                                    _            -> liftM2 (ECase e) (redAlts env alts) (redExp env d)
+redCase env e@(EVar x) alts     = case lookup x (eqns env) of
+                                    Just e' -> do e' <- alphaConvert e'; redCase env e' alts
+                                    Nothing -> liftM (ECase e) (redAlts env alts)
+redCase env (ELit l) alts       = findLit env l alts
+redCase env e alts              = case eFlat e of
+                                    (ECon k, es) -> findCon env k es alts
+                                    _            -> liftM (ECase e) (redAlts env alts)
 
 redAlts env alts                = do es <- mapM (redExp env) es
                                      return (ps `zip` es)
   where (ps,es)                 = unzip alts
 
-
-findCon env k es [] d           = redExp env d
-findCon env k es ((PCon k',e):_) d
+findCon env k es ((PWild,e):_)  = redExp env e
+findCon env k es ((PCon k',e):_)
   | k == k'                     = redExp env (eAp e es)
-findCon env k es (_:alts) d     = findCon env k es alts d
+findCon env k es (_:alts)       = findCon env k es alts
 
 
-findLit env l [] d              = redExp env d
-findLit env l ((PLit l',e):_) d 
+findLit env l ((PWild,e):_)     = redExp env e
+findLit env l ((PLit l',e):_)
   | l == l'                     = redExp env e
-findLit env l (_:alts) d        = findLit env l alts d
+findLit env l (_:alts)          = findLit env l alts
 
 
-redPrim Refl _ [e]                          = e
-redPrim Match a es                          = redMatch a es
-redPrim Fatbar a [e,e']                     = redFat a e e'
-redPrim ConstArray a es                     = EAp (EVar (Prim ConstArray a)) es
-redPrim p _ [ELit (LInt _ x), ELit (LInt _ y)]  = redInt p x y
-redPrim p a [ELit (LRat _ x), ELit (LRat _ y)]  = redRat p x y
-redPrim IntNeg _ [ELit (LInt _ x)]            = ELit (LInt Nothing (-x))
-redPrim IntToFloat _ [ELit (LInt _ x)]        = ELit (LRat Nothing (fromInteger x))
-redPrim IntToChar _ [ELit (LInt _ x)]         = ELit (LChr Nothing (chr (fromInteger x)))
-redPrim FloatNeg _ [ELit (LRat _ x)]          = ELit (LRat Nothing (-x))
-redPrim FloatToInt _ [ELit (LRat _ x)]        = ELit (LInt Nothing (truncate x))
-redPrim CharToInt _ [ELit (LChr _ x)]         = ELit (LInt Nothing (toInteger (ord x)))
-redPrim p a es                              = eAp (EVar (Prim p a)) es
+redPrim env Refl _ [e]                      = e
+redPrim env Match a [e]                     = redMatch env a e
+redPrim env Fatbar a [e,e']                 = redFat a e e'
+redPrim env ConstArray a es                 = EAp (EVar (Prim ConstArray a)) es
+redPrim env p _ [ELit (LInt _ x), ELit (LInt _ y)]  = redInt p x y
+redPrim env p a [ELit (LRat _ x), ELit (LRat _ y)]  = redRat p x y
+redPrim env IntNeg _ [ELit (LInt _ x)]      = ELit (LInt Nothing (-x))
+redPrim env IntToFloat _ [ELit (LInt _ x)]  = ELit (LRat Nothing (fromInteger x))
+redPrim env IntToChar _ [ELit (LInt _ x)]   = ELit (LChr Nothing (chr (fromInteger x)))
+redPrim env FloatNeg _ [ELit (LRat _ x)]    = ELit (LRat Nothing (-x))
+redPrim env FloatToInt _ [ELit (LRat _ x)]  = ELit (LInt Nothing (truncate x))
+redPrim env CharToInt _ [ELit (LChr _ x)]   = ELit (LInt Nothing (toInteger (ord x)))
+redPrim env p a es                          = eAp (EVar (Prim p a)) es
 
 
-redMatch a [ELet bs e]                      = ELet bs (redMatch a [e])
-redMatch a [EAp (EVar (Prim Commit _)) [e]] = e
-redMatch _ [EVar (Prim Fail a)]             = EAp (EVar (Prim Raise a)) [ELit (LInt Nothing 1)]
-redMatch _ [e@(ELit _)]                     = e
-redMatch a es                               = EAp (EVar (Prim Match a)) es
+redMatch env a (ELet bs e)                  = ELet bs (redMatch env a e)
+redMatch env a (ELam te e)                  = ELam te (redMatch env a e)
+redMatch env a (EAp (EVar (Prim Commit _)) [e]) = e
+redMatch env a (ECase e alts)
+  | complete (cons env) cs                  = ECase e (map PCon cs `zip` map (redMatch env a) es)
+  where (cs,es)                             = unzip [ (c,e) | (PCon c, e) <- alts ]
+redMatch env a (ECase e alts)               = ECase e (mapSnd (redMatch env a) alts)
+redMatch env _ (EVar (Prim Fail a))         = EAp (EVar (Prim Raise a)) [ELit (LInt Nothing 1)]
+redMatch env _ e@(ELit _)                   = e
+redMatch env a e                            = EAp (EVar (Prim Match a)) [e]
 
 
 redFat a (ELet bs e) e'                     = ELet bs (redFat a e e')
@@ -271,6 +289,8 @@ eBool False                     = ECon (prim FALSE)
 
 redCmd env (CRet e)             = liftM CRet (redExp env e)
 redCmd env (CExp e)             = liftM CExp (redExp env e)
+redCmd env (CGen p t (ELet bs e) c)
+                                = redCmd env (CLet bs (CGen p t e c))
 redCmd env (CGen p t e c)       = liftM2 (CGen p t) (redExp env e) (redCmd env c)
 redCmd env (CLet bs c)          = liftM2 CLet (redBinds env bs) (redCmd env c)
 redCmd env (CAss x e c)         = liftM2 (CAss x) (redExp env e) (redCmd env c)
@@ -296,7 +316,7 @@ instance Constrs Exp where
     constrs (ELam te e)          = constrs e
     constrs (EAp e e')           = constrs e ++ constrs e'
     constrs (ELet bs e)          = constrs bs ++ constrs e
-    constrs (ECase e alts def)   = constrs e ++ constrs alts ++ constrs def
+    constrs (ECase e alts)       = constrs e ++ constrs alts
     constrs (ERec c eqs)         = constrs (map snd eqs)
     constrs (EAct e e')          = constrs e ++ constrs e'
     constrs (EReq e e')          = constrs e ++ constrs e'

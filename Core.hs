@@ -58,6 +58,7 @@ type Alt        = (Pat, Exp)
 
 data Pat        = PCon    Name
                 | PLit    Lit
+                | PWild
                 deriving (Eq,Show)
 
 data Exp        = ECon    Name
@@ -66,7 +67,7 @@ data Exp        = ECon    Name
                 | ELam    TEnv Exp
                 | EAp     Exp [Exp]
                 | ELet    Binds Exp
-                | ECase   Exp [Alt] Exp
+                | ECase   Exp [Alt]
                 | ERec    Name Eqns
                 | ELit    Lit
 
@@ -312,7 +313,7 @@ instance Ids Exp where
     idents (ELam te e)          = idents e \\ dom te
     idents (EAp e es)           = idents e ++ idents es
     idents (ELet bs e)          = idents bs ++ (idents e \\ bvars bs)
-    idents (ECase e alts def)   = idents e ++ idents alts ++ idents def
+    idents (ECase e alts)       = idents e ++ idents alts
     idents (ERec c eqs)         = idents eqs
     idents (EAct e e')          = idents e ++ idents e'
     idents (EReq e e')          = idents e ++ idents e'
@@ -349,7 +350,7 @@ instance Subst Exp Name Exp where
     subst s (ELam te e)         = ELam te (subst s e)
     subst s (EAp e es)          = EAp (subst s e) (subst s es)
     subst s (ELet bs e)         = ELet (subst s bs) (subst s e)
-    subst s (ECase e alts def)  = ECase (subst s e) (subst s alts) (subst s def)
+    subst s (ECase e alts)      = ECase (subst s e) (subst s alts)
     subst s (ERec c eqs)        = ERec c (subst s eqs)
     subst s (EAct e e')         = EAct (subst s e) (subst s e')
     subst s (EReq e e')         = EReq (subst s e) (subst s e')
@@ -380,7 +381,7 @@ instance Subst Exp TVar Type where
     subst s (ELam te e)         = ELam (subst s te) (subst s e)
     subst s (EAp e es)          = EAp (subst s e) (subst s es)
     subst s (ELet bs e)         = ELet (subst s bs) (subst s e)
-    subst s (ECase e alts def)  = ECase (subst s e) (subst s alts) (subst s def)
+    subst s (ECase e alts)      = ECase (subst s e) (subst s alts)
     subst s (ERec c eqs)        = ERec c (subst s eqs)
     subst s (EAct e e')         = EAct (subst s e) (subst s e')
     subst s (EReq e e')         = EReq (subst s e) (subst s e')
@@ -406,7 +407,7 @@ instance Subst Exp Name Type where
     subst s (ELam te e)         = ELam (subst s te) (subst s e)
     subst s (EAp e es)          = EAp (subst s e) (subst s es)
     subst s (ELet bs e)         = ELet (subst s bs) (subst s e)
-    subst s (ECase e alts def)  = ECase (subst s e) (subst s alts) (subst s def)
+    subst s (ECase e alts)      = ECase (subst s e) (subst s alts)
     subst s (ERec c eqs)        = ERec c (subst s eqs)
     subst s (EAct e e')         = EAct (subst s e) (subst s e')
     subst s (EReq e e')         = EReq (subst s e) (subst s e')
@@ -546,7 +547,7 @@ mustAc (ESel e l)               = mustAc e
 mustAc (ERec c eqs)             = any mustAc (rng eqs)
 mustAc (EReq e1 e2)             = any mustAc [e1,e2]
 mustAc (EAct e1 e2)             = any mustAc [e1,e2]
-mustAc (ECase e alts d)         = any mustAc (e:d:rng alts)
+mustAc (ECase e alts)           = any mustAc (e:rng alts)
 mustAc e                        = False
 
 
@@ -575,14 +576,14 @@ instance AlphaConv Exp where
     ac s (ELet bs e)            = do s' <- extSubst s (bvars bs)
                                      liftM2 ELet (ac s' bs) (ac s' e)
     ac s (ERec c eqs)           = liftM (ERec c) (ac s eqs)
-    ac s (ECase e alts d)       = liftM3 ECase (ac s e) (ac s alts) (ac s d)
+    ac s (ECase e alts)         = liftM2 ECase (ac s e) (ac s alts)
     ac s (EReq e1 e2)           = liftM2 EReq (ac s e1) (ac s e2)
     ac s (EAct e1 e2)           = liftM2 EAct (ac s e1) (ac s e2)
     ac s (EDo x tx c)           = do s' <- extSubst s [x]
                                      liftM3 EDo (ac s' x) (ac s' tx) (ac s' c)
     ac s (ETempl x tx te c)     = do s' <- extSubst s (x : dom te)
                                      liftM4 ETempl (ac s' x) (ac s' tx) (ac s' te) (ac s' c)
-
+    
 instance AlphaConv Pat where
     ac s p                      = return p
 
@@ -766,6 +767,7 @@ prMaybeScheme (Just t)          = prn 1 t
 instance Pr Pat where
     pr (PCon k)                 = prId k
     pr (PLit l)                 = pr l
+    pr (PWild)                  = text "_"
     
 
 -- Expressions -------------------------------------------------------------
@@ -774,8 +776,8 @@ instance Pr Exp where
 --    prn 0 (ELam te e)           = hang (char '\\' <> sep (map (parens . pr) te) <+> text "->") 4 (pr e)
     prn 0 (ELam te e)           = hang (char '\\' <> sep (map prId (dom te)) <+> text "->") 4 (pr e)
     prn 0 (ELet bs e)           = text "let" $$ nest 4 (pr bs) $$ text "in" <+> pr e
-    prn 0 (ECase e alts def)    = text "case" <+> pr e <+> text "of" $$ 
-                                       nest 2 (vpr alts $$ text "_ ->" <+> pr def)
+    prn 0 (ECase e alts)        = text "case" <+> pr e <+> text "of" $$ 
+                                       nest 2 (vpr alts)
     prn 0 (EAct e e')           = text "action@" <> prn 2 e $$
                                        nest 4 (pr e')
     prn 0 (EReq e e')           = text "request@" <> prn 2 e $$
@@ -800,7 +802,6 @@ instance Pr Exp where
 
 instance Pr Alt where
     pr (p, e)                   = pr p <+> text "->" $$ nest 4 (pr e)
-
 
 instance Pr Cmd where
     pr (CLet bs c)              = pr bs $$
@@ -849,6 +850,7 @@ instance HasPos Type where
 instance HasPos Pat where
   posInfo (PCon n)              = posInfo n
   posInfo (PLit l)              = posInfo l
+  posInfo (PWild)               = Unknown
 
 instance HasPos Exp where
   posInfo (ECon n)              = posInfo n
@@ -857,7 +859,7 @@ instance HasPos Exp where
   posInfo (ELam te e)           = between (posInfo (dom te)) (posInfo e)
   posInfo (EAp e es)            = foldr1 between (map posInfo (e : es))
   posInfo (ELet bs e)           = between (posInfo bs) (posInfo e)
-  posInfo (ECase e as d)        = foldr1 between [posInfo e, posInfo as, posInfo d]
+  posInfo (ECase e as)          = foldr1 between [posInfo e, posInfo as]
   posInfo (ERec n es)           = between (posInfo n) (posInfo es)
   posInfo (ELit l)              = posInfo l
   posInfo (EAct e e')           = between (posInfo e) (posInfo e')
@@ -934,11 +936,13 @@ instance Binary Type where
 instance Binary Pat where
   put (PCon a) = putWord8 0 >> put a
   put (PLit a) = putWord8 1 >> put a
+  put (PWild)  = putWord8 2
   get = do
     tag_ <- getWord8
     case tag_ of
       0 -> get >>= \a -> return (PCon a)
       1 -> get >>= \a -> return (PLit a)
+      2 -> return PWild
       _ -> fail "no parse"
 
 instance Binary Exp where
@@ -948,7 +952,7 @@ instance Binary Exp where
   put (ELam a b) = putWord8 3 >> put a >> put b
   put (EAp a b) = putWord8 4 >> put a >> put b
   put (ELet a b) = putWord8 5 >> put a >> put b
-  put (ECase a b c) = putWord8 6 >> put a >> put b >> put c
+  put (ECase a b) = putWord8 6 >> put a >> put b
   put (ERec a b) = putWord8 7 >> put a >> put b
   put (ELit a) = putWord8 8 >> put a
   put (EAct a b) = putWord8 9 >> put a >> put b
@@ -964,7 +968,7 @@ instance Binary Exp where
       3 -> get >>= \a -> get >>= \b -> return (ELam a b)
       4 -> get >>= \a -> get >>= \b -> return (EAp a b)
       5 -> get >>= \a -> get >>= \b -> return (ELet a b)
-      6 -> get >>= \a -> get >>= \b -> get >>= \c -> return (ECase a b c)
+      6 -> get >>= \a -> get >>= \b -> return (ECase a b)
       7 -> get >>= \a -> get >>= \b -> return (ERec a b)
       8 -> get >>= \a -> return (ELit a)
       9 -> get >>= \a -> get >>= \b -> return (EAct a b)

@@ -521,6 +521,9 @@ cAlt cBdy env e0 t0 (PCon k, e)         = do (ts,t) <- instCon env k
                                              let e1 = Kindle.ECast (Kindle.TId k) (f e0)
                                              (t1,c) <- cRhs cBdy env e ts (map (Kindle.ESel e1) (take (length ts) abcSupply))
                                              return (t, (t1, rcomp (Kindle.ACon k) c))
+cAlt cBdy env e0 t0 (PWild, e)          = do (t1,c) <- cBdy env e
+                                             t <- newTVar Star
+                                             return (t, (t1, rcomp Kindle.AWild c))
 
 
 -- Translate a Core right-hand-side into a Kindle.Cmd (with bindings), inferring its type
@@ -559,8 +562,9 @@ isMatch _                               = False
 cBody env (ELet bs e)                   = do (te,bf) <- cBinds env bs
                                              (t,r) <- cBody (addTEnv te env) e
                                              return (t, rcomp bf r)
-cBody env (ECase e alts d)              = cCase cBody env e alts d
-cBody env (EAp m [e]) | isMatch m       = cPMC cBody False env e
+cBody env (ECase e alts)                = cCase cBody env e alts
+cBody env (EAp m [e]) | isMatch m       = do (t,r) <- cPMC cBody env e
+                                             return (t, rcomp (\c -> Kindle.CSeq c (Kindle.CRaise (Kindle.ELit (LInt Nothing 1)))) r)
 cBody env e                             = do (bf,t,h) <- cExp env e
                                              case h of
                                                ValR e        -> return (t, ValR (bf (Kindle.CRet e)))
@@ -579,27 +583,26 @@ cBody env e                             = do (bf,t,h) <- cExp env e
 
 
 -- Translate a Core.Exp corresponding to a PMC term into a Kindle.Cmd result, and infer its result type
-cPMC cE l env (ELet bs e)               = do (te,bf) <- cBinds env bs
-                                             (t,c) <- cPMC cE l (addTEnv te env) e
+cPMC cE env (ELet bs e)                 = do (te,bf) <- cBinds env bs
+                                             (t,c) <- cPMC cE (addTEnv te env) e
                                              return (t, rcomp bf c)
-cPMC cE l env (ECase e alts d)          = cCase (cPMC cE l) env e alts d
-cPMC cE l env (EAp (EVar (Prim Fatbar _)) [e1,e2])
-                                        = do r1 <- cPMC cE True env e1
-                                             r2 <- cPMC cE l env e2
+cPMC cE env (ECase e alts)              = cCase (cPMC cE) env e alts
+cPMC cE env (EAp (EVar (Prim Fatbar _)) [e1,e2])
+                                        = do r1 <- cPMC cE env e1
+                                             r2 <- cPMC cE env e2
                                              let j = joinR [rtype r1, rtype r2]
                                              r1' <- adaptR env j r1
                                              r2' <- adaptR env j r2
                                              return (mkSeq r1' r2')
-cPMC cE l env (EVar (Prim Fail _))      = do t <- newTVar Star
-                                             return (t, ValR (if l then Kindle.CBreak else raiseCmd))
-  where raiseCmd                        = Kindle.CRun (Kindle.ECall (prim Raise) [Kindle.ELit (LInt Nothing 1)]) Kindle.CBreak
-cPMC cE l env (EAp (EVar (Prim Commit _)) [e])
+cPMC cE env (EVar (Prim Fail _))        = do t <- newTVar Star
+                                             return (t, ValR Kindle.CBreak)
+cPMC cE env (EAp (EVar (Prim Commit _)) [e])
                                         = cE env e
-cPMC cE l env e                         = internalError "PMC syntax violated in Core2Kindle" e
+cPMC cE env e                           = internalError "PMC syntax violated in Core2Kindle" e
 
 
 -- Translate the parts of a case expression into a Kindle.Cmd result, and infer its result type
-cCase cE env e ((PCon k,e'):_) _
+cCase cE env e ((PCon k,e'):_)
   | isTuple k                           = do (bf,t0,e0) <- cValExp env e
                                              (ts,t) <- instCon env k
                                              -- no need to unify t with t0 and compute the instantiated field types,
@@ -607,18 +610,17 @@ cCase cE env e ((PCon k,e'):_) _
                                              f <- adapt env t t0
                                              (t1,r) <- cRhs cE env e' ts (map (Kindle.ESel (f e0)) (take (length ts) abcSupply))
                                              return (t1, rcomp bf r)
-cCase cE env e alts d                   = do (bf,t0,e0) <- cValExp env e
+cCase cE env e alts                     = do (bf,t0,e0) <- cValExp env e
                                              (ts0,rs) <- fmap unzip (mapM (cAlt cE env e0 t0) alts)
-                                             r <- cE env d
-                                             let j = joinR (rtype r : map rtype rs)
-                                             rs2 <- mapM (adaptR env j) rs
-                                             r2 <- adaptR env j r
+                                             let j = joinR (map rtype rs)
+                                             rs' <- mapM (adaptR env j) rs
                                              f <- adapt env (head ts0) t0
-                                             return (mkSwitch bf rs2 r2 (scrutinee (head ts0) (f e0)))
+                                             return (mkSwitch bf rs' (scrutinee (head ts0) (f e0)))
 
-mkSwitch bf rs (t,ValR c) e0            = (t, ValR (bf (Kindle.CSwitch e0 alts c)))
-  where alts                            = [ alt | (_,ValR alt) <- rs ]     
-mkSwitch bf rs (t,FunR g eqs ts) e0     = (t, FunR (\es -> bf (Kindle.CSwitch e0 (map ($es) gs) (g es))) (eqs'++eqs) ts)
+
+mkSwitch bf ((t,ValR c):rs) e0          = (t, ValR (bf (Kindle.CSwitch e0 alts)))
+  where alts                            = c : [ alt | (_,ValR alt) <- rs ]     
+mkSwitch bf ((t,FunR g eqs ts):rs) e0   = (t, FunR (\es -> bf (Kindle.CSwitch e0 (map ($es) (g:gs)))) (eqs'++eqs) ts)
   where gs                              = [ g | (_,FunR g _ _) <- rs ]
         eqs'                            = concat [ eqs' | (_,FunR _ eqs' _) <- rs ]
 
@@ -652,12 +654,13 @@ cCmd env (CLet bs c)                    = do (bf,te,bs) <- freezeState env bs
                                              (te',bf') <- cBinds (addTEnv te env) bs
                                              (t,c) <- cCmd (addTEnv te' env) c
                                              return (t, bf (bf' c))
-cCmd env (CGen x tx e c)
-  | isDummy x                           = do (bf,te,e) <- freezeState env e
-                                             (_,c1) <- cCmdExp (addTEnv te env) e
+cCmd env (CGen x tx (ECase e alts) c)
+  | isDummy x                           = do (_,ValR c1) <- cCase cValCmdExp env e (filter useful alts)
                                              (t,c2) <- cCmd env c
-                                             return (t, bf (Kindle.CSeq (Kindle.cMap (\_ -> Kindle.CBreak) c1) c2))
-  | otherwise                           = do (bf,te,e) <- freezeState env e
+                                             return (t, Kindle.CSeq (Kindle.cMap (\_ -> Kindle.CBreak) c1) c2)
+  where useful (_,EDo _ _ (CRet (ECon (Prim UNITTERM _))))  = False
+        useful _                                            = True
+cCmd env (CGen x tx e c)                = do (bf,te,e) <- freezeState env e
                                              tx <- cValType tx
                                              (bf',_,e) <- cValExpT (addTEnv te env) (stripQuant tx) (EAp e [EVar (self env)])
                                              -- Skolemize tx, type is an *upper* bound
@@ -681,12 +684,12 @@ cCmdExp env (ELet bs e)                 = do (bf,te,bs) <- freezeState env bs
                                              (te',bf') <- cBinds (addTEnv te env) bs
                                              (t,c) <- cCmdExp (addTEnv te' env) e
                                              return (t, bf (bf' c))
-cCmdExp env (ECase e alts d)            = do (bf,te,e) <- freezeState env e
-                                             (t,ValR c) <- cCase cValCmdExp (addTEnv te env) e alts d
+cCmdExp env (ECase e alts)              = do (bf,te,e) <- freezeState env e
+                                             (t,ValR c) <- cCase cValCmdExp (addTEnv te env) e alts
                                              return (t, bf c)
 cCmdExp env (EAp m [e]) | isMatch m     = do (bf,te,e) <- freezeState env e
-                                             (t,ValR c) <- cPMC cValCmdExp False (addTEnv te env) e
-                                             return (t, bf c)
+                                             (t,ValR c) <- cPMC cValCmdExp (addTEnv te env) e
+                                             return (t, bf (Kindle.CSeq c (Kindle.CRaise (Kindle.ELit (LInt Nothing 1)))))
 cCmdExp env e                           = do (bf,te,e) <- freezeState env e
                                              (bf',t,e) <- cValExp (addTEnv te env) (EAp e [EVar (self env)])
                                              x <- newName tempSym
@@ -733,7 +736,7 @@ instance Fragile Exp where
     fragile (ESel e l)                  = fragile e
     fragile (ERec c eqs)                = concatMap fragile (rng eqs)
     fragile (ELet bs e)                 = fragile bs ++ fragile e
-    fragile (ECase e alts d)            = fragile e ++ concatMap fragile alts ++ fragile d
+    fragile (ECase e alts)              = fragile e ++ concatMap fragile alts
     fragile _                           = []
 
 instance Fragile (Pat,Exp) where

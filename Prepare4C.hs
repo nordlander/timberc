@@ -114,19 +114,21 @@ pCmd env (CUpdS e x e' c)       = do (bs,e) <- pExp env e
 pCmd env (CUpdA e i e' c)       = do (bs,e) <- pExp env e
                                      (bs',e') <- pExp env e'
                                      liftM (cBind bs . cBind bs' . CUpdA e i e') (pCmd env c)
-pCmd env (CSwitch e alts d)     = do (bs,e) <- pExp env e
+pCmd env (CSwitch e alts)
+  | any litA alts               = do (bs,e) <- pExp env e
                                      alts <- mapM (pAlt env) alts
-                                     let (alts0,alts1) = partition nullAlt alts
-                                     d <- pCmd env d
-                                     return (cBind bs (pSwitch0 env e (alts0++absAlts d) (pSwitch1 env e alts1 (dflt d))))
-  where nullAlt (ACon n c)      = n `elem` nulls env
-        nullAlt _               = False
-        present                 = [ n | ACon n _ <- alts ]
-        (absent0,absent1)       = partition (`elem` nulls env) (allCons env alts \\ present)
-        absAlts d               = [ ACon n d | n <- absent0 ]
-        dflt d | any litA alts  = d
-               | null absent1   = CBreak
-               | otherwise      = d
+                                     return (cBind bs (CSwitch e alts))
+  | otherwise                   = do (bs,e) <- pExp env e
+                                     alts <- mapM (pAlt env) alts
+                                     let (alts0,alts1) = partition nullA [ a | a@(ACon _ _) <- alts ]
+                                         altsW         = [ a | a@(AWild _) <- alts ]
+                                     return (cBind bs (pSwitch env e (alts0++absent0 altsW) (alts1++absent1 altsW)))
+  where nullA (ACon n c)        = n `elem` nulls env
+        nullA _                 = False
+        absent                  = allCons env alts \\ [ n | ACon n _ <- alts ]
+        (abs0,abs1)             = partition (`elem` nulls env) absent
+        absent0 altsW           = [ ACon n d | n <- abs0, AWild d <- altsW ]
+        absent1 altsW           = [ a | a <- altsW, not (null abs1) ]
         litA (ALit _ _)         = True
         litA _                  = False
 pCmd env (CSeq c c')
@@ -134,6 +136,8 @@ pCmd env (CSeq c c')
   | otherwise                   = liftM2 CSeq (pCmd env c) (pCmd env c')
   where (bf,a)                  = anchor c
 pCmd env (CBreak)               = return CBreak
+pCmd env (CRaise e)             = do (bs,e) <- pExp env e
+                                     return (cBind bs (CRaise e))
 
 
 anchor (CBind r bs c)           = (CBind r bs . bf, c')
@@ -146,24 +150,29 @@ anchor (CUpdS e x e' c)         = (CUpdS e x e' . bf, c')
   where (bf,c')                 = anchor c
 anchor (CUpdA e i e' c)         = (CUpdA e i e' . bf, c')
   where (bf,c')                 = anchor c
-anchor c                        = (id, c)  
+anchor c                        = (id, c)
 
 
-pSwitch0 env e [] d             = d
-pSwitch0 env e alts d           = CSwitch (ECast (TId (prim Int)) (noTag e)) alts d
+pSwitch env e [] [ACon n c]
+  | n `elem` singles env        = c
+pSwitch env e [] [AWild c]      = c
+pSwitch env e [] alts1          = CSwitch e alts1
+pSwitch env e [ACon n c] []
+  | n `elem` singles env        = c
+pSwitch env e alts0 []          = CSwitch (tagless e) alts0
+pSwitch env e alts0 alts1       = pSwitch env e (alts0++[AWild d]) []
+  where d                       = pSwitch env e [] alts1
+
+tagless e                       = ECast (TId (prim Int)) (noTag e)
 
 noTag (ESel e (Prim Tag _))     = e
 noTag e                         = e
-
-pSwitch1 env e [] d             = d
-pSwitch1 env e [ACon n c] d
-  | n `elem` singles env        = c
-pSwitch1 env e alts d           = CSwitch e alts d
 
 
 -- Prepare switch alternatives
 pAlt env (ALit l c)             = liftM (ALit l) (pCmd env c)
 pAlt env (ACon n c)             = liftM (ACon n) (pCmd env c)
+pAlt env (AWild c)              = liftM AWild (pCmd env c)
 
 
 -- Prepare a right-hand-side expression

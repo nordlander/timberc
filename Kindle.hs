@@ -79,9 +79,10 @@ data Cmd        = CRet    Exp                 -- simply return $1
                 | CUpd    Name Exp Cmd        -- overwrite variable $1 with value $2, execute tail $3
                 | CUpdS   Exp Name Exp Cmd    -- overwrite value field $2 of struct $1 with value $3, execute tail $4
                 | CUpdA   Exp Exp Exp Cmd     -- overwrite index $2 of array $1 with value $3, execute tail $4
-                | CSwitch Exp [Alt] Cmd       -- depending on the value of $1, choose tails from $2, default to $3
+                | CSwitch Exp [Alt]           -- depending on the value of $1, choose tails from $2
                 | CSeq    Cmd Cmd             -- execute $1; if fall-through, continue with $2
                 | CBreak                      -- break out of a surrounding switch
+                | CRaise  Exp                 -- raise an exception
                 deriving (Eq,Show)
 
 -- Note 1: command (CRun e c) is identical to (CBind False [(x,e)] c) if x is a fresh name not used anywhere else
@@ -90,6 +91,7 @@ data Cmd        = CRet    Exp                 -- simply return $1
 
 data Alt        = ACon    Name Cmd            -- execute tail $2 if switch value matches constructor name $1
                 | ALit    Lit Cmd             -- execute tail $2 if switch value matches literal $1
+                | AWild   Cmd                 -- execute tail $1 as default alternative
                 deriving (Eq,Show)
 
 -- Simple expressions that can be RH sides of value definitions as well as function arguments.
@@ -215,11 +217,13 @@ cMap f (CBind r bs c)                   = CBind r bs (cMap f c)
 cMap f (CUpd y e c)                     = CUpd y e (cMap f c)
 cMap f (CUpdS e y e' c)                 = CUpdS e y e' (cMap f c)
 cMap f (CUpdA e i e' c)                 = CUpdA e i e' (cMap f c)
-cMap f (CSwitch e alts d)               = CSwitch e (clift (cMap f) alts) (cMap f d)
+cMap f (CSwitch e alts)                 = CSwitch e (clift (cMap f) alts)
   where g (ACon y c)                    = ACon y (cMap f c)
         g (ALit l c)                    = ALit l (cMap f c)
+        g (AWild c)                     = AWild (cMap f c)
 cMap f (CSeq c c')                      = CSeq (cMap f c) (cMap f c')
 cMap f (CBreak)                         = CBreak
+cMap f (CRaise e)                       = CRaise e
 
 
 cMap' f = cMap (CRet . f)
@@ -234,6 +238,7 @@ instance CLift Cmd where
 instance CLift Alt where
     clift f (ACon y c)                  = ACon y (f c)
     clift f (ALit l c)                  = ALit l (f c)
+    clift f (AWild c)                   = AWild (f c)
 
 instance CLift a => CLift [a] where
     clift f                             = map (clift f)
@@ -270,13 +275,15 @@ instance Ids Cmd where
     idents (CUpd x e c)                 = idents e ++ idents c
     idents (CUpdS e x e' c)             = idents e ++ idents e' ++ idents c
     idents (CUpdA e i e' c)             = idents e ++ idents i ++ idents e' ++ idents c
-    idents (CSwitch e alts d)           = idents e ++ idents alts ++ idents d
+    idents (CSwitch e alts)             = idents e ++ idents alts
     idents (CSeq c c')                  = idents c ++ idents c'
     idents (CBreak)                     = []
+    idents (CRaise e)                   = idents e
 
 instance Ids Alt where
     idents (ACon x c)                   = idents c
     idents (ALit l c)                   = idents c
+    idents (AWild c)                    = idents c
 
 instance Ids Bind where
     idents (Val t e)                    = idents e
@@ -304,14 +311,16 @@ instance Subst Cmd Name Exp where
     subst s (CUpd x e c)                = CUpd x (subst s e) (subst s c)
     subst s (CUpdS e x e' c)            = CUpdS (subst s e) x (subst s e') (subst s c)
     subst s (CUpdA e i e' c)            = CUpdA (subst s e) (subst s i) (subst s e') (subst s c)
-    subst s (CSwitch e alts d)          = CSwitch (subst s e) (subst s alts) (subst s d)
+    subst s (CSwitch e alts)            = CSwitch (subst s e) (subst s alts)
     subst s (CSeq c c')                 = CSeq (subst s c) (subst s c')
     subst s (CBreak)                    = CBreak
+    subst s (CRaise e)                  = CRaise (subst s e)
 
 instance Subst Alt Name Exp where
     subst s (ACon x c)                  = ACon x (subst s c)
     subst s (ALit l c)                  = ALit l (subst s c)
-
+    subst s (AWild c)                   = AWild (subst s c)
+    
 instance Subst Bind Name Exp where
     subst s (Val t e)                   = Val t (subst s e)
     subst s (Fun t te c)                = Fun t te (subst s c)
@@ -372,15 +381,17 @@ instance Pr Cmd where
                                           pr c
     pr (CUpdA e i e' c)                 = pr e <> brackets (pr i) <+> text "=" <+> pr e' <> text ";" $$
                                           pr c
-    pr (CSwitch e alts d)               = text "switch" <+> parens (pr e) <+> text "{" $$
-                                          nest 2 (vpr alts $$ prDefault d) $$
+    pr (CSwitch e alts)                 = text "switch" <+> parens (pr e) <+> text "{" $$
+                                          nest 2 (vpr alts) $$
                                           text "}"
     pr (CSeq c1 c2)                     = pr c1 $$
                                           pr c2
     pr (CBreak)                         = text "break;"
+    pr (CRaise e)                       = text "RAISE" <> parens (pr e) <> text ";"
 
 
 
+prScope (CRaise e)                      = pr (CRaise e)
 prScope (CBreak)                        = pr CBreak
 prScope (CRet x)                        = pr (CRet x)
 prScope c                               = text "{" <+> pr c $$
@@ -389,9 +400,7 @@ prScope c                               = text "{" <+> pr c $$
 instance Pr Alt where
     pr (ACon x c)                       = prId2 x <> text ":" <+> prScope c
     pr (ALit l c)                       = pr l <> text ":" <+> prScope c
-
-
-prDefault c                             = text "default: " <+> prScope c
+    pr (AWild c)                        = text "default:" <+> prScope c
 
 
 instance Pr Exp where
@@ -408,7 +417,7 @@ instance Pr Exp where
                                           text "}"
     prn 1 (ECall x es)                  = prId2 x <> parens (commasep pr es)
     prn 1 (ESel e l)                    = prn 1 e <> text "->" <> prId2 l
-    prn 1 (EEnter e x es)               = prn 1 e <> text "." <> prId2 x <> parens (commasep pr es)
+    prn 1 (EEnter e x es)               = prn 1 e <> text "->" <> prId2 x <> parens (commasep pr es)
     prn 1 e                             = parens (prn 0 e)
 
 

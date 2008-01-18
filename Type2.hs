@@ -84,18 +84,20 @@ t2Exp env (ERec c eqs)          = do alphas <- mapM newTVar (kArgs (findKind env
                                      return (s, R (subst s t), ERec c (ls `zip` es))
   where (ls,es)                 = unzip eqs
         t2Sel env x l           = t2Exp env (ESel (EVar x) l)
-t2Exp env (ECase e alts d)      = do alpha <- newTVar Star
+t2Exp env (ECase e alts)        = do alpha <- newTVar Star
                                      (TFun [t0] t1,scs) <- t2Lhs env alpha t2Pat ps
                                      (s0,e) <- t2ExpT env (scheme t0) e
-                                     (s1,d) <- t2ExpT env (scheme t1) d
-                                     (s2,es) <- t2ExpTs env scs es
-                                     let s = mergeSubsts [s0,s1,s2]
-                                     return (s, R (subst s t1), ECase e (ps `zip` es) d)
+                                     (s1,es) <- t2ExpTs env scs es
+                                     let s = mergeSubsts [s0,s1]
+                                     return (s, R (subst s t1), ECase e (ps `zip` es))
   where (ps,es)                 = unzip alts
         t2Pat env x (PLit l)    = t2Exp env (EAp (EVar x) [ELit l])
         t2Pat env x (PCon k)    = do rh <- t2Inst (findType env k)
                                      te <- newEnv paramSym (funArgs rh)
                                      t2Exp env (eLam te (EAp (EVar x) [eAp (ECon k) (map EVar (dom te))]))
+        t2Pat env x (PWild)     = do y <- newName tempSym
+                                     t <- newTVar Star
+                                     t2Exp (addTEnv [(y,scheme t)] env) (EAp (EVar x) [EVar y])
 t2Exp env (EReq e1 e2)          = do alpha <- newTVar Star
                                      beta <- newTVar Star
                                      (s1,e1) <- t2ExpT env (scheme (tRef alpha)) e1

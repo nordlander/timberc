@@ -5,6 +5,7 @@ import Common
 import Core
 import Env
 import Depend
+import Monad
 
 kindcheck m                             = kiModule m
 
@@ -150,10 +151,9 @@ kiExp env (ELet bs e)                   = do bs <- kiBinds env bs
                                              return (ELet bs e)
 kiExp env (ERec c es)                   = do es <- mapM (kiEqn env) es
                                              return (ERec c es)
-kiExp env (ECase e as d)                = do e <- kiExp env e
-                                             as <- mapM (kiAlt env) as
-                                             d <- kiExp env d
-                                             return (ECase e as d)
+kiExp env (ECase e alts)                = do e <- kiExp env e
+                                             alts <- mapM (kiAlt env) alts
+                                             return (ECase e alts)
 kiExp env (EAct e e')                   = do e <- kiExp env e
                                              e' <- kiExp env e'
                                              return (EAct e e')

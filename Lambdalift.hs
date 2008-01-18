@@ -85,14 +85,16 @@ llCmd env (CUpdS e x e' c)              = do e <- llExp env e
                                              liftM2 (CUpdS e x) (llExp env e') (llCmd env c)
 llCmd env (CUpdA e i e' c)              = do e <- llExp env e
                                              liftM2 (CUpdA e i) (llExp env e') (llCmd env c)
-llCmd env (CSwitch e alts d)            = liftM3 CSwitch (llExp env e) (mapM (llAlt env) alts) (llCmd env d)
+llCmd env (CSwitch e alts)              = liftM2 CSwitch (llExp env e) (mapM (llAlt env) alts)
 llCmd env (CSeq c c')                   = liftM2 CSeq (llCmd env c) (llCmd env c')
 llCmd env (CBreak)                      = return CBreak
+llCmd env (CRaise e)                    = liftM CRaise (llExp env e)
 
 
 -- Convert a switch alternative
 llAlt env (ACon x c)                    = liftM (ACon x) (llCmd env c)
 llAlt env (ALit l c)                    = liftM (ALit l) (llCmd env c)
+llAlt env (AWild c)                     = liftM AWild (llCmd env c)
 
 
 -- Convert an expression

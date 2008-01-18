@@ -199,7 +199,7 @@ tiExp env (ELet bs e)           = do (s,pe,bs) <- tiBinds env bs
                                      (s',pe',t,e) <- tiExp (addTEnv (tsigsOf bs) env) e
                                      return (s++s',pe++pe', t, ELet bs e)
 tiExp env (ERec c eqs)          = do alphas <- mapM newTVar (kArgs (findKind env c))
-                                     (t,ts,sels')   <- tiLhs env (foldl TAp (TId c) alphas) tiSel sels
+                                     (t,ts,sels') <- tiLhs env (foldl TAp (TId c) alphas) tiSel sels
                                      (s,pe,es') <- tiRhs env ts es
                                      -- tr ("RECORD " ++ render (pr t))
                                      -- tr (render (vpr (sels `zip` ts)))
@@ -208,19 +208,21 @@ tiExp env (ERec c eqs)          = do alphas <- mapM newTVar (kArgs (findKind env
                                      return (s, pe, R t, e)
   where (sels,es)               = unzip eqs
         tiSel env x l           = tiExp env (ESel (EVar x) l)
-tiExp env (ECase e alts d)      = do alpha <- newTVar Star
+tiExp env (ECase e alts)        = do alpha <- newTVar Star
                                      (t,ts,pats') <- tiLhs env alpha tiPat pats
                                      (s,pe,es')   <- tiRhs env ts es
                                      let TFun [t0] t1 = t
                                      (s1,pe1,e')  <- tiExpT env (scheme t0) e
-                                     (s2,pe2,d')  <- tiExpT env (scheme t1) d
-                                     e <- mkCase env e' t0 (map flatCons pats' `zip` es') d'
-                                     return (s++s1++s2, pe++pe1++pe2, R t1, e)
+                                     e <- mkCase env e' t0 (map flatCons pats' `zip` es')
+                                     return (s++s1, pe++pe1, R t1, e)
   where (pats,es)               = unzip alts
         tiPat env x (PLit l)    = tiExp env (EAp (EVar x) [ELit l])
         tiPat env x (PCon k)    = do (t,_) <- inst (findType env k)
                                      te <- newEnv paramSym (funArgs t)
                                      tiExp env (eLam te (EAp (EVar x) [eAp (ECon k) (map EVar (dom te))]))
+        tiPat env x (PWild)     = do y <- newName tempSym
+                                     t <- newTVar Star
+                                     tiExp (addTEnv [(y,scheme t)] env) (EAp (EVar x) [EVar y])
 tiExp env (EReq e e')           = do alpha <- newTVar Star
                                      beta <- newTVar Star
                                      (s,pe,e) <- tiExpT env (scheme (tRef alpha)) e
@@ -301,6 +303,7 @@ mkRec env c eqs                 = liftM (ERec c) (mapM mkEqn ls)
 
 -- Extract a list of constructors from the lhs term computed by tiLhs
 -- \xs -> x (k xs)  ===>  \ws -> \xs -> x (w (k ws xs))   ===>  \ws -> \xs -> x (k1 (... kn (k ws xs)))  ==>  k1, ... , kn, k
+flatCons (EVar x)               = [PWild]
 flatCons (ELam _ e)             = flatCons e
 flatCons (EAp (EVar x) [e])     = flatCons e
 flatCons e                      = flat e
@@ -310,7 +313,7 @@ flatCons e                      = flat e
         flat _                  = []
 
 -- Construct case alternatives on basis of the original rhs terms and the flattened list of constructors computed by tiLhs
-mkCase env e t0 alts d          = liftM (\a -> ECase e a d) (mapM mkAlt ps)
+mkCase env e t0 alts            = liftM (\a -> ECase e a) (mapM mkAlt ps)
   where ps                      = nub (map (head . fst) alts)
         mkAlt p                 = case [ (ps,e) | (p':ps,e) <- alts, p==p' ] of
                                     ([],e):_ -> return (p, e)
@@ -318,7 +321,7 @@ mkCase env e t0 alts d          = liftM (\a -> ECase e a d) (mapM mkAlt ps)
                                                    (R (TFun [t1] t2),_) <- inst (findType env (let PCon k = p in k))
                                                    let s = matchTs [(t0,t2)]
                                                        tx = subst s t1
-                                                   e' <- mkCase env (EVar x) tx alts_p (EVar (prim Fail))
+                                                   e' <- mkCase env (EVar x) tx alts_p
                                                    tx' <- gen (tvars t0) (scheme tx)
                                                    return (p, ELam [(x,tx')] e')
 

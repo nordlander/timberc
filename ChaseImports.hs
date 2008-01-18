@@ -53,7 +53,7 @@ ifaceMod (rs,ss) (Module _ ns xs ds is bs) kds
         (ws1,is1)                    = partition (\(n,_) -> isWitness n) (filter exported ts1)
         exported (n,_)               = isQualified n
         exported' p@(n,_)            = isQualified n && (not(isAbstract p)) --Constructors/selectors are exported
-        fin (_,e)                    = finite env0 e && null(filter isPrivate (constrs e))
+        fin (_,e)                    = isFinite e && null(filter isPrivate (constrs e))
 
 localInst ts (_,i1,i2)               = isPrivate (instName i1) || isPrivate(instName i2)
   where instName (Just n,_)          = n
