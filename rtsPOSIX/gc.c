@@ -28,13 +28,14 @@ ADDR heapchain, heapMin, heapMax;       // chain of fromspaces formed by extensi
 WORD heapsize, thissize;                // accumulated size of all fromspaces, size of current fromspace
 ADDR edata, scanp;                      // end of static data, scan pointer (only used during gc)
 
+ADDR staticHeap;                        // heap (chain) containing only statically allocated nodes (no copy)
+
 Msg timerQcopy = 0;                     // ptr holding old timerQ while copying
 
 char emergency = 0;                     // flag signalling heap overflow during gc
 
 
-void gcinit() {
-        pagesize = sysconf(_SC_PAGESIZE) / sizeof(WORD);
+void initheap() {
         base = allocwords(HEAPSIZE);
         if (!base)
                 panic("Cannot allocate initial heap");
@@ -45,8 +46,21 @@ void gcinit() {
         heapMin = base;
         heapMax = lim;
         heapsize = thissize = HEAPSIZE;
+}
+
+void gcinit() {
+        pagesize = sysconf(_SC_PAGESIZE) / sizeof(WORD);
+        initheap();                                     // Allocate base (= heapchain)
         base2 = lim2 = hp2 = (ADDR)0;                   // no active tospace
         edata = (ADDR)get_end();
+}
+
+void pruneStaticHeap() {
+        ADDR base1 = realloc(base, hp - base);          // Let current heap shrink to its current size
+        if (base1 != base)
+                panic("Cannot shrink static heap to current size");
+        staticHeap = heapchain;                         // Remember the static chain (for debugging only)
+        initheap();                                     // Create fresh heap for dynamic data
 }
 
 void extend(WORD size) {

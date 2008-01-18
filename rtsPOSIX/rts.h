@@ -53,6 +53,7 @@ extern Object ObjInit;
 extern ADDR hp, lim;
 
 ADDR force(WORD);
+void pruneStaticHeap();
 
 void init_rts(int, char**);
 

@@ -11,6 +11,7 @@ extern Env_POSIX env;
 int main(int argc, char **argv) {
     init_rts(argc, argv);
     ROOTINIT();
+    pruneStaticHeap();
     prog = ROOT(env, (POLY)0);
     prog->start_POSIX(prog,-1,-1);
     run();

@@ -73,7 +73,6 @@ Prog_POSIX prog               = NULL;                         // Must be set by 
 
 int copyEnvRoots() {        
         prog = (Prog_POSIX)copy((ADDR)prog);
-        env->argv_POSIX = (LIST)copy((ADDR)env->argv_POSIX);
 }
 
 void io_handler(int signo) {
