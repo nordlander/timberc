@@ -676,6 +676,10 @@ cCmdExp env (EAp (EVar (Prim ReqToCmd _)) [e])
                                         = cCmdExp env e
 cCmdExp env (EAp (EVar (Prim TemplToCmd _)) [e])
                                         = cCmdExp env e
+cCmdExp env e@(EAp (EVar (Prim Raise _)) _)
+                                        = do (bf,te,e) <- freezeState env e
+                                             (bf',t,Kindle.ECall _ [e']) <- cValExp (addTEnv te env) e
+                                             return (t, bf (bf' (Kindle.CRaise e')))
 cCmdExp env (EDo x tx c)                = do tx <- cValType tx
                                              (t,c) <- cCmd (pushAddSelf x tx env) c
                                              tx <- kindleType env (stripQuant tx)
@@ -856,10 +860,14 @@ cValExp env e                           = do (bf,t,h) <- cExp env e
 -- Translate a Core.Exp into a Kindle application head, inferring its Type and overflowing into a list of Kindle.Binds if necessary
 cFunExp env e                           = do (bf,t,h) <- cExp env e
                                              case h of
-                                                FunR f eqs ts -> return (bf, t, f, eqs, ts)
-                                                ValR e -> return (bf, t', Kindle.enter e, [], ts)
-                                                  where TFun ts t' = t
-
+                                               FunR f eqs ts -> return (bf, t, f, eqs, ts)
+                                               ValR e -> case t of
+                                                            TFun ts t' -> return (bf, t', Kindle.enter e, [], ts)
+                                                            _          -> do t1 <- newTVar Star
+                                                                             t2 <- newTVar Star
+                                                                             g <- adapt env (TFun [t1] t2) t
+                                                                             return (bf, t2, Kindle.enter (g e), [], [t1])
+ 
 
 -- =========================================================================================
 -- Unification and instantiation

@@ -488,8 +488,9 @@ prGuard eq (GExp qs e)          = char '|' <+> hpr ',' qs <+> eq <+> pr e
 instance Pr Exp where
     prn 0 (ELam ps e)           = sep [char '\\' <> hsep (map (prn 13) ps) <+> text "->", pr e]
     prn 0 (ELet bs e)           = text "let" <+> vpr bs $$ text "in" <+> pr e
-    prn 0 (EIf e e1 e2)         = sep [text "if" <+> pr e, text "then" <+> pr e1, 
-                                       text "else" <+> pr e2]
+    prn 0 (EIf e e1 e2)         = text "if" <+> pr e $$
+                                    nest 3 (text "then" <+> pr e1 $$
+                                            text "else" <+> pr e2)
     prn 0 (ECase e alts)        = text "case" <+> pr e <+> text "of" $$ nest 2 (vpr alts)
     prn 0 (EDo v t ss)          = text "do" <+> vpr ss 
     prn 0 (ETempl v t ss)       = text "template" $$ nest 4 (vpr ss)

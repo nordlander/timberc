@@ -131,26 +131,26 @@ pCmd env (CSwitch e alts)
         absent1 altsW           = [ a | a <- altsW, not (null abs1) ]
         litA (ALit _ _)         = True
         litA _                  = False
-pCmd env (CSeq c c')
-  | a == CBreak                 = pCmd env (bf c')
-  | otherwise                   = liftM2 CSeq (pCmd env c) (pCmd env c')
-  where (bf,a)                  = anchor c
+pCmd env (CSeq c c')            = liftM2 pSeq (pCmd env c) (pCmd env c')
 pCmd env (CBreak)               = return CBreak
 pCmd env (CRaise e)             = do (bs,e) <- pExp env e
                                      return (cBind bs (CRaise e))
 
 
-anchor (CBind r bs c)           = (CBind r bs . bf, c')
-  where (bf,c')                 = anchor c
-anchor (CRun e c)               = (CRun e . bf, c')
-  where (bf,c')                 = anchor c
-anchor (CUpd x e c)             = (CUpd x e . bf, c')
-  where (bf,c')                 = anchor c
-anchor (CUpdS e x e' c)         = (CUpdS e x e' . bf, c')
-  where (bf,c')                 = anchor c
-anchor (CUpdA e i e' c)         = (CUpdA e i e' . bf, c')
-  where (bf,c')                 = anchor c
-anchor c                        = (id, c)
+pSeq c1 c2                      = case anchor c1 of
+                                    (bf,CBreak) -> bf c2
+                                    _           -> CSeq c1 c2
+  where anchor (CBind r bs c)   = (CBind r bs . bf, c')
+          where (bf,c')         = anchor c
+        anchor (CRun e c)       = (CRun e . bf, c')
+          where (bf,c')         = anchor c
+        anchor (CUpd x e c)     = (CUpd x e . bf, c')
+          where (bf,c')         = anchor c
+        anchor (CUpdS e x e' c) = (CUpdS e x e' . bf, c')
+          where (bf,c')         = anchor c
+        anchor (CUpdA e i e' c) = (CUpdA e i e' . bf, c')
+          where (bf,c')         = anchor c
+        anchor c                = (id, c)
 
 
 pSwitch env e [] [ACon n c]

@@ -127,9 +127,6 @@ updateArray a (i:is) e          = updArray a i (updateArray (indArray a i) is e)
     a       := a \\ (x, a|x \\ (y, a|x|y \\ (z,e)))
 -}
 
-maybeGen e []                   = [SExp e]
-maybeGen e ss                   = SGen EWild e : ss
-
 -- Desugaring -------------------------------------------------------------------------------------------
 
 dsDecls env (DInst t bs : ds)   = do w <- newName instanceSym
@@ -243,7 +240,6 @@ instance Desugar1 Exp where
     ds1 env (ESig e t)             = ESig (ds1 env e) (ds1 env t)
     ds1 env (ELam ps e)            = ELam (ds1 (patEnv env) ps) (ds1 env e)
     ds1 env (ECase e as)           = ECase (ds1 env e) (ds1 env as)
---    ds1 env (EIf e e1 e2)          = ds1 env (ECase e [Alt true  (RExp e1), Alt false (RExp e2)])
     ds1 env (EIf e1 e2 e3)         = EIf (ds1 env e1) (ds1 env e2) (ds1 env e3)
     ds1 env (ENeg (ELit (LInt p i))) = ELit (LInt p (-i))
     ds1 env (ENeg (ELit (LRat p r))) = ELit (LRat p (-r))
@@ -285,8 +281,10 @@ instance Desugar1 (Alt Exp) where
 instance Desugar1 Field where
     ds1 env (Field l e)          = Field l (ds1 env e)
 
-ds1S env []                      = []
-ds1S env (SExp e : ss)           = maybeGen (ds1 env e) (ds1S env ss)
+
+ds1S env []                      = [SRet (ECon (prim UNITTERM))]
+ds1S env [SExp e]                = [SExp (ds1 env e)]
+ds1S env (SExp e : ss)           = SGen EWild (ds1 env e) : ds1S env ss
 ds1S env [SRet e]                = [SRet (ds1 env e)]
 ds1S env (s@(SRet _) : ss)       = errorTree "Return statement must be last in sequence" s
 ds1S env (SGen p e : ss)         = SGen (ds1 (patEnv env) p) (ds1 env e) : ds1S env ss
@@ -294,25 +292,25 @@ ds1S env (SBind b : ss)          = SBind (ds1 env b) : ds1S env ss
 ds1S env (SAss p e : ss)         = case ds1 (patEnv env) p of
                                      EIndex a is -> SAss a (updateArray a is (ds1 env e)) : ds1S env ss
                                      p' -> SAss p' (ds1 env e) : ds1S env ss
-ds1S env (SCase e as : ss)       = ds1S env (SExp (ECase e (map doAlt as)) : ss)
+ds1S env (SCase e as : ss)       = ds1S env (SExp (retComplete (ECase e (map doAlt as))) : ss)
   where doAlt (Alt p r)          = Alt (ds1 (patEnv env) p) (doRhs r)
-        doRhs (RExp ss)          = RExp (EDo (self env) Nothing ss)
+        doRhs (RExp ss)          = RExp (eDo env ss)
         doRhs (RGrd gs)          = RGrd (map doGrd gs)
         doRhs (RWhere r bs)      = RWhere (doRhs r) bs
-        doGrd (GExp qs ss)       = GExp qs (EDo (self env) Nothing ss)
-ds1S env (SIf e ss' : ss)        = doIf (SCase e) (Alt true (RExp ss')) ss
-  where doIf f a (SElsif e ss':ss) = doIf (\alts -> f [a, Alt false (RExp [SCase e alts])]) (Alt true (RExp ss')) ss
-        doIf f a (SElse ss':ss)  = ds1S env (f [a, Alt false (RExp ss')] : ss)
-        doIf f a ss              = ds1S env (f [a] : ss)
+        doGrd (GExp qs ss)       = GExp qs (eDo env ss)
+ds1S env (SIf e ss' : ss)        = doIf (EIf e (eDo env ss')) ss
+  where doIf f (SElsif e ss':ss) = doIf (f . EIf e (eDo env ss')) ss
+        doIf f (SElse ss':ss)    = ds1S env (SExp (retComplete (f (eDo env ss'))) : ss)
+        doIf f ss                = doIf f (SElse [] : ss)
 ds1S env (s@(SElsif _ _) : _)    = errorTree "elsif without corresponding if" s
 ds1S env (s@(SElse _) : _)       = errorTree "else without corresponding if" s
 ds1S env (SForall q ss' : ss)    = ds1S env (SExp (ds1Forall env q ss') : ss) -- error "forall stmt not yet implemented"
 ds1S env (SWhile e ss' : ss)     = internalError0 "while stmt not yet implemented"
 
-ds1Forall env [] ss              = EDo (self env) Nothing ss
-ds1Forall env (QLet bs : qs) ss  = ELet bs (EDo (self env) Nothing [SForall qs ss])
-ds1Forall env (QGen p e : qs) ss = EAp (EAp (EVar (name (0,0) "forallDo")) (ELam [p] (EDo (self env) Nothing [SForall qs ss]))) e
-ds1Forall env (QExp e : qs) ss   = EIf e (EDo (self env) Nothing [])  (EDo (self env) Nothing [SForall qs ss])
+ds1Forall env [] ss              = eDo env ss
+ds1Forall env (QLet bs : qs) ss  = ELet bs (eDo env [SForall qs ss])
+ds1Forall env (QGen p e : qs) ss = EAp (EAp (EVar (name (0,0) "forallDo")) (ELam [p] (eDo env [SForall qs ss]))) e
+ds1Forall env (QExp e : qs) ss   = EIf e (eDo env [])  (eDo env [SForall qs ss])
 
 ds1T env [SRet e]                = [SRet (ds1 env e)]
 ds1T env [s]                     = errorTree "Last statement in template must be return, not" s
@@ -323,6 +321,43 @@ ds1T env (s@(SAss p e) : ss)     = case ds1 (patEnv env) p of
                                      p' -> SAss p' (ds1 env e) : ds1T env ss
 ds1T env (SGen p e : ss)         = SGen (ds1 (patEnv env) p) (ds1 env e) : ds1T env ss           -- temporary
 ds1T env (s : _)                 = errorTree "Illegal statement in template: " s
+
+
+retComplete e
+  | hasRet e                     = e
+  | otherwise                    = addRet e
+  where hasRet (EIf _ e1 e2)     = hasRet e1 || hasRet e2
+        hasRet (EDo _ _ ss)      = hasRetS ss
+        hasRet (ECase e alts)    = any hasRetA alts
+        hasRet _                 = True
+        hasRetA (Alt p r)        = hasRetR r
+        hasRetR (RExp e)         = hasRet e
+        hasRetR (RGrd gs)        = any hasRetG gs
+        hasRetR (RWhere r bs)    = hasRetR r
+        hasRetG (GExp qs e)      = hasRet e
+        hasRetS []               = False
+        hasRetS [SRet (ECon (Prim UNITTERM _))]
+                                 = False
+        hasRetS [SRet e]         = True
+        hasRetS (s:ss)           = hasRetS ss
+        addRet (EIf e e1 e2)     = EIf e (addRet e1) (addRet e2)
+        addRet (EDo v t ss)      = EDo v t (addRetS ss)
+        addRet (ECase e alts)    = ECase e (map addRetA alts)
+        addRet e                 = e
+        addRetA (Alt p r)        = Alt p (addRetR r)
+        addRetR (RExp e)         = RExp (addRet e)
+        addRetR (RGrd gs)        = RGrd (map addRetG gs)
+        addRetR (RWhere r bs)    = RWhere (addRetR r) bs
+        addRetG (GExp qs e)      = GExp qs (addRet e)
+        addRetS []               = [SRet (ECon (prim UNITTERM))]
+        addRetS ss@[SRet _]      = ss
+        addRetS (s:ss)           = s : addRetS ss
+
+
+eDo env ss                       = EDo (self env) Nothing ss
+
+maybeGen e []                    = [SExp e]
+maybeGen e ss                    = SGen EWild e : ss
 
 
 -- Printing --------

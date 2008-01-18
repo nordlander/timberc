@@ -480,6 +480,7 @@ stmtlist :: { [Stmt] }
 stmts   :: { [Stmt] }
         : stmts ';' stmt                        { $3 : $1 }
         | stmt                                  { [$1] }
+	| {- empty -}				{ [] }
 
 stmt    :: { Stmt }
         : pat '<-' exp                          { SGen $1 $3 }
