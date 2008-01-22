@@ -44,8 +44,11 @@ redCmd env e0@(CBind False [(x,Val _ e)] (CRet e'))
 redCmd env (CBind r bs c)               = liftM2 (CBind r) (mapM (redBind env) bs) (redCmd env c)
 redCmd env (CRun e c)                   = liftM2 CRun (redExp env e) (redCmd env c)
 redCmd env (CUpd x e c)                 = liftM2 (CUpd x) (redExp env e) (redCmd env c)
-redCmd env (CUpdS e x e' c)             = do e <- redExp env e
-                                             liftM2 (CUpdS e x) (redExp env e') (redCmd env c)
+redCmd env (CUpdS e x v c)              = do e <- redExp env e
+                                             v <- redExp env v
+                                             c <- redCmd env c
+                                             redUpdArray0 env e x v c (arrayDepth t)
+  where ValT t                          = findSel env x
 redCmd env (CUpdA e i e' c)             = do e <- redExp env e
                                              liftM2 (CUpdA e i) (redExp env e') (redCmd env c)
 redCmd env (CSwitch e alts)             = liftM2 CSwitch (redExp env e) (mapM (redAlt env) alts)
@@ -121,3 +124,23 @@ arrayDepth _                        = 0
 
 clone 0 e                           = e
 clone n e                           = ECall (prim CloneArray) [ELit (LInt Nothing (toInteger n)), e]
+
+
+{-
+    a|x|y|z := e
+    a|x|y   := a|x|y \\ (z,e)
+    a|x     := a|x \\ (y, a|x|y \\ (z,e))
+    a       := a \\ (x, a|x \\ (y, a|x|y \\ (z,e)))
+-}
+
+redUpdArray0 env e x (ECall (Prim UpdateArray _) [a,i,v]) c n
+  | a == ESel e x                   = redUpdArray1 env a i v c (n-1)
+  where 
+redUpdArray0 env e x v c n          = return (CUpdS e x (clone n v) c)
+
+
+redUpdArray1 env e i (ECall (Prim UpdateArray _) [a,i',v]) c n
+  | a == e'                         = redUpdArray1 env a i' v c (n-1)
+  where e'                          = ECall (prim IndexArray) [e,i]
+redUpdArray1 env e i v c n          = return (CUpdA e i (clone n v) c)
+
