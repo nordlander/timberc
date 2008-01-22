@@ -9,7 +9,7 @@
 #define GC_EPILOGUE(obj)        { if (hp2) { \
                                       if (!GCINFO(obj)) GCINFO(obj) = 1; \
                                       if (ISBLACK(obj)) { ADDR a; NEW2(a,1); a[0] = (WORD)obj; } } }    // write barrier
-#define TIMERQ_PROLOGUE()       { if (hp2 && !timerQ) timerQ = timerQcopy; }                            // reinstall timerQ if null
+#define TIMERQ_PROLOGUE()       { if (hp2 && (timerQ==1)) timerQ = timerQorig; }                        // reinstall timerQ if marked
 #define TIMERQ_EPILOGUE()                                               
 
 #define allocwords(size)        (ADDR)malloc(size*sizeof(WORD))
@@ -30,7 +30,7 @@ ADDR edata, scanp;                      // end of static data, scan pointer (onl
 
 ADDR staticHeap;                        // heap (chain) containing only statically allocated nodes (no copy)
 
-Msg timerQcopy = 0;                     // ptr holding old timerQ while copying
+Msg timerQorig = 0;                     // ptr holding original timerQ while copying
 
 char emergency = 0;                     // flag signalling heap overflow during gc
 
@@ -156,17 +156,17 @@ ADDR scan(ADDR obj) {
 
 void copyTimerQ() {
         Msg old, new, new0;
-        do {    do { timerQcopy = timerQ;
-                } while (!CAS(timerQcopy, 0, &timerQ));  // null out timerQ, put old value in timerQcopy
-                old = timerQcopy;
+        do {    do { timerQorig = timerQ;
+                } while (!CAS(timerQorig, 1, &timerQ));  // mark timerQ, put original value in timerQorig
+                old = timerQorig;
                 new0 = new = (Msg)copy((ADDR)old);
                 while (old) {
                         new->next = (Msg)copy((ADDR)old->next);
                         new = new->next;
                         old = old->next;
                 }
-        } while (!CAS(0,new0,&timerQ));                 // set timerQ = new0 if still null, else repeat
-        timerQcopy = 0;
+        } while (!CAS(1,new0,&timerQ));                 // set timerQ = new0 if still marked, else repeat
+        timerQorig = 0;
 }
 
 void gc() {
