@@ -9,7 +9,7 @@
 #define GC_EPILOGUE(obj)        { if (hp2) { \
                                       if (!GCINFO(obj)) GCINFO(obj) = 1; \
                                       if (ISBLACK(obj)) { ADDR a; NEW2(a,1); a[0] = (WORD)obj; } } }    // write barrier
-#define TIMERQ_PROLOGUE()       { if (hp2 && (timerQ==1)) timerQ = timerQorig; }                        // reinstall timerQ if marked
+#define TIMERQ_PROLOGUE()       { if (hp2 && (timerQ==(Msg)1)) timerQ = timerQorig; }                   // reinstall timerQ if marked
 #define TIMERQ_EPILOGUE()                                               
 
 #define allocwords(size)        (ADDR)malloc(size*sizeof(WORD))
@@ -190,10 +190,17 @@ void gc() {
 
         copyEnvRoots();
         copyTimerQ();
-        while (scanp != hp2)
-                scanp = scan(scanp);
 
-        DISABLE(&previous_mask);
+        while (1) {
+                while (scanp != hp2)
+                        scanp = scan(scanp);
+
+                DISABLE(&previous_mask);
+                if (scanp == hp2)
+                        break;
+                ENABLE(&previous_mask);
+        }
+        
         do {    base = heapchain;
                 heapchain = (ADDR)base[0];
                 free(base);
