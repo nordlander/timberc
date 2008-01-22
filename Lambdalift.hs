@@ -89,6 +89,8 @@ llCmd env (CSwitch e alts)              = liftM2 CSwitch (llExp env e) (mapM (ll
 llCmd env (CSeq c c')                   = liftM2 CSeq (llCmd env c) (llCmd env c')
 llCmd env (CBreak)                      = return CBreak
 llCmd env (CRaise e)                    = liftM CRaise (llExp env e)
+llCmd env (CWhile e c c')               = liftM3 CWhile (llExp env e) (llCmd env c) (llCmd env c')
+llCmd env (CCont)                       = return CCont
 
 
 -- Convert a switch alternative

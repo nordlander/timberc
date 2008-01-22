@@ -135,10 +135,15 @@ pCmd env (CSeq c c')            = liftM2 pSeq (pCmd env c) (pCmd env c')
 pCmd env (CBreak)               = return CBreak
 pCmd env (CRaise e)             = do (bs,e) <- pExp env e
                                      return (cBind bs (CRaise e))
+pCmd env (CWhile e c c')        = do (bs,e) <- pExp env e
+                                     c <- pCmd env c
+                                     liftM (cBind bs . CWhile e c) (pCmd env c')
+pCmd env (CCont)                = return CCont
 
 
 pSeq c1 c2                      = case anchor c1 of
                                     (bf,CBreak) -> bf c2
+                                    (bf,CCont)  -> c1
                                     _           -> CSeq c1 c2
   where anchor (CBind r bs c)   = (CBind r bs . bf, c')
           where (bf,c')         = anchor c

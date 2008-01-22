@@ -83,6 +83,8 @@ data Cmd        = CRet    Exp                 -- simply return $1
                 | CSeq    Cmd Cmd             -- execute $1; if fall-through, continue with $2
                 | CBreak                      -- break out of a surrounding switch
                 | CRaise  Exp                 -- raise an exception
+                | CWhile  Exp Cmd Cmd         -- run $2 while $1 is non-zero, then execute tail $3
+                | CCont                       -- start next turn of enclosing while loop
                 deriving (Eq,Show)
 
 -- Note 1: command (CRun e c) is identical to (CBind False [(x,e)] c) if x is a fresh name not used anywhere else
@@ -227,6 +229,8 @@ cMap f (CSwitch e alts)                 = CSwitch e (clift (cMap f) alts)
 cMap f (CSeq c c')                      = CSeq (cMap f c) (cMap f c')
 cMap f (CBreak)                         = CBreak
 cMap f (CRaise e)                       = CRaise e
+cMap f (CWhile e c c')                  = CWhile e (cMap f c) (cMap f c')
+cMap f (CCont)                          = CCont
 
 
 cMap' f = cMap (CRet . f)
@@ -282,6 +286,8 @@ instance Ids Cmd where
     idents (CSeq c c')                  = idents c ++ idents c'
     idents (CBreak)                     = []
     idents (CRaise e)                   = idents e
+    idents (CWhile e c c')              = idents e ++ idents c ++ idents c'
+    idents (CCont)                      = []
 
 instance Ids Alt where
     idents (ACon x c)                   = idents c
@@ -318,6 +324,8 @@ instance Subst Cmd Name Exp where
     subst s (CSeq c c')                 = CSeq (subst s c) (subst s c')
     subst s (CBreak)                    = CBreak
     subst s (CRaise e)                  = CRaise (subst s e)
+    subst s (CWhile e c c')             = CWhile (subst s e) (subst s c) (subst s c')
+    subst s (CCont)                     = CCont
 
 instance Subst Alt Name Exp where
     subst s (ACon x c)                  = ACon x (subst s c)
@@ -391,11 +399,17 @@ instance Pr Cmd where
                                           pr c2
     pr (CBreak)                         = text "break;"
     pr (CRaise e)                       = text "RAISE" <> parens (pr e) <> text ";"
+    pr (CWhile e c c')                  = text "while" <+> parens (pr e) <+> text "{" $$
+                                          nest 4 (pr c) $$
+                                          text "}" $$
+                                          pr c'
+    pr (CCont)                          = text "continue;"
 
 
 
 prScope (CRaise e)                      = pr (CRaise e)
 prScope (CBreak)                        = pr CBreak
+prScope (CCont)                         = pr CCont
 prScope (CRet x)                        = pr (CRet x)
 prScope c                               = text "{" <+> pr c $$
                                           text "}"

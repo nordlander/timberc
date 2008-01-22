@@ -55,6 +55,8 @@ redCmd env (CSwitch e alts)             = liftM2 CSwitch (redExp env e) (mapM (r
 redCmd env (CSeq c c')                  = liftM2 CSeq (redCmd env c) (redCmd env c')
 redCmd env (CBreak)                     = return CBreak
 redCmd env (CRaise e)                   = liftM CRaise (redExp env e)
+redCmd env (CWhile e c c')              = liftM3 CWhile (redExp env e) (redCmd env c) (redCmd env c')
+redCmd env (CCont)                      = return CCont
 
 
 redRet env (EEnter e f es)              = do c <- redRet env e
