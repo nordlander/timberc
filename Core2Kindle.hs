@@ -230,6 +230,9 @@ cAType t                                = do (ke, ts, t) <- cType t
 kindleType env (TFun ts t)              = do (t':ts') <- mapM (kindleType env) (t:ts)
                                              n <- findClosureName env ts' t'
                                              return (Kindle.TId n)
+kindleType env (TAp (TId (Prim Array _)) t)
+                                        = do t' <- kindleType env t
+                                             return (Kindle.TArray t')
 kindleType env (TAp t _)                = kindleType env t
 kindleType env (TId n)
   | isCon n                             = return (Kindle.TId n)

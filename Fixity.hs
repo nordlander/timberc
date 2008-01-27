@@ -60,28 +60,23 @@ the same length.
 -}
 
 transFix :: OpExp -> Exp
-transFix e              = push e [] []
-  where push (Cons l o r) os es =
-           case os of
-              o':os' 
-                |prec==prec'&&(ass/=ass'||ass==NonAss) -> 
-                    errorIds "Operator associativity ambiguity with operators" [o,o']
-                |prec<prec'||(prec==prec'&&ass==RightAss) ->
-                    push (Cons l o (opApp r o' (head es))) os' (tail es)
-                         where Fixity ass  prec  = fixity (str' o)
-                               Fixity ass' prec' = fixity (str' o')
-              _ -> push l (o:os) (r:es)
-        push (Nil e) os es = popAll os (e:es)
-        opApp l o r 
-           | str' o == "!" = EIndex l [r]
-           | otherwise = EAp (EAp (op2exp o) l) r
+transFix e                          = push e [] []
+  where push (Cons l o r) (o':os) es
+          | prec==prec' && (ass/=ass' || ass==NonAss)
+                                    = errorIds "Operator associativity ambiguity with operators" [o,o']
+          | prec<prec' || (prec==prec' && ass==RightAss)
+                                    = push (Cons l o (opApp r o' (head es))) os (tail es)
+          where Fixity ass  prec    = fixity (show o)
+                Fixity ass' prec'   = fixity (show o')
+        push (Cons l o r) os es     = push l (o:os) (r:es)
+        push (Nil e) os es          = popAll os (e:es)
+        opApp l o r
+          | s == "!"                = EIndex l r
+          | s == "||"               = EAp (EAp (EVar (Prim LazyOr (annot o))) l) r
+          | s == "&&"               = EAp (EAp (EVar (Prim LazyAnd (annot o))) l) r
+          | otherwise               = EAp (EAp (op2exp o) l) r
+          where s                   = show o
          
-        popAll (o:os) (e1:e2:es) = popAll os (opApp e1 o e2:es)
-        popAll [] es = head es
-
-        str' (Name s _ _ _) = s
-        str' (Prim LazyOr _) = "||"
-        str' (Prim LazyAnd _) = "&&"
-        str' (Prim p _) = internalError0 ("Unknown predefined op: "++ strRep p)
-
+        popAll (o:os) (e1:e2:es)    = popAll os (opApp e1 o e2:es)
+        popAll [] es                = head es
         

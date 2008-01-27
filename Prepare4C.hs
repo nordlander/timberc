@@ -223,15 +223,19 @@ pExp' env (ECast TWild e)           = do (bs,t',e) <- pExp' env e
                                              return (bs++bs1, TWild, ECast TWild (EVar x))
                                           else if smallPrim t' then
                                              return (bs, TWild, ECast TWild (ECast (TId (prim Int)) e))
-                                          else
+                                          else if t' /= TWild then
                                              return (bs, TWild, ECast TWild e)
+                                          else
+                                             return (bs, TWild, e)
 pExp' env (ECast t e)               = do (bs,t',e) <- pExp' env e
                                          if t'==TWild && mustBox t then
                                              return (bs, t, ESel (ECast (TId (box t)) e) (prim Value))
                                           else if t'==TWild && smallPrim t then
                                              return (bs, t, ECast t (ECast (TId (prim Int)) e))
-                                          else
+                                          else if t /= t' then
                                              return (bs, t, ECast t e)
+                                          else
+                                             return (bs, t, e)
 pExp' env (ENew n bs)
   | n `elem` nulls env              = return ([], TId n, EVar n)
   | otherwise                       = do (bs1,bs) <- pMap (pSBind env n) bs'

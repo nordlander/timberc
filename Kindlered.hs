@@ -44,10 +44,9 @@ redCmd env e0@(CBind False [(x,Val _ e)] (CRet e'))
 redCmd env (CBind r bs c)               = liftM2 (CBind r) (mapM (redBind env) bs) (redCmd env c)
 redCmd env (CRun e c)                   = liftM2 CRun (redExp env e) (redCmd env c)
 redCmd env (CUpd x e c)                 = liftM2 (CUpd x) (redExp env e) (redCmd env c)
-redCmd env (CUpdS e x v c)              = do e <- redExp env e
-                                             v <- redExp env v
-                                             c <- redCmd env c
-                                             redUpdArray0 env e x v c (arrayDepth t)
+redCmd env (CUpdS e x v c)              = do -- tr ("redAssign " ++ show (arrayDepth t) ++ " " ++ render (pr v) ++ " :: " ++ render (pr t))
+                                             f <- redAssign env (arrayDepth t) (ESel e x) id v
+                                             liftM f (redCmd env c)
   where ValT t                          = findSel env x
 redCmd env (CUpdA e i e' c)             = do e <- redExp env e
                                              liftM2 (CUpdA e i) (redExp env e') (redCmd env c)
@@ -84,6 +83,8 @@ redExp env (EEnter e f es)              = do e <- redExp env e
                                              redEnter env e f es
 redExp env e@(ECall (Prim IndexArray _) _)
                                         = redIndexArray env e []
+redExp env (ECall p@(Prim SizeArray _) [e])
+                                        = liftM (ECall p . (:[])) (redExp' env e)
 redExp env (ECall x es)                 = do es <- mapM (redExp env) es
                                              return (ECall x es)
 redExp env (ENew n bs)                  = liftM (ENew n) (mapM (redBind env) bs)
@@ -103,12 +104,18 @@ redEnter env e@(ENew n bs) f es         = case c of
 redEnter env e f es                     = return (EEnter e f es)
 
 
+-- Convert an expression in a safe context (no cloning needed)
+redExp' env (ECast t e)                 = liftM (ECast t) (redExp' env e)
+redExp' env (ESel e l)                  = liftM (flip ESel l) (redExp env e)
+redExp' env e                           = redExp env e
+
+
 -- Convert an array indexing expression
 redIndexArray env (ECall (Prim IndexArray _) [a,i]) is
                                     = redIndexArray env a (i:is)
 redIndexArray env a@(ESel e l) is
   | stateVar (annot l)              = do e <- mkIndex env a is
-                                         return (clone (arrayDepth t - length is) e)
+                                         return (clone (arrayDepth t - length is) id e)
   where ValT t                      = findSel env l
 redIndexArray env a is              = do a <- redExp env a
                                          e <- mkIndex env a is
@@ -116,16 +123,30 @@ redIndexArray env a is              = do a <- redExp env a
 
 
 mkIndex env a is                    = do is <- mapM (redExp env) is
-                                         return (foldl f a is)
-  where f a i                       = ECall (prim IndexArray) [a,i]
+                                         return (foldl indexArray a is)
                                          
+
+indexArray a i                      = ECall (prim IndexArray) [a,i]
+
+intExp i                            = ELit (LInt Nothing (toInteger i))
 
 arrayDepth (TArray t)               = 1 + arrayDepth t
 arrayDepth _                        = 0
 
 
-clone 0 e                           = e
-clone n e                           = ECall (prim CloneArray) [ELit (LInt Nothing (toInteger n)), e]
+clone n g (ECast t e)               = clone n (g . ECast t) e
+clone 0 g e                         = g e
+clone 1 g e@(ECall (Prim ListArray _) _)
+                                    = g e
+clone 1 g e@(ECall (Prim UniArray _) _)
+                                    = g e
+clone _ g e@(ECall (Prim EmptyArray _) _)
+                                    = g e
+clone _ g e@(ECall (Prim SizeArray _) _)
+                                    = g e
+clone n g (ECall (Prim CloneArray _) [e,ELit (LInt _ n')])
+  | toInteger n == n'               = g e
+clone n g e                         = g (ECall (prim CloneArray) [ECast (TArray TWild) e, intExp n])
 
 
 {-
@@ -135,14 +156,42 @@ clone n e                           = ECall (prim CloneArray) [ELit (LInt Nothin
     a       := a \\ (x, a|x \\ (y, a|x|y \\ (z,e)))
 -}
 
-redUpdArray0 env e x (ECall (Prim UpdateArray _) [a,i,v]) c n
-  | a == ESel e x                   = redUpdArray1 env a i v c (n-1)
-  where 
-redUpdArray0 env e x v c n          = return (CUpdS e x (clone n v) c)
 
+redAssign env n e0 g (ECast t e)    = redAssign env n e0 (g . ECast t) e
+redAssign env n e0 g (ECall (Prim UpdateArray _) [a,i,v])
+  | e0 == a || ECast (TArray TWild) e0 == a
+                                    = redAssign env (n-1) (indexArray e0 i) id v
+  | otherwise                       = do f1 <- redAssign env n e0 g a
+                                         f2 <- redAssign env (n-1) (indexArray e0 i) id v
+                                         return (f1 . f2)
+redAssign env n e0 g (ECall (Prim ListArray _) [e])
+  | Just es <- constElems e, 
+    let m = length es               = do f <- redAssign env n e0 g (ECall (prim EmptyArray) [ELit (LInt Nothing (toInteger m))])
+                                         fs <- mapM mkAssign ([0..] `zip` es)
+                                         return (foldl (.) f fs)
+  where constElems (ECast _ (ENew (Prim CONS _) bs))
+                                    = do es <- constElems eb
+                                         return (ea:es)
+          where Val _ ea            = lookup' bs (head abcSupply)
+                Val _ eb            = lookup' bs (head (tail abcSupply))
+        constElems (ECast _ (ENew (Prim NIL _) bs))
+                                    = Just []
+        constElems _                = Nothing
+        mkAssign (i,e)              = redAssign env (n-1) (indexArray e0 (intExp i)) id e
+redAssign env n e0 g (ECall (Prim UniArray _) [m,e])
+                                    = do x <- newName tempSym
+                                         s <- newName tempSym
+                                         i <- newName paramSym
+                                         let f0 = cBind [(x,Val TWild e),(s,Val tInt m),(i,Val tInt (intExp 0))]
+                                         f <- redAssign env n e0 g (ECall (prim EmptyArray) [EVar s])
+                                         let f1 c = CWhile (ECall (prim IntLT) [EVar i, EVar s]) c
+                                         f2 <- redAssign env (n-1) (indexArray e0 (EVar i)) id (EVar x)
+                                         let c = CUpd i (ECall (prim IntPlus) [EVar i, intExp 1]) CCont
+                                         return (f0 . f . f1 (f2 c))
+redAssign env n (ESel e x) g v      = do v' <- redExp env v
+                                         return (CUpdS e x (clone n g v'))
+redAssign env n (ECall (Prim IndexArray _) [e,i]) g v
+                                    = do v' <- redExp env v
+                                         return (CUpdA e i (clone n g v'))
 
-redUpdArray1 env e i (ECall (Prim UpdateArray _) [a,i',v]) c n
-  | a == e'                         = redUpdArray1 env a i' v c (n-1)
-  where e'                          = ECall (prim IndexArray) [e,i]
-redUpdArray1 env e i v c n          = return (CUpdA e i (clone n v) c)
 

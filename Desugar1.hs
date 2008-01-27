@@ -108,24 +108,6 @@ ren env cs                      = map ren' cs
 
 patEnv env                      = env {isPat = True}
 
-mergeIndex (EIndex e e') es     = mergeIndex e (e' ++ es)
-mergeIndex e es                 = (e,es)
-
-indArray e i                    = EAp (EAp (EVar (prim IndexArray)) e) i
-
-indexArray a is                 = foldl indArray a is
-
-updArray a i e                  = EAp (EAp (EAp (EVar (prim UpdateArray)) a) i) e
-
-updateArray a [] e              = e
-updateArray a (i:is) e          = updArray a i (updateArray (indArray a i) is e)
-
-{-
-    a|x|y|z := e
-    a|x|y   := a|x|y \\ (z,e)
-    a|x     := a|x \\ (y, a|x|y \\ (z,e))
-    a       := a \\ (x, a|x \\ (y, a|x|y \\ (z,e)))
--}
 
 -- Desugaring -------------------------------------------------------------------------------------------
 
@@ -230,10 +212,7 @@ instance Desugar1 Exp where
               | fromMod s == modName env = mName Nothing s
               | otherwise          = s
     ds1 env (ELet bs e)            = ELet (ds1 env bs) (ds1 env e)
-    ds1 env e@(EIndex _ _)
-      | isPat env                  = EIndex e' es    -- if lhs of statement, desugered there; otherwise illegal and caught in rename.
-      | otherwise                  = indexArray e' (ds1 env es)
-      where (e',es)                = mergeIndex e []
+    ds1 env (EIndex e i)           = EAp (EAp (EVar (prim IndexArray)) (ds1 env e)) (ds1 env i)
     ds1 env (EAp e1 e2)            = EAp (ds1 env e1) (ds1 env e2)
     ds1 env (ETup es)              = ETup (ds1 env es)
     ds1 env (EList es)             = EList (ds1 env es)
@@ -289,9 +268,15 @@ ds1S env [SRet e]                = [SRet (ds1 env e)]
 ds1S env (s@(SRet _) : ss)       = errorTree "Return statement must be last in sequence" s
 ds1S env (SGen p e : ss)         = SGen (ds1 (patEnv env) p) (ds1 env e) : ds1S env ss
 ds1S env (SBind b : ss)          = SBind (ds1 env b) : ds1S env ss
-ds1S env (SAss p e : ss)         = case ds1 (patEnv env) p of
-                                     EIndex a is -> SAss a (updateArray a is (ds1 env e)) : ds1S env ss
-                                     p' -> SAss p' (ds1 env e) : ds1S env ss
+ds1S env (SAss p e : ss)         = dsAss p e : ds1S env ss
+  where dsAss (EIndex a i) e     = dsAss a (EAp (EAp (EAp (EVar (prim UpdateArray)) a) i) e)
+        dsAss p e                = SAss (ds1 env p) (ds1 env e)
+        {-
+            a|x|y|z := e
+            a|x|y   := a|x|y \\ (z,e)
+            a|x     := a|x \\ (y, a|x|y \\ (z,e))
+            a       := a \\ (x, a|x \\ (y, a|x|y \\ (z,e)))
+        -}
 ds1S env (SCase e as : ss)       = ds1S env (SExp (retComplete (ECase e (map doAlt as))) : ss)
   where doAlt (Alt p r)          = Alt (ds1 (patEnv env) p) (doRhs r)
         doRhs (RExp ss)          = RExp (eDo env ss)

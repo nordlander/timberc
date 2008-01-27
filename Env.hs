@@ -709,10 +709,10 @@ primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
                             (prim Catch,        scheme0 [] tUnit),          -- temporary
                             
                             (prim ListArray,    scheme1 [tList a] (tArray a)),
-                            (prim ConstArray,   scheme1 [tInt, a] (tArray a)),
+                            (prim UniArray,     scheme1 [tInt, a] (tArray a)),
                             (prim SizeArray,    scheme1 [tArray a] tInt),
                             (prim IndexArray,   scheme1 [tArray a, tInt] a),
-                            (prim UpdateArray,  scheme2 [tArray a, tInt, a] (tCmd b (tArray a))),
+                            (prim UpdateArray,  scheme2 [tArray a, tInt, a] (tArray a)),
 
                             (prim Fail,         scheme1 [] (tPMC a)),
                             (prim Commit,       scheme1 [a] (tPMC a)),

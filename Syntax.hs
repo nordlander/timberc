@@ -82,7 +82,7 @@ data Exp    = EVar    Name
             | ESectR  Exp Name
             | ESectL  Name Exp
             | ESelect Exp Name
-            | EIndex  Exp [Exp]
+            | EIndex  Exp Exp
             | EDo     (Maybe Name) (Maybe Type) [Stmt] 
             | ETempl  (Maybe Name) (Maybe Type) [Stmt]
             | EAct    (Maybe Name) [Stmt] 
@@ -282,8 +282,8 @@ instance Subst Exp Name Exp where
     subst s (ESectR e op)       = ESectR (subst s e) op
     subst s (ESectL op e)       = ESectL op (subst s e)
     subst s (ESelect e l)       = ESelect (subst s e) l
-    subst s (EIndex e e')       = EIndex (subst s e) (subst s e')
     subst s (ESel l)            = ESel l
+    subst s (EIndex e e')       = EIndex (subst s e) (subst s e')
     subst s (EDo v t st)        = EDo v t (subst s st)
     subst s (ETempl v t st)     = ETempl v t (subst s st) 
     subst s (EAct v st)         = EAct v (subst s st)
@@ -500,8 +500,8 @@ instance Pr Exp where
     prn 0 (EBefore e e')        = text "before" <+> prn 12 e <+> pr e'
     prn 0 e                     = prn 1 e
 
-    prn 11 (EIndex e es)        = prn 11 e <+> text "!" <+> hpr '!' es
     prn 11 (EAp e e')           = prn 11 e <+> prn 12 e'
+    prn 11 (EIndex e e')        = prn 11 e <+> text "!" <+> prn 12 e'
     prn 11 e                    = prn 12 e
         
     prn 12 (ESelect e l)        = prn 12 e <> text "." <> prId l
@@ -674,7 +674,7 @@ instance HasPos Exp where
   posInfo (ESectR e n)          = between (posInfo e) (posInfo n)
   posInfo (ESectL n e)          = between (posInfo n) (posInfo e)
   posInfo (ESelect e n)         = between (posInfo e) (posInfo n)
-  posInfo (EIndex e es)         = between (posInfo e) (posInfo es)
+  posInfo (EIndex e e')         = between (posInfo e) (posInfo e')
   posInfo (EDo n t ss)          = between (posInfo n) (posInfo ss)
   posInfo (ETempl n t ss)       = between (posInfo n) (posInfo ss)
   posInfo (EAct n ss)           = between (posInfo n) (posInfo ss)

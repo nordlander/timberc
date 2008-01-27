@@ -147,7 +147,7 @@ data Prim                       =
                                 | Catch
                                 
                                 | ListArray
-                                | ConstArray
+                                | UniArray
                                 | SizeArray
                                 | IndexArray
                                 | UpdateArray
@@ -237,6 +237,9 @@ strRep NIL                      = "[]"
 strRep CONS                     = ":"
 strRep TRUE                     = "True"
 strRep FALSE                    = "False"
+strRep ListArray                = "array"
+strRep UniArray                 = "uniarray"
+strRep SizeArray                = "arraysize"
 strRep p                        = strRep2 p
                                 
 strRep2 p
@@ -256,10 +259,6 @@ name l s                        = qualName (Name s 0 Nothing (loc l))
 name' s                         = Name s 0 Nothing noAnnot
 
 loc l                           = noAnnot { location = Just l }
-
-opName l "||"                   = (prim LazyOr) {annot = loc l}
-opName l "&&"                   = (prim LazyAnd) {annot = loc l}
-opName l s                      = name l s
 
 mName m c                       = c {fromMod = m}
 

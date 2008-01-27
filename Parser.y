@@ -577,7 +577,7 @@ conid   :: { Name }
         : loc CONID                             { name $1 $2 }
 
 varsym  :: { Name }
-        : VARSYM1                               {% do l <- getSrcLoc; return (opName l $1) }
+        : VARSYM1                               {% do l <- getSrcLoc; return (name l $1) }
 
 consym  :: { Name }
         : loc CONSYM                            { name $1 $2 }

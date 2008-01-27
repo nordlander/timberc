@@ -66,6 +66,7 @@ k2cIsSimple (x,Val _ (ELit _))  = True
 k2cIsSimple _                   = False
 
 -- Generate types
+k2cType (TArray t)              = k2cName (prim Array)
 k2cType (TId n)                 = k2cName n
 k2cType (TWild)                 = text "POLY"
 
@@ -177,7 +178,7 @@ k2cCmd (CUpd x e c)             = k2cName x <+> text "=" <+> k2cExp e <> text ";
                                   k2cCmd c
 k2cCmd (CUpdS e x e' c)         = k2cExp (ESel e x) <+> text "=" <+> k2cExp e' <> text ";" $$
                                   k2cCmd c
-k2cCmd (CUpdA e i e' c)         = k2cExp e <> brackets (k2cExp i) <+> text "=" <+> k2cExp e' <> text ";" $$
+k2cCmd (CUpdA e i e' c)         = k2cExp e <> text "->elems" <> brackets (k2cExp i) <+> text "=" <+> k2cExp e' <> text ";" $$
                                   k2cCmd c
 k2cCmd (CSwitch e alts)         = text "switch" <+> parens (k2cExp e) <+> text "{" $$
                                     nest 4 (vcat (map k2cAlt alts)) $$
@@ -186,10 +187,10 @@ k2cCmd (CSeq c c')              = k2cCmd c $$
                                   k2cCmd c'
 k2cCmd (CBreak)                 = text "break;"
 k2cCmd (CRaise e)               = text "RAISE" <> parens (k2cExp e) <> text ";"
-k2cCmd (CWhile e c c')          = text "while" <+> parens (pr e) <+> text "{" $$
-                                  nest 4 (pr c) $$
+k2cCmd (CWhile e c c')          = text "while" <+> parens (k2cExp e) <+> text "{" $$
+                                  nest 4 (k2cCmd c) $$
                                   text "}" $$
-                                  pr c'
+                                  k2cCmd c'
 k2cCmd (CCont)                  = text "continue;"
 
 

@@ -2,7 +2,7 @@
 
 #include "timber.h"
 
-Array primListArray(LIST xs) {
+Array ListArray(LIST xs) {
         Int len = 0;
         Int i = 0;
         LIST ys = xs;
@@ -14,7 +14,7 @@ Array primListArray(LIST xs) {
         return res;
 }
 
-Array primConstArray(Int len, POLY a) {
+Array UniArray(Int len, POLY a) {
         Int i;
         Array res; NEW (Array,res,WORDS(sizeof(struct Array))+len);
         res->size = len;
@@ -22,20 +22,26 @@ Array primConstArray(Int len, POLY a) {
         return res;
 }
 
-Array primEmptyArray(Int len) {
+Array EmptyArray(Int len) {
         Array res; NEW (Array,res,WORDS(sizeof(struct Array))+len); 
         res->size = len;
         return res;
 }
 
-Array primCloneArray(Array a, Int lev) {
+Array CloneArray(Array a, Int lev) {
         if (!lev)
                 return a;
         Int i; 
         Array res; NEW(Array,res,WORDS(sizeof(struct Array))+a->size);
         res->size = a->size;
         lev--;
-        if (lev) for (i=0; i < a->size; i++) res->elems[i] = primCloneArray(a->elems[i], lev);
+        if (lev) for (i=0; i < a->size; i++) res->elems[i] = CloneArray(a->elems[i], lev);
         else     for (i=0; i < a->size; i++) res->elems[i] = a->elems[i];
         return res;
+}
+
+Array primUpdateArray(Array a, Int i, POLY v) {
+        a = CloneArray(a, 1);
+        a->elems[i] = v;
+        return a;
 }

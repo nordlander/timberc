@@ -25,6 +25,7 @@ cons0                           = [ [prim TRUE,prim FALSE] , [prim NIL,prim CONS
 
 consOf (Types _ ds)             = [ dom ce | (_,DData _ _ ce) <- ds ]
 
+complete _ [Tuple _ _]          = True
 complete _ []                   = False
 complete [] cs0                 = False
 complete (cs:css) cs0           = all (`elem`cs0) cs  ||  complete css cs0
@@ -85,7 +86,7 @@ nonzero _                       = False
 
 
 -- may be safely inlined (can't lead to infinite expansion even if part of a recursive binding group)
-finite env (EVar (Prim c _))    = c `notElem` [ListArray, ConstArray, UpdateArray]
+finite env (EVar (Prim c _))    = True --c `notElem` [ListArray, UniArray, UpdateArray]
 finite env (EVar (Tuple _ _))   = True
 finite env (EVar x)             = x `elem` args env || maybe False (finite env )(lookup x (eqns env))
 finite env (ECon _)             = True
@@ -226,7 +227,7 @@ findLit env l (_:alts)          = findLit env l alts
 redPrim env Refl _ [e]                      = e
 redPrim env Match a [e]                     = redMatch env a e
 redPrim env Fatbar a [e,e']                 = redFat a e e'
-redPrim env ConstArray a es                 = EAp (EVar (Prim ConstArray a)) es
+redPrim env UniArray a es                   = EAp (EVar (Prim UniArray a)) es
 redPrim env p _ [ELit (LInt _ x), ELit (LInt _ y)]  = redInt p x y
 redPrim env p a [ELit (LRat _ x), ELit (LRat _ y)]  = redRat p x y
 redPrim env IntNeg _ [ELit (LInt _ x)]      = ELit (LInt Nothing (-x))

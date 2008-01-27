@@ -367,7 +367,7 @@ instance Pr (Name, Type) where
 
 instance Pr AType where
     pr (TId c)                          = prId2 c
-    pr (TArray t)                       = text "Array " <+> parens (pr t)
+    pr (TArray t)                       = pr t <> text "[]"
     pr (TWild)                          = text "POLY"
 
 instance Pr (Name, AType) where
