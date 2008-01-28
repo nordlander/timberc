@@ -82,7 +82,6 @@ data Exp    = EVar    Name
             | ESectR  Exp Name
             | ESectL  Name Exp
             | ESelect Exp Name
-            | EIndex  Exp Exp
             | EDo     (Maybe Name) (Maybe Type) [Stmt] 
             | ETempl  (Maybe Name) (Maybe Type) [Stmt]
             | EAct    (Maybe Name) [Stmt] 
@@ -283,7 +282,6 @@ instance Subst Exp Name Exp where
     subst s (ESectL op e)       = ESectL op (subst s e)
     subst s (ESelect e l)       = ESelect (subst s e) l
     subst s (ESel l)            = ESel l
-    subst s (EIndex e e')       = EIndex (subst s e) (subst s e')
     subst s (EDo v t st)        = EDo v t (subst s st)
     subst s (ETempl v t st)     = ETempl v t (subst s st) 
     subst s (EAct v st)         = EAct v (subst s st)
@@ -501,7 +499,6 @@ instance Pr Exp where
     prn 0 e                     = prn 1 e
 
     prn 11 (EAp e e')           = prn 11 e <+> prn 12 e'
-    prn 11 (EIndex e e')        = prn 11 e <+> text "!" <+> prn 12 e'
     prn 11 e                    = prn 12 e
         
     prn 12 (ESelect e l)        = prn 12 e <> text "." <> prId l
@@ -674,7 +671,6 @@ instance HasPos Exp where
   posInfo (ESectR e n)          = between (posInfo e) (posInfo n)
   posInfo (ESectL n e)          = between (posInfo n) (posInfo e)
   posInfo (ESelect e n)         = between (posInfo e) (posInfo n)
-  posInfo (EIndex e e')         = between (posInfo e) (posInfo e')
   posInfo (EDo n t ss)          = between (posInfo n) (posInfo ss)
   posInfo (ETempl n t ss)       = between (posInfo n) (posInfo ss)
   posInfo (EAct n ss)           = between (posInfo n) (posInfo ss)
@@ -847,7 +843,6 @@ instance Binary Exp where
   put (ESectR a b) = putWord8 17 >> put a >> put b
   put (ESectL a b) = putWord8 18 >> put a >> put b
   put (ESelect a b) = putWord8 19 >> put a >> put b
-  put (EIndex a b) = putWord8 20 >> put a >> put b
   put (EDo a b c) = putWord8 21 >> put a >> put b >> put c
   put (ETempl a b c) = putWord8 22 >> put a >> put b >> put c
   put (EAct a b) = putWord8 23 >> put a >> put b
@@ -877,7 +872,6 @@ instance Binary Exp where
       17 -> get >>= \a -> get >>= \b -> return (ESectR a b)
       18 -> get >>= \a -> get >>= \b -> return (ESectL a b)
       19 -> get >>= \a -> get >>= \b -> return (ESelect a b)
-      20 -> get >>= \a -> get >>= \b -> return (EIndex a b)
       21 -> get >>= \a -> get >>= \b -> get >>= \c -> return (EDo a b c)
       22 -> get >>= \a -> get >>= \b -> get >>= \c -> return (ETempl a b c)
       23 -> get >>= \a -> get >>= \b -> return (EAct a b)

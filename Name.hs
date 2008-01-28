@@ -216,17 +216,14 @@ isIdPrim p                      = p `notElem` primSyms
 
 primSyms                        = [LIST, NIL, CONS]
 
-primTypes                       = map primKeyValue typerange ++ alreadyPrimed typerange
-  where typerange               = [MIN____TYPE .. MAX____TYPE]
+primTypes                       = [MIN____TYPE .. MAX____TYPE]
 
-primTerms                       = map primKeyValue [MIN____CONS .. MAX____VAR] ++ 
-                                  alreadyPrimed [MIN____CONS .. MAX____CONS] ++
-                                  alreadyPrimed [LazyAnd,LazyOr] ++
-                                  alreadyPrimed [ListArray .. UpdateArray]
+primTerms                       = [MIN____CONS .. MAX____VAR]
+                                  
+primNames                       = map primKeyValue (primTerms ++ primTypes)
 
-primKeyValue p                  = (name0 (strRep p), prim p)
+primKeyValue p                  = (strRep p, prim p)
 
-alreadyPrimed ps                = map (\p -> (prim p, prim p)) ps
 
 lowPrims                        = [Sec,Millisec,Microsec,Nanosec,Raise,Catch,Baseline,Deadline,Next,OwnedBy,WantedBy,Infinity]
 
@@ -237,9 +234,12 @@ strRep NIL                      = "[]"
 strRep CONS                     = ":"
 strRep TRUE                     = "True"
 strRep FALSE                    = "False"
+strRep LazyAnd                  = "&&"
+strRep LazyOr                   = "||"
+strRep IndexArray               = "!"
 strRep ListArray                = "array"
 strRep UniArray                 = "uniarray"
-strRep SizeArray                = "arraysize"
+strRep SizeArray                = "size"
 strRep p                        = strRep2 p
                                 
 strRep2 p
@@ -254,9 +254,18 @@ strRep2 p
 noAnnot                         = Annot { location = Nothing, explicit = False, stateVar = False, 
                                           generated = False, suppressMod = False, forceTag = False }
 
-name l s                        = qualName (Name s 0 Nothing (loc l))
+qualName s                      = case splitString s of
+                                    [x]      -> (x, Nothing)
+                                    (x : xs) -> (x, Just (joinString xs))
 
-name' s                         = Name s 0 Nothing noAnnot
+
+name l s                        = (name' s) { annot = loc l }
+    
+name' s                         = case lookup s primNames of
+                                    Just n -> n 
+                                    Nothing -> Name s' 0 m noAnnot
+                                       where (s',m) = qualName s
+                                    
 
 loc l                           = noAnnot { location = Just l }
 
@@ -286,10 +295,6 @@ splitQual s def                 = case splitString s of
                                     [x]    -> (x, def)
                                     (x:xs) -> (x, joinString xs)
 
-qualName n@(Name s _ Nothing _) = case splitString s of
-                                    [x] -> n
-                                    (x : xs) -> n {str = x, fromMod = Just(joinString xs)}
-qualName n                      = n
 
 tag0 (Name s t m a)             = Name s 0 m a
 tag0 n                          = n

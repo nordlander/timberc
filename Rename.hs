@@ -32,7 +32,7 @@ data Env                           = Env { rE :: Map Name Name,
                                            void :: [Name]
                                          } deriving Show
 
-initEnv (rL',rT',rE')              = Env { rE = primTerms ++ rE', rT = primTypes ++ rT', rS = [], rL = rL', self = [], void = [] }
+initEnv (rL',rT',rE')              = Env { rE = rE', rT = rT', rS = [], rL = rL', self = [], void = [] }
 
 stateVars env                      = dom (rS env)
 
@@ -40,11 +40,13 @@ tscope env                         = dom (rT env)
 
 
 renE env n@(Tuple _ _)             = n
+renE env n@(Prim _ _)              = n
 renE env v                         = case lookup v (rE env) of
                                        Just n  -> n { annot = (annot v) {suppressMod = suppressMod (annot n), forceTag = forceTag (annot n) } }
                                        Nothing -> errorIds "Undefined identifier" [v]
 
 renS env n@(Tuple _ _)             = n
+renS env n@(Prim _ _)              = n
 renS env v                         = case lookup v (rS env) of
                                        Just n  -> n { annot = a { stateVar = True} }
                                        Nothing -> errorIds "Undefined state variable" [v]
@@ -55,6 +57,7 @@ renL env v                         = case lookup v (rL env) of
                                        Nothing -> errorIds "Undefined selector" [v]
 
 renT env n@(Tuple _ _)             = n
+renT env n@(Prim _ _)              = n
 renT env v                         = case lookup v (rT env) of
                                        Just n  -> n { annot = (annot v) {suppressMod = suppressMod (annot n)} }
                                        Nothing -> errorIds "Undefined type identifier" [v]
@@ -298,7 +301,6 @@ instance Rename Exp where
   rename env (ESectR e op)         = liftM (flip ESectR (renE env op)) (rename env e) 
   rename env (ESectL op e)         = liftM (ESectL (renE env op)) (rename env e)
   rename env (ESelect e l)         = liftM (flip ESelect (renL env l)) (rename env e) 
-  rename env e@(EIndex _ _)        = errorTree "Illegal pattern" e -- legal occurrences eliminated in Desugar1
   rename env (EAct v ss)           = liftM (EAct (fmap (renE env) v)) (renameS (unvoidAll env) (shuffleS ss))
   rename env (EReq v ss)           = liftM (EReq (fmap (renE env) v)) (renameS (unvoidAll env) (shuffleS ss))
   rename env (EDo (Just v) Nothing ss)

@@ -70,12 +70,7 @@ transFix e                          = push e [] []
                 Fixity ass' prec'   = fixity (show o')
         push (Cons l o r) os es     = push l (o:os) (r:es)
         push (Nil e) os es          = popAll os (e:es)
-        opApp l o r
-          | s == "!"                = EIndex l r
-          | s == "||"               = EAp (EAp (EVar (Prim LazyOr (annot o))) l) r
-          | s == "&&"               = EAp (EAp (EVar (Prim LazyAnd (annot o))) l) r
-          | otherwise               = EAp (EAp (op2exp o) l) r
-          where s                   = show o
+        opApp l o r                 = EAp (EAp (op2exp o) l) r
          
         popAll (o:os) (e1:e2:es)    = popAll os (opApp e1 o e2:es)
         popAll [] es                = head es
