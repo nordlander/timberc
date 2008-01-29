@@ -6,7 +6,7 @@ record EqRel =
 
 unionFind :: Int -> Template EqRel
 unionFind n = template 
-   a := primConstArray n (-1)
+   a := uniarray n (-1)
 
    find k = do 
      if a!k < 0 then

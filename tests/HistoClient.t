@@ -3,11 +3,10 @@ module HistoClient where
 import POSIX
 import Histo
 
-size = primSizeArray
 
 root env = template
              bds :: Array Int
-             bds = primListArray [10, 20, 30]
+             bds = array [10, 20, 30]
              h <- histo bds
 
              start = action

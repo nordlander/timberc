@@ -4,8 +4,6 @@ record Dictionary a b =
   insert :: a -> b -> Action
   lookup :: a -> Request (Maybe b)
 
-listArray = primListArray   -- to be moved to Prelude
-
 {-
 
 Wrong design; String should not have ONE hash function.
@@ -20,7 +18,7 @@ class Hashable a =
 hashDict hash dictT n = template
   ds <- sequence (replicate n dictT)
 
-  dict = listArray ds
+  dict = array ds
   
   insert a b = action
     (dict!(hash a n)).insert a b
@@ -34,7 +32,7 @@ hashDict hash dictT n = template
 hashDict1 hash dictT n = do
   ds <- sequence (replicate n dictT)  
 
-  dict = listArray ds
+  dict = array ds
   
   insert a b = (dict!(hash a n)).insert a b
 

@@ -1,23 +1,20 @@
 module Matrix where
 
-size                = primSizeArray
-constArray          = primConstArray
-listArray           = primListArray
-
 record Matrix a =
   setElem :: Int -> Int -> a -> Action
-  getElem :: Int -> Int -> Request a
-  setRow  :: Int -> Array a -> Action
-  getRow  :: Int -> Request (Array a)
+--  getElem :: Int -> Int -> Request a
+--  setRow  :: Int -> Array a -> Action
+--  getRow  :: Int -> Request (Array a)
 
-  
-a = constArray 10 (constArray 10 0)
+{- 
+a = uniarray 10 (uniarray 10 0)
 
-l = listArray [listArray [1,2,3], listArray [4,5,6]]
+l = array [array [1,2,3], array [4,5,6]]
 
 b = a!3!4
 
 c = a!5
+-}
 
 -- x!2 = 3    Illegal; captured in Rename
 
@@ -27,7 +24,7 @@ m a = template
        
        setElem i j v = action
         x!i!j := v
-
+{-
        getElem i j = request
          return x!i!j
 
@@ -36,7 +33,7 @@ m a = template
 
        getRow k = request
          return x!k 
-
+-}
        return Matrix {..}
 
 

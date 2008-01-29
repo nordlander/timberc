@@ -1,10 +1,8 @@
 module Array0 where
 
-listArray = primListArray
-sizeArray = primSizeArray
 
 a :: Array Int 
-a = listArray [1..10000]
+a = array [1..10000]
 
 {-
 read str = r (reverse str)
@@ -14,7 +12,7 @@ read str = r (reverse str)
 
 foldlArray f u a = iter 0 u
   where iter k ack
-          | k < sizeArray a = iter (k+1) (f ack (a!k))
+          | k < size a = iter (k+1) (f ack (a!k))
           | otherwise = ack
 
-root _ = show (foldlArray (+) 0 a)
+root = show (foldlArray (+) 0 a)

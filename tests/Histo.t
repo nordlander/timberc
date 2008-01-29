@@ -1,7 +1,5 @@
 module Histo where
 
-size = primSizeArray
-
 record Histogram a =
    addObs    :: a -> Action
    getResult :: Request (Array Int)
@@ -10,7 +8,7 @@ record Histogram a =
 histo bds = template
    
    cn  = size bds
-   obs := primConstArray (cn + 1) 0
+   obs := uniarray (cn + 1) 0
    
    classIndex x k
        | k >= cn || x < bds!k   = k
