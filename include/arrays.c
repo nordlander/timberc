@@ -2,7 +2,7 @@
 
 #include "timber.h"
 
-Array ListArray(LIST xs) {
+Array primListArray(LIST xs) {
         Int len = 0;
         Int i = 0;
         LIST ys = xs;
@@ -14,7 +14,7 @@ Array ListArray(LIST xs) {
         return res;
 }
 
-Array UniArray(Int len, POLY a) {
+Array primUniArray(Int len, POLY a) {
         Int i;
         Array res; NEW (Array,res,WORDS(sizeof(struct Array))+len);
         res->size = len;

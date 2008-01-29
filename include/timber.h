@@ -103,8 +103,8 @@ PID      LOCK(PID);
 UNITTYPE UNLOCK(PID);
 POLY     RAISE(Int);
 
-Array ListArray(LIST);
-Array UniArray(Int,POLY);
+Array primListArray(LIST);
+Array primUniArray(Int,POLY);
 Array EmptyArray(Int);
 Array CloneArray(Array,Int);
 Array primUpdateArray(Array,Int,POLY);
