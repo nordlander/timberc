@@ -216,13 +216,13 @@ isIdPrim p                      = p `notElem` primSyms
 
 primSyms                        = [LIST, NIL, CONS]
 
-primTypes                       = [MIN____TYPE .. MAX____TYPE]
+primTypes                       =  map primKeyValue [MIN____TYPE .. MAX____TYPE]
 
-primTerms                       = [MIN____CONS .. MAX____VAR]
+primTerms                       =  map primKeyValue [MIN____CONS .. MAX____VAR]
                                   
-primNames                       = map primKeyValue (primTerms ++ primTypes)
+-- primNames                       = map primKeyValue (primTerms ++ primTypes)
 
-primKeyValue p                  = (strRep p, prim p)
+primKeyValue p                  = (name0 (strRep p), prim p)
 
 
 lowPrims                        = [Sec,Millisec,Microsec,Nanosec,Raise,Catch,Baseline,Deadline,Next,OwnedBy,WantedBy,Infinity]
@@ -260,13 +260,17 @@ qualName s                      = case splitString s of
 
 
 name l s                        = (name' s) { annot = loc l }
-    
+
+{-    
 name' s                         = case lookup s primNames of
                                     Just n -> n 
                                     Nothing -> Name s' 0 m noAnnot
                                        where (s',m) = qualName s
-                                    
+ -}
 
+name' s                         =   Name s' 0 m noAnnot
+                                       where (s',m) = qualName s
+ 
 loc l                           = noAnnot { location = Just l }
 
 mName m c                       = c {fromMod = m}
