@@ -1,12 +1,12 @@
 module Data'Objects'Stack where
 
-record Stack a = 
+struct Stack a where 
   push :: a -> Action
   pop  :: Action
   top  :: Request a
   size :: Request Int
 
-stk = template
+stk = class
    xs := []
    
    push x = action
@@ -16,10 +16,10 @@ stk = template
      xs := tail xs
  
    top = request
-     return (head xs)
+     result (head xs)
 
    size = request
-     return (length xs)
+     result (length xs)
 
-   return Stack{..}
+   result Stack{..}
 

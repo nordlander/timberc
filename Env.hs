@@ -612,7 +612,7 @@ initEnv                 = nullEnv { kindEnv0 = primKindEnv,
 
 primKindEnv             = [ (prim Action,       Star),
                             (prim Request,      KFun Star Star),
-                            (prim Template,     KFun Star Star),
+                            (prim Class,        KFun Star Star),
                             (prim Cmd,          KFun Star (KFun Star Star)),
                                     
                             (prim Msg,          Star),
@@ -643,7 +643,7 @@ primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
 
                             (prim ActToCmd,     scheme1 [tAction] (tCmd a tMsg)),
                             (prim ReqToCmd,     scheme2 [tRequest a] (tCmd b a)),
-                            (prim TemplToCmd,   scheme2 [tTemplate a] (tCmd b a)),
+                            (prim TemplToCmd,   scheme2 [tClass a] (tCmd b a)),
                             (prim RefToPID,     scheme1 [tRef a] tPID),
 
                             (prim IntPlus,      scheme0 [tInt,tInt] tInt),
@@ -732,7 +732,7 @@ primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
 
 tAction                 = TId (prim Action)
 tRequest a              = TAp (TId (prim Request)) a
-tTemplate a             = TAp (TId (prim Template)) a
+tClass a               = TAp (TId (prim Class)) a
 tCmd a b                = TAp (TAp (TId (prim Cmd)) a) b
 tTime                   = TId (prim Time)
 tMsg                    = TId (prim Msg)
@@ -759,7 +759,7 @@ mkRho ts t              = F (map scheme ts) (R t)
 
 primAboveEnv    = [ (prim Action,   unitWG subActCmd),
                     (prim Request,  unitWG subReqCmd),
-                    (prim Template, unitWG subTemplCmd),
+                    (prim Class,    unitWG subTemplCmd),
                     (prim Cmd,      nullWG),
                     (prim Ref,      unitWG subRefPID),
                     (prim PID,      nullWG)
@@ -767,7 +767,7 @@ primAboveEnv    = [ (prim Action,   unitWG subActCmd),
 
 primBelowEnv    = [ (prim Action,   nullWG),
                     (prim Request,  nullWG),
-                    (prim Template, nullWG),
+                    (prim Class,    nullWG),
                     (prim Cmd,      WG [subActCmd,subReqCmd,subTemplCmd] []),
                     (prim Ref,      nullWG),
                     (prim PID,      unitWG subRefPID)
@@ -780,7 +780,7 @@ subActCmd       = (prim ActToCmd,   scheme1 [] (tAction `sub` tCmd a tMsg))
 
 subReqCmd       = (prim ReqToCmd,   scheme2 [] (tRequest a `sub` tCmd b a))
 
-subTemplCmd     = (prim TemplToCmd, scheme2 [] (tTemplate a `sub` tCmd b a))
+subTemplCmd     = (prim TemplToCmd, scheme2 [] (tClass a `sub` tCmd b a))
 
 subRefPID       = (prim RefToPID,   scheme1 [] (tRef a `sub` tPID))
 

@@ -77,16 +77,15 @@ Reserved Ids
         'forall'	{ KW_Forall }
         'if'		{ KW_If }
         'import'        { KW_Import }
+        'implicit'      { KW_Implicit }
         'in'		{ KW_In }
-        'instance'	{ KW_Instance }
         'let'		{ KW_Let }
         'module'	{ KW_Module }
         'of'		{ KW_Of }
         'private'       { KW_Private }
-        'record'        { KW_Record }
-        'return'        { KW_Return }
         'request'       { KW_Request }
-        'template'      { KW_Template }
+        'result'        { KW_Result }
+        'struct'        { KW_Struct }
         'then'		{ KW_Then }
         'type'		{ KW_Type }
         'use'           { KW_Use }
@@ -140,10 +139,9 @@ topdecl :: { Decl }
         : conid '::' kind		        	{ DKSig $1 $3 }
         | 'type' conid tyvars '=' type	                { DType $2 (reverse $3) $5 }
         | 'data' conid tyvars optsubs optcs             { DData $2 (reverse $3) $4 $5 }
-        | 'record' conid tyvars optsups optsigs         { DRec False $2 (reverse $3) $4 $5 }
-	| 'class' conid tyvars optsups optsigs	        { DRec True $2 (reverse $3) $4 $5 }
-	| 'instance' type '=' bindlist			{ DInst $2 $4 }
-        | 'instance' varid '::' type                    { DPSig $2 $4 }  
+        | 'struct' conid tyvars optsups optsigs         { DRec False $2 (reverse $3) $4 $5 }
+        | 'implicit' 'struct' conid tyvars optsups optsigs { DRec True $3 (reverse $4) $5 $6 }
+        | 'implicit' varid '::' type                    { DPSig $2 $4 }  
         | 'default' defs                                { DDefault (reverse $2) }
         | vars '::' type		                { DBind (BSig (reverse $1) $3) }
         | lhs rhs 					{ DBind (BEqn $1 $2) }
@@ -190,7 +188,7 @@ constrs :: { [Constr] }
 -- Signatures --------------------------------------------------------------
 
 optsigs :: { [Sig] }
-        : '=' siglist				{ $2 }
+        : 'where' siglist	      		{ $2 }
         | {- empty -}				{ [] }
         
 siglist :: { [Sig] }
@@ -310,6 +308,7 @@ kind1	:: { Kind }
 exp     :: { Exp }
         : exp0a '::' btype                      { ESig $1 $3 }
         | exp0                                  { $1}
+        | 'struct' conid 'where' bindlist       { EBStruct $2 [] $4 }
 
 exp0    :: { Exp }
         : exp0a                                 { $1 }
@@ -344,7 +343,7 @@ exp10a  :: { Exp }
 
 exp10as :: { Exp }
         : loc 'do' stmtlist                     { EDo Nothing Nothing $3  }
-        | loc 'template' stmtlist               { ETempl Nothing Nothing $3 }
+        | loc 'class' stmtlist                  { ETempl Nothing Nothing $3 }
         | loc 'action' stmtlist                 { EAct Nothing $3 }
         | loc 'request' stmtlist                { EReq Nothing $3 }
         | con '{'  layout_off recbinds '}'      { ERec (Just ($1,True)) (reverse $4) } 
@@ -488,7 +487,7 @@ stmt    :: { Stmt }
         | vars '::' type                        { SBind (BSig $1 $3) }
         | lhs rhs                               { SBind (BEqn $1 $2) }
         | pat ':=' exp                          { SAss $1 $3 }
-        | 'return' exp                          { SRet $2 }
+        | 'result' exp                          { SRet $2 }
         | 'forall' quals 'do' stmtlist          { SForall (reverse $2) $4 }
         | 'if' exp 'then' stmtlist              { SIf $2 $4 }
         | 'elsif' exp 'then' stmtlist           { SElsif $2 $4 }

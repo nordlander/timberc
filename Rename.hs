@@ -316,9 +316,20 @@ instance Rename Exp where
     where st                       = assignedVars ss
   rename env (EAfter e1 e2)        = liftM2 EAfter (rename env e1) (rename env e2)
   rename env (EBefore e1 e2)       = liftM2 EBefore (rename env e1) (rename env e2)
+  rename env (EBStruct c ls bs)    = do env' <- extRenE env ls
+                                        r <- rename env' (ERec (Just (c,True)) (map (\s -> Field s (EVar s)) ls))
+                                        bs' <- mapM (renSBind env' env) bs
+                                        return (ELet bs' r)
 
 renRec env (Just (n, t))           = Just (renT env n, t)
 renRec env Nothing                 = Nothing
+
+renSBind envL envR (BEqn (LFun v ps) rh)    = do envR' <- extRenE envR (pvars ps)
+                                                 ps'   <- rename envR' ps
+                                                 liftM (BEqn (LFun (renE envL v) ps')) (rename envR' rh)
+renSBind envL envR (BEqn (LPat (EVar v)) rh)= liftM (BEqn (LPat (EVar (renE envL v)))) (rename envR rh)
+renSBind _ _ (BEqn (LPat p) _)              = errorTree "Illegal pattern in struct value" p 
+renSBind _ _ s@(BSig vs t)                  = errorTree "Signature in struct value" s 
 
 instance Rename Field where
   rename env (Field l e)           = liftM (Field (renL env l)) (rename env e)
@@ -345,7 +356,7 @@ renameQ env (QGen p e : qs) e0     = do e <- rename env e
                                         p <- rename env' p
                                         (qs,e0) <- renameQ env' qs e0
                                         return (QGen p e : qs, e0)
-renameQq env (QLet bs : qs) e0     = do env' <- extRenE env (bvars bs)
+renameQ env (QLet bs : qs) e0      = do env' <- extRenE env (bvars bs)
                                         bs <- rename env' bs
                                         (qs,e0) <- renameQ env' qs e0
                                         return (QLet bs : qs, e0)

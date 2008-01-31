@@ -1,12 +1,12 @@
 module Matrix where
 
-record Matrix a =
+struct Matrix a where
   setElem :: Int -> Int -> a -> Action
 --  getElem :: Int -> Int -> Request a
 --  setRow  :: Int -> Array a -> Action
 --  getRow  :: Int -> Request (Array a)
 
-{- 
+
 a = uniarray 10 (uniarray 10 0)
 
 l = array [array [1,2,3], array [4,5,6]]
@@ -14,28 +14,28 @@ l = array [array [1,2,3], array [4,5,6]]
 b = a!3!4
 
 c = a!5
--}
+
 
 -- x!2 = 3    Illegal; captured in Rename
-
-m a = template
+{-
+m a = class
 
        x := a 
        
        setElem i j v = action
         x!i!j := v
-{-
+
        getElem i j = request
-         return x!i!j
+         result x!i!j
 
        setRow n a = action
          x!n := a
 
        getRow k = request
-         return x!k 
--}
-       return Matrix {..}
+         result x!k 
 
+       result Matrix {..}
+-}
 
 
 

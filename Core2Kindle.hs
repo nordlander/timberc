@@ -194,7 +194,7 @@ cType' (TAp (TId (Prim Request _)) t)
                                         = do (ke,t) <- cAType t
                                              v <- newName tyvarSym
                                              return ((v,Star):ke, [TId v], t)
-cType' (TAp (TId (Prim Template _)) t)
+cType' (TAp (TId (Prim Class _)) t)
                                         = do (ke,t) <- cAType t
                                              v <- newName tyvarSym
                                              return ((v,Star):ke, [TId v], t)

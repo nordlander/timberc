@@ -1,17 +1,17 @@
 module POSIX where
     
-type RootType = Env -> Template Prog
+type RootType = Env -> Class Prog 
 
-record File =
+struct File where
     read  :: Request String
     write :: String -> Request String
     
-record Env =
+struct Env where
     argv   :: [String]
     stdin  :: File
     stdout :: File
     exit   :: Int -> Request ()
 
-record Prog =
+struct Prog where
     start :: Action
     io    :: Action

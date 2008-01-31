@@ -1,33 +1,33 @@
 module Data'Objects'Dictionary where
 
-  record Dictionary a b =
+  struct Dictionary a b where
     insert :: a -> b -> Action
     lookup :: a -> Request (Maybe b)
 
-  listDict :: Template (Dictionary a b) \\ Eq a
-  listDict = template
+  listDict :: Class (Dictionary a b) \\ Eq a
+  listDict = class
     dict := []
   
     insert a b = action
       dict := ins a b dict
 
     lookup a = request
-      return lookup'Prelude a dict
+      result lookup'Prelude a dict
 
-    return Dictionary {..}
+    result Dictionary {..}
 
 
-  treeDict :: Template (Dictionary a b) \\ Ord a
-  treeDict = template
+  treeDict :: Class (Dictionary a b) \\ Ord a
+  treeDict = class
     dict := Nil
     
     insert a b = action
       dict := ins' a b dict
 
     lookup a = request
-      return look' a dict
+      result look' a dict
 
-    return Dictionary {..}
+    result Dictionary {..}
 
 private
   

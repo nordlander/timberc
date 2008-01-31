@@ -1,6 +1,6 @@
 module SizedPoint where
 
-  record SizedPoint < Point =
+  struct SizedPoint < Point where
     size :: Int
 
   p = Point {x=1, y=2}

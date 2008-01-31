@@ -8,7 +8,7 @@ a2 = A1
 
 f2 x = f1 x
 
-record R2 < R =
+struct R2 < R where
   sel2 :: Int
 
 r2 = R2 {sel = 1, sel2 = 3 }

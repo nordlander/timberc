@@ -1,25 +1,25 @@
 module UnionFind where
 
-record EqRel =
+struct EqRel where
   equal   :: Int -> Int -> Request Bool
   mkEqual :: Int -> Int -> Action
 
-unionFind :: Int -> Template EqRel
-unionFind n = template 
+unionFind :: Int -> Class EqRel
+unionFind n = class
    a := uniarray n (-1)
 
    find k = do 
      if a!k < 0 then
-        return k
+        result k
      else
         s <- find(a!k)
         a!k := s
-        return s
+        result s
 
    equal i j = request
      si <- find i
      sj <- find j
-     return (si==sj)
+     result (si==sj)
 
    mkEqual i j = action
      si <- find i 
@@ -34,4 +34,4 @@ unionFind n = template
            if asi==asj then
               a!si := asi-1
 
-   return EqRel{..}
+   result EqRel{..}

@@ -4,14 +4,16 @@ data Rank = Ace | King | Queen | Jack | Num Int
 
 data Suit = Spades | Hearts | Diamonds | Clubs
 
-instance Show Rank =
+implicit showRank :: Show Rank
+showRank = struct Show where
   show Ace     = "Ace"
   show King    = "King"
   show Queen   = "Queen"
   show Jack    = "Jack"
   show (Num n) = "Num " ++ show n
 
-instance Show Suit =
+implicit showSuit :: Show Suit 
+showSuit = struct Show where
   show Spades   = "Spades"
   show Hearts   = "Hearts"
   show Diamonds = "Diamonds"
@@ -19,7 +21,7 @@ instance Show Suit =
 
 type Pos = (Int,Int)
 
-record Card =
+struct Card where
   rank :: Rank
   suit :: Suit
 
@@ -28,19 +30,20 @@ record Card =
   setPos :: Pos -> Action
   getPos :: Request Pos
 
-instance Show Card =
+implicit showCard :: Show Card 
+showCard = struct Show where
   show c = show c.rank ++ " " ++ show c.suit
 
-card :: Rank -> Suit -> Pos -> Template Card
-card rank suit p = template
+card :: Rank -> Suit -> Pos -> Class Card
+card rank suit p = class
   up  := False
   pos := p
 
   flip     = action up := not up
-  faceUp   = request return up
+  faceUp   = request result up
 
   setPos p = action pos := p
-  getPos   = request return pos
+  getPos   = request result pos
 
-  return Card{..}
+  result Card{..}
 

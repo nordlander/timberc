@@ -1,14 +1,14 @@
-module VTest where
+module KindleArities where
 
 import POSIX
 
-record Counter =
+struct Counter where
         display :: Action
 
 acts = map (.display) []
 
 
-test True  = template
-               return (\y->y) 
-test False = template
-               return (\_->action return ())
+test True  = class
+               result (\y->y) 
+test False = class
+               result (\_->action result ())

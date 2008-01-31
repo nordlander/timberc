@@ -211,6 +211,7 @@ instance Desugar1 Exp where
             mkLocal s
               | fromMod s == modName env = mName Nothing s
               | otherwise          = s
+    ds1 env (EBStruct c _ bs)      = EBStruct c (map (mName Nothing) (selsFromType env c)) (ds1 env bs)
     ds1 env (ELet bs e)            = ELet (ds1 env bs) (ds1 env e)
     ds1 env (EAp e1 e2)            = EAp (ds1 env e1) (ds1 env e2)
     ds1 env (ETup es)              = ETup (ds1 env es)

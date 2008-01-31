@@ -4,7 +4,7 @@ data A1 = A1
 
 f1 x = A1
 
-record R = 
+struct R where
   sel :: Int
 
 r = R { sel = 1 }

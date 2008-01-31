@@ -30,7 +30,7 @@ type D = Pair Int Int
 h :: D -> C
 h (x,y) = [x]
 
-class Num2 a =
+implicit struct Num2 a where
   (+') :: Fun a a B
 
 
@@ -49,7 +49,7 @@ x = (1,2) :: B
 
 type A = Int
 
-record F =
+struct F where
   x :: G
 
 type G = F

@@ -71,6 +71,7 @@ data Exp    = EVar    Name
             | ESig    Exp Type
             | ERec    (Maybe (Name,Bool)) [Field]
             -- pattern syntax ends here
+            | EBStruct Name [Name] [Bind]  -- struct value in bindlist syntax
             | ELam    [Pat] Exp
             | ELet    [Bind] Exp
             | ECase   Exp [Alt Exp]
@@ -273,6 +274,7 @@ instance Subst Exp Name Exp where
     subst s (ELet bs e)         = ELet (subst s bs) (subst s e)
     subst s (ECase e alts)      = ECase (subst s e) (subst s alts)
     subst s (ERec m fs)         = ERec m (subst s fs)
+    subst s (EBStruct c ls bs)  = EBStruct c ls (subst s bs)
     subst s (EIf e1 e2 e3)      = EIf (subst s e1) (subst s e2) (subst s e3)
     subst s (ENeg e)            = ENeg (subst s e)
     subst s (ESeq e1 Nothing e2)  = ESeq (subst s e1) Nothing (subst s e2)
@@ -511,6 +513,7 @@ instance Pr Exp where
     prn 13 (ELit l)             = pr l
     prn 13 (ERec Nothing fs)    = text "{" <+> hpr ',' fs <+> text "}"
     prn 13 (ERec (Just(c,b)) fs)= prId c <+> text "{" <+> hpr ',' fs <+> (if b then empty else text "..") <+> text "}"
+    prn 13 (EBStruct c _ bs)    = text "struct" <+> prId c <+> text "where" $$ nest 4 (vpr bs)
     prn 13 (ENeg e)             = text "-" <+> prn 0 e
     prn 13 (ESig e qt)          = parens (pr e <+> text "::" <+> pr qt)
     prn 13 (ETup es)            = parens (hpr ',' es)
@@ -661,6 +664,7 @@ instance HasPos Exp where
   posInfo (EList es)            = posInfo es
   posInfo (ESig e t)            = between (posInfo e) (posInfo t)
   posInfo (ERec m fs)           = between (posInfo m) (posInfo fs)
+  posInfo (EBStruct c _ bs)     = between (posInfo c) (posInfo bs)
   posInfo (ELam ps e)           = between (posInfo ps) (posInfo e)
   posInfo (ELet bs e)           = between (posInfo bs) (posInfo e)
   posInfo (ECase e as)          = between (posInfo e) (posInfo as)
@@ -849,6 +853,7 @@ instance Binary Exp where
   put (EReq a b) = putWord8 24 >> put a >> put b
   put (EAfter a b) = putWord8 25 >> put a >> put b
   put (EBefore a b) = putWord8 26 >> put a >> put b
+  put (EBStruct a b c) = putWord8 27 >> put a >> put b >> put c
   get = do
     tag_ <- getWord8
     case tag_ of
@@ -878,6 +883,7 @@ instance Binary Exp where
       24 -> get >>= \a -> get >>= \b -> return (EReq a b)
       25 -> get >>= \a -> get >>= \b -> return (EAfter a b)
       26 -> get >>= \a -> get >>= \b -> return (EBefore a b)
+      27 -> get >>= \a -> get >>= \b -> get >>= \c -> return (EBStruct a b c)
       _ -> fail "no parse"
 
 instance Binary Field where

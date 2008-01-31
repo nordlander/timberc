@@ -267,7 +267,7 @@ main2 args          = do (clo, files) <- Exception.catchDyn (cmdLineOpts args)
                          let basenames = map rmDirs basefiles
                              o_files   = map (++ ".o") basenames
                          putStrLn "[linking]"
-                         r <- checkRoot clo (head basenames)
+                         r <- checkRoot clo (last basenames)
                          linkO cfg clo r o_files
 
                          return ()

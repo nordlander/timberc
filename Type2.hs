@@ -115,7 +115,7 @@ t2Exp env (EDo x tx c)          = do (s1,t,c) <- t2Cmd (setSelf x tx env) c
                                          s = mergeSubsts [s1,s2]
                                      return (s, R (subst s (tCmd tx t)), EDo x tx c)
 t2Exp env (ETempl x tx te c)    = do (s,t,c) <- t2Cmd (setSelf x tx (addTEnv te env)) c
-                                     return (s, R (tTemplate t), ETempl x tx te c)
+                                     return (s, R (tClass t), ETempl x tx te c)
 
         
 t2Cmd env (CRet e)              = do alpha <- newTVar Star

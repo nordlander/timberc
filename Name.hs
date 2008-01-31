@@ -32,7 +32,7 @@ data Prim                       =
 
                                 | Action                -- Types
                                 | Request
-                                | Template
+                                | Class
                                 | Cmd
 
                                 | Msg

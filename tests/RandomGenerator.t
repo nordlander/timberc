@@ -1,6 +1,6 @@
 module RandomGenerator where
 
-record Generator a =
+struct Generator a where
   next :: Request a
   
 -- Lehmer/Schrage random number generator. Simple and not too bad.
@@ -8,8 +8,8 @@ record Generator a =
 -- The n-th number produced is seed * a^n, but with calculations organised to avoid overflow.
 -- 7^5 is a primitive root of the prime 2^31 - 1, so this generator has period 2^31 - 2.
 
-baseGen :: Int -> Template (Generator Int)
-baseGen seed = template
+baseGen :: Int -> Class (Generator Int)
+baseGen seed = class
   a = 16807        -- = 7^5
   m = 2147483647   -- = 2^31 - 1
   q = 127773       -- = m `div` a
@@ -20,6 +20,6 @@ baseGen seed = template
   next = request
     tmp = a * (state `mod` q) - r * (state `div` q)
     state := if tmp > 0 then tmp else tmp + m
-    return state
+    result state
 
-  return Generator{..}
+  result Generator{..}

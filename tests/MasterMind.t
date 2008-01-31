@@ -5,13 +5,14 @@ import RandomGenerator
 import POSIX
 
 {-
-Mastermind where the program does the guessing. Answers are given as two integers (separated by space(s) on 
+Standard Mastermind, where the program does the guessing. Answers are given as two integers (separated by space(s) on 
 one row, indicating number of bulls and cows. Command line argument acts as seed for random number generation.
 -}
 
 data Colour = Red | Blue | Green | Yellow | Black | White
 
-instance Eq Colour =
+implicit eqColour :: Eq Colour
+eqColour = struct Eq where
   Red    == Red    = True
   Blue   == Blue   = True
   Green  == Green  = True
@@ -22,7 +23,8 @@ instance Eq Colour =
 
   x /= y = not (x==y)
 
-instance Show Colour =
+implicit showColour :: Show Colour 
+showColour = struct Show where
   show Red    = "Red"
   show Blue   = "Blue"
   show Green  = "Green"
@@ -32,11 +34,12 @@ instance Show Colour =
 
 type Guess = [Colour]
 
-record Answer =
+struct Answer where
   exact :: Int
   near  :: Int
 
-instance Eq Answer =
+implicit eqAnswer :: Eq Answer 
+eqAnswer = struct Eq where
   a1 == a2 = a1.exact == a2.exact && a1.near == a2.near
 
   a1 /= a2 = not (a1 == a2)
@@ -80,7 +83,8 @@ read str = r (reverse str)
 
 data State = Idle | JustGuessed | GameOver
            
-root env = template
+root env = class
+  
   gen <- baseGen (read (head (tail env.argv)))
   board := []
   cs := [] 
@@ -136,8 +140,8 @@ root env = template
                            startGame
                         else
                            env.exit 0
-                           return ""
+                           result ""
 
-  return Prog {..}
+  result Prog {..}
 
 

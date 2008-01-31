@@ -1,11 +1,11 @@
 module Histo where
 
-record Histogram a =
+struct Histogram a where
    addObs    :: a -> Action
    getResult :: Request (Array Int)
 
   
-histo bds = template
+histo bds = class
    
    cn  = size bds
    obs := uniarray (cn + 1) 0
@@ -20,7 +20,7 @@ histo bds = template
       obs!k := obs!k + 1
 
    getResult = request
-       return obs
+       result obs
 
-   return Histogram {..}
+   result Histogram {..}
 

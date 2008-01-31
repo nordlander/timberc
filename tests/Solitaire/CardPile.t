@@ -3,14 +3,14 @@ module Solitaire'CardPile where
 import Data'Objects'Stack
 import Solitaire'Card
 
-record CardPile < Stack Card =
+struct CardPile < Stack Card where
   canTake :: Card -> Request Bool
 
 translateY :: Pos -> Int -> Pos
 translateY (x,y) dy = (x,y+dy)
 
-cardPile :: (Card -> Card -> Bool) -> Pos -> (Pos -> Int -> Pos) -> Template CardPile
-cardPile ct p relPos = template
+cardPile :: (Card -> Card -> Bool) -> Pos -> (Pos -> Int -> Pos) -> Class CardPile
+cardPile ct p relPos = class
 
   Stack {push = push0 ..} <- stk
 
@@ -21,7 +21,7 @@ cardPile ct p relPos = template
 
   canTake c = request
     t <- top
-    return (ct c t)
+    result (ct c t)
 
-  return CardPile{..}
+  result CardPile{..}
 

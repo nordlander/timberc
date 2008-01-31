@@ -1,12 +1,12 @@
 module Timer where
 
-record Timer =
+struct Timer where
   start  :: Action
   stop   :: Action
   reset  :: Action
   read   :: Request Int
 
-timer = template
+timer = class
 
   time := 0
   running := False
@@ -27,6 +27,6 @@ timer = template
      time := 0
  
   read = request
-     return time
+     result time
 
-  return Timer{..}
+  result Timer{..}

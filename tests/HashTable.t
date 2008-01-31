@@ -1,6 +1,6 @@
 module HashTable where
 
-record Dictionary a b =
+struct Dictionary a b where
   insert :: a -> b -> Action
   lookup :: a -> Request (Maybe b)
 
@@ -15,7 +15,7 @@ class Hashable a =
 
 -}
 
-hashDict hash dictT n = template
+hashDict hash dictT n = class
   ds <- sequence (replicate n dictT)
 
   dict = array ds
@@ -26,7 +26,7 @@ hashDict hash dictT n = template
   lookup a = request
     (dict!(hash a n)).lookup a
    
-  return Dictionary {..}
+  result Dictionary {..}
 
 {-
 hashDict1 hash dictT n = do
@@ -38,5 +38,5 @@ hashDict1 hash dictT n = do
 
   lookup a = (dict!(hash a n)).lookup a
    
-  return Dictionary {..}
+  result Dictionary {..}
 -}

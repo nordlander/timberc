@@ -4,7 +4,7 @@ import POSIX
 import Histo
 
 
-root env = template
+root env = class
              bds :: Array Int
              bds = array [10, 20, 30]
              h <- histo bds
@@ -20,7 +20,7 @@ root env = template
                    env.exit 0
                 else
                    h.addObs(read d)
-                   return ()
+                   result ()
 
              showResults rs = do
                    forall i <- [0..size bds-1] do
@@ -30,7 +30,7 @@ root env = template
                    env.stdout.write ("  " ++ show (rs!(size bds))++"\n")
                   
 
-             return Prog{..}
+             result Prog{..}
 
 
 -- This removes the newline at the end of input strings!!!

@@ -1,19 +1,21 @@
 module Prelude where
 
 
-class Num a =
+implicit struct Num a where
  (+),(-),(*) :: a -> a -> a
  negate :: a -> a
  fromInt :: Int -> a
 
-instance Num Int =
+implicit numInt :: Num Int
+numInt = struct Num where 
   (+) = primIntPlus
   (-) = primIntMinus
   (*) = primIntTimes
   negate = primIntNeg
   fromInt n = n
 
-instance Num Float =
+implicit numFloat :: Num Float 
+numFloat = struct Num where
   (+) = primFloatPlus
   (-) = primFloatMinus
   (*) = primFloatTimes
@@ -22,27 +24,32 @@ instance Num Float =
 
 default Num Int < Num Float
 
-class Eq a =
+implicit struct Eq a where
   (==),(/=) :: a -> a -> Bool
 
-instance Eq PID =
+
+implicit eqPID :: Eq PID
+eqPID = struct Eq where
   (==) = primPidEQ
   (/=) = primPidNE
 
-instance Eq Char =
+implicit eqChar :: Eq Char
+eqChar = struct Eq where
   a == b = ord a == ord b
-  a /= b = ord a /= ord b 
+  a /= b = ord a /= ord b
 
-instance Eq [a] \\ Eq a =
-  [] == []              = True
-  a : as == b : bs      = a == b && as == bs
-  _ == _                = False
-  xs /= ys              = not ( xs == ys)
+implicit eqList :: Eq [a] \\ Eq a
+eqList = struct Eq where
+    [] == []              = True
+    a : as == b : bs  = a == b && as == bs
+    _ == _               = False
+    xs /= ys             = not ( xs == ys)
 
-class Ord a < Eq a =
+implicit struct Ord a < Eq a where
   (<),(<=),(>),(>=) :: a -> a -> Bool
 
-instance Ord Int =
+implicit ordInt :: Ord Int
+ordInt = struct Ord where
   (==) = primIntEQ
   (/=) = primIntNE
   (<)  = primIntLT
@@ -50,7 +57,8 @@ instance Ord Int =
   (>)  = primIntGT
   (>=) = primIntGE
 
-instance Ord Float =
+implicit ordFloat :: Ord Float
+ordFloat = struct Ord where
   (==) = primFloatEQ
   (/=) = primFloatNE
   (<)  = primFloatLT
@@ -58,7 +66,8 @@ instance Ord Float =
   (>)  = primFloatGT
   (>=) = primFloatGE
 
-instance Ord Time =
+implicit ordTime :: Ord Time
+ordTime = struct Ord where
   (==) = primTimeEQ
   (/=) = primTimeNE
   (<)  = primTimeLT
@@ -66,10 +75,11 @@ instance Ord Time =
   (>)  = primTimeGT
   (>=) = primTimeGE
 
-class Show a =
+implicit struct Show a where
   show :: a -> String
 
-instance Show Int =
+implicit showInt :: Show Int
+showInt = struct Show where
   show 0            = "0"
   show n
     |n < 0          = '-' : show (negate n)
@@ -79,46 +89,48 @@ instance Show Int =
            | n < 10    = [dig n]
            | otherwise = dig (n `mod` 10) : digs (n `div` 10)
  
-instance Show Float =
-  show x 
+implicit showFloat :: Show Float
+showFloat = struct Show where
+   show x 
     | x < 0                  = '-' : show (0.0-x)
     | x > 0.1 && x < 1000000 = let is = show (floor x)
                                    dl = 6 - length is
                                    ds0 = show(floor ((x - fromInt (floor x)) * 10 ^ dl))
                                    ds = replicate (dl - length ds0) '0' ++ ds0 
                                in  is ++ '.' : ds
-   | otherwise               = "Show Float is incomplete"
- 
-{-
-instance Show Bool =
+    | otherwise               = "Show Float is incomplete"
+
+implicit showBool :: Show Bool
+showBool = struct Show where
   show False = "False"
   show True  = "True"
--}
 
-instance Show Char =
+implicit showChar :: Show Char
+showChar = struct Show where
   show c = [c]
 
-instance Show (Maybe a) \\ Show a =
+implicit showMaybe :: Show (Maybe a) \\ Show a
+showMaybe = struct Show where
   show Nothing      = "Nothing"
   show (Just x)     = "Just (" ++ show x ++ ")"
 
-instance Show (Maybe Bool) =
-  show _ = "mb"
-
-instance Show String =
+implicit showString :: Show String
+showString = struct Show where
   show s = '"' : s ++ "\""
 
-instance Show [a] \\ Show a =
+implicit showList :: Show [a] \\ Show a
+showList = struct Show where
   show [] = "[]"
   show (x : xs) = '[' : show x ++ concat (map (\x -> ',' : show x) xs) ++ "]"
 
-class Enum a =
+implicit struct Enum a where
   fromEnum :: a -> Int
   toEnum :: Int -> a
   enumFromTo :: a -> a -> [a]
 --  enumFromThenTo :: a -> a -> a -> [a]
 
-instance Enum Int =
+implicit enumInt :: Enum Int
+enumInt =struct Enum where
   fromEnum n = n
   toEnum n = n
   enumFromTo = fromToInt
@@ -133,14 +145,15 @@ instance Enum Int =
             | x < 0 = -1
 -}
 
-instance Enum Char =
+implicit enumChar :: Enum Char
+enumChar = struct Enum where
    fromEnum = primCharToInt
    toEnum = primIntToChar
    enumFromTo a b = map primIntToChar (enumFromTo (primCharToInt a) (primCharToInt b))
 {-
    enumFromThenTo a b c = map chr (enumFromThenTo (ord a) (ord b) (ord c))
 -}
-forallDo f []       = do return ()
+forallDo f []       = do result ()
 forallDo f (x : xs) = do f x
                          forallDo f xs
 
@@ -283,17 +296,16 @@ floor               = primFloatToInt
 
 round x             = floor (x + 0.5)
 
-sequence []         = do return []
+sequence []         = do result []
 sequence (x : xs)   = do a  <- x
                          as <- sequence xs
-                         return a : as
+                         result a : as
 
-mapM f []           = do return []
+mapM f []           = do result []
 mapM f (x : xs)     = do a <- f x
                          as <- mapM f xs
-                         return a : as
+                         result a : as
 
-record Point = 
-  x,y :: Int
+struct Point where 
+   x,y :: Int
 
-type P = Point
