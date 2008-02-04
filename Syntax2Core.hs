@@ -54,9 +54,8 @@ s2cDecls env (DData c vs bts cs : ds) ke ts pe bs xs
 s2cDecls env (DRec isC c vs bts ss : ds) ke ts pe bs xs
                                 = do bts <- mapM s2cQualType bts
                                      sss <- mapM s2cSig ss
-                                     s2cDecls env'' ds ke ((c,Core.DRec isC vs bts (concat sss)):ts) pe bs xs
+                                     s2cDecls env' ds ke ((c,Core.DRec isC vs bts (concat sss)):ts) pe bs xs
   where env'                    = addSigs (teSigs c vs ss) env
-        env''                   = if isC then addSigs (teMems c vs ss) env' else env'
 s2cDecls env (DType c vs t : ds) ke ts pe bs xs
                                 = do t <- s2cType t
                                      s2cDecls env ds ke ((c,Core.DType vs t):ts) pe bs xs
@@ -96,12 +95,6 @@ teSigs tc vs ss                 = concat (map f ss)
   where t0                      = foldl TAp (TCon tc) (map TVar vs)
         f (Sig ws (TQual t ps)) = ws `zip` repeat (TQual (TFun [t0] t) (ps ++ map pVar vs))
         f (Sig ws t)            = ws `zip` repeat (TQual (TFun [t0] t) (map pVar vs))
-
--- build a signature environment for type class members ss in class declaration tc vs
-teMems tc vs ss                 = concat (map f ss)
-  where p0                      = PType (foldl TAp (TCon tc) (map TVar vs))
-        f (Sig ws (TQual t ps)) = ws `zip` repeat (TQual t (p0 : ps ++ map pVar vs))
-        f (Sig ws t)            = ws `zip` repeat (TQual t (p0 : map pVar vs))
 
 
 -- Signatures =========================================================================
