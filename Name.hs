@@ -214,7 +214,7 @@ invisible p                     = p >= MIN____INVISIBLE
 
 isIdPrim p                      = p `notElem` primSyms
 
-primSyms                        = [LIST, NIL, CONS]
+primSyms                        = [LIST, NIL, CONS, LazyAnd, LazyOr, IndexArray]
 
 primTypes                       =  map primKeyValue [MIN____TYPE .. MAX____TYPE]
 
@@ -383,7 +383,7 @@ instance Show Name where
      where tag                  = if n/=0 && generated a  then '_' : show n else ""
            mod                  = if m==Nothing || suppressMod a then "" else "'" ++ fromJust m
   show (Tuple n _)              = show ('(' : replicate (n-1) ',' ++ ")")
-  show (Prim p _)               = strRep2 p
+  show (Prim p _)               = strRep p
 
 
 instance Pr Name where

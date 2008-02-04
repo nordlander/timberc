@@ -156,7 +156,6 @@ clone n g e                         = g (ECall (prim CloneArray) [ECast (TArray 
     a       := a \\ (x, a|x \\ (y, a|x|y \\ (z,e)))
 -}
 
-
 redAssign env n e0 g (ECast t e)    = redAssign env n e0 (g . ECast t) e
 redAssign env n e0 g (ECall (Prim UpdateArray _) [a,i,v])
   | e0 == a || ECast (TArray TWild) e0 == a
