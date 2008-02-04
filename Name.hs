@@ -220,10 +220,11 @@ primTypes                       =  map primKeyValue [MIN____TYPE .. MAX____TYPE]
 
 primTerms                       =  map primKeyValue [MIN____CONS .. MAX____VAR]
                                   
--- primNames                       = map primKeyValue (primTerms ++ primTypes)
-
 primKeyValue p                  = (name0 (strRep p), prim p)
 
+rigidNames			    		= map rigidKeyValue [IndexArray, LazyAnd, LazyOr]
+
+rigidKeyValue p					= (strRep p, prim p)
 
 lowPrims                        = [Sec,Millisec,Microsec,Nanosec,Raise,Catch,Baseline,Deadline,Next,OwnedBy,WantedBy,Infinity]
 
@@ -261,14 +262,9 @@ qualName s                      = case splitString s of
 
 name l s                        = (name' s) { annot = loc l }
 
-{-    
-name' s                         = case lookup s primNames of
+name' s                         = case lookup s rigidNames of
                                     Just n -> n 
                                     Nothing -> Name s' 0 m noAnnot
-                                       where (s',m) = qualName s
- -}
-
-name' s                         =   Name s' 0 m noAnnot
                                        where (s',m) = qualName s
  
 loc l                           = noAnnot { location = Just l }
@@ -387,7 +383,7 @@ instance Show Name where
      where tag                  = if n/=0 && generated a  then '_' : show n else ""
            mod                  = if m==Nothing || suppressMod a then "" else "'" ++ fromJust m
   show (Tuple n _)              = show ('(' : replicate (n-1) ',' ++ ")")
-  show (Prim p _)               = strRep p
+  show (Prim p _)               = strRep2 p
 
 
 instance Pr Name where

@@ -160,7 +160,7 @@ clone n g e                         = g (ECall (prim CloneArray) [ECast (TArray 
 redAssign env n e0 g (ECast t e)    = redAssign env n e0 (g . ECast t) e
 redAssign env n e0 g (ECall (Prim UpdateArray _) [a,i,v])
   | e0 == a || ECast (TArray TWild) e0 == a
-                                    = redAssign env (n-1) (indexArray e0 i) id v
+                                    = redAssign env (n-1) (indexArray a i) id v
   | otherwise                       = do f1 <- redAssign env n e0 g a
                                          f2 <- redAssign env (n-1) (indexArray e0 i) id v
                                          return (f1 . f2)

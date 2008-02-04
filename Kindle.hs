@@ -138,6 +138,12 @@ objTEnv                                 = [(prim Obj, ValT tObject)]
 
 objInit                                 = [(prim Obj, Val tObject (EVar (prim ObjInit)))]
 
+isInfix (Prim p _)                      = p `elem` [MIN____KINDLE_INFIX .. MAX____KINDLE_INFIX]
+isInfix _                               = False
+
+isUnaryOp (Prim p _)                    = p `elem` [IntNeg, FloatNeg]
+isUnaryOp _                             = False
+
 primKindleTerms                         = map prim [ MIN____VAR .. MAX____KINDLEVAR ]
 
 primTEnv                                = map cv (Env.primTypeEnv `restrict` primKindleTerms) ++ primTEnv0
@@ -388,9 +394,9 @@ instance Pr Cmd where
                                           pr c
     pr (CUpd x e c)                     = prId2 x <+> text "=" <+> pr e <> text ";" $$
                                           pr c
-    pr (CUpdS e x e' c)                 = pr e <> text "->" <> prId2 x <+> text "=" <+> pr e' <> text ";" $$
+    pr (CUpdS e x e' c)                 = pr (ESel e x) <+> text "=" <+> pr e' <> text ";" $$
                                           pr c
-    pr (CUpdA e i e' c)                 = pr e <> brackets (pr i) <+> text "=" <+> pr e' <> text ";" $$
+    pr (CUpdA e i e' c)                 = pr (ECall (prim IndexArray) [e,i]) <+> text "=" <+> pr e' <> text ";" $$
                                           pr c
     pr (CSwitch e alts)                 = text "switch" <+> parens (pr e) <+> text "{" $$
                                           nest 2 (vpr alts) $$
@@ -421,21 +427,28 @@ instance Pr Alt where
 
 
 instance Pr Exp where
-    prn 0 (ECast t e)                   = parens (pr t) <> prn 0 e
+    prn 0 (ECall x [e1,e2])
+      | isInfix x                       = prn 0 e1 <+> prId2 x <+> prn 1 e2
     prn 0 e                             = prn 1 e
-    
-    prn 1 (EVar x)                      = prId2 x
-    prn 1 (EThis)                       = text "this"
-    prn 1 (ELit l)                      = pr l
-    prn 1 (ENew x bs)
+
+
+    prn 1 (ECall x [e])
+      | isUnaryOp x                     = prId2 x <> prn 1 e
+    prn 1 (ECast t e)                   = parens (pr t) <> prn 1 e
+    prn 1 e                             = prn 2 e
+
+    prn 2 (EVar x)                      = prId2 x
+    prn 2 (EThis)                       = text "this"
+    prn 2 (ELit l)                      = pr l
+    prn 2 (ENew x bs)
       | all isVal bs                    = text "new" <+> prId2 x <+> text "{" <> commasep prInit bs <> text "}"
-    prn 1 (ENew x bs)                   = text "new" <+> prId2 x <+> text "{" $$
+    prn 2 (ENew x bs)                   = text "new" <+> prId2 x <+> text "{" $$
                                           nest 4 (vpr bs) $$
                                           text "}"
-    prn 1 (ECall x es)                  = prId2 x <> parens (commasep pr es)
-    prn 1 (ESel e l)                    = prn 1 e <> text "->" <> prId2 l
-    prn 1 (EEnter e x es)               = prn 1 e <> text "->" <> prId2 x <> parens (commasep pr es)
-    prn 1 e                             = parens (prn 0 e)
+    prn 2 (ECall x es)                  = prId2 x <> parens (commasep pr es)
+    prn 2 (ESel e l)                    = prn 2 e <> text "->" <> prId2 l
+    prn 2 (EEnter e x es)               = prn 2 e <> text "->" <> prId2 x <> parens (commasep pr es)
+    prn 2 e                             = parens (prn 0 e)
 
 
 prInit (x, Val t e)                     = prId2 x <+> text "=" <+> pr e

@@ -65,7 +65,7 @@ renT env v                         = case lookup v (rT env) of
 extRenE env vs
   | not (null shadowed)            = errorIds "Illegal shadowing of state variables" shadowed
   | not (null shadowed')           = errorIds "Illegal shadowing of state reference" shadowed'
-  | otherwise                      = do rE' <- renaming (noDups "Duplicate state variables" vs)
+  | otherwise                      = do rE' <- renaming (noDups "Duplicate state variables" (legalBind vs))
                                         return (env { rE = rE' ++ rE env })
   where shadowed                   = intersect vs (stateVars env)
         shadowed'                  = intersect vs (self env)
@@ -73,7 +73,7 @@ extRenE env vs
 
 setRenS env vs
   | not (null shadowed)            = errorIds"Illegal shadowing of state reference" shadowed
-  | otherwise                      = do rS' <- renaming (noDups "Duplicate state variables" vs)
+  | otherwise                      = do rS' <- renaming (noDups "Duplicate state variables" (legalBind vs))
                                         return (env { rS = rS', void = vs })
   where shadowed                   = intersect vs (self env)
 
@@ -81,7 +81,7 @@ unvoid vs env                      = env { void = void env \\ vs }
 
 unvoidAll env                      = env { void = [] }
 
-extRenT env vs                     = do rT' <- renaming (noDups "Duplicate type variables" vs)
+extRenT env vs                     = do rT' <- renaming (noDups "Duplicate type variables" (legalBind vs))
                                         return (env { rT = rT' ++ rT env })
 
 extRenEMod _ _ env []              = return env
@@ -96,10 +96,10 @@ extRenLMod _ _ env []              = return env
 extRenLMod pub m env vs            = do rL' <- extRenXMod pub m (rL env) vs
                                         return (env {rL = rL'})
 
-extRenSelf env s                   = do rE' <- renaming [s]
+extRenSelf env s                   = do rE' <- renaming (legalBind [s])
                                         return (env { rE = rE' ++ rE env, self = [s] })
 
-extRenXMod pub m rX vs             = do rX' <- renaming (map (mName (qual pub)) (noQual vs))
+extRenXMod pub m rX vs             = do rX' <- renaming (map (mName (qual pub)) (legalBind vs))
                                         let rX'' = if pub 
                                                    then (mergeRenamings1 (map suppressPair rX') rX) ++ rX'
                                                    else mergeRenamings1 rX' rX
@@ -108,10 +108,13 @@ extRenXMod pub m rX vs             = do rX' <- renaming (map (mName (qual pub)) 
         qual False                 = Nothing
         suppressPair (n1,n2)       = (mName Nothing n1, n2 {annot = (annot n2) {suppressMod = True}}) 
 
-noQual vs                          = map checkQual vs
-  where checkQual v
-         | fromMod v == Nothing    = v
-         | otherwise               = errorIds "Binding occurrence may not be qualified" [v]
+legalBind vs                        = map checkName vs
+  where checkName v@(Tuple _ _)	    = errorIds "Tuple constructors may not be redefined" [v]
+        checkName v@(Prim _ _)	    = errorIds "Rigid symbol may not be redefined" [v]
+        checkName v
+          | fromMod v == Nothing    = v
+          | otherwise               = errorIds "Binding occurrence may not be qualified" [v]
+
 
 -- Binding of overloaded names ------------------------------------------------------------------------
 

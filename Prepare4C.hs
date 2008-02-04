@@ -112,8 +112,9 @@ pCmd env (CUpdS e x e' c)       = do (bs,e) <- pExp env e
                                      (bs',e') <- pExp env e'
                                      liftM (cBind bs . cBind bs' . CUpdS e x e') (pCmd env c)
 pCmd env (CUpdA e i e' c)       = do (bs,e) <- pExp env e
-                                     (bs',e') <- pExp env e'
-                                     liftM (cBind bs . cBind bs' . CUpdA e i e') (pCmd env c)
+                                     (bs',i) <- pExp env i
+                                     (bs'',e') <- pExp env e'
+                                     liftM (cBind bs . cBind bs' . cBind bs'' . CUpdA e i e') (pCmd env c)
 pCmd env (CSwitch e alts)
   | any litA alts               = do (bs,e) <- pExp env e
                                      alts <- mapM (pAlt env) alts

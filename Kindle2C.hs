@@ -170,7 +170,7 @@ k2cCmd (CRet e)                 = text "return" <+> k2cExp e <> text ";"
 k2cCmd (CRun e c)               = k2cExp e <> text ";" $$
                                   k2cCmd c
 k2cCmd (CBind False [(_,Val _ (ECall (Prim UpdateArray _) [e1,e2,e3,_]))] c)
-                                = k2cExp' (ECall (prim IndexArray) [e1,e2]) <+> text "=" <+> k2cExp e3 <> text ";" $$
+                                = k2cExp2 (ECall (prim IndexArray) [e1,e2]) <+> text "=" <+> k2cExp e3 <> text ";" $$
                                   k2cCmd c
 k2cCmd (CBind False bs c)       = vcat (map k2cBind bs) $$
                                   k2cCmd c
@@ -178,7 +178,7 @@ k2cCmd (CUpd x e c)             = k2cName x <+> text "=" <+> k2cExp e <> text ";
                                   k2cCmd c
 k2cCmd (CUpdS e x e' c)         = k2cExp (ESel e x) <+> text "=" <+> k2cExp e' <> text ";" $$
                                   k2cCmd c
-k2cCmd (CUpdA e i e' c)         = k2cExp e <> text "->elems" <> brackets (k2cExp i) <+> text "=" <+> k2cExp e' <> text ";" $$
+k2cCmd (CUpdA e i e' c)         = k2cExp (ECall (prim IndexArray) [e,i]) <+> text "=" <+> k2cExp e' <> text ";" $$
                                   k2cCmd c
 k2cCmd (CSwitch e alts)         = text "switch" <+> parens (k2cExp e) <+> text "{" $$
                                     nest 4 (vcat (map k2cAlt alts)) $$
@@ -209,33 +209,36 @@ k2cNestCmd c                    = text "{" <+> k2cCmd c $$
 
 
 k2cExp (ECall x [e1,e2])
-  | isInfix x                   = k2cExp' e1 <+> k2cName x <+> k2cExp' e2
-k2cExp (ECast t e)              = parens (k2cType t) <> k2cExp' e
-k2cExp e                        = k2cExp' e
+  | isInfix x                   = k2cExp e1 <+> k2cName x <+> k2cExp1 e2
+k2cExp e                        = k2cExp1 e
 
 
-k2cExp' (EVar x) | isCon x      = k2cTag x
+k2cExp1 (ECall x [e])
+  | isUnaryOp x                 = k2cName x <> k2cExp1 e
+k2cExp1 (ECast t e)             = parens (k2cType t) <> k2cExp1 e
+k2cExp1 e                       = k2cExp2 e
+
+
+k2cExp2 (EVar x) | isCon x      = k2cTag x
                  | otherwise    = k2cName x
-k2cExp' (ELit (LRat _ r))       = text (show (fromRational r :: Double))
-k2cExp' (ELit l)                = pr l
-k2cExp' (ESel e l)              = k2cExp' e <> text "->" <> k2cName l
-k2cExp' (EEnter (EVar x) f es)  = k2cExp' (ESel (EVar x) f) <> parens (commasep k2cExp (EVar x : es))
-k2cExp' (ECall (Prim IndexArray _) [e1,e2])
-                                = k2cExp' e1 <> text "->elems [" <+> k2cExp e2 <+> text "]"
-k2cExp' (ECall (Prim SizeArray _) [e])
-                                = k2cExp' e<> text "->size"
-k2cExp' e@(ECall x es)
+k2cExp2 (ELit (LRat _ r))       = text (show (fromRational r :: Double))
+k2cExp2 (ELit l)                = pr l
+k2cExp2 (ESel e l)              = k2cExp2 e <> text "->" <> k2cName l
+k2cExp2 (EEnter (EVar x) f es)  = k2cExp2 (ESel (EVar x) f) <> parens (commasep k2cExp (EVar x : es))
+k2cExp2 (ECall (Prim IndexArray _) [e1,e2])
+                                = k2cExp2 e1 <> text "->elems[" <> k2cExp e2 <> text "]"
+k2cExp2 (ECall (Prim SizeArray _) [e])
+                                = k2cExp2 e<> text "->size"
+k2cExp2 e@(ECall x es)
   | not (isInfix x)             = k2cName x <> parens (commasep k2cExp es)
-k2cExp' e                       = parens (k2cExp e)
+k2cExp2 EThis                   = internalError0 "k2cExp'"
+k2cExp2 e                       = parens (k2cExp e)
 
 
 k2cName (Prim p _)              = k2cPrim p
 k2cName n                       = prId3 n
 
 k2cTag n                        = char '_' <> prId3 n
-
-isInfix (Prim p _)              = p `elem` [MIN____KINDLE_INFIX .. MAX____KINDLE_INFIX]
-isInfix _                       = False
 
 
 k2cPrim IntPlus                 = text "+"

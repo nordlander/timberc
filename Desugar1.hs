@@ -268,7 +268,7 @@ ds1S env (s@(SRet _) : ss)       = errorTree "Return statement must be last in s
 ds1S env (SGen p e : ss)         = SGen (ds1 (patEnv env) p) (ds1 env e) : ds1S env ss
 ds1S env (SBind b : ss)          = SBind (ds1 env b) : ds1S env ss
 ds1S env (SAss p e : ss)         = dsAss p e : ds1S env ss
-  where dsAss (EAp (EAp (EVar (Name "!" _ _ _)) a) i) e
+  where dsAss (EAp (EAp (EVar (Prim IndexArray _)) a) i) e
                                  = dsAss a (EAp (EAp (EAp (EVar (prim UpdateArray)) a) i) e)
         dsAss p e                = SAss (ds1 env p) (ds1 env e)
         {-

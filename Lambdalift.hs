@@ -83,8 +83,7 @@ llCmd env (CRun e c)                    = liftM2 CRun (llExp env e) (llCmd env c
 llCmd env (CUpd x e c)                  = liftM2 (CUpd x) (llExp env e) (llCmd env c)
 llCmd env (CUpdS e x e' c)              = do e <- llExp env e
                                              liftM2 (CUpdS e x) (llExp env e') (llCmd env c)
-llCmd env (CUpdA e i e' c)              = do e <- llExp env e
-                                             liftM2 (CUpdA e i) (llExp env e') (llCmd env c)
+llCmd env (CUpdA e i e' c)              = liftM4 CUpdA (llExp env e) (llExp env i) (llExp env e') (llCmd env c)
 llCmd env (CSwitch e alts)              = liftM2 CSwitch (llExp env e) (mapM (llAlt env) alts)
 llCmd env (CSeq c c')                   = liftM2 CSeq (llCmd env c) (llCmd env c')
 llCmd env (CBreak)                      = return CBreak
