@@ -17,7 +17,7 @@ dfs g is                        = snd (dfs' ([],[]) is)
    where dfs' p []              = p
          dfs' p@(vs,ns) (x:xs)
            | x `elem` vs        = dfs' p xs
-           | otherwise          = dfs' (vs', (concat ns'++[x]):ns) xs
+           | otherwise          = dfs' (vs', (x:concat ns'):ns) xs
            where (vs',ns')      = dfs' (x:vs,[]) (nbors x)
          nbors i                = fromJust (lookup i g)
 
