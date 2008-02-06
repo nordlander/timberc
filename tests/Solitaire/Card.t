@@ -5,7 +5,7 @@ data Rank = Ace | King | Queen | Jack | Num Int
 data Suit = Spades | Hearts | Diamonds | Clubs
 
 implicit showRank :: Show Rank
-showRank = struct Show where
+showRank = struct
   show Ace     = "Ace"
   show King    = "King"
   show Queen   = "Queen"
@@ -13,7 +13,7 @@ showRank = struct Show where
   show (Num n) = "Num " ++ show n
 
 implicit showSuit :: Show Suit 
-showSuit = struct Show where
+showSuit = struct
   show Spades   = "Spades"
   show Hearts   = "Hearts"
   show Diamonds = "Diamonds"
@@ -31,7 +31,7 @@ struct Card where
   getPos :: Request Pos
 
 implicit showCard :: Show Card 
-showCard = struct Show where
+showCard = struct
   show c = show c.rank ++ " " ++ show c.suit
 
 card :: Rank -> Suit -> Pos -> Class Card

@@ -7,7 +7,7 @@ implicit struct Num a where
  fromInt :: Int -> a
 
 implicit numInt :: Num Int
-numInt = struct Num where 
+numInt = struct 
   (+) = primIntPlus
   (-) = primIntMinus
   (*) = primIntTimes
@@ -15,7 +15,7 @@ numInt = struct Num where
   fromInt n = n
 
 implicit numFloat :: Num Float 
-numFloat = struct Num where
+numFloat = struct
   (+) = primFloatPlus
   (-) = primFloatMinus
   (*) = primFloatTimes
@@ -29,17 +29,17 @@ implicit struct Eq a where
 
 
 implicit eqPID :: Eq PID
-eqPID = struct Eq where
+eqPID = struct
   (==) = primPidEQ
   (/=) = primPidNE
 
 implicit eqChar :: Eq Char
-eqChar = struct Eq where
+eqChar = struct
   a == b = ord a == ord b
   a /= b = ord a /= ord b
 
 implicit eqList :: Eq [a] \\ Eq a
-eqList = struct Eq where
+eqList = struct
     [] == []              = True
     a : as == b : bs  = a == b && as == bs
     _ == _               = False
@@ -49,7 +49,7 @@ implicit struct Ord a < Eq a where
   (<),(<=),(>),(>=) :: a -> a -> Bool
 
 implicit ordInt :: Ord Int
-ordInt = struct Ord where
+ordInt = struct
   (==) = primIntEQ
   (/=) = primIntNE
   (<)  = primIntLT
@@ -58,7 +58,7 @@ ordInt = struct Ord where
   (>=) = primIntGE
 
 implicit ordFloat :: Ord Float
-ordFloat = struct Ord where
+ordFloat = struct
   (==) = primFloatEQ
   (/=) = primFloatNE
   (<)  = primFloatLT
@@ -67,7 +67,7 @@ ordFloat = struct Ord where
   (>=) = primFloatGE
 
 implicit ordTime :: Ord Time
-ordTime = struct Ord where
+ordTime = struct
   (==) = primTimeEQ
   (/=) = primTimeNE
   (<)  = primTimeLT
@@ -79,7 +79,7 @@ implicit struct Show a where
   show :: a -> String
 
 implicit showInt :: Show Int
-showInt = struct Show where
+showInt = struct
   show 0            = "0"
   show n
     |n < 0          = '-' : show (negate n)
@@ -90,7 +90,7 @@ showInt = struct Show where
            | otherwise = dig (n `mod` 10) : digs (n `div` 10)
  
 implicit showFloat :: Show Float
-showFloat = struct Show where
+showFloat = struct
    show x 
     | x < 0                  = '-' : show (0.0-x)
     | x > 0.1 && x < 1000000 = let is = show (floor x)
@@ -101,25 +101,25 @@ showFloat = struct Show where
     | otherwise               = "Show Float is incomplete"
 
 implicit showBool :: Show Bool
-showBool = struct Show where
+showBool = struct
   show False = "False"
   show True  = "True"
 
 implicit showChar :: Show Char
-showChar = struct Show where
+showChar = struct
   show c = [c]
 
 implicit showMaybe :: Show (Maybe a) \\ Show a
-showMaybe = struct Show where
+showMaybe = struct
   show Nothing      = "Nothing"
   show (Just x)     = "Just (" ++ show x ++ ")"
 
 implicit showString :: Show String
-showString = struct Show where
+showString = struct
   show s = '"' : s ++ "\""
 
 implicit showList :: Show [a] \\ Show a
-showList = struct Show where
+showList = struct
   show [] = "[]"
   show (x : xs) = '[' : show x ++ concat (map (\x -> ',' : show x) xs) ++ "]"
 
@@ -130,7 +130,7 @@ implicit struct Enum a where
 --  enumFromThenTo :: a -> a -> a -> [a]
 
 implicit enumInt :: Enum Int
-enumInt =struct Enum where
+enumInt =struct
   fromEnum n = n
   toEnum n = n
   enumFromTo = fromToInt
@@ -146,7 +146,7 @@ enumInt =struct Enum where
 -}
 
 implicit enumChar :: Enum Char
-enumChar = struct Enum where
+enumChar = struct
    fromEnum = primCharToInt
    toEnum = primIntToChar
    enumFromTo a b = map primIntToChar (enumFromTo (primCharToInt a) (primCharToInt b))

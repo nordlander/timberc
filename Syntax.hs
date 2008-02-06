@@ -18,6 +18,7 @@ data Decl   = DKSig   Name Kind
             | DInst   Type [Bind]        --          -"-
             | DPSig   Name Type 
             | DDefault [Default]  
+            | DImplicit [Name]
             | DBind   Bind
             deriving  (Eq,Show)
 
@@ -32,6 +33,7 @@ data Bind   = BSig    [Name] Type
             deriving  (Eq,Show)
 
 data Default = Default Bool Inst Inst
+             | Derive Type
              deriving (Eq, Show)
 
 data Inst    = Inst (Maybe Name) Type
@@ -71,7 +73,7 @@ data Exp    = EVar    Name
             | ESig    Exp Type
             | ERec    (Maybe (Name,Bool)) [Field]
             -- pattern syntax ends here
-            | EBStruct Name [Name] [Bind]  -- struct value in bindlist syntax
+            | EBStruct (Maybe Name) [Name] [Bind]  -- struct value in bindlist syntax
             | ELam    [Pat] Exp
             | ELet    [Bind] Exp
             | ECase   Exp [Alt Exp]
@@ -375,6 +377,7 @@ instance Pr Decl where
     pr (DInst t bs)             = text "instance" <+> pr t <+> text "=" $$ nest 4 (vpr bs)
     pr (DPSig v t)              = text "instance" <+> prId v <+> text "::" <+> pr t
     pr (DDefault ts)            = text "default" <+> hpr ',' ts
+    pr (DImplicit ns)           = text "implicit" <+> hpr ',' ns 
     pr (DBind b)                = pr b
 
 prPreds []                      = empty
@@ -387,6 +390,7 @@ prSigs ss                       = nest 4 (vpr ss)
 
 instance Pr Default where
   pr (Default _ a b)            = pr a <+> text "<" <+> pr b
+  pr (Derive t)                 = pr t
 
 instance Pr Inst where
   pr (Inst (Just v) t)          = prId v <+> text "::" <+> pr t
@@ -513,7 +517,7 @@ instance Pr Exp where
     prn 13 (ELit l)             = pr l
     prn 13 (ERec Nothing fs)    = text "{" <+> hpr ',' fs <+> text "}"
     prn 13 (ERec (Just(c,b)) fs)= prId c <+> text "{" <+> hpr ',' fs <+> (if b then empty else text "..") <+> text "}"
-    prn 13 (EBStruct c _ bs)    = text "struct" <+> prId c <+> text "where" $$ nest 4 (vpr bs)
+    prn 13 (EBStruct _ _ bs)    = text "struct" $$ nest 4 (vpr bs)
     prn 13 (ENeg e)             = text "-" <+> prn 0 e
     prn 13 (ESig e qt)          = parens (pr e <+> text "::" <+> pr qt)
     prn 13 (ETup es)            = parens (hpr ',' es)
@@ -742,6 +746,7 @@ instance Binary Decl where
   put (DInst a b) = putWord8 4 >> put a >> put b
   put (DPSig a b) = putWord8 5 >> put a >> put b
   put (DDefault a) = putWord8 6 >> put a
+  put (DImplicit a) = putWord8 7 >> put a
   put (DBind a) = putWord8 7 >> put a
   get = do
     tag_ <- getWord8
@@ -753,12 +758,19 @@ instance Binary Decl where
       4 -> get >>= \a -> get >>= \b -> return (DInst a b)
       5 -> get >>= \a -> get >>= \b -> return (DPSig a b)
       6 -> get >>= \a -> return (DDefault a)
-      7 -> get >>= \a -> return (DBind a)
+      7 -> get >>= \a -> return (DImplicit a)
+      8 -> get >>= \a -> return (DBind a)
       _ -> fail "no parse"
 
 instance Binary Default where
-  put (Default a b c) = put a >> put b >> put c
-  get = get >>= \a -> get >>= \b -> get >>= \c -> return (Default a b c)
+  put (Default a b c) = putWord8 0 >> put a >> put b >> put c
+  put (Derive a) = putWord8 1 >> put a
+ 
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+       0 -> get >>= \a -> get >>= \b -> get >>= \c -> return (Default a b c)
+       1 -> get >>= \a -> return (Derive a)
 
 instance Binary Inst where
   put (Inst a b) = put a >> put b

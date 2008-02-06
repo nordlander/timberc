@@ -12,7 +12,7 @@ one row, indicating number of bulls and cows. Command line argument acts as seed
 data Colour = Red | Blue | Green | Yellow | Black | White
 
 implicit eqColour :: Eq Colour
-eqColour = struct Eq where
+eqColour = struct
   Red    == Red    = True
   Blue   == Blue   = True
   Green  == Green  = True
@@ -24,7 +24,7 @@ eqColour = struct Eq where
   x /= y = not (x==y)
 
 implicit showColour :: Show Colour 
-showColour = struct Show where
+showColour = struct
   show Red    = "Red"
   show Blue   = "Blue"
   show Green  = "Green"
@@ -39,7 +39,7 @@ struct Answer where
   near  :: Int
 
 implicit eqAnswer :: Eq Answer 
-eqAnswer = struct Eq where
+eqAnswer = struct
   a1 == a2 = a1.exact == a2.exact && a1.near == a2.near
 
   a1 /= a2 = not (a1 == a2)

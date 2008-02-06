@@ -22,7 +22,7 @@ desugar1 e0 (Module c is ds ps)  = do let (env,expInfo) = mkEnv c (ds ++ ps) e0
     - Checks validity of return statement
     - Replaces prefix expression statement with dummy generator statement
     - Replaces if/case statements with corresponding expressions forms
-     - Checks the restricted command syntax of template bodies
+    - Checks the restricted command syntax of template bodies
     - Unfolds use of type synonyms
 -}
 
@@ -211,7 +211,9 @@ instance Desugar1 Exp where
             mkLocal s
               | fromMod s == modName env = mName Nothing s
               | otherwise          = s
-    ds1 env (EBStruct c _ bs)      = EBStruct c (map (mName Nothing) (selsFromType env c)) (ds1 env bs)
+    ds1 env (EBStruct _ _ bs)      = EBStruct (Just c) labs (ds1 env bs)
+      where labs                   = selsFromType env c
+            c                      = typeFromSels env (sort (ren env (bvars bs)))
     ds1 env (ELet bs e)            = ELet (ds1 env bs) (ds1 env e)
     ds1 env (EAp e1 e2)            = EAp (ds1 env e1) (ds1 env e2)
     ds1 env (ETup es)              = ETup (ds1 env es)

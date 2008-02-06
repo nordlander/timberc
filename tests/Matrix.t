@@ -2,9 +2,9 @@ module Matrix where
 
 struct Matrix a where
   setElem :: Int -> Int -> a -> Action
---  getElem :: Int -> Int -> Request a
---  setRow  :: Int -> Array a -> Action
---  getRow  :: Int -> Request (Array a)
+  getElem :: Int -> Int -> Request a
+  setRow  :: Int -> Array a -> Action
+  getRow  :: Int -> Request (Array a)
 
 
 a = uniarray 10 (uniarray 10 0)
@@ -17,7 +17,7 @@ c = a!5
 
 
 -- x!2 = 3    Illegal; captured in Rename
-{-
+
 m a = class
 
        x := a 
@@ -35,7 +35,7 @@ m a = class
          result x!k 
 
        result Matrix {..}
--}
+
 
 
 

@@ -142,6 +142,7 @@ topdecl :: { Decl }
         | 'struct' conid tyvars optsups optsigs         { DRec False $2 (reverse $3) $4 $5 }
         | 'implicit' 'struct' conid tyvars optsups optsigs { DRec True $3 (reverse $4) $5 $6 }
         | 'implicit' varid '::' type                    { DPSig $2 $4 }  
+        | 'implicit' ids                                { DImplicit $2 }
         | 'default' defs                                { DDefault (reverse $2) }
         | vars '::' type		                { DBind (BSig (reverse $1) $3) }
         | lhs rhs 					{ DBind (BEqn $1 $2) }
@@ -159,6 +160,12 @@ optsubs :: { [Type] }
 tyvars  :: { [Name] }
         : tyvars varid				{ $2 : $1 }
         | {- empty -}				{ [] }
+
+
+
+ids     :: { [Name] }
+        : ids ',' id                            { $3 : $1 }
+        | id                                    { [$1] }
 
 -- Default declarations ---------------------------------------------------
 
@@ -308,7 +315,7 @@ kind1	:: { Kind }
 exp     :: { Exp }
         : exp0a '::' btype                      { ESig $1 $3 }
         | exp0                                  { $1}
-        | 'struct' conid 'where' bindlist       { EBStruct $2 [] $4 }
+        | 'struct' bindlist                     { EBStruct Nothing [] $2 }
 
 exp0    :: { Exp }
         : exp0a                                 { $1 }
@@ -562,6 +569,10 @@ conop   :: { Name }
 op      :: { Name }
         : varop                                 { $1 }
         | conop                                 { $1 }
+
+id      :: { Name }
+        : varid                                 { $1 }
+        | conid                                 { $1 }
 
 op0     :: { Name }
         : VARSYM0                               {% do l <- getSrcLoc; return (name l $1) }

@@ -72,7 +72,7 @@ extRenE env vs
 
 
 setRenS env vs
-  | not (null shadowed)            = errorIds"Illegal shadowing of state reference" shadowed
+  | not (null shadowed)            = errorIds "Illegal shadowing of state reference" shadowed
   | otherwise                      = do rS' <- renaming (noDups "Duplicate state variables" (legalBind vs))
                                         return (env { rS = rS', void = vs })
   where shadowed                   = intersect vs (self env)
@@ -316,8 +316,10 @@ instance Rename Exp where
     where st                       = assignedVars ss
   rename env (EAfter e1 e2)        = liftM2 EAfter (rename env e1) (rename env e2)
   rename env (EBefore e1 e2)       = liftM2 EBefore (rename env e1) (rename env e2)
-  rename env (EBStruct c ls bs)    = do env' <- extRenE env ls
-                                        r <- rename env' (ERec (Just (c,True)) (map (\s -> Field s (EVar s)) ls))
+  rename env e@(EBStruct (Just c) ls bs)
+                                   = do let ls' = map (mName Nothing) ls
+                                        env' <- extRenE env ls' 
+                                        r <- rename env' (ERec (Just (c,True)) (map (\(s,s') -> Field s (EVar s')) (ls `zip` ls')))
                                         bs' <- mapM (renSBind env' env) bs
                                         return (ELet bs' r)
 
