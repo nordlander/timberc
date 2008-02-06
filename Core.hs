@@ -404,7 +404,7 @@ instance Subst Binds Name Type where
 instance Subst Exp Name Type where
     subst [] e                  = e
     subst s (ESel e l)          = ESel (subst s e) l
-    subst s (ELam te e)         = ELam (subst s te) (subst s e)
+    subst  s (ELam te e)         = ELam (subst s te) (subst s e)
     subst s (EAp e es)          = EAp (subst s e) (subst s es)
     subst s (ELet bs e)         = ELet (subst s bs) (subst s e)
     subst s (ECase e alts)      = ECase (subst s e) (subst s alts)
@@ -686,6 +686,8 @@ instance Pr (Name, Scheme) where
 instance Pr (Name, Exp) where
     pr (v, e)                   = prId v <+> text "=" <+> pr e
 
+instance Pr [(Name, Scheme)] where
+    pr ss                       = vpr ss
         
 -- Sub/supertypes -----------------------------------------------------------
 

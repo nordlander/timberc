@@ -74,7 +74,7 @@ kiDefault env (t,i1,i2)                  = do i1' <- kiInst env i1
                                               return (t,i1',i2')
 
 kiInst env (v,t)                         = do cs <- kiScheme env t
-                                              s <- kindUnify cs `handle` posError "Kind" t
+                                              s <- kindUnify cs `handle` \m -> errorTree m t
                                               return (v,subst s t)
 
 -- Handle type declarations ----------------------------------------------------
@@ -86,7 +86,7 @@ kiDeclsList env (ds:dss)                = do ds1 <- kiDecls env ds
 
 
 kiDecls env t@(Types ke ds)             = do css <- mapM (kiDecl (addKEnv0 ke env)) ds
-                                             s <- kindUnify (concat css) `handle` posError "Kind" t
+                                             s <- kindUnify (concat css) `handle` \m -> errorTree m t
                                              return (Types (subst s ke) (subst s ds))
 
 
@@ -123,7 +123,7 @@ kiScheme env (Scheme t ps ke)           = do cs <- kiRho env' t
 
 
 kiTEnv env te                           = do css <- mapM (kiScheme env . snd) te
-                                             s <- kindUnify (concat css) `handle` posError "Kind" te
+                                             s <- kindUnify (concat css) `handle` \m -> errorTree m te
                                              return (subst s te)
 
 kiMaybeScheme env Nothing               = return []
@@ -185,7 +185,7 @@ kiCmd env (CAss x e c)                  = do e <- kiExp env e
                                              c <- kiCmd env c
                                              return (CAss x e c)
 kiCmd env (CGen x t e c)                = do cs <- kiType env t
-                                             s <- kindUnify cs `handle` posError "Kind" t
+                                             s <- kindUnify cs `handle` \m -> errorTree m t
                                              e <- kiExp env e
                                              c <- kiCmd env c
                                              return (CGen x (subst s t) e c)
