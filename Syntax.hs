@@ -32,11 +32,8 @@ data Bind   = BSig    [Name] Type
             | BEqn    Lhs (Rhs Exp)
             deriving  (Eq,Show)
 
-data Default = Default Bool Inst Inst
-             | Derive Type
-             deriving (Eq, Show)
-
-data Inst    = Inst (Maybe Name) Type
+data Default = Default Bool Name Name  -- First arg is True if declaration is in public part
+             | Derive Name Type
              deriving (Eq, Show)
 
 type Eqn    = (Lhs, Rhs Exp)
@@ -390,11 +387,7 @@ prSigs ss                       = nest 4 (vpr ss)
 
 instance Pr Default where
   pr (Default _ a b)            = pr a <+> text "<" <+> pr b
-  pr (Derive t)                 = pr t
-
-instance Pr Inst where
-  pr (Inst (Just v) t)          = prId v <+> text "::" <+> pr t
-  pr (Inst Nothing t)           = pr t
+  pr (Derive v t)               = pr v <+> text "::" <+> pr t
 
 -- Sub/supertypes -----------------------------------------------------------
 
@@ -764,17 +757,13 @@ instance Binary Decl where
 
 instance Binary Default where
   put (Default a b c) = putWord8 0 >> put a >> put b >> put c
-  put (Derive a) = putWord8 1 >> put a
+  put (Derive a b) = putWord8 1 >> put a >> put b
  
   get = do
     tag_ <- getWord8
     case tag_ of
        0 -> get >>= \a -> get >>= \b -> get >>= \c -> return (Default a b c)
-       1 -> get >>= \a -> return (Derive a)
-
-instance Binary Inst where
-  put (Inst a b) = put a >> put b
-  get = get >>= \a -> get >>= \b -> return (Inst a b)
+       1 -> get >>= \a ->  get >>= \b -> return (Derive a b)
 
 instance Binary Constr where
   put (Constr a b c) = put a >> put b >> put c

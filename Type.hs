@@ -60,7 +60,7 @@ let f = \w0 v x -> e w0 (f w0 v 7)                                            ::
 tiModule (xs',ds',bs',is') (Module v ns xs ds is bs) = 
                                   do (env1,ds1,bs1) <- typeDecls env0 ds
                                      (env2,bs2) <- instancePreds env1 ieTot
-                                     let env3 = insertDefaults env2 (xs' ++ xs)
+                                     let env3 = insertDefaults env2 ieTot (xs' ++ xs)
                                      (ss0,pe0,subInsts) <- tiBinds env3 subInsts
                                      -- Here it should be checked that the equations in subInsts follow the
                                      -- restricted rules for coercions, and that the equalities collected 

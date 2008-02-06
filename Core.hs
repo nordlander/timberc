@@ -15,9 +15,7 @@ data Types      = Types   KEnv Decls
 data Binds      = Binds   Bool TEnv Eqns
                 deriving  (Eq,Show)
 
-type Default    = (Bool,Inst,Inst)
-
-type Inst       = (Maybe Name,Scheme)
+type Default    = (Bool,Name,Name)
 
 type PEnv       = TEnv
 
@@ -636,10 +634,7 @@ instance Pr Module where
                                   $$ prImports ns $$ prDefault xs $$ pr ds $$ prInsts is $$ pr bs
 
 prDefault []                     = empty
-prDefault ((_,i1,i2) : is)       = text "default" <+> prNode i1 <+> text "<" <+> prNode i2 $$ prDefault is
-
-prNode (Nothing,t)               = pr t
-prNode (Just v,t)                = prId v <+> text "::" <+> pr t
+prDefault (i : is)               = pr i $$ prDefault is
 
 prImports []                     = empty
 prImports ns                     = text "import" <+> hpr ',' ns
@@ -647,8 +642,8 @@ prImports ns                     = text "import" <+> hpr ',' ns
 instance Pr (Module,a) where
   pr (m,_)                       = pr m
 
-instance Pr (a,Inst,Inst) where
-  pr (_,i1,i2)                   = text "default" <+> prNode i1 <+> text "<" <+> prNode i2
+instance Pr (a,Name,Name) where
+  pr (_,i1,i2)                   = text "default" <+> pr i1 <+> text "<" <+> pr i2
 
 -- Type declarations ---------------------------------------------------------
 

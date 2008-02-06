@@ -149,17 +149,17 @@ instance Rename Module where
                                         assert (null eDups) "Duplicate top-level variable" eDups
                                         assert (null dks)   "Dangling kind signatures" dks
                                         env1 <- extRenTMod True  c env  (ts1 ++ ks1')
-                                        env2 <- extRenEMod True  c env1 (cs1 ++ vs1 ++ vs1' ++ vss)
+                                        env2 <- extRenEMod True  c env1 (cs1 ++ vs1 ++ vs1' ++ vss++is1)
                                         let env2' = env2 {rE = map (addTag cs11) (rE env2)}
                                         env3 <- extRenLMod True  c env2' ss1
                                         env4 <- extRenTMod False c env3 ((ts2 \\ ks1') ++ ks2)
-                                        env5 <- extRenEMod False c env4 (cs2 ++ (vs2 \\ vss) ++ vs2')
+                                        env5 <- extRenEMod False c env4 (cs2 ++ (vs2 \\ vss) ++ vs2'++is2)
                                         env6 <- extRenLMod False c env5 ss2
                                         let bs = shuffleD ws (bs1 ++ bs2)
                                         ds' <- rename env6 (filter (not . isDBind) (ds ++ ps) ++ map DBind (bs1' ++ bs2' ++ bs))
                                         return (Module c is ds' [])
-   where (ks1,ts1,ss1,cs1,cs11,ws1,bs1) = renameD [] [] [] [] [] [] [] ds
-         (ks2,ts2,ss2,cs2,_,ws2,bs2)    = renameD [] [] [] [] [] [] [] ps
+   where (ks1,ts1,ss1,cs1,cs11,ws1,is1,bs1) = renameD [] [] [] [] [] [] [] [] ds
+         (ks2,ts2,ss2,cs2,_,ws2,is2,bs2)    = renameD [] [] [] [] [] [] [] [] ps
          vs1                       = bvars bs1
          vs2                       = bvars bs2
          vss                       = concat [ ss | BSig ss _ <- bs1 ] \\ vs1 ++ ws1
@@ -183,25 +183,27 @@ instance Rename Module where
            |v `elem` cs            = (v,v' {annot = (annot v') {forceTag = True}})
            |otherwise              = p 
 
-renameD ks ts ss cs cs1 ws bs (DKSig c k : ds)
-                                   = renameD (c:ks) ts ss cs cs1 ws bs ds
-renameD ks ts ss cs cs1 ws bs (DRec _ c _ _ sigs : ds)
-                                   = renameD ks (c:ts) (sels++ss) cs cs1 ws bs ds
+renameD ks ts ss cs cs1 ws is bs (DKSig c k : ds)
+                                   = renameD (c:ks) ts ss cs cs1 ws is bs ds
+renameD ks ts ss cs cs1 ws is bs (DRec _ c _ _ sigs : ds)
+                                   = renameD ks (c:ts) (sels++ss) cs cs1 ws is bs ds
   where sels                       = concat [ vs | Sig vs t <- sigs ]
-renameD ks ts ss cs cs1 ws bs (DData c _ _ cdefs : ds)
-                                   = renameD ks (c:ts) ss (cons++cs) (if c `elem` cons then c:cs1 else cs1) ws bs ds
+renameD ks ts ss cs cs1 ws is bs (DData c _ _ cdefs : ds)
+                                   = renameD ks (c:ts) ss (cons++cs) (if c `elem` cons then c:cs1 else cs1) ws is bs ds
   where cons                       = [ c | Constr c _ _ <- cdefs ]
-renameD ks ts ss cs cs1 ws bs (DInst n _ : ds)
+renameD ks ts ss cs cs1 ws is bs (DInst n _ : ds)
                                    = internalError "DInst remaining in renameD" n
-renameD ks ts ss cs cs1 ws bs (DType c _ _ : ds)
-                                   = renameD ks (c:ts) ss cs cs1 ws bs ds
-renameD ks ts ss cs cs1 ws bs (DPSig v t : ds)
-                                   = renameD ks ts ss cs cs1 (v:ws) bs ds
-renameD ks ts ss cs cs1 ws bs (DDefault _ : ds)
-                                   = renameD ks ts ss cs cs1 ws bs ds
-renameD ks ts ss cs cs1 ws bs (DBind b : ds)
-                                   = renameD ks ts ss cs cs1 ws (b:bs) ds
-renameD ks ts ss cs cs1 ws bs []       = (ks, ts, ss, cs, cs1, ws, reverse bs)
+renameD ks ts ss cs cs1 ws is bs (DType c _ _ : ds)
+                                   = renameD ks (c:ts) ss cs cs1 ws is bs ds
+renameD ks ts ss cs cs1 ws is bs (DPSig v t : ds)
+                                   = renameD ks ts ss cs cs1 (v:ws) is bs ds
+renameD ks ts ss cs cs1 ws is bs (DDefault (Derive i _ : _) : ds)
+                                   = renameD ks ts ss cs cs1 ws (i:is) bs ds
+renameD ks ts ss cs cs1 ws is bs (DDefault _ : ds)
+                                   = renameD ks ts ss cs cs1 ws is bs ds
+renameD ks ts ss cs cs1 ws is bs (DBind b : ds)
+                                   = renameD ks ts ss cs cs1 ws is (b:bs) ds
+renameD ks ts ss cs cs1 ws is bs []       = (ks, ts, ss, cs, cs1, ws, is, reverse bs)
 
 
 instance Rename Decl where
@@ -218,11 +220,8 @@ instance Rename Decl where
   rename env (DBind b)             = liftM DBind (rename env b)
 
 instance Rename Default where
-  rename env (Default t a b)         = liftM2 (Default t) (rename env a) (rename env b)
-
-instance Rename Inst where
-  rename env (Inst Nothing t)      = liftM (Inst Nothing) (renameQT env t)
-  rename env (Inst (Just v) t)     = liftM (Inst (Just (renE env v))) (renameQT env t)
+  rename env (Default pub a b)     = return (Default pub (renE env a) (renE env b))
+  rename env (Derive v t)          = liftM (Derive (renE env v)) (rename env t)
 
 instance Rename Constr where
   rename env (Constr c ts ps)      = do env' <- extRenT env (bvars ps')

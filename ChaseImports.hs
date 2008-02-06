@@ -45,7 +45,7 @@ ifaceMod (rs,ss) (Module _ ns xs ds is bs) kds
         Binds r1 ts1 es1             = is
         Binds r2 ts2 es2             = bs
         xs'                          = [d | d@(True,i1,i2) <- xs]
-        ys                           = [d | d <- xs', localInst [(b,a) | (a,b) <- ts1] d]
+        ys                           = [d | d@(_,i1,i2) <- xs', isPrivate i1 || isPrivate i2 ]
         ds1                          = Types (filter exported ke) (filter exported' te)
         is'                          = Binds r1  (ws1 ++ is1) (filter exported es1)
         bs'                          = Binds r2 (filter exported ts2) (filter (\ eqn -> fin eqn &&  exported eqn) es2)
@@ -54,10 +54,6 @@ ifaceMod (rs,ss) (Module _ ns xs ds is bs) kds
         exported (n,_)               = isQualified n
         exported' p@(n,_)            = isQualified n && (not(isAbstract p)) --Constructors/selectors are exported
         fin (_,e)                    = isFinite e && null(filter isPrivate (constrs e))
-
-localInst ts (_,i1,i2)               = isPrivate (instName i1) || isPrivate(instName i2)
-  where instName (Just n,_)          = n
-        instName (Nothing,t)         = fromJust (lookup t ts)
 
 isPrivate nm@(Name _ _ _ _)          = not(isQualified nm)
 isPrivate _                          = False

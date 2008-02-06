@@ -143,10 +143,8 @@ instance Desugar1 a => Desugar1 (Maybe a) where
     ds1 env (Just a)            = Just (ds1 env a)
 
 instance Desugar1 Default where
-   ds1 env (Default _ a b)      = Default (isPublic env) (ds1 env a) (ds1 env b)
-
-instance Desugar1 Inst where
-   ds1 env (Inst v t)           = Inst v (ds1 env t)
+   ds1 env (Default _ a b)      = Default (isPublic env) a b
+   ds1 env (Derive v t)         = Derive v (ds1 env t)
 
 instance Desugar1 Constr where
     ds1 env (Constr c ts ps)    = Constr c (ds1 env ts) (ds1 env ps)

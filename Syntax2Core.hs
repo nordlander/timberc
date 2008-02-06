@@ -8,7 +8,6 @@ import Depend
 import qualified Core
 import PP
 
-
 syntax2core m = s2c m
 
 
@@ -35,8 +34,8 @@ addSigs te env                  = env { sigs = te ++ sigs env }
 s2cDecls env [] ke ts pe bs xs  = do (te,bs2) <- s2cBinds (addSigs pe env) te es2
                                      (_ ,bs1) <- s2cBinds (addSigs te env) pe es1
                                      ke' <- mapM s2cKSig (impl_ke `zip` repeat KWild)
-                                     xs' <- mapM s2cDefault xs
-                                     let ds = Core.Types (reverse ke ++ ke') (reverse ts)
+                                     let xs' = map s2cDefault xs
+                                         ds = Core.Types (reverse ke ++ ke') (reverse ts)
                                      return (xs', ds, bs1, bs2)
   where (te,es)                 = splitBinds (reverse bs)
         (es1,es2)               = partition ((`elem` ws) . fst) es
@@ -67,10 +66,8 @@ s2cDecls env (DBind b : ds) ke ts pe bs xs
                                 = s2cDecls env ds ke ts pe (b:bs) xs
 
 
-s2cDefault (Default t a b)        = liftM2 (\a b -> (t,a,b)) (s2cInst a) (s2cInst b)
+s2cDefault (Default t a b)        = (t,a,b)
 
-s2cInst (Inst v t)              = do t' <- s2cQualType t
-                                     return (v,t')
 --translate a constructor declaration
 s2cConstr (Constr c ts ps)      = do ts <- mapM s2cQualType ts
                                      (qs,ke) <- s2cQuals ps

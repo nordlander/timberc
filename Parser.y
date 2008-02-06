@@ -143,7 +143,7 @@ topdecl :: { Decl }
         | 'implicit' 'struct' conid tyvars optsups optsigs { DRec True $3 (reverse $4) $5 $6 }
         | 'implicit' varid '::' type                    { DPSig $2 $4 }  
         | 'implicit' ids                                { DImplicit $2 }
-        | 'default' defs                                { DDefault (reverse $2) }
+        | 'default' def                                 { DDefault (reverse $2) }
         | vars '::' type		                { DBind (BSig (reverse $1) $3) }
         | lhs rhs 					{ DBind (BEqn $1 $2) }
 
@@ -168,17 +168,17 @@ ids     :: { [Name] }
         | id                                    { [$1] }
 
 -- Default declarations ---------------------------------------------------
+def     :: { [Default] }
+def     : prefs                                 { $1 }
+        | var '::' type                         { [Derive $1 $3] }  
+      
+prefs   ::  { [Default] }
+        : prefs ',' pref                        { $3 : $1 }
+        | pref                                  { [$1] }
+ 
 
-defs    :: { [Default] }
-        : defs ',' def                          { $3 : $1 }
-        | def                                   { [$1] }
-
-def     :: { Default }
-        : inst '<' inst                         { Default True $1 $3 }
-
-inst     :: { Inst }
-        : var '::' btype                        { Inst (Just $1) $3 }
-        | btype                                 { Inst Nothing $1 }
+pref     :: { Default }
+        : var '<' var                           { Default True $1 $3 }
 
 
 -- Datatype declarations ---------------------------------------------------

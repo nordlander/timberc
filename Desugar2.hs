@@ -39,9 +39,8 @@ dsConstr (Constr c ts ps)       = Constr c (map dsQualType ts) (map dsQual ps)
 
 dsSig (Sig vs t)                = Sig vs (dsQualType t)
 
-dsDefault (Default t a b)         = Default t (dsInst a) (dsInst b)
-
-dsInst (Inst v t)               = Inst v (dsQualType t)
+dsDefault (Default t a b)         = Default t a b
+dsDefault (Derive v t)            = Derive v (dsQualType t)
 
 -- Types ----------------------------------------------------------------------
 

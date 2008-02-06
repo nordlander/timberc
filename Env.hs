@@ -131,23 +131,25 @@ insertClassPred pre n@(w,p) post env    = env { classEnv = insert c wg' (classEn
         wg'                             = WG { nodes = insertBefore n post (nodes wg),
                                                arcs  = pre `zip` ws ++ ws `zip` post ++ arcs wg }
 
-insertDefault d@(_,i1,i2) env                 
+insertDefault sigs d@(_,i1,i2) env                 
   |c1 /= c2                             = errorTree ("Illegal defaulting; instances of different classes") d
   |otherwise                            = env { classEnv = insert c1 wg' (classEnv env) }
-  where c1                              = headsym (snd i1)
-        c2                              = headsym (snd i2)
+  where c1                              = headsym (lookup' sigs i1)
+        c2                              = headsym (lookup' sigs i2)
         wg                              = findClass env c1
-        n1                              = findInst wg i1
-        n2                              = findInst wg i2
-        wg'                             = wg { arcs = (n1,n2) : arcs wg }
+--        n1                              = findInst wg i1
+--        n2                              = findInst wg i2
+        wg'                             = wg { arcs = (i1,i2) : arcs wg }
+{-
         findInst wg (i,p)               = case lookup p [(p,n) | (n,p) <- nodes wg] of
                                             Nothing -> errorTree "Cannot find instance of" p
                                             Just n ->  case i of
                                                          Just n'
                                                           |n /= n' -> errorIds "Wrong instance name" [n']
                                                          _         -> n
-insertDefaults env ds                   = env2
-  where env1                            = foldr insertDefault env ds
+-}
+insertDefaults env sigs ds                   = env2
+  where env1                            = foldr (insertDefault sigs) env ds
         env2                            = env1 {classEnv = reorderWG (classEnv env1)}
         reorderWG []                    = []
         reorderWG ((n,wg) : ps)         = (n,tsort wg) : reorderWG ps

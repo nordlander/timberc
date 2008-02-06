@@ -22,7 +22,7 @@ numFloat = struct
   negate = primFloatNeg
   fromInt = primIntToFloat
 
-default Num Int < Num Float
+default numInt < numFloat
 
 implicit struct Eq a where
   (==),(/=) :: a -> a -> Bool
