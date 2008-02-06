@@ -9,17 +9,19 @@ import Char
 
 termred (_,ds',bs',is') m       = redModule (consOf ds') (eqnsOf is' ++ eqnsOf bs') m
 
-redTerm coercions e             = redExp (Env {eqns = coercions, args = [], cons = cons0}) e
+redTerm coercions e             = redExp (Env {eqns = coercions, args = [], cons = cons0, isLoc = False, locs = [] }) e
 
 isFinite e                      = finite initEnv e
 
 
 data Env                        = Env { eqns :: Map Name Exp,
                                         args :: [Name],
-                                        cons :: [[Name]]
+                                        cons :: [[Name]],
+                                        isLoc :: Bool,
+                                        locs :: [Name]
                                       }
 
-initEnv                         = Env { eqns = [], args = [], cons = cons0 }
+initEnv                         = Env { eqns = [], args = [], cons = cons0, isLoc = False, locs = [] }
 
 cons0                           = [ [prim TRUE,prim FALSE] , [prim NIL,prim CONS] ]
 
@@ -32,10 +34,13 @@ complete (cs:css) cs0           = all (`elem`cs0) cs  ||  complete css cs0
 
 addArgs env vs                  = env { args = vs ++ args env }
 
-addEqns env eqs                 = env { eqns = eqs ++ eqns env }
+addEqns env eqs 
+   | isLoc env                  = env { eqns = eqs ++ eqns env, locs = dom eqs ++ locs env }
+   | otherwise                  = env { eqns = eqs ++ eqns env }
 
 addCons env css                 = env { cons = css ++ cons env }
 
+setLoc env                      = env { isLoc = True }
 
 redModule impCons impEqs (Module m ns xs ds ie bs)
                                 = do es1' <- redEqns env0 es1
@@ -127,15 +132,16 @@ redExp env (ESel e s)           = do e <- redExp env e
                                      redSel env e s
 redExp env (ECase e alts)       = do e <- redExp env e
                                      redCase env e alts
-redExp env (ELet bs e)          = do bs'@(Binds rec te eqs) <- redBinds env bs
+redExp env (ELet bs e)          = do bs'@(Binds rec te eqs) <- redBinds (setLoc env) bs
                                      if rec then
                                         liftM (ELet bs') (redExp env e)
                                       else
-                                        redBeta env te e (map (lookup' eqs) (dom te))
+                                        redBeta (setLoc env) te e (map (lookup' eqs) (dom te))
 redExp env e@(EVar (Prim {}))   = return e
 redExp env e@(EVar (Tuple {}))  = return e
 redExp env e@(EVar x)           = case lookup x (eqns env) of
-                                      Just (ERec _ _) -> return e
+                                      Just (ERec _ _)
+                                         |not (x `elem` locs env) -> return e  
                                       Just e' -> alphaConvert e'
                                       _       -> return e
 redExp env (EAp e es)           = do e <- redExp env e
@@ -158,7 +164,7 @@ redApp env (EVar (Prim p a)) es
 redApp env e@(EVar x) es        = case lookup x (eqns env) of
                                        Just e' -> do e' <- alphaConvert e'; redApp env e' es
                                        Nothing -> return (EAp e es)
-redApp env (ELam te e) es       = redBeta env te e es
+redApp env (ELam te e) es       = redBeta (setLoc env) te e es
 redApp env (ECase e alts) es    = liftM (ECase e) (redAlts env (mapSnd (`EAp` es) alts))
 redApp env (ELet bs e) es       = liftM (ELet bs) (redApp env e es)
 redApp env e es                 = return (EAp e es)
@@ -293,7 +299,7 @@ redCmd env (CExp e)             = liftM CExp (redExp env e)
 redCmd env (CGen p t (ELet bs e) c)
                                 = redCmd env (CLet bs (CGen p t e c))
 redCmd env (CGen p t e c)       = liftM2 (CGen p t) (redExp env e) (redCmd env c)
-redCmd env (CLet bs c)          = liftM2 CLet (redBinds env bs) (redCmd env c)
+redCmd env (CLet bs c)          = liftM2 CLet (redBinds (setLoc env) bs) (redCmd env c)
 redCmd env (CAss x e c)         = liftM2 (CAss x) (redExp env e) (redCmd env c)
 
 

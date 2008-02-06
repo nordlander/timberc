@@ -428,6 +428,10 @@ shuffle' sigs (s@(SBind (BEqn (LFun v ps) rh)) : ss)
                                    = case lookup v sigs of
                                        Just t  -> SBind (BSig [v] t) : s : shuffle' (prune sigs [v]) ss
                                        Nothing -> s : shuffle' sigs ss
+shuffle' sigs (s@(SBind (BEqn (LPat (EVar v)) _)) : ss) 
+                                   = case lookup v sigs of
+                                       Just t  -> SBind (BSig [v] t) : s : shuffle' (prune sigs [v]) ss
+                                       Nothing -> s : shuffle' sigs ss
 shuffle' sigs (SBind (BEqn (LPat p) rh) : ss)
                                    = SBind (BEqn (LPat p') rh) : shuffle' sigs' ss
   where (sigs',p')                 = attach sigs p
