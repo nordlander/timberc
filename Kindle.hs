@@ -8,7 +8,7 @@ import qualified Env
 import Data.Binary
 import Control.Monad.Identity
 
--- Kindle is the main back-end intermediate language.  It is a typed imerative language with dynamic 
+-- Kindle is the main back-end intermediate language.  It is a typed imperative language with dynamic 
 -- memory allocation and garbage-collection, that can be described as a slightly extended version of
 -- the common subset of C, Java and C++.  The purpose of Kindle is to function as a high-level back-
 -- end program format that can be translated into standard imperative languages as well as assembly
@@ -22,8 +22,8 @@ import Control.Monad.Identity
 
 
 -- A Kindle module consists of type declarations and term bindings.  A type declaration introduces
--- either a struct type or an enumeration type.  A binding either defines either a named function or 
--- a named value of atomic type.  Both binding forms are immutable.  All type declarations are 
+-- a struct type, and optionally also an enumeration type.  A binding defines either a named function 
+-- or a named value of atomic type.  Function bindings are immutable.  All type declarations are 
 -- mutually recursive, whereas term-level recursion is only supported within groups of adjacent 
 -- function bindings.  Otherwise bound names scope over subsequent bindings.
 data Module     = Module  Name [Name] Decls Binds
@@ -31,8 +31,8 @@ data Module     = Module  Name [Name] Decls Binds
 
 -- A type declaration introduces a struct type that defines the layout of heap-allocated objects.
 -- A struct may contain both value and function fields, and each struct type introduces a private 
--- namespace for its field names.  As an option, a struct type can be accompanied by a list of 
--- struct type names that constitute variants of the declared type.  Such names also qualify as 
+-- namespace for its field names.  As an option, a struct type can be accompanied by an enumeration
+-- of struct type names that constitute variants of the declared type.  Such names also qualify as 
 -- tag names of type Int at the term level, and might therefore be used identify a particular 
 -- variant when stored as a value in a common tag field.  All type names belong to a common 
 -- namespace that is disjoint from every other namespace.
@@ -76,7 +76,7 @@ data AType      = TId    Name
 data Cmd        = CRet    Exp                 -- simply return $1
                 | CRun    Exp Cmd             -- evaluate $1 for its side-effects only, then execure tail $2
                 | CBind   Bool Binds Cmd      -- introduce (recursive? $1) local bindings $2, then execute tail $3
-                | CUpd    Name Exp Cmd        -- overwrite variable $1 with value $2, execute tail $3
+                | CUpd    Name Exp Cmd        -- overwrite value variable $1 with value $2, execute tail $3
                 | CUpdS   Exp Name Exp Cmd    -- overwrite value field $2 of struct $1 with value $3, execute tail $4
                 | CUpdA   Exp Exp Exp Cmd     -- overwrite index $2 of array $1 with value $3, execute tail $4
                 | CSwitch Exp [Alt]           -- depending on the value of $1, choose tails from $2
