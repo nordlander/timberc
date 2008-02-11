@@ -15,9 +15,9 @@ kindle2c is m                   = return (render h, render c)
 -- ====================================================================================================
 
 k2hModule (Module n ns ds bs)   = hHeader n ns $$$
-                                  vcat (map k2cStructStub [ n | (n, Struct te _) <- ds ]) $$$
+                                  vcat (map k2cDeclStub ds) $$$
                                   vcat (map k2cDecl ds) $$$
-                                  vcat (map k2cHBind bs) $$$
+                                  vcat (map k2cBindStubH bs) $$$
                                   k2cInitProcStub n <> text ";" $$$
                                   hFooter n
   
@@ -33,7 +33,7 @@ includeGuard n                  = text ("#ifndef " ++ g) $$
                          
 hFooter n                       = text "#endif\n"
 
-k2cStructStub n                 = text "struct" <+> k2cName n <> text ";" $$
+k2cDeclStub (n, _)              = text "struct" <+> k2cName n <> text ";" $$
                                   text "typedef" <+> text "struct" <+> k2cName n <+> text "*" <> k2cName n <> text ";"
 
 k2cDecl (n, Struct te cs)       = text "struct"  <+> k2cName n <+> text "{" $$
@@ -54,16 +54,12 @@ k2cSig _ (x, ValT t)            = k2cType t <+> k2cName x <> text ";"
 
 k2cSig' (x, t)                  = k2cType t <+> k2cName x
 
-k2cBindStub (x, Fun t te c)     = k2cType t <+> k2cName x <+> parens (commasep k2cSig' te) <> text";"
-k2cBindStub (x, Val t e)        = text "extern" <+> k2cType t <+> k2cName x <> text ";"
 
-k2cHBind b@(x,_) 
-  | isQualified x               = k2cBindStub b
-  | otherwise                   = empty
+k2cBindStubH (x, _)
+  | not (isQualified x)         = empty
+k2cBindStubH (x, Fun t te c)    = k2cType t <+> k2cName x <+> parens (commasep k2cSig' te) <> text";"
+k2cBindStubH (x, Val t e)       = text "extern" <+> k2cType t <+> k2cName x <> text ";"
 
-k2cIsSimple (_,Fun _ _ _)       = True
-k2cIsSimple (x,Val _ (ELit _))  = True
-k2cIsSimple _                   = False
 
 -- Generate types
 k2cType (TArray t)              = k2cName (prim Array)
@@ -85,12 +81,11 @@ k2cType (TWild)                 = text "POLY"
 
 k2cModule is (Module n ns ds bs)= cHeader n $$$
                                   vcat (map k2cGCinfo ds) $$$
-                                  vcat (map k2cBindStub [ b | b@(n,_) <- bs, not(isQualified n) ]) $$$
-                                  vcat (map k2cBindStubActual bs2) $$$
-                                  vcat (map k2cBind bs1) $$$
-                                  k2cInitProc n ns bs2 $$$
+                                  vcat (map k2cBindStubC bs) $$$
+                                  vcat (map k2cBind bsF) $$$
+                                  k2cInitProc n ns bsV $$$
                                   cFooter n
-  where (bs1,bs2)               = partition k2cIsSimple bs
+  where (bsV,bsF)               = partition isVal bs
 
 k2cGCinfo (n, Struct te cs)     = text "WORD" <+> k2cGCinfoName n <> text "[]" <+> text "=" <+> 
                                   braces (k2cSize n <> text "," <+> k2cOffsets n te) <> text ";"
@@ -103,24 +98,25 @@ k2cOffsets n ((x,ValT t):te)
   | not (isPtr t)               = k2cOffsets n te
   | otherwise                   = text "WORDS(offsetof(struct" <+> k2cName n <> text "," <+> k2cName x <> text "))," <+>
                                   k2cOffsets n te
+  where isPtr (TId (Prim p _))  = p `elem` ptrPrims
+        isPtr _                 = True
+
 
 k2cGCinfoName n                 = text "__GC__" <> k2cName n
 
 k2cGCinit n e                   = k2cExp e <> text "->gcinfo" <+> text "=" <+> k2cGCinfoName n <> text ";"
 
-isPtr (TId (Prim p _))          = p `elem` ptrPrims
-isPtr _                         = True
-
-k2cBindStubLocal b@(x,_)
-  | fromMod x /= Nothing        = empty
-  | otherwise                   = k2cBindStub b
-
-k2cBindStubActual (x, Val t _)  = k2cType t <+> k2cName x <> text ";"
-k2cBindStubActual _             = empty
 
 
-cHeader n                       = text "#include \"" <> text (last(splitString (str n))) <> text ".h\"" 
+cHeader n                       = text "#include \"" <> text (last (splitString (str n))) <> text ".h\"" 
 cFooter n                       = text "\n"
+
+
+k2cBindStubC (x, Fun t te c)
+  | isQualified x               = empty
+  | otherwise                   = k2cType t <+> k2cName x <+> parens (commasep k2cSig' te) <> text";"
+k2cBindStubC (x, Val t e)       = k2cType t <+> k2cName x <> text ";"
+
 
 k2cInitProcStub n               = text "void _init_" <> text (modToundSc (str n)) <+> text "()"
 
@@ -135,25 +131,6 @@ k2cOnce p                       = text "static int INITIALIZED = 0;" $$
                                   nest 4 (p $$ text "INITIALIZED = 1;") $$
                                   text "}"
 
-                                  -- temporary, only works for non-recursive values
-k2cInit (x, Val t (ENew n bs))  = newCall t e n $$
-                                  k2cGCinit n e $$
-                                  vcat (map (k2cSBind e) bs)
-  where e                       = EVar x
-k2cInit (x, Val t e)            = k2cName x <+> text "=" <+> k2cExp e <> text ";"
-
-
-k2cBind p@(x,Val t (ENew _ _))  = k2cType t <+> k2cName x <> text ";" <+> k2cInit p
-k2cBind p@(x,Val t e)           = k2cType t <+> k2cInit p
-k2cBind (x, Fun t te c)         = k2cType t <+> k2cName x <+> parens (commasep k2cSig' te) <+> text "{" $$
-                                    nest 4 (k2cCmd c) $$
-                                  text "}"
-
-
-newCall t e n                   = text "NEW" <+> parens (k2cType t <> text "," <+> 
-                                                                 k2cExp e <> text "," <+> 
-                                                                 k2cSize n) <> text ";"
-
 
 k2cSBind e0 (x, Val t (ENew n bs))
                                 = newCall t e n  <> text ";" $$
@@ -164,6 +141,29 @@ k2cSBind e0 (x, Val t e)        = k2cExp (ESel e0 x) <+> text "=" <+> k2cExp e <
 k2cSBind e0 (x, Fun t te (CRet (ECall f es)))
                                 = k2cExp (ESel e0 x) <+> text "=" <+> k2cName f <> text ";"
 k2cSBind e0 (x, _)              = internalError0 "k2cSBind"
+
+
+newCall t e n                   = text "NEW" <+> parens (k2cType t <> text "," <+> 
+                                                                 k2cExp e <> text "," <+> 
+                                                                 k2cSize n) <> text ";"
+
+
+
+                                  -- temporary, only works for non-recursive values
+k2cInit (x, Val t (ENew n bs))  = newCall t e n $$
+                                  k2cGCinit n e $$
+                                  vcat (map (k2cSBind e) bs)
+  where e                       = EVar x
+k2cInit (x, Val t e)            = k2cName x <+> text "=" <+> k2cExp e <> text ";"
+
+
+
+
+k2cBind p@(x,Val t (ENew _ _))  = k2cType t <+> k2cName x <> text ";" <+> k2cInit p
+k2cBind p@(x,Val t e)           = k2cType t <+> k2cInit p
+k2cBind (x, Fun t te c)         = k2cType t <+> k2cName x <+> parens (commasep k2cSig' te) <+> text "{" $$
+                                    nest 4 (k2cCmd c) $$
+                                  text "}"
 
 
 k2cCmd (CRet e)                 = text "return" <+> k2cExp e <> text ";"
