@@ -11,17 +11,7 @@ one row, indicating number of bulls and cows. Command line argument acts as seed
 
 data Colour = Red | Blue | Green | Yellow | Black | White
 
-implicit eqColour :: Eq Colour
-eqColour = struct
-  Red    == Red    = True
-  Blue   == Blue   = True
-  Green  == Green  = True
-  Yellow == Yellow = True
-  Black  == Black  = True
-  White  == White  = True
-  _      == _      = False
-
-  x /= y = not (x==y)
+default eqColour :: Eq Colour
 
 implicit showColour :: Show Colour 
 showColour = struct

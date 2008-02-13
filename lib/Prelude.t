@@ -71,6 +71,13 @@ eqList = struct
     _ == _               = False
     xs /= ys             = not ( xs == ys)
 
+implicit eqEither :: Eq (Either a b) \\ Eq a, Eq b
+eqEither = struct
+  Left x  == Left y  = x == y
+  Right x == Right y = x == y
+  _       == _       = False
+  x       /= y       = not (x == y)
+
 implicit struct Ord a < Eq a where
   (<),(<=),(>),(>=) :: a -> a -> Bool
 
