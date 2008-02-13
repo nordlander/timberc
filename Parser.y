@@ -168,16 +168,16 @@ ids     :: { [Name] }
         | id                                    { [$1] }
 
 -- Default declarations ---------------------------------------------------
-def     :: { [Default] }
+def     :: { [Default Type] }
 def     : prefs                                 { $1 }
         | var '::' type                         { [Derive $1 $3] }  
       
-prefs   ::  { [Default] }
+prefs   ::  { [Default Type] }
         : prefs ',' pref                        { $3 : $1 }
         | pref                                  { [$1] }
  
 
-pref     :: { Default }
+pref     :: { Default Type }
         : var '<' var                           { Default True $1 $3 }
 
 

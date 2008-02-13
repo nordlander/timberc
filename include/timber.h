@@ -13,6 +13,12 @@ struct NIL;
 typedef struct NIL *NIL;
 struct CONS;
 typedef struct CONS *CONS;
+struct EITHER;
+typedef struct EITHER *EITHER;
+struct LEFT;
+typedef struct LEFT *LEFT;
+struct RIGHT;
+typedef struct RIGHT *RIGHT;
 struct FloatBox;
 typedef struct FloatBox *FloatBox;
 struct IntBox;
@@ -61,6 +67,27 @@ struct CONS {
   LIST b;
 };
 extern WORD __GC__CONS[];
+
+struct EITHER {
+  WORD *gcinfo;
+  Int Tag;
+};
+enum {_LEFT,_RIGHT};
+
+extern WORD __GC__EITHER[];
+struct LEFT {
+  WORD *gcinfo;
+  Int Tag;
+  POLY a;
+};
+extern WORD __GC__LEFT[];
+
+struct RIGHT {
+  WORD *gcinfo;
+  Int Tag;
+  POLY a;
+};
+extern WORD __GC__RIGHT[];
 
 struct FloatBox {
   WORD *gcinfo;

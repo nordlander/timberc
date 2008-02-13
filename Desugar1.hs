@@ -57,10 +57,10 @@ mkEnv c ds (rs,rn,ss)           = (env {sels = map transClose recEnv, modName = 
         sels (Sig vs _)         = map (mName (Just (str c))) vs
         transClose (c,(cs,ss))  = (c, sort (ss ++ nub(concat (map (selectors [c]) cs))))
         selectors cs0 c
-          | c `elem` cs0        = errorIds "Circular record dependencies" (c:cs0)
+          | c `elem` cs0        = errorIds "Circular struct dependencies" (c:cs0)
           | otherwise           = case lookup c recEnv of
                                     Just (cs,ss) -> ss ++ concat (map (selectors (c:cs0)) cs)
-                                    Nothing      -> errorIds "Unknown record constructor"  [c]
+                                    Nothing      -> errorIds "Unknown struct constructor"  [c]
 
         tsynDecls                
           | not (null dups)     = errorIds "Duplicate type synonym declarations" dups
@@ -81,11 +81,11 @@ selsFromType env c              = case lookup c (sels env) of
                                     Just ss -> ss
                                     Nothing -> if fromMod c == modName env
                                                then selsFromType env (c {fromMod = Nothing})
-                                               else errorIds "Unknown record constructor" [c]
+                                               else errorIds "Unknown struct constructor" [c]
 
 
 typeFromSels env ss             = f (sels env) ss
-  where f [] ss                 = errorIds "No record type with selectors" ss
+  where f [] ss                 = errorIds "No struct type with selectors" ss
         f  ((c,ss'):se) ss
           | ss == ss'           = c
           | otherwise           = f se ss
@@ -103,14 +103,14 @@ tSubst env c ts                 = case lookup c (tsyns env) of
 
 ren env cs                      = map ren' cs     
   where ren' c                  = case lookup c (selSubst env) of
-                                     Nothing -> errorIds "Unknown record selector" [c]
+                                     Nothing -> errorIds "Unknown struct selector" [c]
                                      Just c' -> c'
 
 patEnv env                      = env {isPat = True}
 
 
 -- Desugaring -------------------------------------------------------------------------------------------
-
+{-
 dsDecls env (DInst t bs : ds)   = do w <- newName instanceSym
                                      s <- renaming xs
                                      let bs' = map (substB s) bs
@@ -122,6 +122,7 @@ dsDecls env (DInst t bs : ds)   = do w <- newName instanceSym
         substB s (BEqn lh rh)   = BEqn (substL s lh) rh
         substL s (LPat p)       = LPat (subst (mapSnd EVar s) p)
         substL s (LFun v ps)    = LFun (substVar s v) ps
+-}
 dsDecls env (DType c vs t : ds) = liftM (DType c vs (ds1 env t) :) (dsDecls env ds)
 dsDecls env (DData c vs ss cs : ds) = liftM (DData c vs (ds1 env ss) (ds1 env cs) :) (dsDecls env ds)
 dsDecls env (DRec b c vs ss ss' : ds) = liftM (DRec b c vs (ds1 env ss) (ds1 env ss') :) (dsDecls env ds)
@@ -142,7 +143,7 @@ instance Desugar1 a => Desugar1 (Maybe a) where
     ds1 env Nothing             = Nothing
     ds1 env (Just a)            = Just (ds1 env a)
 
-instance Desugar1 Default where
+instance Desugar1 (Default Type) where
    ds1 env (Default _ a b)      = Default (isPublic env) a b
    ds1 env (Derive v t)         = Derive v (ds1 env t)
 
@@ -193,15 +194,15 @@ instance Desugar1 Qual where
     ds1 env (QLet bs)           = QLet (ds1 env bs)
 
 instance Desugar1 Exp where
-    ds1 env e@(EVar _)             = e
+--    ds1 env e@(EVar _)             = e
     ds1 env (ERec Nothing fs)
-      | not (null dups)            = errorIds "Duplicate field definitions in record" dups
+      | not (null dups)            = errorIds "Duplicate field definitions in struct" dups
       | otherwise                  = ERec (Just (c,True)) (ds1 env fs)
       where c                      = typeFromSels env (sort (ren env (bvars fs)))
             dups                   = duplicates (bvars fs)
     ds1 env (ERec (Just (c,all)) fs)
-      | not (null dups)            = errorIds "Duplicate field definitions in record" dups
-      | all && not (null miss)     = errorIds "Missing selectors in record" miss
+      | not (null dups)            = errorIds "Duplicate field definitions in struct" dups
+      | all && not (null miss)     = errorIds "Missing selectors in struct" miss
       | otherwise                  = ERec (Just (c,True)) (fs' ++ ds1 env fs)
       where miss                   = ren env (selsFromType env c) \\ ren env (bvars fs)
             dups                   = duplicates (ren env (bvars fs))
@@ -239,10 +240,10 @@ instance Desugar1 Exp where
       | otherwise                  = ds1 env (EDo (Just (name0 "self")) (ds1 env t) ss)
     ds1 env e@(EAct Nothing ss)
       | haveSelf env               = ds1 env (EAct (self env) ss)
-      | otherwise                  = errorTree "Action outside template" e
+      | otherwise                  = errorTree "Action outside class" e
     ds1 env e@(EReq Nothing ss)
       | haveSelf env               = ds1 env (EReq (self env) ss)
-      | otherwise                  = errorTree "Request outside template" e
+      | otherwise                  = errorTree "Request outside class" e
 
     ds1 env (ETempl v t ss)      = ETempl v t (ds1T (env{self=v}) ss)
     ds1 env (EDo v t ss)         = EDo v t (ds1S (env{self=v}) ss)
@@ -265,7 +266,7 @@ ds1S env []                      = [SRet (ECon (prim UNITTERM))]
 ds1S env [SExp e]                = [SExp (ds1 env e)]
 ds1S env (SExp e : ss)           = SGen EWild (ds1 env e) : ds1S env ss
 ds1S env [SRet e]                = [SRet (ds1 env e)]
-ds1S env (s@(SRet _) : ss)       = errorTree "Return statement must be last in sequence" s
+ds1S env (s@(SRet _) : ss)       = errorTree "Result statement must be last in sequence" s
 ds1S env (SGen p e : ss)         = SGen (ds1 (patEnv env) p) (ds1 env e) : ds1S env ss
 ds1S env (SBind b : ss)          = SBind (ds1 env b) : ds1S env ss
 ds1S env (SAss p e : ss)         = dsAss p e : ds1S env ss
@@ -299,12 +300,12 @@ ds1Forall env (QGen p e : qs) ss = EAp (EAp (EVar (name (0,0) "forallDo")) (ELam
 ds1Forall env (QExp e : qs) ss   = EIf e (eDo env [])  (eDo env [SForall qs ss])
 
 ds1T env [SRet e]                = [SRet (ds1 env e)]
-ds1T env [s]                     = errorTree "Last statement in template must be return, not" s
+ds1T env [s]                     = errorTree "Last statement in class must be return, not" s
 ds1T env (s@(SRet _) : ss)       = errorTree "Return statement must be last in sequence" s
 ds1T env (SBind b : ss)          = SBind (ds1 env b) : ds1T env ss
 ds1T env (s@(SAss p e) : ss)     = SAss (ds1 (patEnv env) p) (ds1 env e) : ds1T env ss
 ds1T env (SGen p e : ss)         = SGen (ds1 (patEnv env) p) (ds1 env e) : ds1T env ss           -- temporary
-ds1T env (s : _)                 = errorTree "Illegal statement in template: " s
+ds1T env (s : _)                 = errorTree "Illegal statement in class: " s
 
 
 retComplete e

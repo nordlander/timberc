@@ -11,7 +11,7 @@ import Decls
 import Reduce
 import Termred
 import PP
-
+import Derive
 
 --typecheck                       :: Module -> M s Module
 typecheck e2 m                     = tiModule e2 m
@@ -56,11 +56,11 @@ let f = \w0 v x -> e w0 (f w0 v 7)                                            ::
 ---------------
 -}
 
-
 tiModule (xs',ds',bs',is') (Module v ns xs ds is bs) = 
                                   do (env1,ds1,bs1) <- typeDecls env0 ds
-                                     (env2,bs2) <- instancePreds env1 ieTot
-                                     let env3 = insertDefaults env2 ieTot (xs' ++ xs)
+                                     (is2,xs2) <- derive (dom (tsigsOf bs ++ tsigsOf bs')) (ds' `catDecls` ds1) xs
+                                     (env2,bs2) <- instancePreds env1 (ieTot ++ concatMap tsigsOf is2)
+                                     let env3 = insertDefaults env2 ieTot (xs' ++ xs2)
                                      (ss0,pe0,subInsts) <- tiBinds env3 subInsts
                                      -- Here it should be checked that the equations in subInsts follow the
                                      -- restricted rules for coercions, and that the equalities collected 
@@ -68,7 +68,7 @@ tiModule (xs',ds',bs',is') (Module v ns xs ds is bs) =
                                      let is0  = concatBinds [bs1, bs2, subInsts]
                                          env4 = addCoercions (eqnsOf is' ++ eqnsOf is0) env3
                                      (ss1,pe1,bs) <- tiBindsList (addTEnv0 ieTot env4) (groupBinds bs)
-                                     (ss2,pe2,classInsts) <- tiBinds (addTEnv0 (tsigsOf bs) env4) classInsts
+                                     (ss2,pe2,classInsts) <- tiBinds (addTEnv0 (tsigsOf bs) env4) (concatBinds (classInsts : is2))
                                      assert0 (null (ss0++ss1++ss2)) "Internal: top-level type inference 1"
                                      assert0 (null (pe0++pe1++pe2)) "Internal: top-level type inference 2"
                                      let isFinal = concatBinds (groupBinds (is0 `catBinds` classInsts))
@@ -131,9 +131,9 @@ tiExpT env t e                  = tiExpT' env (False, t, e)
 
 
 tiExpT' env (False, Scheme t0 [] [], e)
-                                = do (ss,pe,t,e)  <- tiExp env e
-                                     c            <- newNamePos coercionSym e
-                                     return (ss, (c, Scheme (F [scheme' t] t0) [] []) : pe, EAp (EVar c) [e])
+                                = do (ss,pe,t,e')  <- tiExp env e
+                                     c            <- newNamePos coercionSym e'
+                                     return (ss, (c, Scheme (F [scheme' t] t0) [] []) : pe, EAp (EVar c) [e'])
 tiExpT' env (False, Scheme t0 ps [], e) 
                                 = do (ss,qe,t,e)  <- tiExp env e
                                      c            <- newNamePos coercionSym e

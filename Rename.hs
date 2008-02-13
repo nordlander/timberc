@@ -159,7 +159,7 @@ instance Rename Module where
                                         ds' <- rename env6 (filter (not . isDBind) (ds ++ ps) ++ map DBind (bs1' ++ bs2' ++ bs))
                                         return (Module c is ds' [])
    where (ks1,ts1,ss1,cs1,cs11,ws1,is1,bs1) = renameD [] [] [] [] [] [] [] [] ds
-         (ks2,ts2,ss2,cs2,_,ws2,is2,bs2)    = renameD [] [] [] [] [] [] [] [] ps
+         (ks2,ts2,ss2,cs2, _  ,ws2,is2,bs2) = renameD [] [] [] [] [] [] [] [] ps
          vs1                       = bvars bs1
          vs2                       = bvars bs2
          vss                       = concat [ ss | BSig ss _ <- bs1 ] \\ vs1 ++ ws1
@@ -191,8 +191,6 @@ renameD ks ts ss cs cs1 ws is bs (DRec _ c _ _ sigs : ds)
 renameD ks ts ss cs cs1 ws is bs (DData c _ _ cdefs : ds)
                                    = renameD ks (c:ts) ss (cons++cs) (if c `elem` cons then c:cs1 else cs1) ws is bs ds
   where cons                       = [ c | Constr c _ _ <- cdefs ]
-renameD ks ts ss cs cs1 ws is bs (DInst n _ : ds)
-                                   = internalError "DInst remaining in renameD" n
 renameD ks ts ss cs cs1 ws is bs (DType c _ _ : ds)
                                    = renameD ks (c:ts) ss cs cs1 ws is bs ds
 renameD ks ts ss cs cs1 ws is bs (DPSig v t : ds)
@@ -214,14 +212,13 @@ instance Rename Decl where
                                         liftM2 (DRec isC (renT env c) (map (renT env') vs)) (renameQTs env' ts) (rename env' ss)
   rename env (DType c vs t)        = do env' <- extRenT env vs
                                         liftM (DType (renT env c) (map (renT env') vs)) (rename env' t)
-  rename env (DInst t bs)          = liftM2 DInst (renameQT env t) (rename env bs)
   rename env (DPSig v t)           = liftM (DPSig (renE env v)) (renameQT env t)
   rename env (DDefault ts)         = liftM DDefault (rename env ts)
   rename env (DBind b)             = liftM DBind (rename env b)
 
-instance Rename Default where
+instance Rename (Default Type) where
   rename env (Default pub a b)     = return (Default pub (renE env a) (renE env b))
-  rename env (Derive v t)          = liftM (Derive (renE env v)) (rename env t)
+  rename env (Derive v t)          = liftM (Derive (renE env v)) (renameQT env t)
 
 instance Rename Constr where
   rename env (Constr c ts ps)      = do env' <- extRenT env (bvars ps')

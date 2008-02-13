@@ -131,24 +131,16 @@ insertClassPred pre n@(w,p) post env    = env { classEnv = insert c wg' (classEn
         wg'                             = WG { nodes = insertBefore n post (nodes wg),
                                                arcs  = pre `zip` ws ++ ws `zip` post ++ arcs wg }
 
-insertDefault sigs d@(_,i1,i2) env                 
+insertDefault sigs d@(Default _ i1 i2) env                 
   |c1 /= c2                             = errorTree ("Illegal defaulting; instances of different classes") d
   |otherwise                            = env { classEnv = insert c1 wg' (classEnv env) }
   where c1                              = headsym (lookup' sigs i1)
         c2                              = headsym (lookup' sigs i2)
         wg                              = findClass env c1
---        n1                              = findInst wg i1
---        n2                              = findInst wg i2
         wg'                             = wg { arcs = (i1,i2) : arcs wg }
-{-
-        findInst wg (i,p)               = case lookup p [(p,n) | (n,p) <- nodes wg] of
-                                            Nothing -> errorTree "Cannot find instance of" p
-                                            Just n ->  case i of
-                                                         Just n'
-                                                          |n /= n' -> errorIds "Wrong instance name" [n']
-                                                         _         -> n
--}
-insertDefaults env sigs ds                   = env2
+insertDefault _ _ env                   = env
+
+insertDefaults env sigs ds              = env2
   where env1                            = foldr (insertDefault sigs) env ds
         env2                            = env1 {classEnv = reorderWG (classEnv env1)}
         reorderWG []                    = []
@@ -631,6 +623,7 @@ primKindEnv             = [ (prim Action,       Star),
                             (prim Array,        KFun Star Star),
 
                             (prim LIST,         KFun Star Star),
+                            (prim EITHER,       KFun Star (KFun Star Star)),
                             (prim UNITTYPE,     Star) ]
 
 
@@ -640,6 +633,8 @@ primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
 
                             (prim FALSE,        scheme0 [] tBool),
                             (prim TRUE,         scheme0 [] tBool),
+                            (prim LEFT,         scheme2 [a] (tEither a b)),
+                            (prim RIGHT,        scheme2 [b] (tEither a b)),
 
                             (prim Refl,         scheme1 [a] a),
 
@@ -748,6 +743,7 @@ tBool                   = TId (prim Bool)
 tArray a                = TAp (TId (prim Array)) a
 tList a                 = TAp (TId (prim LIST)) a
 tUnit                   = TId (prim UNITTYPE)
+tEither a b             = TAp (TAp (TId (prim EITHER)) a) b
         
 a                       = TId (name0 "a")
 b                       = TId (name0 "b")

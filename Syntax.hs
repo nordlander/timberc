@@ -15,9 +15,9 @@ data Decl   = DKSig   Name Kind
             | DData   Name [Name] [Type] [Constr]
             | DRec    Bool Name [Name] [Type] [Sig]
             | DType   Name [Name] Type   -- removed by desugaring
-            | DInst   Type [Bind]        --          -"-
+--            | DInst   Type [Bind]        --          -"-
             | DPSig   Name Type 
-            | DDefault [Default]  
+            | DDefault [Default Type]  
             | DImplicit [Name]
             | DBind   Bind
             deriving  (Eq,Show)
@@ -32,9 +32,6 @@ data Bind   = BSig    [Name] Type
             | BEqn    Lhs (Rhs Exp)
             deriving  (Eq,Show)
 
-data Default = Default Bool Name Name  -- First arg is True if declaration is in public part
-             | Derive Name Type
-             deriving (Eq, Show)
 
 type Eqn    = (Lhs, Rhs Exp)
 
@@ -370,9 +367,9 @@ instance Pr Decl where
                                   <+> prSubs subs <+> prCons cs
     pr (DRec isC c vs sups ss)  = text kwd <+> prId c <+> hsep (map prId vs) 
                                   <+> prSups sups <+> prEq ss $$ prSigs ss
-      where kwd                 = if isC then "class" else "record"
-    pr (DInst t bs)             = text "instance" <+> pr t <+> text "=" $$ nest 4 (vpr bs)
-    pr (DPSig v t)              = text "instance" <+> prId v <+> text "::" <+> pr t
+      where kwd                 = (if isC then "implicit " else "")++"struct"
+--    pr (DInst t bs)             = text "instance" <+> pr t <+> text "=" $$ nest 4 (vpr bs)
+    pr (DPSig v t)              = text "implicit struct" <+> prId v <+> text "::" <+> pr t
     pr (DDefault ts)            = text "default" <+> hpr ',' ts
     pr (DImplicit ns)           = text "implicit" <+> hpr ',' ns 
     pr (DBind b)                = pr b
@@ -381,13 +378,9 @@ prPreds []                      = empty
 prPreds ps                      = text " \\\\" <+> hpr ',' ps
 
 prEq []                         = empty
-prEq bs                         = text "="
+prEq bs                         = text "where"
 
 prSigs ss                       = nest 4 (vpr ss)
-
-instance Pr Default where
-  pr (Default _ a b)            = pr a <+> text "<" <+> pr b
-  pr (Derive v t)               = pr v <+> text "::" <+> pr t
 
 -- Sub/supertypes -----------------------------------------------------------
 
@@ -490,7 +483,7 @@ instance Pr Exp where
                                             text "else" <+> pr e2)
     prn 0 (ECase e alts)        = text "case" <+> pr e <+> text "of" $$ nest 2 (vpr alts)
     prn 0 (EDo v t ss)          = text "do" <+> vpr ss 
-    prn 0 (ETempl v t ss)       = text "template" $$ nest 4 (vpr ss)
+    prn 0 (ETempl v t ss)       = text "class" $$ nest 4 (vpr ss)
     prn 0 (EAct v ss)           = text "action" $$ nest 4 (vpr ss) 
     prn 0 (EReq v ss)           = text "request" $$ nest 4 (vpr ss) 
     prn 0 (EAfter e e')         = text "after" <+> prn 12 e <+> pr e'
@@ -545,7 +538,7 @@ instance Pr [Stmt] where
 
 instance Pr Stmt where
     pr (SExp e)                 = pr e
-    pr (SRet e)                 = text "return" <+> pr e
+    pr (SRet e)                 = text "result" <+> pr e
     pr (SGen p e)               = pr p <+> text "<-" <+> pr e
     pr (SBind b)                = pr b
     pr (SAss p e)               = pr p <+> text ":=" <+> pr e
@@ -736,10 +729,10 @@ instance Binary Decl where
   put (DData a b c d) = putWord8 1 >> put a >> put b >> put c >> put d
   put (DRec a b c d e) = putWord8 2 >> put a >> put b >> put c >> put d >> put e
   put (DType a b c) = putWord8 3 >> put a >> put b >> put c
-  put (DInst a b) = putWord8 4 >> put a >> put b
-  put (DPSig a b) = putWord8 5 >> put a >> put b
-  put (DDefault a) = putWord8 6 >> put a
-  put (DImplicit a) = putWord8 7 >> put a
+--  put (DInst a b) = putWord8 4 >> put a >> put b
+  put (DPSig a b) = putWord8 4 >> put a >> put b
+  put (DDefault a) = putWord8 5 >> put a
+  put (DImplicit a) = putWord8 6 >> put a
   put (DBind a) = putWord8 7 >> put a
   get = do
     tag_ <- getWord8
@@ -748,22 +741,13 @@ instance Binary Decl where
       1 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (DData a b c d)
       2 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> return (DRec a b c d e)
       3 -> get >>= \a -> get >>= \b -> get >>= \c -> return (DType a b c)
-      4 -> get >>= \a -> get >>= \b -> return (DInst a b)
-      5 -> get >>= \a -> get >>= \b -> return (DPSig a b)
-      6 -> get >>= \a -> return (DDefault a)
-      7 -> get >>= \a -> return (DImplicit a)
-      8 -> get >>= \a -> return (DBind a)
+--      4 -> get >>= \a -> get >>= \b -> return (DInst a b)
+      4 -> get >>= \a -> get >>= \b -> return (DPSig a b)
+      5 -> get >>= \a -> return (DDefault a)
+      6 -> get >>= \a -> return (DImplicit a)
+      7 -> get >>= \a -> return (DBind a)
       _ -> fail "no parse"
 
-instance Binary Default where
-  put (Default a b c) = putWord8 0 >> put a >> put b >> put c
-  put (Derive a b) = putWord8 1 >> put a >> put b
- 
-  get = do
-    tag_ <- getWord8
-    case tag_ of
-       0 -> get >>= \a -> get >>= \b -> get >>= \c -> return (Default a b c)
-       1 -> get >>= \a ->  get >>= \b -> return (Derive a b)
 
 instance Binary Constr where
   put (Constr a b c) = put a >> put b >> put c

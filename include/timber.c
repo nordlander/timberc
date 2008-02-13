@@ -11,6 +11,12 @@ WORD __GC__TUP4[] = {WORDS(sizeof(struct TUP4)), WORDS(offsetof(struct TUP4, a))
 
 WORD __GC__CONS[] = {WORDS(sizeof(struct CONS)), WORDS(offsetof(struct CONS, a)), WORDS(offsetof(struct CONS, b)), 0};
 
+WORD __GC__EITHER[] = {WORDS(sizeof(struct EITHER)), 0};
+
+WORD __GC__LEFT[] = {WORDS(sizeof(struct LEFT)), WORDS(offsetof(struct LEFT, a)), 0};
+
+WORD __GC__RIGHT[] = {WORDS(sizeof(struct RIGHT)), WORDS(offsetof(struct RIGHT, a)), 0};
+
 WORD __GC__FloatBox[] = {WORDS(sizeof(struct FloatBox)), 0};
 
 WORD __GC__TimeBox[] = {WORDS(sizeof(struct TimeBox)), 0};

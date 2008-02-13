@@ -16,7 +16,7 @@ import qualified Config
 -- Data type of interface file -----------------------------------------------
 
 data IFace = IFace { impsOf      :: [Name],                         -- imported/used modules
-                     defaults    :: [Default],                      -- exported default declarations
+                     defaults    :: [Default Scheme],                 -- exported default declarations
                      recordEnv   :: Map Name [Name],                -- exported record types and their selectors,
                      tsynEnv     :: Map Name ([Name],Syntax.Type),  -- type synonyms
                      tEnv        :: Types,                          -- Core type environment
@@ -44,8 +44,8 @@ ifaceMod (rs,ss) (Module _ ns xs ds is bs) kds
   where Types ke te                  = ds
         Binds r1 ts1 es1             = is
         Binds r2 ts2 es2             = bs
-        xs'                          = [d | d@(True,i1,i2) <- xs]
-        ys                           = [d | d@(_,i1,i2) <- xs', isPrivate i1 || isPrivate i2 ]
+        xs'                          = [d | d@(Default True _ _) <- xs]
+        ys                           = [d | d@(Default _ i1 i2) <- xs', isPrivate i1 || isPrivate i2 ]
         ds1                          = Types (filter exported ke) (filter exported' te)
         is'                          = Binds r1  (ws1 ++ is1) (filter exported es1)
         bs'                          = Binds r2 (filter exported ts2) (filter (\ eqn -> fin eqn &&  exported eqn) es2)
@@ -115,7 +115,7 @@ decodeModule f                       = catch (decodeFile f) (\e -> decodeFile (C
 
 type Desugar1Env     = (Map Name [Name], Map Name Name, Map Name ([Name], Syntax.Type))
 type RenameEnv       = (Map Name Name, Map Name Name, Map Name Name)
-type CheckEnv        = ([Default], Types, Binds, Binds)
+type CheckEnv        = ([Default Scheme], Types, Binds, Binds)
 type KindleEnv       = Map Name Kindle.Decl
 
 initEnvs             :: Map a ImportInfo -> M s (Desugar1Env, RenameEnv, CheckEnv, KindleEnv)
@@ -125,11 +125,11 @@ initEnvs bms         = do ims <- mapM (mkEnv . snd) bms
                           return ((rs,rnL,ss),(rnL,rnT,rnE),(xs,ds,bs,is),kds)
 
   where mergeMod (rs1,xs1,ss1,rnL1,rnT1,rnE1,ds1,is1,bs1,kds1)
-                 (rs2,xs2,ss2,rnL2,rnT2,rnE2,ds2,is2,bs2,kds2) =
-                                       (rs1 ++ rs2, xs1 ++ xs2, ss1 ++ ss2, mergeRenamings2 rnL1 rnL2, 
-                                        mergeRenamings2 rnT1 rnT2, mergeRenamings2 rnE1 rnE2,
-                                        catDecls ds1 ds2, catBinds is1 is2, catBinds bs1 bs2,
-                                        kds1 ++ kds2)
+                 (rs2,xs2,ss2,rnL2,rnT2,rnE2,ds2,is2,bs2,kds2) 
+                                     = (rs1 ++ rs2, xs1 ++ xs2, ss1 ++ ss2, mergeRenamings2 rnL1 rnL2, 
+                                       mergeRenamings2 rnT1 rnT2, mergeRenamings2 rnE1 rnE2,
+                                       catDecls ds1 ds2, catBinds is1 is2, catBinds bs1 bs2,
+                                       kds1 ++ kds2)
 
         mkEnv (unQual,direct,IFace ns xs rs ss ds is bs kds)
                                      = do ks  <- renaming (dom ke)
@@ -194,12 +194,13 @@ instance Binary IFace  where
 instance Pr IFace where
   pr (IFace ns xs rs ss ds1 is bs kds) =
                                   text "Imported/used modules: " <+> hsep (map prId ns) $$
-                                  text "Default declarations: " <+> prDefault xs $$
+                                  text "Default declarations: " <+> hpr ',' xs $$
                                   text ("Record types and their selectors: "++show rs) $$
                                   text "Type synonyms: " <+> hsep (map (prId . fst) ss) $$ 
-                                  pr ds1 $$ prInsts is  $$ pr bs
-                                  $$$ text "Kindle declarations" 
-                                  $$$ vcat (map pr kds)
+                                  text "\nType definitions\n----------------" $$ pr ds1 $$ 
+                                  text "\nCoercions and instances\n-----------------------" $$ prInsts is  $$ 
+                                  text "\nTop level bindings\n------------------" $$ pr bs $$
+                                  text "\nKindle declarations\n-------------------" $$ vcat (map pr kds)
                                   
 -- prPair (n,t)                      = prId n <+> text "::" <+> pr t
 

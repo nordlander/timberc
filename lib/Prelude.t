@@ -1,10 +1,19 @@
 module Prelude where
 
+implicit struct IntLiteral a where
+ fromInt :: Int -> a
 
+implicit intInt :: IntLiteral Int
+intInt = struct
+  fromInt n = n
+  
+implicit intFloat ::IntLiteral Float
+intFloat = struct
+  fromInt = primIntToFloat
+  
 implicit struct Num a where
  (+),(-),(*) :: a -> a -> a
  negate :: a -> a
- fromInt :: Int -> a
 
 implicit numInt :: Num Int
 numInt = struct 
@@ -12,7 +21,6 @@ numInt = struct
   (-) = primIntMinus
   (*) = primIntTimes
   negate = primIntNeg
-  fromInt n = n
 
 implicit numFloat :: Num Float 
 numFloat = struct
@@ -20,13 +28,26 @@ numFloat = struct
   (-) = primFloatMinus
   (*) = primFloatTimes
   negate = primFloatNeg
-  fromInt = primIntToFloat
 
-default numInt < numFloat
+default intInt < intFloat
 
 implicit struct Eq a where
   (==),(/=) :: a -> a -> Bool
 
+implicit eqInt :: Eq Int
+eqInt = struct
+  (==) = primIntEQ
+  (/=) = primIntNE
+
+implicit eqFloat :: Eq Float
+eqFloat = struct
+  (==) = primFloatEQ
+  (/=) = primFloatNE
+
+implicit eqTime :: Eq Time
+eqTime = struct
+  (==) = primTimeEQ
+  (/=) = primTimeNE
 
 implicit eqPID :: Eq PID
 eqPID = struct
@@ -37,6 +58,11 @@ implicit eqChar :: Eq Char
 eqChar = struct
   a == b = ord a == ord b
   a /= b = ord a /= ord b
+
+implicit eqUnit :: Eq ()
+eqUnit = struct
+  _ == _ = True
+  _ /= _ = False
 
 implicit eqList :: Eq [a] \\ Eq a
 eqList = struct
@@ -49,31 +75,28 @@ implicit struct Ord a < Eq a where
   (<),(<=),(>),(>=) :: a -> a -> Bool
 
 implicit ordInt :: Ord Int
-ordInt = struct
-  (==) = primIntEQ
-  (/=) = primIntNE
-  (<)  = primIntLT
-  (<=) = primIntLE
-  (>)  = primIntGT
-  (>=) = primIntGE
+ordInt = Ord {..}
+  where Eq {..} = eqInt
+        (<)  = primIntLT
+        (<=) = primIntLE
+        (>)  = primIntGT
+        (>=) = primIntGE
 
 implicit ordFloat :: Ord Float
-ordFloat = struct
-  (==) = primFloatEQ
-  (/=) = primFloatNE
-  (<)  = primFloatLT
-  (<=) = primFloatLE
-  (>)  = primFloatGT
-  (>=) = primFloatGE
+ordFloat = Ord {..}
+  where Eq {..} = eqFloat
+        (<)  = primFloatLT
+        (<=) = primFloatLE
+        (>)  = primFloatGT
+        (>=) = primFloatGE
 
 implicit ordTime :: Ord Time
-ordTime = struct
-  (==) = primTimeEQ
-  (/=) = primTimeNE
-  (<)  = primTimeLT
-  (<=) = primTimeLE
-  (>)  = primTimeGT
-  (>=) = primTimeGE
+ordTime = Ord {..}
+  where Eq {..} = eqTime
+        (<)  = primTimeLT
+        (<=) = primTimeLE
+        (>)  = primTimeGT
+        (>=) = primTimeGE
 
 implicit struct Show a where
   show :: a -> String

@@ -192,7 +192,7 @@ compileTimber clo ifs t_file ti_file c_file h_file
         pass m p a      = do -- tr ("Pass " ++ show p ++ "...")
                              r <- m a
                              Monad.when (dumpAfter clo p) 
-                                $ fail ("#### Result after " ++ show p ++ ":\n\n" ++ render (pr r))     -- Hmm, shouldn't fail here...
+                                $ tr ("#### Result after " ++ show p ++ ":\n\n" ++ render (pr r))
                              Monad.when (stopAfter clo p)
                                 $ fail ("#### Terminated after " ++ show p ++ ".")
                              return r                                  

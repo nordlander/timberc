@@ -17,6 +17,8 @@ kiModule (_,ds',_,_) (Module v ns xs ds is bs)
                                               return (Module v ns xs ds is bs)
   where env                             = addKEnv0 (ksigsOf ds') initEnv 
 
+kindcheckBinds ds b                     = kiBinds env b
+  where env                             = addKEnv0 (ksigsOf ds) initEnv              
 
 -- Kind unification ------------------------------------------------------------
 

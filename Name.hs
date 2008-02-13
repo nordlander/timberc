@@ -47,6 +47,7 @@ data Prim                       =
                                 | Bool
 
                                 | Array
+                                | EITHER
 
                                 -- Constructor symbols (special syntax)
 
@@ -65,6 +66,8 @@ data Prim                       =
 
                                 | FALSE                 -- Terms
                                 | TRUE
+                                | LEFT
+                                | RIGHT
 
                                 | MAX____CONS
                                 
@@ -229,12 +232,15 @@ rigidKeyValue p					= (strRep p, prim p)
 lowPrims                        = [Sec,Millisec,Microsec,Nanosec,Raise,Catch,Baseline,Deadline,Next,OwnedBy,WantedBy,Infinity]
 
 strRep LIST                     = "[]"
+strRep EITHER                   = "Either"
 strRep UNITTYPE                 = "()"
 strRep UNITTERM                 = "()"
 strRep NIL                      = "[]"
 strRep CONS                     = ":"
 strRep TRUE                     = "True"
 strRep FALSE                    = "False"
+strRep LEFT                     = "Left"
+strRep RIGHT                    = "Right"
 strRep LazyAnd                  = "&&"
 strRep LazyOr                   = "||"
 strRep IndexArray               = "!"
@@ -385,8 +391,8 @@ instance Show Name where
   show (Tuple n _)              = show ('(' : replicate (n-1) ',' ++ ")")
   show (Prim p _)               = strRep p
 
-
 instance Pr Name where
+  -- pr (Name s n m a)             = prExpl a <> text (s++'_':show n++maybe "" ("'"++) m)
   pr n                          = text (show n)
 
 prExpl a                        = if explicit a then text "~" else empty

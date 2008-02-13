@@ -341,6 +341,8 @@ tr m                            = trace (m++"\n") (return ())
 
 tr' m e                         = trace ("\n"++m++"\n") e
 
+trNum str                       = do n <- currentNum
+                                     tr ("At "++show n++": "++str)
 
 -- Free variables -----------------------------------------------------------------------
 
@@ -548,6 +550,22 @@ instance TVars a => TVars [a] where
 instance TVars a => TVars (Name,a) where
     tvars (v,a)                 = tvars a
 
+
+-- Defaults ------------------------------------------
+
+data Default a = Default Bool Name Name  -- First arg is True if declaration is in public part
+               | Derive Name a
+             deriving (Eq, Show)
+
+instance Pr a => Pr(Default a) where
+  pr (Default _ a b)            = text "default" <+> pr a <+> text "<" <+> pr b
+  pr (Derive v t)               = text "default" <+> pr v <+> text "::" <+> pr t
+
+instance HasPos a => HasPos (Default a) where
+  posInfo (Default _ a b)       = between (posInfo a) (posInfo b)
+  posInfo (Derive v t)          = between (posInfo v) (posInfo t)
+
+
 -- Binary --------------------------------------------
 
 instance Binary Lit where
@@ -581,3 +599,13 @@ instance Binary Kind where
 instance Binary TVar where
   put (TV a) = put a
   get = get >>= \a -> return (TV a)
+
+instance Binary a => Binary (Default a) where
+  put (Default a b c) = putWord8 0 >> put a >> put b >> put c
+  put (Derive a b) = putWord8 1 >> put a >> put b
+ 
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+       0 -> get >>= \a -> get >>= \b -> get >>= \c -> return (Default a b c)
+       1 -> get >>= \a ->  get >>= \b -> return (Derive a b)

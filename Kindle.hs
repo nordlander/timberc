@@ -132,6 +132,9 @@ primDecls                               = (prim Bool,       Struct [tagSig] [pri
                                                                     (prim Baseline, ValT (TId (prim AbsTime))),
                                                                     (prim Deadline, ValT (TId (prim AbsTime))),
                                                                     (prim Next, ValT (TId (prim Msg)))] []) :
+                                          (prim EITHER,     Struct [tagSig] [prim LEFT, prim RIGHT]) :
+                                          (prim LEFT,       Struct [tagSig, (name0 "a",ValT TWild)] []) :
+                                          (prim RIGHT,      Struct [tagSig, (name0 "a",ValT TWild)] []) :
                                           []
                                           
 objTEnv                                 = [(prim Obj, ValT tObject)]
@@ -177,7 +180,7 @@ primTEnv0                               = (prim ASYNC,      FunT [tMsg,tTime,tTi
                                           (prim CloneArray, FunT[tArray,tInt] tArray) :
                                           []
 
-ptrPrims                                = [Msg, Ref, PID, Array, LIST]
+ptrPrims                                = [Msg, Ref, PID, Array, LIST, EITHER]
 
 boxedPrims                              = [Int, Float, Time]
 

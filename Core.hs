@@ -6,7 +6,7 @@ import Data.Binary
 import Monad
 
 
-data Module     = Module Name [Name] [Default] Types Binds Binds
+data Module     = Module Name [Name] [Default Scheme] Types Binds Binds
                 deriving  (Eq,Show)
 
 data Types      = Types   KEnv Decls
@@ -15,7 +15,7 @@ data Types      = Types   KEnv Decls
 data Binds      = Binds   Bool TEnv Eqns
                 deriving  (Eq,Show)
 
-type Default    = (Bool,Name,Name)
+--type Default    = (Bool,Name,Name)
 
 type PEnv       = TEnv
 
@@ -81,7 +81,6 @@ data Cmd        = CGen    Name Type Exp Cmd
                 | CRet    Exp
                 | CExp    Exp
                 deriving (Eq,Show)
-
 
 
 litType (LInt _ i)              = TId (prim Int)
@@ -631,19 +630,13 @@ instance BVars Binds where
 
 instance Pr Module where
     pr (Module i ns xs ds is bs)  = text "module" <+> prId i <+> text "where"
-                                  $$ prImports ns $$ prDefault xs $$ pr ds $$ prInsts is $$ pr bs
-
-prDefault []                     = empty
-prDefault (i : is)               = pr i $$ prDefault is
+                                  $$ prImports ns $$ vpr xs $$ pr ds $$ prInsts is $$ pr bs
 
 prImports []                     = empty
 prImports ns                     = text "import" <+> hpr ',' ns
 
 instance Pr (Module,a) where
   pr (m,_)                       = pr m
-
-instance Pr (a,Name,Name) where
-  pr (_,i1,i2)                   = text "default" <+> pr i1 <+> text "<" <+> pr i2
 
 -- Type declarations ---------------------------------------------------------
 
@@ -657,17 +650,17 @@ instance Pr (Name, Decl) where
                                   <+> prSubs ts <+> prConstrs cs
     pr (i, DRec isC vs ts ss)   = text kwd <+> prId i <+> hsep (map prId vs) 
                                   <+> prSups ts <+> prEq ss $$ nest 4 (vpr ss)
-      where kwd                 = if isC then "class" else "record"
+      where kwd                 = (if isC then "implicit " else "")++"struct"
 
 prEq []                         = empty
-prEq _                          = text "="
+prEq _                          = text "where"
 
 
 -- Instances ---------------------------------------------------------------
 
 prInsts (Binds r te eqs)        = vcat (map prInst te) $$ vpr eqs
 
-prInst (i, p)                   = text "instance" <+> prId i <+> text "::" <+> prPScheme 0 p
+prInst (i, p)                   = text "implicit" <+> prId i <+> text "::" <+> prPScheme 0 p
 
 
 -- Bindings -----------------------------------------------------------------
@@ -779,7 +772,7 @@ instance Pr Exp where
                                        nest 4 (pr e')
     prn 0 (EReq e e')           = text "request@" <> prn 2 e $$
                                        nest 4 (pr e')
-    prn 0 (ETempl x t te c)     = text "template@" <> prId x $$
+    prn 0 (ETempl x t te c)     = text "class@" <> prId x $$
                                        nest 4 (vpr te) $$
                                        nest 4 (pr c)
     prn 0 (EDo x t c)           = text "do@" <> prId x $$
@@ -807,15 +800,12 @@ instance Pr Cmd where
                                   pr c
     pr (CGen x t e c)           = prId x <+> {- text "::" <+> pr t <+> -} text "<-" <+> pr e $$
                                   pr c
-    pr (CRet e)                 = text "return" <+> pr e
+    pr (CRet e)                 = text "result" <+> pr e
     pr (CExp e)                 = pr e
 
 
 
 -- HasPos --------------------------------------------------
-
-instance HasPos Default where
-  posInfo (_,i1,i2)             = between (posInfo i1) (posInfo i2)
 
 instance HasPos Types where
   posInfo (Types ke ds)         = between (posInfo ke) (posInfo ds)
