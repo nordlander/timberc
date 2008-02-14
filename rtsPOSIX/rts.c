@@ -3,7 +3,6 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/mman.h>
-#include <setjmp.h>
 #include <signal.h>
 #include <sys/time.h>
 #include <string.h>
@@ -89,20 +88,13 @@ void panic(char *str) {
 
 // Thread management --------------------------------------------------------------------------------
 
-struct Thread {
-        Thread next;             // for use in linked lists
-        Msg msg;                 // message under execution
-        PID waitsFor;            // deadlock detection link
-        jmp_buf context;         // machine state
-};
-
 Object ObjInit          = { NULL, NULL };
 
 struct Msg msg0         = { NULL, 0, { 0, 0 }, { INF, 0 }, NULL };
 
 struct Thread threads[NTHREADS];
-struct Thread thread0   = { NULL, NULL, NULL, 0 };         // the idle process
-struct Thread thread1   = { &thread0, &msg0, NULL, 1 };    // initial process & primary workhorse (default stack)
+struct Thread thread0   = { NULL, NULL, NULL };         // the idle process
+struct Thread thread1   = { &thread0, &msg0, NULL };    // initial process & primary workhorse (default stack)
 
 Msg savedMsg            = NULL;
 Msg msgQ                = NULL;
@@ -116,6 +108,11 @@ Thread current          = &thread1;
 // Memory management --------------------------------------------------------------------------------
 
 #include "gc.c"
+
+
+// Cyclic data handling -----------------------------------------------------------------------------
+
+#include "cyclic.c"
 
 
 // GCINFO definitions for the built-in types -----------------------------------------------------
@@ -322,11 +319,16 @@ void init_threads(void) {
                         panic("Cannot protect end-of-stack page");
                 SETSTACK( &threads[i].context, stacksize, adr );
                 threads[i].waitsFor = NULL;
+                threads[i].msg = NULL;
+                threads[i].visit_flag = 0;
+                threads[i].placeholders = 0;
         }
 
         thread0.next = NULL;
         thread0.waitsFor = NULL;
         thread0.msg = NULL;
+        thread0.visit_flag = 0;
+        thread0.placeholders = 0;
         if (setjmp( thread0.context ))
                 idle();
         if (!(adr = allocwords(pagesize)))
@@ -337,6 +339,8 @@ void init_threads(void) {
         thread1.next = &thread0;
         thread1.waitsFor = NULL;
         thread1.msg = &msg0;
+        thread1.visit_flag = 0;
+        thread1.placeholders = 0;
 
         activeStack = &thread1;
 }
@@ -354,11 +358,13 @@ LIST getStr(char *p) {
         if (!*p)
                 return (LIST)_NIL;
         CONS n0; NEW(CONS, n0, sizeof(struct CONS));
+        SETGCINFO(n0, __GC__CONS);
         CONS n = n0;
         n->a = (POLY)(Int)*p++;
         while (*p) {
                 NEW(LIST, n->b, sizeof(struct CONS));
                 n = (CONS)n->b;
+                SETGCINFO(n, __GC__CONS);
                 n->a = (POLY)(Int)*p++;
         }
         n->b = (LIST)_NIL;

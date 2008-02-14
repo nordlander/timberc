@@ -5,6 +5,7 @@ import Common
 import Kindle
 import PP
 import Char
+import Depend
 
 kindle2c is m                   = return (render h, render c)
   where h                       = k2hModule m
@@ -87,7 +88,7 @@ k2cModule is (Module n ns ds bs)= cHeader n $$$
                                   k2cFunBinds bs $$$
                                   k2cInitProc n ns bs $$$
                                   cFooter n
---  where (bsV,bsF)               = partition isVal bs
+
 
 k2cGCinfo ds                    = vcat (map f ds)
   where f (n, Struct te cs)     = text "WORD" <+> k2cGCinfoName n <> text "[]" <+> text "=" <+> 
@@ -132,8 +133,9 @@ k2cOnce p                       = text "static int INITIALIZED = 0;" $$
 
 
 k2cInitProc n ns bs             = k2cInitProcStub n <+> text "{" $$
-	                              nest 4 (k2cOnce (k2cInitImports ns $$ k2cValBinds bs)) $$
+	                              nest 4 (k2cOnce (k2cInitImports ns $$ vcat (map k2cValBinds' (groupMap bs)))) $$
                                   text "}"
+  where k2cValBinds' (r,bs)     = k2cValBinds (r, filter isVal bs)
 
 
 k2cFunBinds bs                  = vcat (map f bs)
@@ -144,7 +146,8 @@ k2cFunBinds bs                  = vcat (map f bs)
 
 
 
-k2cValBinds bs                  = vcat (map f bs) $$
+k2cValBinds (rec,bs)
+  | not rec || all isNew bs     = vcat (map f bs) $$
                                   vcat (map g bs)
   where f (x, Val t (ENew n bs)) 
                                 = newCall t (EVar x) n
@@ -153,21 +156,33 @@ k2cValBinds bs                  = vcat (map f bs) $$
         g (x, Val t (ENew n bs)) 
                                 = k2cStructBinds (EVar x) bs
         g _                     = empty
-        
+        isNew (_, Val _ (ENew _ _))
+                                = True
+        isNew _                 = False
+k2cValBinds (_,bs)              = text "{   Array roots = CYCLIC_BEGIN(" <> text (show (length bs)) <> text ");" $$
+                                  nest 4 (vcat (zipWith f [0..] bs) $$
+                                          vcat (zipWith g [0..] bs) $$
+                                          vcat (zipWith h [0..] bs) $$
+                                          text "CYCLIC_END(roots);") $$
+                                  text "}"
+  where f i (x, Val t _)        = k2cName x <+> text "=" <+> k2cExp (rootInd' t i) <> text ";"
+        g i (x, Val t (ENew n bs'))
+                                = newCall t (rootInd i) n $$
+                                  k2cStructBinds (rootInd' t i) bs'
+        g i (x, Val t e)        = k2cExp (rootInd i) <+> text "=" <+> k2cExp (ECast TWild e) <> text ";"
+        h i (x, Val t _)        = k2cName x <+> text "=" <+> k2cExp (rootInd' t i) <> text ";"
+        rootInd i               = ECall (prim IndexArray) [EVar (name0 "roots"), ELit (LInt Nothing i)]
+        rootInd' t i            = ECast t (rootInd i)
 
 
 newCall t e n                   = text "NEW" <+> parens (k2cType t <> text "," <+> 
                                                                  k2cExp e <> text "," <+> 
                                                                  k2cSize n) <> text ";" $$
-                                  k2cExp e <> text "->gcinfo" <+> text "=" <+> k2cGCinfoName n <> text ";"
+                                  text "SETGCINFO(" <> k2cExp (ECast t e) <> text "," <+> k2cGCinfoName n <> text ");"
 
 
 k2cStructBinds e0 bs            = vcat (map f bs)
-  where f (x, Val t (ENew n bs))
-                                = newCall t e n $$
-                                  k2cStructBinds e bs
-          where e               = ESel e0 x
-        f (x, Val t e)          = k2cExp (ESel e0 x) <+> text "=" <+> k2cExp e <> text ";"
+  where f (x, Val t e)          = k2cExp (ESel e0 x) <+> text "=" <+> k2cExp e <> text ";"
         f (x, Fun t te (CRet (ECall f es)))
                                 = k2cExp (ESel e0 x) <+> text "=" <+> k2cName f <> text ";"
         f (x, _)                = internalError0 "k2cSBind"
@@ -180,8 +195,11 @@ k2cCmd (CRun e c)               = k2cExp e <> text ";" $$
 k2cCmd (CBind False [(_,Val _ (ECall (Prim UpdateArray _) [e1,e2,e3,_]))] c)
                                 = k2cExp2 (ECall (prim IndexArray) [e1,e2]) <+> text "=" <+> k2cExp e3 <> text ";" $$
                                   k2cCmd c
-k2cCmd (CBind _ bs c)           = k2cBindStubsC bs $$
-                                  k2cValBinds bs $$
+k2cCmd (CBind False bs c)       = k2cBindStubsC bs $$
+                                  k2cValBinds (False,bs) $$
+                                  k2cCmd c
+k2cCmd (CBind True bs c)        = k2cBindStubsC bs $$
+                                  vcat (map k2cValBinds (groupMap bs)) $$
                                   k2cCmd c
 k2cCmd (CUpd x e c)             = k2cName x <+> text "=" <+> k2cExp e <> text ";" $$
                                   k2cCmd c

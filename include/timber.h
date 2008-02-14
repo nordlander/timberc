@@ -109,4 +109,7 @@ Array EmptyArray(Int);
 Array CloneArray(Array,Int);
 Array primUpdateArray(Array,Int,POLY);
 
+Array CYCLIC_BEGIN(Int);
+void  CYCLIC_END(Array);
+
 #endif

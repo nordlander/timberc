@@ -123,7 +123,7 @@ ADDR copy(ADDR obj) {
 ADDR scandyn(ADDR obj) {
         ADDR info = (ADDR)GCINFO(obj);
         WORD size = obj[1] + 2;                         // find size of dynamic part in second slot of obj, add static size
-        if (info[1])
+        if (!info[1])
                 return obj + size;                      // return immediately if obj contains no pointers
         do {    GCINFO(obj) = 0;                        // flag scanning in progress by nulling out gcinfo ptr
                 WORD i = 2;
@@ -212,4 +212,3 @@ void gc() {
         base2 = lim2 = hp2 = (ADDR)0;
         ENABLE(&previous_mask);
 }
-

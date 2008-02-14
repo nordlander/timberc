@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <sys/time.h>
+#include <setjmp.h>
 
 typedef int WORD;
 typedef WORD *ADDR;
@@ -22,6 +23,22 @@ typedef WORD *ADDR;
 struct Thread;
 typedef struct Thread *Thread;
 
+struct Msg;
+
+typedef struct Object Object;
+typedef Object *PID;
+
+
+struct Thread {
+        Thread next;            // for use in linked lists
+        struct Msg *msg;        // message under execution
+        PID waitsFor;           // deadlock detection link
+        WORD visit_flag;        // for use during cyclic data construction
+        int placeholders;       // for use during cyclic data construction
+        jmp_buf context;        // machine state
+};
+
+
 typedef struct timeval AbsTime;
 
 struct Object {
@@ -30,12 +47,11 @@ struct Object {
         Thread wantedBy;
 };
 
-typedef struct Object Object;
-typedef Object *PID;
-
 extern Object ObjInit;
 
-#define WORDS(bytes)                    (((bytes)+sizeof(WORD)-1)/sizeof(WORD))
+extern Thread current;
+
+#define WORDS(bytes)            (((bytes)+sizeof(WORD)-1)/sizeof(WORD))
 
 
 #if defined(__APPLE__)
@@ -45,6 +61,8 @@ extern Object ObjInit;
 
 #define NEW(t,addr,words)       { ADDR top; do { addr = (t)hp; top = (ADDR)addr+(words); } while (!CAS(addr,top,&hp)); \
                                   if (top>=lim) addr = (t)force(words); }
+
+#define SETGCINFO(n,info)       { (n)->gcinfo = (ADDR)((WORD)(info) | current->visit_flag); }
 
 #define TMIN(a,b)               ( (a) > 0 && (a) < (b) ? (a) : (b) )
 #define TPLUS(a,b)              ( (a) > 0 ? (a) + (b) : (b) )
