@@ -87,7 +87,7 @@ pBind env (x, Fun t te c)       = do c <- pCmd (addVals te env) c
 
 
 -- Prepare struct bindings
-pSBind env n (x, Val t e)       = do (bs,_,e) <- pRhsExp env e 
+pSBind env n (x, Val t e)       = do (bs,e) <- pExp env e 
                                      return (bs, (x, Val t e))
 pSBind env n b@(x, Fun t te (CRet (ECall f (EThis:es))))
   | es == map EVar (dom te)     = return ([], b)
@@ -103,8 +103,10 @@ pCmd env (CRet e)               = do (bs,e) <- pExp env e
                                      return (cBind bs (CRet e))
 pCmd env (CRun e c)             = do (bs,e) <- pExp env e
                                      liftM (cBind bs . CRun e) (pCmd env c)
-pCmd env (CBind r bs c)         = do (bs1,bs) <- pMap (pBind (if r then env' else env)) bs
-                                     liftM (cBind bs1 . CBind r bs) (pCmd env' c)
+pCmd env (CBind False bs c)     = do (bs1,bs) <- pMap (pBind env) bs
+                                     liftM (cBind bs1 . CBind False bs) (pCmd (addBinds bs env) c)
+pCmd env (CBind True bs c)      = do (bs1,bs) <- pMap (pBind env') bs
+                                     liftM (CBind True (bs1++bs)) (pCmd env' c)
   where env'                    = addBinds bs env
 pCmd env (CUpd x e c)           = do (bs,e) <- pExp env e
                                      liftM (cBind bs . CUpd x e) (pCmd env c)
