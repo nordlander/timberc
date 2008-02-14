@@ -42,3 +42,10 @@ groupTypes (Types ke ts)        = zipWith Types kes tss
   where gs                      = scc (graph tycons ts)
         kes                     = group ke gs
         tss                     = group ts gs
+
+
+groupMap bs                     = map f bss
+  where gs                      = scc (graph evars bs)
+        bss                     = group bs gs
+        f bs@[(x,b)]            = (x `elem` evars b, bs)
+        f bs                    = (True, bs)
