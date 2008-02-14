@@ -16,7 +16,7 @@ derive ts ds (Derive n sc : xs)       = do let (s,d) = analyze ds sc
                                            b <- mkFunPair d
                                            i <- mkInstance n ts s sc b
                                            i' <- kindcheckBinds ds i
-                                           tr ("### Default instance \n"++render (prInsts i'))
+                                           -- tr ("### Default instance \n"++render (prInsts i'))
                                            (is,xs) <- derive ts ds xs
                                            return (i':is,xs)
 
@@ -113,3 +113,4 @@ etup n es                             = EAp (ECon (tuple n)) es
 scheme2Type (Scheme r _ _)            = rho2Type r
 rho2Type (R t)                        = t
 rho2Type (F ss r)                     = TFun (map scheme2Type ss) (rho2Type r) 
+

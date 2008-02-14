@@ -103,8 +103,8 @@ cModule e2 e3 (Module m ns xs ds is bs)
                                     = do te0 <- tenv0 e2
                                          te  <- cTEnv (Decls.tenvSelsCons ds)
                                          let env = addTEnv (te ++ te0) (env0 (str m))
-                                         ds1  <- cDecls env ds
                                          mapM_ addToStore (filter (isClosure . fst) e3)
+                                         ds1  <- cDecls env ds
                                          bs  <- cBindsList env (groupBinds (is `catBinds` bs))
                                          ds2 <- currentStore
                                          let ds3 = ds1++reverse (filter (isQual m . fst) ds2)
