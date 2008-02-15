@@ -106,7 +106,7 @@ resolve env pe                          = do -- tr "RESOLVING"
                                              (s,q,[],es) <- red [] (map mkGoal pe)
                                              -- tr ("############### After resolve: " ++ show q)
                                              let q' = filter badDummy q
-                                             assert (null q') "Cannot resolve predicates with heads" (map (headsym . snd) q')
+                                             assert1 (null q') "Cannot resolve predicates" (snd (head q'))
                                              -- tr "DONE RESOLVING"
                                              return (s, q, eLet pe (dom pe `zip` es))
   where env_tvs                         = tevars env
@@ -497,7 +497,7 @@ mapSuccess f xs                         = do xs' <- mapM (expose . f) xs
 -- Handle subtype predicates
 closeTransitive env []                  = return (env, [], [])
 closeTransitive env ((w,p):pe)
-  | isSub' p                            = do assert (a /= b) "Illegal subtype predicate with head" [headsym p]
+  | isSub' p                            = do assert1 (a /= b) "Illegal subtype predicate" p
                                              (pe1,eq1) <- mapSuccess (mkTrans env) [ (n1,n2) | n1 <- below_a, n2 <- [(w,p)] ]
                                              (pe2,eq2) <- mapSuccess (mkTrans env) [ (n1,n2) | n1 <- (w,p):pe1, n2 <- above_b ]
                                              let cycles = filter (uncurry (==)) (map (subsyms . predOf) (pe1++pe2))

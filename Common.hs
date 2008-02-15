@@ -90,16 +90,16 @@ dropDigits xs                   = drop 0 xs
 
 -- Error reporting ---------------------------------------------------------
 
-errorIds mess ns                = error (unlines((mess++":") : map pos ns))
+errorIds mess ns                = error (unlines ((mess++":") : map pos ns))
   where pos n                   = case loc n of
                                     Just (r,c) -> rJust 15 (show n) ++ "  at line " ++ show r ++ ", column " ++ show c
                                     Nothing ->    rJust 15 (show n) ++ "  (internally generated)"
         loc n                   = location (annot n)
         rJust w str             = replicate (w-length str) ' ' ++ str
 
-errorTree mess t                = error (mess ++ pos ++ (if length(lines str) >1 then "\n"++str++"\n" else str) )
+errorTree mess t                = error (mess ++ pos ++ (if length (lines str) > 1 then "\n"++str++"\n" else str) )
   where str                     = render (pr t)
-        pos                     = " ("++ show(posInfo t)++"): "
+        pos                     = " ("++ show (posInfo t) ++"): "
  
 
 posError info p msg             = fail (info ++ " error "++show p ++ ": " ++ msg)
@@ -107,6 +107,8 @@ posError info p msg             = fail (info ++ " error "++show p ++ ": " ++ msg
 internalError mess t            = errorTree ("**** Internal compiler error ****\n" ++ mess) t
 
 internalError0 mess             = error ("**** Internal compiler error ****\n" ++ mess)
+
+
 -- PosInfo ---------------------------------------------------------
    
 
@@ -285,6 +287,11 @@ mergeRenamings2 rn1 rn2         = case ns of
 assert e msg ns
   | e                           = return ()
   | otherwise                   = errorIds msg ns
+
+assert1 e msg ts
+  | e                           = return ()
+  | otherwise                   = errorTree msg ts
+
 
 -- Poor man's exception datatype ------------------------------------------------------
 
