@@ -443,7 +443,7 @@ packName n                      = show n
 
 unpackName x                    = case break (=='_') x of
                                     (s,"") -> name0 s
-                                    (s,n)  -> (name0 s) { tag = read n }
+                                    (s,n)  -> (name0 s) { tag = read (tail n) }
 
 
 -- Binary --------------------------------------------------------
