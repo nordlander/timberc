@@ -165,9 +165,8 @@ tHead t                         = t
 
 tId (TId i)                     = i
 
-isTVar t                        = case tHead t of
-                                    TVar _ -> True
-                                    _      -> False
+isTVar (TVar _)                 = True
+isTVar _                        = False
 
 
 a `sub` b                       = TFun [a] b

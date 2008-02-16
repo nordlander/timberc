@@ -99,8 +99,6 @@ addPEnv pe env
 addClasses cs env                       = env { classEnv   = ce ++ classEnv env }
   where ce                              = cs `zip` repeat nullWG
 
-noClasses env                           = env { classEnv = [] }
-
 setSelf x t env                         = env' { stateT = Just t }
   where env'                            = addTEnv [(x,scheme (tRef t))] env
 
@@ -165,16 +163,6 @@ insertSubPred n@(w,p) env               = env { aboveEnv = insert a wg_a (aboveE
           where syms                    = mapSnd lowersym (nodes wg)
                 pre                     = [ w | (w,c) <- syms, hasCoercion env a c ]
                 post                    = [ w | (w,c) <- syms, hasCoercion env c a ]
-
-
-singleWitness env n@(w,p)
-  | isSub' p                            = env0 { aboveEnv = [(a,wg)], belowEnv = [(b,wg)] }
-  | otherwise                           = env0 { classEnv = [(c,wg)] }
-  where c                               = headsym p
-        (a,b)                           = subsyms p
-        wg                              = unitWG n
-        env0                            = env { aboveEnv = [], belowEnv = [], classEnv = [] }
-
 
 
 instance Subst WGraph TVar Type where
@@ -343,7 +331,6 @@ findWG (RUnif)        (env,_)           = reflWG
 findWG (RInv _ Pos i) (env,_)           = concatWG reflWG (findAbove env i)
 findWG (RInv _ Neg i) (env,_)           = concatWG reflWG (findBelow env i)
 findWG (RClass i)     (env,_)           = lookup' (classEnv env) i
-findWG (RVarVar)      (env,_)           = foldl concatWG reflWG (rng (aboveEnv env))
 
 
 addReflWG wg                            = WG { nodes = reflAll : nodes wg, 
@@ -381,7 +368,7 @@ data Rank                               = RFun                  -- function type
                                         | RUnif                 -- var-var, unifiable (either safe or forced)
                                         | RInv    Int Dir Name  -- con-var, requires unordered search 
                                         | RClass  Name          -- class constraint, rank below all subpreds involving a tycon
-                                        | RVarVar               -- var-var, requires unordered search (empty common solution is likely)
+                                        | RVar                  -- var-var sub or var-only class, search not meaningful
                                         deriving (Ord,Eq,Show)
 
 
@@ -425,14 +412,17 @@ rank info (env,TFun [l] u)              = subrank (tFlat l) (tFlat u)
       | l'==0 && b'==1 && null ts' && not (isNeg v')
                                         = RUnif     -- no n' embeddings, only one bound (here!), no variance problems, set n' = lower bound
       | approx                          = RUnif     -- eliminate var-to-var predicates early when approximating
-      | otherwise                       = RVarVar   -- leave them until last when in conservative mode
+      | otherwise                       = RVar      -- just leave them be when in conservative mode
       where l                           = length (filter (==n) emb)  -- # of embeddings of n
             b                           = length (filter (==n) ub')  -- # of upper var OR con bounds for n
             v                           = polarity pvs n             -- polarity of n in target type
             l'                          = length (filter (==n') emb) -- # of embeddings of n'
             b'                          = length (filter (==n') lb') -- # of lower var OR con bounds for n'
             v'                          = polarity pvs n'            -- polarity of n' in target type
-rank info (env,t)                       = RClass (tId (tHead t))     -- class predicate, rank just above conservative var-to-var
+rank info (env,t)
+  | all isTVar ts && not (forced env)   = RVar          -- trivial class predicate, just leave be when not approximating        
+  | otherwise                           = RClass c      -- non-trivial class predicate, perform witness search
+  where (TId c,ts)                      = tFlat t
 
 
 -- m x < n a b

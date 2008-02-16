@@ -85,7 +85,7 @@ tiBindsList env (bs:bss)        = do (ss1, pe1, bs') <- tiBinds env bs
 
                                      
 tiBinds env (Binds _ [] [])     = return ([], [], nullBinds)
-tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ render (vpr te) ++ ",  rec: " ++ show rec)
+tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ render (vpr te) ++ ",  line: " ++ show (pos (fst(head te))))
                                      -- tr ("tevars: " ++ show (tevars env))
                                      (s,pe,es1)   <- tiRhs0 env' explWits ts es
                                      -- tr ("RESULT: " ++ render (vpr pe))

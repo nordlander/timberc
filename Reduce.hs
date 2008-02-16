@@ -49,13 +49,13 @@ norm env pe                             = do -- tr ("NORM " ++ "\n" ++ render (v
 
 reduce env pe                           = do -- tr ("###reduce\n" ++ render (vpr pe) ) -- ++ "\n\n" ++ show (tvars (typeEnv env)))
                                              (s,q,[],es) <- red [] (map mkGoal pe)
-                                             -- tr ("###result: " ++ show (dom pe `zip` es))
+                                             -- tr ("###result\n" ++ render (vpr q))
                                              return (s, q, eLet pe (dom pe `zip` es))
   where mkGoal (v,p)                    = (tick env{errPos = pos v} (isCoercion v || isDummy v), p)
 
 -- Simplification ------------------------------------------------------------------------------
 
-simplify env pe                         = do -- tr ("SIMPLIFY " ++ show pe)
+simplify env pe                         = do -- tr ("****SIMPLIFY\n" ++ render (vpr pe))
                                              cs <- newNames skolemSym (length tvs)
                                              r <- expose (closePreds env [] (subst (tvs`zip`map TId cs) pe) (cs`zip`ks))
                                              case r of
@@ -100,11 +100,12 @@ a x < b x \\ x, a x < c x \\ x, b x < c Int \\ x
 
 -- Forced reduction ------------------------------------------------------------------------
 
-resolve env pe                          = do -- tr "RESOLVING"
-                                             -- tr ("############### Before resolve: " ++ show pe)
+resolve env pe                          = do -- tr ("############### Before resolve: ")
+                                             -- tr (render (nest 8 (vpr pe)))
                                              -- tr ("tevars: " ++ show env_tvs ++ ",   reachable: " ++ show reachable_tvs)
                                              (s,q,[],es) <- red [] (map mkGoal pe)
-                                             -- tr ("############### After resolve: " ++ show q)
+                                             -- tr ("############### After resolve: ")
+                                             -- tr (render (nest 8 (vpr q)))
                                              let q' = filter badDummy q
                                              assert1 (null q') "Cannot resolve predicates" (snd (head q'))
                                              -- tr "DONE RESOLVING"
@@ -268,42 +269,30 @@ redf2 s gs env a b ps                   = do (s',q,es,e,es') <- redf (subst s gs
 solve RFun (env,p) gs                   = do (s,q,es,[e]) <- red gs [(env, scheme' (F [scheme a] (R b)))]
                                              return (s, q, e:es)
   where (a,b)                           = subs p
-solve RUnif (env,p) gs                  = do -- tr ("unif: " ++ show p)
+solve RUnif (env,p) gs                  = do -- tr ("------ Unifying: " ++ render (pr p))
                                              s <- unify env [(a,b)]
                                              (s',q,es,[]) <- red (subst s gs) []
                                              return (s'@@s, q, EVar (prim Refl) : es)
   where (a,b)                           = subs p
+solve RVar g gs                         = do -- tr ("------ Abstracting\n" ++ render (nest 4 (vpr (rng (g:gs)))))
+                                             (qs,es) <- fmap unzip (mapM newHyp (g:gs))
+                                             return (nullSubst, concat qs, es)
 solve r g gs
   | mayLoop g                           = do assert0 (conservative g) "Recursive constraint"
-                                             -- tr ("%%%%%%%%%%%%%%%%%Avoiding loop: " ++ render (pr (snd g)))
+                                             -- tr ("%%%%%% Avoiding loop: " ++ render (pr (snd g)))
                                              (s,q,es,_) <- red gs []
-                                             (q',e) <- newHyp g
+                                             (q',e) <- newHyp (subst s g)
                                              return (s, q'++q, e:es)
   | otherwise                           = do -- tr ("Solving " ++ render (pr (snd g)))
-                                             -- tr (render (nest 4 (vpr (rng gs))))
+                                             -- tr (render (nest 4 (vpr (rng gs1))) ++ "\n    --\n" ++ render (nest 4 (vpr (rng gs2))))
                                              -- tr ("Witness graph: " ++ show (findWG r g))
-                                             (s1,q1,e:es1) <- try r (Left msg) (findWG r g) (logHistory g) gs1
-                                             (s2,q2,es2,_) <- red gs2 []
-                                             return (s1++s2, q1++q2, e : mergeBy directions es1 es2)
+                                             try r (Left msg) (findWG r g) (logHistory g) gs
   where msg                             = "Cannot solve typing constraint "++render(prPred (snd g))
-        (gs1,gs2)                       = splitBy directions gs
-        directions                      = map (not . null . intersect reachable_tvs) tvss
-        tvss                            = map (tvars . snd) gs
-        reachable_tvs                   = vclose tvss (tvars (snd g))
-        splitBy [] []                   = ([],[])
-        splitBy (dir:dirs) (g:gs)
-          | dir                         = (g:gs1,gs2)
-          | otherwise                   = (gs1,g:gs2)
-          where (gs1,gs2)               = splitBy dirs gs
-        mergeBy [] [] []                = []
-        mergeBy (True:dirs) (g:gs1) gs2 = g : mergeBy dirs gs1 gs2
-        mergeBy (_   :dirs) gs1 (g:gs2) = g : mergeBy dirs gs1 gs2
 
 
 try r accum wg g gs
   | isNullWG wg || isNull accum         = unexpose accum
-  | otherwise                           = do -- tr ("###Trying: " ++ render (pr (snd g)) ++ "  with  " ++ render (pr wit))
-                                             res <- expose (hyp wit g gs)
+  | otherwise                           = do res <- expose (hyp wit g gs)
                                              accum <- plus (g : gs) accum res
                                              -- tr ("New accum: " ++ show accum)
                                              try r accum (wg2 res) g gs
@@ -317,12 +306,11 @@ mayPrune _         _          _         = True
 
 
 hyp (w,p) (env,c) gs                    = do (R c',ps) <- inst p
-                                             -- tr ("hyp: " ++ show c ) -- ++ ", witness: " ++ show (w,p))
+                                             -- tr ("### Trying: " ++ render (pr c) ++ "  with  " ++ render (pr w))
                                              s <- unify env [(c,c')]
-                                             -- tr ("**OK: " ++ show s)
+                                             -- tr ("    OK")
                                              let ps' = repeat (subst s env) `zip` subst s ps
-                                             -- if not (null ps') then tr ("@@@@@@Appending\n" ++ render (nest 4 (vpr (rng ps')))) 
-                                             --  else return ()
+                                             -- if not (null ps') then tr ("@@ Appending\n" ++ render (nest 4 (vpr (rng ps')))) else return ()
                                              (s',q,es,es') <- red (subst s gs) ps'
                                              return (s'@@s, q, eAp (EVar w) es' : es)
 
@@ -395,7 +383,7 @@ auTerms gs es1 es2                      = auZip auTerm gs es1 es2
     auSc _ _ _                          = internalError0 "auTerms"
 
 
-newHyp (env,c)                          = do -- tr ("newHyp " ++ render (prPScheme 0 p))
+newHyp (env,c)                          = do -- tr ("newHyp " ++ render (pr p) ++ "   " ++ show (forced env))
                                              v <- newName (sym env)
                                              return ([(v,p)], eAp (EVar (annotExplicit v)) (map EVar vs))
   where p                               = Scheme (R c) ps ke
