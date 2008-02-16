@@ -131,31 +131,22 @@ insertClassPred pre n@(w,p) post env    = env { classEnv = insert c wg' (classEn
         wg'                             = WG { nodes = insertBefore n post (nodes wg),
                                                arcs  = pre `zip` ws ++ ws `zip` post ++ arcs wg }
 
-insertDefault sigs d@(Default _ i1 i2) env                 
-  |c1 /= c2                             = errorTree ("Illegal defaulting; instances of different classes") d
-  |otherwise                            = env { classEnv = insert c1 wg' (classEnv env) }
-  where c1                              = headsym (lookup' sigs i1)
+insertDefault sigs d@(Default _ i1 i2) env
+  | c1 /= c2                            = errorTree ("Illegal defaulting; instances of different classes") d
+  | i1 `elem` post2                     = errorIds ("Cyclic default declarationsss for") [i1,i2]
+  | otherwise                           = env { classEnv = insert c1 wg' (classEnv env) }
+  where p1                              = lookup' sigs i1
+        c1                              = headsym p1
         c2                              = headsym (lookup' sigs i2)
-        wg                              = findClass env c1
-        wg'                             = wg { arcs = (i1,i2) : arcs wg }
+        WG ns as                        = findClass env c1
+        post2                           = [ j | (i,j) <- as, i == i2 ]
+        wg'                             = WG { nodes = insertBefore (i1,p1) (i2:post2) (delete i1 ns),
+                                               arcs  = (i1,i2) : (repeat i1 `zip` post2) ++ as }
 insertDefault _ _ env                   = env
 
-insertDefaults env sigs ds              = env2
-  where env1                            = foldr (insertDefault sigs) env ds
-        env2                            = env1 {classEnv = reorderWG (classEnv env1)}
-        reorderWG []                    = []
-        reorderWG ((n,wg) : ps)         = (n,tsort wg) : reorderWG ps
-        tsort (WG ns as)                = case dropWhile (null . tail) is of
-                                            [] -> WG (order ns is1) (closeTrans g')
-                                            xs : _ -> errorIds "Cyclic default declarations for" xs
-                                          where g = [(n,[m | (a,m) <- as, a==n]) | n <- dom ns]
-                                                is = scc g
-                                                is1 = reverse (concat is)
-                                                g' = order g is1
-                                          
-        closeTrans []                   = []
-        closeTrans ((a,bs):as)          = map (\b -> (a,b)) bs ++ [(a,d) | (c,d) <- cs, c `elem` bs] ++ cs
-                                          where cs = closeTrans as
+insertDefaults env sigs ds              = foldr (insertDefault sigs) env ds
+
+                                        
 insertSubPred n@(w,p) env               = env { aboveEnv = insert a wg_a (aboveEnv env),
                                                 belowEnv = insert b wg_b (belowEnv env) }
   where (a,b)                           = subsyms p

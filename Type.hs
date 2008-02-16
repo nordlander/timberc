@@ -143,7 +143,7 @@ tiExpT' env (False, Scheme t0 ps [], e)
                                      return (ss, (c, Scheme (F [scheme' t] t0) ps []) : qe, e1)
 tiExpT' env (explWit, Scheme t0 ps ke, e)
                                 = do (ss,qe,t,e)  <- tiExp env e
-                                     -- tr ("INFERRED: " ++ show e ++ "   ::  " ++ render (pr t) ++ "\n" ++ render (vpr qe))
+                                     -- tr ("INFERRED: " ++ render (pr t) ++ "\n" ++ render (vpr qe))
                                      (s,qe,f)     <- normalize (target t env) ss qe `handle` posHandler e
                                      c            <- newNamePos coercionSym e
                                      pe0          <- newEnv assumptionSym ps

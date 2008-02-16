@@ -37,11 +37,11 @@ normalize env eqs pe                    = do -- tr ("NORMALIZE: " ++ render (vpr
                                              return (s1@@s0, pe1, f1)
                                              
 
-norm env pe                             = do -- tr ("NORM\n" ++ render (vpr pe))
+norm env pe                             = do -- tr ("NORM " ++ "\n" ++ render (vpr pe))
                                              (s1, pe1, f1) <- reduce env pe
-                                             -- tr ("NORM B")
+                                             -- tr ("NORM B ")
                                              (s2, pe2, f2) <- simplify (subst s1 env) pe1
-                                             -- tr ("END NORM " ++ show pe2)
+                                             -- tr ("END NORM " ++ render (pr pe2))
                                              return (s2@@s1, pe2, f2 . f1)
 
 
@@ -275,17 +275,34 @@ solve RUnif (env,p) gs                  = do -- tr ("unif: " ++ show p)
   where (a,b)                           = subs p
 solve r g gs
   | mayLoop g                           = do assert0 (conservative g) "Recursive constraint"
-                                             -- tr ("Avoiding loop: " ++ show g)
+                                             -- tr ("%%%%%%%%%%%%%%%%%Avoiding loop: " ++ render (pr (snd g)))
                                              (s,q,es,_) <- red gs []
                                              (q',e) <- newHyp g
                                              return (s, q'++q, e:es)
-  | otherwise                           = do -- tr ("Solving " ++ show r ++ " : " ++ render (pr (snd g)))
-                                             try r (Left msg) (findWG r g) (logHistory g) gs
+  | otherwise                           = do -- tr ("Solving " ++ render (pr (snd g)))
+                                             -- tr (render (nest 4 (vpr (rng gs))))
+                                             -- tr ("Witness graph: " ++ show (findWG r g))
+                                             (s1,q1,e:es1) <- try r (Left msg) (findWG r g) (logHistory g) gs1
+                                             (s2,q2,es2,_) <- red gs2 []
+                                             return (s1++s2, q1++q2, e : mergeBy directions es1 es2)
   where msg                             = "Cannot solve typing constraint "++render(prPred (snd g))
+        (gs1,gs2)                       = splitBy directions gs
+        directions                      = map (not . null . intersect reachable_tvs) tvss
+        tvss                            = map (tvars . snd) gs
+        reachable_tvs                   = vclose tvss (tvars (snd g))
+        splitBy [] []                   = ([],[])
+        splitBy (dir:dirs) (g:gs)
+          | dir                         = (g:gs1,gs2)
+          | otherwise                   = (gs1,g:gs2)
+          where (gs1,gs2)               = splitBy dirs gs
+        mergeBy [] [] []                = []
+        mergeBy (True:dirs) (g:gs1) gs2 = g : mergeBy dirs gs1 gs2
+        mergeBy (_   :dirs) gs1 (g:gs2) = g : mergeBy dirs gs1 gs2
+
 
 try r accum wg g gs
   | isNullWG wg || isNull accum         = unexpose accum
-  | otherwise                           = do -- tr ("###Witness graph: " ++ show wg)
+  | otherwise                           = do -- tr ("###Trying: " ++ render (pr (snd g)) ++ "  with  " ++ render (pr wit))
                                              res <- expose (hyp wit g gs)
                                              accum <- plus (g : gs) accum res
                                              -- tr ("New accum: " ++ show accum)
@@ -304,6 +321,8 @@ hyp (w,p) (env,c) gs                    = do (R c',ps) <- inst p
                                              s <- unify env [(c,c')]
                                              -- tr ("**OK: " ++ show s)
                                              let ps' = repeat (subst s env) `zip` subst s ps
+                                             -- if not (null ps') then tr ("@@@@@@Appending\n" ++ render (nest 4 (vpr (rng ps')))) 
+                                             --  else return ()
                                              (s',q,es,es') <- red (subst s gs) ps'
                                              return (s'@@s, q, eAp (EVar w) es' : es)
 
