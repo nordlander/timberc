@@ -81,6 +81,7 @@ Reserved Ids
         'in'		{ KW_In }
         'let'		{ KW_Let }
         'module'	{ KW_Module }
+        'new'           { KW_New }
         'of'		{ KW_Of }
         'private'       { KW_Private }
         'request'       { KW_Request }
@@ -493,6 +494,7 @@ stmt    :: { Stmt }
         | mexp                                  { SExp $1 }
         | vars '::' type                        { SBind (BSig $1 $3) }
         | lhs rhs                               { SBind (BEqn $1 $2) }
+        | lhs '=' 'new' exp                     { SBind (BEqn $1 (RExp (EAp (EVar (prim New)) $4))) }
         | pat ':=' exp                          { SAss $1 $3 }
         | 'result' exp                          { SRet $2 }
         | 'forall' quals 'do' stmtlist          { SForall (reverse $2) $4 }

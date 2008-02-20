@@ -795,6 +795,7 @@ cExp env (EAp (EVar (Prim Before _)) [e,e'])   = do (bf,_,e1) <- cValExpT env tT
                                                     (bf',t,f,_,ts) <- cFunExp env e'
                                                     return (bf . bf', t, FunR (\[a,b] -> f [a, min b e1]) [] ts)
   where min b e1                               = Kindle.ECall (prim TimeMin) [b,e1]
+cExp env (EAp (EVar (Prim New _)) [e])  = cExp env (EAp e [EVar (self env)])    -- Can't occur but in CBind rhs, syntactic restriction
 cExp env (EAp e es) | not (isMatch e)   = do (bf,t,f,eqs,ts) <- cFunExp env e
                                              appFun env bf t f eqs ts es
   where appFun env bf t f eqs0 ts es

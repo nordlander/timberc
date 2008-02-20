@@ -7,7 +7,7 @@ import Histo
 root env = class
              bds :: Array Int
              bds = array [10, 20, 30]
-             h <- histo bds
+             h = new histo bds
 
              start = action
                 env.stdout.write "Hej\n"

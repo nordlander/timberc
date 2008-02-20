@@ -61,7 +61,7 @@ obsCounter :: Class ObservableCounter
 obsCounter = class
 
    val := 0
-   Publisher {..} <- publisher
+   Publisher {..} = new publisher
 
    set v  = do 
       val := v

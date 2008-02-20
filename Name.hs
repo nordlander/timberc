@@ -173,6 +173,8 @@ data Prim                       =
 
                                 | MIN____INVISIBLE
                                 
+                                | New                   -- Encoding of the class instantiation syntax in terms of an operator
+                                
                                 | ASYNC                 -- RTS entry points
                                 | LOCK
                                 | UNLOCK
@@ -229,7 +231,7 @@ rigidNames			    		= map rigidKeyValue [IndexArray, LazyAnd, LazyOr]
 
 rigidKeyValue p					= (strRep p, prim p)
 
-lowPrims                        = [Sec,Millisec,Microsec,Nanosec,Raise,Catch,Baseline,Deadline,Next,OwnedBy,WantedBy,Infinity]
+lowPrims                        = [New,Sec,Millisec,Microsec,Nanosec,Raise,Catch,Baseline,Deadline,Next,OwnedBy,WantedBy,Infinity]
 
 strRep LIST                     = "[]"
 strRep EITHER                   = "Either"

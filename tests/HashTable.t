@@ -15,8 +15,14 @@ class Hashable a =
 
 -}
 
+sequ []       = class result []
+sequ (x:xs)   = class
+                   y = new x
+                   ys = new sequ xs
+                   result (y:ys)
+
 hashDict hash dictT n = class
-  ds <- sequence (replicate n dictT)
+  ds = new sequ (replicate n dictT)
 
   dict = array ds
   

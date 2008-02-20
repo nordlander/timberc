@@ -700,6 +700,8 @@ primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
                             (prim After,        scheme0 [tTime,tAction] tAction),
                             (prim Before,       scheme0 [tTime,tAction] tAction),
 
+                            (prim New,          scheme1 [tClass a] a),
+                            
                             (prim ASYNC,        scheme0 [tMsg, tTime, tTime] tUnit),
                             (prim LOCK,         scheme0 [tPID] tUnit),
                             (prim UNLOCK,       scheme0 [tPID] tUnit),
@@ -710,7 +712,7 @@ primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
 
 tAction                 = TId (prim Action)
 tRequest a              = TAp (TId (prim Request)) a
-tClass a               = TAp (TId (prim Class)) a
+tClass a                = TAp (TId (prim Class)) a
 tCmd a b                = TAp (TAp (TId (prim Cmd)) a) b
 tTime                   = TId (prim Time)
 tMsg                    = TId (prim Msg)

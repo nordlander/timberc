@@ -12,7 +12,7 @@ translateY (x,y) dy = (x,y+dy)
 cardPile :: (Card -> Card -> Bool) -> Pos -> (Pos -> Int -> Pos) -> Class CardPile
 cardPile ct p relPos = class
 
-  Stack {push = push0 ..} <- stk
+  Stack {push = push0 ..} = new stk
 
   push c = action
     sz <- size

@@ -9,7 +9,7 @@ format n = show secs ++ '.' : fracs
         fracs = if n100<10 then '0':show n100 else show n100 
 
 root env = class
-  t <- timer'Timer
+  t = new timer'Timer
   start = action
      env.stdout.write "Wait...\n"
      after (sec 2) action
