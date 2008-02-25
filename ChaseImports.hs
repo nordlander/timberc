@@ -140,7 +140,7 @@ initEnvs bms         = do ims <- mapM (mkEnv . snd) bms
           where Types ke ds'         = ds
                 Binds r te es        = bs
                 te'                  = if direct then te ++ concatMap (tenvSelCon ke) ds' else []
-                te''                 = if direct then te ++ concatMap (tenvCon ke) ds' else []
+                te''                 = if direct then te  ++ tsigsOf is ++ concatMap (tenvCon ke) ds' else []
                 ls                   = [ s | (_,DRec _ _ _ cs) <- ds', (s,_) <- cs, not (isGenerated s) ]
                 unMod b ps           = if b then [(tag0 (mName Nothing c),y) | (c,y) <- ps] ++ ps else ps
 
