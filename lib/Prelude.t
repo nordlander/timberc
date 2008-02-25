@@ -78,6 +78,11 @@ eqEither = struct
   _       == _       = False
   x       /= y       = not (x == y)
 
+implicit eqPair :: Eq (a,b) \\ Eq a, Eq b
+eqPair = struct
+  (a,b) == (c,d) = a==c && b==d
+  x /= y = not (x==y)
+
 implicit struct Ord a < Eq a where
   (<),(<=),(>),(>=) :: a -> a -> Bool
 
@@ -105,6 +110,15 @@ ordTime = Ord {..}
         (>)  = primTimeGT
         (>=) = primTimeGE
 
+implicit ordUnit :: Ord ()
+ordUnit = Ord{..}
+  where Eq{..} = eqUnit
+        _ < _  = False
+        _ <= _ = True
+        _ > _  = False
+        _ >= _ = True
+    
+     
 implicit struct Show a where
   show :: a -> String
 
@@ -156,14 +170,13 @@ showList = struct
 implicit struct Enum a where
   fromEnum :: a -> Int
   toEnum :: Int -> a
-  enumFromTo :: a -> a -> [a]
 --  enumFromThenTo :: a -> a -> a -> [a]
 
 implicit enumInt :: Enum Int
 enumInt =struct
   fromEnum n = n
   toEnum n = n
-  enumFromTo = fromToInt
+--  enumFromTo = fromToInt
 {-
   enumFromThenTo a b c
     | signum (b-a) == signum (c-a) = a : enumFromThenTo b (2*b - a) c
@@ -179,7 +192,7 @@ implicit enumChar :: Enum Char
 enumChar = struct
    fromEnum = primCharToInt
    toEnum = primIntToChar
-   enumFromTo a b = map primIntToChar (enumFromTo (primCharToInt a) (primCharToInt b))
+--   enumFromTo a b = map primIntToChar (enumFromTo (primCharToInt a) (primCharToInt b))
 {-
    enumFromThenTo a b c = map chr (enumFromThenTo (ord a) (ord b) (ord c))
 -}
@@ -191,6 +204,9 @@ forallDo f (x : xs) = do f x
 data Maybe a = Just a | Nothing
 
 type String         = [Char]
+
+enumFromTo :: a -> a -> [a] \\ Enum a
+enumFromTo a b = map toEnum (fromToInt (fromEnum a) (fromEnum b))
 
 head               :: [a] -> a
 head (x : _)        = x
