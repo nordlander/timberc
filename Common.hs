@@ -278,7 +278,7 @@ mergeRenamings1 rn1 rn2         = rn1 ++ rn2'
 -- removes both occurrences when two unqualified names clash
 mergeRenamings2 rn1 rn2         = case ns of
                                      [] -> rn1' ++ rn2'
-                                     _  -> tr' ("Warning: clash of imported name(s): "++showids ns++ "\n") (rn1' ++ rn2')
+                                     _  -> tr' ("Warning: clash of imported name(s): "++showids ns ++ "\n") (rn1' ++ rn2')
   where (rn2',ns)               = deleteRenamings rn1 rn2
         rn1'                    = deleteNames ns rn1
         deleteNames [] rn       = rn
@@ -565,8 +565,8 @@ data Default a = Default Bool Name Name  -- First arg is True if declaration is 
              deriving (Eq, Show)
 
 instance Pr a => Pr(Default a) where
-  pr (Default _ a b)            = text "default" <+> pr a <+> text "<" <+> pr b
-  pr (Derive v t)               = text "default" <+> pr v <+> text "::" <+> pr t
+  pr (Default _ a b)            = pr a <+> text "<" <+> pr b
+  pr (Derive v t)               = pr v <+> text "::" <+> pr t
 
 instance HasPos a => HasPos (Default a) where
   posInfo (Default _ a b)       = between (posInfo a) (posInfo b)

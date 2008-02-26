@@ -21,16 +21,17 @@ derive ts ds (Derive n sc : xs)       = do let (s,d) = analyze ds sc
                                            return (i':is,xs)
 
 analyze ds sc                         = case tFlat (scheme2Type sc) of
-                                           (TId c,[t']) -> case tFlat t' of
-                                                             (TId d,_) -> case lookup c (tdefsOf ds) of
-                                                                            Nothing -> errorTree ("Unknown implicit struct type "++show c) sc
-                                                                            Just c'@(DRec True [a] _ _) -> case lookup d (tdefsOf ds) of
-                                                                                                            Nothing -> errorTree ("Unknown data type "++show d) sc
-                                                                                                            Just d'@(DData _ _ _) -> ((c,c'),(d,d')) 
-                                                                                                            Just _ -> errorTree (show d++" is not a data type") sc
-                                                                            Just (DRec True _ _ _) -> errorTree "Implicit struct types must have exactly one type parameter" sc
-                                                                            Just _ -> errorTree (show c++" is not an implicit struct type") sc
-                                                        
+                                           (TId c,[t']) -> findDataType c t'
+                                           _ -> errorTree "Not an instance of a one-parameter type constructor" sc 
+  where findDataType c t'             = case tFlat t' of
+                                          (TId d,_) -> case lookup c (tdefsOf ds) of
+                                             Nothing -> errorTree ("Unknown implicit struct type "++show c) sc
+                                             Just c'@(DRec True [a] _ _) -> case lookup d (tdefsOf ds) of
+                                                                              Nothing -> errorTree ("Unknown data type "++show d) sc
+                                                                              Just d'@(DData _ _ _) -> ((c,c'),(d,d')) 
+                                                                              Just _ -> errorTree (show d++" is not a data type") sc
+                                             Just (DRec True _ _ _) -> errorTree "Implicit struct types must have exactly one type parameter" sc
+                                             Just _ -> errorTree (show c++" is not an implicit struct type") sc         
                                                    
 mkInstance n ts (nm,DRec True [a] ps ss) sc (ns,bss)
                                       = do  fs <- mapM (mkField a ts ns) ss
@@ -45,8 +46,7 @@ expand a from to e sc                 = exp0 to (e,scheme2Type sc)
                                            let xs = map EVar ns
                                            es <- mapM (exp0 from) (zip xs ts)
                                            e' <- exp0 to (EAp e es,t)
-                                           ts' <- mapM s2cType (replicate (length ts) Syntax.TWild)
-                                           return (eLam' ns ts' e')
+                                           eLam' ns e'
         exp0 f (e,TId n)
           | n==a                      = return (EAp (EVar f) [e])
         exp0 _ (e,t)                  = expTup (e,tFlat t)
@@ -56,11 +56,12 @@ expand a from to e sc                 = exp0 to (e,scheme2Type sc)
                                            ns <- newNames paramSym n
                                            let xs = map EVar ns
                                            es <- mapM (exp0 to) (zip xs ts)
-                                           ts' <- mapM s2cType (replicate (length ts) Syntax.TWild)
-                                           return (ECase e [(PCon (tuple n), eLam' ns ts' (etup n es))])
+                                           lam <- eLam' ns (etup n es)
+                                           return (ECase e [(PCon (tuple n), lam)])
         expTup (e,_)                  = return e
 
-eLam' xs ts e                         = ELam (zipWith (\x t -> (x,scheme t)) xs ts) e
+eLam' xs e                            = do ts <- mapM s2cType (replicate (length xs) Syntax.TWild)
+                                           return (ELam (zipWith (\x t -> (x,scheme t)) xs ts) e)
 
 mkFunPair (nm,DData vs ss cs)         = do [from,to] <- mapM newName ["from"++str nm,"to"++str nm]
                                            frhs <- fromRHS
@@ -79,7 +80,8 @@ mkFunPair (nm,DData vs ss cs)         = do [from,to] <- mapM newName ["from"++st
         prefixLR fs e                 = foldr (\f e -> EAp (ECon f) [e]) e (map prim fs)
         mkAlt fs (nm,Constr [] _ _)   = return (PCon nm,prefixLR fs (ECon (prim UNITTERM)))
         mkAlt fs (nm,Constr ss _ _)   = do ns <- newNames tempSym (length ss)
-                                           return (PCon nm, ELam (zip ns ss) (prefixLR fs (foldr1 (etup2) (map EVar ns))))      
+                                           lam <- eLam' ns  (prefixLR fs (foldr1 (etup2) (map EVar ns)))
+                                           return (PCon nm,lam)
         alts fs [c]                   = do a <- mkAlt fs c
                                            return [a]
         alts fs (c:cs)                = do a <- mkAlt (fs++[LEFT]) c
@@ -93,17 +95,20 @@ mkFunPair (nm,DData vs ss cs)         = do [from,to] <- mapM newName ["from"++st
                                       = do [y,z] <- newNames paramSym 2
                                            l <- mkCase a [c] (y:xs)
                                            r <- mkCase b cs (z:xs)
-                                           return (ECase (EVar x) [(PCon (prim LEFT),ELam [(y,scheme a)] l),(PCon (prim RIGHT),ELam [(z,scheme b)] r)])
+                                           lam1 <- eLam' [y] l
+                                           lam2 <- eLam' [z] r
+                                           return (ECase (EVar x) [(PCon (prim LEFT),lam1),(PCon (prim RIGHT),lam2)])
         mkCase t@(TAp (TAp (TId (Tuple 2 _)) a) b) cs (x:xs)
                                       = do [y,z] <- newNames paramSym 2
                                            r <- mkCase b cs (z:y:xs)
-                                           return (ECase (EVar x) [(PCon (tuple 2),ELam [(y,scheme a),(z,scheme b)] r)])
+                                           lam <- eLam' [y,z] r
+                                           return (ECase (EVar x) [(PCon (tuple 2),lam)])
         mkCase (TId (Prim UNITTYPE _)) (c:_) xs             
                                       = return (ECon c)
         mkCase t (c:_) xs             = return (EAp (ECon c) (map EVar (reverse xs)))
         toRHS                         = do x <- newName paramSym
                                            r <- mkCase ot (map fst cs) [x] 
-                                           return (ELam [(x,scheme ot)] r)
+                                           eLam' [x] r
 
 
 ttup n ts                             = foldl TAp (TId (tuple n)) ts

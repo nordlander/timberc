@@ -89,7 +89,7 @@ data Exp    = EVar    Name
 
 data Field  = Field   Name Exp
             deriving (Eq,Show)
-
+    
 data Rhs a  = RExp    a
             | RGrd    [GExp a]
             | RWhere  (Rhs a) [Bind]
@@ -482,10 +482,10 @@ instance Pr Exp where
                                     nest 3 (text "then" <+> pr e1 $$
                                             text "else" <+> pr e2)
     prn 0 (ECase e alts)        = text "case" <+> pr e <+> text "of" $$ nest 2 (vpr alts)
-    prn 0 (EDo v t ss)          = text "do" <+> vpr ss 
-    prn 0 (ETempl v t ss)       = text "class" $$ nest 4 (vpr ss)
-    prn 0 (EAct v ss)           = text "action" $$ nest 4 (vpr ss) 
-    prn 0 (EReq v ss)           = text "request" $$ nest 4 (vpr ss) 
+    prn 0 (EDo v t ss)          = text "do"<>prN v <+> vpr ss 
+    prn 0 (ETempl v t ss)       = text "class"<>prN v $$ nest 4 (vpr ss)
+    prn 0 (EAct v ss)           = text "action"<>prN v $$ nest 4 (vpr ss) 
+    prn 0 (EReq v ss)           = text "request"<>prN v $$ nest 4 (vpr ss) 
     prn 0 (EAfter e e')         = text "after" <+> prn 12 e <+> pr e'
     prn 0 (EBefore e e')        = text "before" <+> prn 12 e <+> pr e'
     prn 0 e                     = prn 1 e
@@ -518,7 +518,9 @@ instance Pr Exp where
     prn 13 e                    = parens (prn 0 e)
 
     prn n e                     = prn 11 e
-    
+   
+prN (Just v) = text "@" <> pr v
+prN Nothing = empty 
 instance Pr Field where
     pr (Field l e)              = prId l <+> equals <+> pr e
     
@@ -550,20 +552,88 @@ instance Pr Stmt where
     pr (SCase e alts)           = text "case" <+> pr e <+> text "of" $$ nest 4 (vpr alts)
 
 
--- Free pattern variables ------------------------------------------------------------
+-- Free variables ------------------------------------------------------------
+
+instance Ids Bind where
+    idents (BEqn (LFun v ps) rh)= idents rh \\ (v : idents ps)
+    idents (BEqn (LPat p) rh)   = idents rh \\ idents p 
+    idents (BSig _ _)           = []
 
 instance Ids Exp where
     idents (EVar v)             = [v]
-    idents (EAp p ps)           = idents p ++ idents ps
-    idents (ECon c)             = [c]  --  ???????????
-    idents (ELit _)             = []
-    idents (ETup ps)            = idents ps
-    idents (EList ps)           = idents ps
-    idents (EWild)              = []
-    idents (ESig p qt)          = idents p
-    idents (ERec _  fs)         = concatMap (\(Field s p) -> idents p) fs
+    idents (EAp e e')           = idents e ++ idents e'
+    idents (ETup es)            = idents es
+    idents (EList es)           = idents es
+    idents (ESig e _)           = idents e
+    idents (ERec _  fs)         = idents fs
+    idents (EBStruct _ _ bs)    = idents bs
+    idents (ELam ps e)          = idents e \\ idents ps
+    idents (ELet bs e)          = idents bs ++ (idents e \\ bvars bs)
+    idents (ECase e as)         = idents e ++ idents as
+    idents (EIf b t e)          = idents b ++ idents t ++ idents e
+    idents (ENeg e)             = idents e
+    idents (ESeq f Nothing t)   = idents f ++ idents t
+    idents (ESeq f (Just s) t)  = idents f ++ idents s ++ idents t
+    idents (EComp e qs)         = (idents e \\ bvars qs) ++ identQuals qs
+    idents (ESectR e v)         = v : idents e
+    idents (ESectL v e)         = v : idents e
+    idents (ESelect e _)        = idents e
+    idents (EDo _ _ ss)         = identStmts ss
+    idents (ETempl _ _ ss)      = identStmts ss
+    idents (EAct _ ss)          = identStmts ss 
+    idents (EReq _ ss)          = identStmts ss 
+    idents (EAfter e e')        = idents e ++ idents e'
+    idents (EBefore e e')       = idents e ++ idents e'
     idents _                    = []
 
+instance Ids Field where
+    idents (Field _ e)          = idents e
+    
+instance Ids (Rhs Exp) where
+    idents (RExp a)             = idents a
+    idents (RGrd gs)            = idents gs
+    idents (RWhere a bs)        = idents bs ++ (idents a \\ bvars bs)
+
+instance Ids (GExp Exp) where
+    idents (GExp qs a)          = identQuals qs ++ idents a
+    
+instance Ids (Alt Exp) where
+    idents (Alt p a)            = idents a \\ idents p     
+
+instance Ids (Rhs [Stmt]) where
+    idents (RExp a)             = identStmts a
+    idents (RGrd gs)            = idents gs
+    idents (RWhere a bs)        = idents bs ++ (idents a \\ bvars bs)
+
+instance Ids (GExp [Stmt]) where
+    idents (GExp qs a)          = identQuals qs ++ identStmts a
+    
+instance Ids (Alt [Stmt]) where
+    idents (Alt p a)            = idents a \\ idents p     
+
+
+identQuals []                   = []
+identQuals (QExp e : qs)        = idents e ++ identQuals qs
+identQuals (QGen p e : qs)      = idents e ++ (identQuals qs \\ pvars p)
+identQuals (QLet bs : qs)       = idents bs ++ (identQuals qs \\ bvars bs)
+
+
+identStmts []                   = []
+identStmts (SExp e : ss)        = idents e ++ identStmts ss
+identStmts (SRet e : ss)        = idents e ++ identStmts ss
+identStmts (SGen p e : ss)      = idents e ++ (identStmts ss \\ pvars p)
+identStmts (SBind b : ss)       = identSBind [b] ss
+identStmts (SAss p e : ss)      = idents e ++ (identStmts ss \\ pvars p)
+identStmts (SForall qs ss' : ss)= identQuals qs ++ (identStmts ss' \\ bvars qs) ++ identStmts ss
+identStmts (SWhile e ss' : ss)  = idents e ++ identStmts ss' ++ identStmts ss
+identStmts (SIf e ss' : ss)     = idents e ++ identStmts ss' ++ identStmts ss
+identStmts (SElsif e ss' : ss)  = idents e ++ identStmts ss' ++ identStmts ss
+identStmts (SElse ss' : ss)     = identStmts ss' ++ identStmts ss
+identStmts (SCase e as : ss)    = idents e ++ idents as ++ identStmts ss
+
+identSBind bs (SBind b : ss )   = identSBind (b:bs) ss
+identSBind bs ss                = idents bs' ++ (identStmts ss \\ bvars bs')
+  where bs'                     = reverse bs
 
 pvars p                         = evars p
 
@@ -584,6 +654,12 @@ instance BVars [Bind] where
 
 instance BVars [Field] where
     bvars bs                            = [ s | Field s e <- bs ]
+
+instance BVars [Qual] where
+    bvars []                            = []
+    bvars (QGen p _ : qs)               = pvars p ++ bvars qs
+    bvars (QLet bs : qs)                = bvars bs ++ bvars qs
+    bvars (_ : qs)                      = bvars qs
 
 instance BVars [Stmt] where
     bvars []                            = []

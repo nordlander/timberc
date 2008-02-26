@@ -629,10 +629,13 @@ instance BVars Binds where
 
 instance Pr Module where
     pr (Module i ns xs ds is bs)  = text "module" <+> prId i <+> text "where"
-                                  $$ prImports ns $$ vpr xs $$ pr ds $$ prInsts is $$ pr bs
+                                  $$ prImports ns $$ prDefaults xs $$ pr ds $$ prInsts is $$ pr bs
 
 prImports []                     = empty
 prImports ns                     = text "import" <+> hpr ',' ns
+
+prDefaults []                     = empty
+prDefaults ns                     = text "default" <+> hpr ',' ns
 
 instance Pr (Module,a) where
   pr (m,_)                       = pr m

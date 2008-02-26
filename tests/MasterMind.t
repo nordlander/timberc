@@ -76,6 +76,7 @@ data State = Idle | JustGuessed | GameOver
 root env = class
   
   gen = new baseGen (read (head (tail env.argv)))
+
   board := []
   cs := [] 
   state := Idle

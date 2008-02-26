@@ -39,7 +39,7 @@ data E a = C3  | C4 Int a | C5 Int a Int a
 
 --data G = G Int Int
 
-default eqF :: Eq F
+default eqE :: Eq (E a) \\ Eq a
 
 {-
 implicit eqF :: Eq F

@@ -4,6 +4,7 @@ import Common
 import Syntax
 import Monad
 import qualified List
+import Depend
 
 pmc :: Exp -> [Alt Exp] -> M s Exp
 pmc e alts                      = do e' <- match0 e alts
@@ -52,6 +53,7 @@ match1 (w:ws) eqs
 match1 ws (eq:eqs)
   | isSigVarEq eq               = matchVar ws eq : match1 ws eqs
   | isLitEq eq                  = matchLits ws [eq] eqs
+  | isERecEq eq                 = matchRecs ws [eq] eqs
   | otherwise                   = matchCons ws [prepConEq eq] eqs
 
 
@@ -61,7 +63,10 @@ isVarEq (p:ps,rh)               = isEVar p
 
 isSigVarEq (p:ps,rh)            = isESigVar p
 
+isERecEq (p:ps,rh)              = isERec p
+
 isConEq (p:ps,rh)               = isEConApp p
+
 
 
 matchVar (w:ws) (EVar v:ps, rh) = match ws [(ps, subst (v +-> EVar w) rh)]
@@ -82,8 +87,19 @@ matchLit (w:ws) eqs             = do alts <- mapM matchAlt lits
                                      return (Alt (ELit l) (RExp e'))
           where eqs'            = [ (ps,rhs) | (ELit l' : ps, rhs) <- eqs, l'==l ]
 
+matchRecs ws eqs (eq:eqs')
+  | isERecEq eq                 = matchRecs ws (eq:eqs) eqs'
+matchRecs ws eqs eqs'           = matchRec ws (reverse eqs) : match1 ws eqs'
 
-
+matchRec (w:ws) eqs             = do vs <- newNamesPos tempSym fs 
+                                     e <- match (vs ++ ws) (map matchAlt eqs)
+                                     return (ELet (zipWith mkEqn vs fs) e)
+  where ERec _ fs               = head (fst (head eqs))
+        mkEqn v (Field l _)     = BEqn (LFun v []) (RExp (ESelect (EVar w) l))
+        matchAlt (ERec _ fs:ps,rh)
+                                = (map patOf fs++ps,rh)
+        patOf (Field _ p)       = p
+ 
 prepConEq (p:ps,rhs)            = (c, ps', ps, rhs)
   where (ECon c, ps')           = eFlat p
 
@@ -111,17 +127,48 @@ matchCon (w:ws) ceqs            = do alts <- mapM matchAlt cs
 
 matchRhs (RExp e)               = return (eCommit e)
 matchRhs (RWhere rhs bs)        = do e <- matchRhs rhs
-                                     return (ELet bs e)
+                                     mkLet bs e
 matchRhs (RGrd gs)              = fat [ matchQuals qs e | GExp qs e <- gs ]
 
 
 matchQuals [] e                 = return (eCommit e)
 matchQuals (QGen p e' : qs) e   = match0 e' [Alt p (RGrd [GExp qs e])]
 matchQuals (QLet bs : qs) e     = do e' <- matchQuals qs e
-                                     return (ELet bs e')
+                                     mkLet bs e'
+
+-- Dependency analysis ------------------------------------
+
+rh2exp (RExp e)                 = e
+rh2exp (RWhere rh bs)           = ELet bs (rh2exp rh)
+rh2exp (RGrd gs)                = ECase (ETup []) [Alt EWild (RGrd gs)]
 
 
+lpatToCase e [BEqn (LPat p) rh] = pmc (rh2exp rh) [Alt p (RExp e)]
+lpatToCase e bs  
+  | all isFunPat bs             = return (ELet bs e)
+  | otherwise                   = error "Recursive pattern binding not allowed" 
+  where isFunPat (BEqn (LPat  _) _) 
+                                = False
+        isFunPat _              = True
 
+lpatToCase2 ss [BEqn (LPat p) rh]= do v <- newNamePos selfSym p
+                                      e <- pmc (rh2exp rh) [Alt p (RExp (EDo (Just v) Nothing ss))]
+                                      return [SExp e]
+lpatToCase2 ss bs  
+  | all isFunPat bs             = return (map SBind bs ++ ss)
+  | otherwise                   = error "Recursive pattern binding not allowed" 
+  where isFunPat (BEqn (LPat  _) _) 
+                                = False
+        isFunPat _              = True
+
+
+mkLet bs e                       = do let bss = groupBindsS bs
+                                      -- tr (show bss)
+                                      foldM lpatToCase e (reverse bss)  -- reverse since foldM is monadic foldl
+ 
+cLet bs ss                       = do let bss = groupBindsS bs
+                                      foldM lpatToCase2 ss (reverse bss)                                
+        
 
 {-
 

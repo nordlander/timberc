@@ -1,6 +1,6 @@
 module Desugar1 where
 
-import List(sort)
+import List(sort, sortBy)
 import Monad
 import Common
 import Syntax
@@ -19,7 +19,7 @@ desugar1 e0 (Module c is ds ps)  = do let (env,expInfo) = mkEnv c (ds ++ ps) e0
       by sequences of bindings of the form "x=x" for missing record fields x.  
     - Adds type tag to anonymous record expressions/patterns.
     - Makes the "self" variable explicit.
-    - Checks validity of return statement
+    - Checks validity of result statement
     - Replaces prefix expression statement with dummy generator statement
     - Replaces if/case statements with corresponding expressions forms
     - Checks the restricted command syntax of template bodies
@@ -108,6 +108,8 @@ ren env cs                      = map ren' cs
 
 patEnv env                      = env {isPat = True}
 
+sortFields fs                   = sortBy cmp fs
+  where cmp (Field l1 _) (Field l2 _) = compare (str l1) (str l2)
 
 -- Desugaring -------------------------------------------------------------------------------------------
 {-
@@ -197,13 +199,13 @@ instance Desugar1 Exp where
 --    ds1 env e@(EVar _)             = e
     ds1 env (ERec Nothing fs)
       | not (null dups)            = errorIds "Duplicate field definitions in struct" dups
-      | otherwise                  = ERec (Just (c,True)) (ds1 env fs)
+      | otherwise                  = ERec (Just (c,True)) (sortFields (ds1 env fs))
       where c                      = typeFromSels env (sort (ren env (bvars fs)))
             dups                   = duplicates (bvars fs)
     ds1 env (ERec (Just (c,all)) fs)
       | not (null dups)            = errorIds "Duplicate field definitions in struct" dups
       | all && not (null miss)     = errorIds "Missing selectors in struct" miss
-      | otherwise                  = ERec (Just (c,True)) (fs' ++ ds1 env fs)
+      | otherwise                  = ERec (Just (c,True)) (sortFields (fs' ++ ds1 env fs))
       where miss                   = ren env (selsFromType env c) \\ ren env (bvars fs)
             dups                   = duplicates (ren env (bvars fs))
             fs'                    = map (\s -> Field (tag0 (mkLocal s)) (EVar (mName Nothing (tag0 s)))) miss
@@ -301,7 +303,7 @@ ds1Forall env (QExp e : qs) ss   = EIf e (eDo env [])  (eDo env [SForall qs ss])
 
 ds1T env [SRet e]                = [SRet (ds1 env e)]
 ds1T env [s]                     = errorTree "Last statement in class must be result, not" s
-ds1T env (s@(SRet _) : ss)       = errorTree "Return statement must be last in sequence" s
+ds1T env (s@(SRet _) : ss)       = errorTree "Result statement must be last in sequence" s
 ds1T env (SBind b : ss)          = SBind (ds1 env b) : ds1T env ss
 ds1T env (s@(SAss p e) : ss)     = SAss (ds1 (patEnv env) p) (ds1 env e) : ds1T env ss
 ds1T env (s : _)                 = errorTree "Illegal statement in class: " s

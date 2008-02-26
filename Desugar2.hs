@@ -127,6 +127,7 @@ dsBinds bs                      = f [] bs
 
 dsEqns []                       = return []
 dsEqns ((LPat (EVar x),r):eqns) = dsEqns ((LFun x [], r):eqns)
+{-
 dsEqns ((LPat (ERec _ fs),RExp (EVar v)):eqns)
                                 = do let sels = map (sel (EVar v)) fs
                                      dsEqns (sels ++ eqns)
@@ -140,6 +141,11 @@ dsEqns ((LPat p,RExp (EVar v)):eqns)
                                      return (LFun v [], RExp (selectFrom e0 (vs `zip` es) p v))
 dsEqns ((LPat p,rh):eqns)       = do v <- newNamePos tempSym p
                                      dsFunBind v [([], rh)] ((LPat p, RExp (EVar v)) : eqns)
+-}
+dsEqns ((LPat p,rh) : eqns)     = do p <- dsPat p
+                                     rh <- dsRh rh
+                                     eqns <- dsEqns eqns
+                                     return ((LPat p,rh) : eqns)
 dsEqns ((LFun v ps,rh):eqns)    = dsFunBind v [(ps,rh)] eqns
 
 
@@ -176,13 +182,7 @@ zipSigs (v:vs) (p : ps)         = EVar v : zipSigs vs ps
 zipSigs _      _                = []
 
 
-rh2exp (RExp e)                 = e
-rh2exp (RWhere rh bs)           = ELet bs (rh2exp rh)
-rh2exp (RGrd gs)                = ECase (ETup []) [Alt EWild (RGrd gs)]
-
-
 selectFrom e0 s p v             = ECase e0 [Alt (subst s p) (RExp (subst s (EVar v)))]
-
 
 -- Expressions --------------------------------------------------------
 
@@ -197,7 +197,9 @@ dsExp (ELam ps e)
                                      ws <- newNamesPos paramSym ps
                                      e' <- pmc' ws [(ps,RExp e)]
                                      return (ELam (zipSigs ws ps) e')
-dsExp (ELet bs e)               = liftM2 ELet (dsBinds bs) (dsExp e)
+dsExp (ELet bs e)               = do bs <- dsBinds bs
+                                     e <- dsExp e
+                                     mkLet bs e
 dsExp (EIf e e1 e2)             = dsExp (ECase e [Alt true  (RExp e1), Alt false (RExp e2)])
 dsExp (ESectR e op)             = dsExp (EAp (op2exp op) e)
 dsExp (ESectL op e)             = do x <- newEVarPos paramSym op
@@ -247,8 +249,9 @@ comp2exp e (QGen p e' : qs) r   = do f <- newNamePos functionSym p
 -- Statements ------------------------------------------------------------
 
 dsStmts []                      = return []
-dsStmts (SBind b : ss)          = do bs' <- dsBinds bs
-                                     liftM (map SBind bs' ++) (dsStmts ss2)
+dsStmts (SBind b : ss)          = do bs <- dsBinds bs
+                                     ss <- dsStmts ss2
+                                     cLet bs ss
   where (ss1,ss2)               = span isSBind ss
         bs                      = b : [ b' | SBind b' <- ss1 ]
 dsStmts (s@(SAss p e) : ss)
@@ -271,8 +274,8 @@ dsStmts (SGen p e : ss)
                                      e <- dsExp e
                                      ss <- dsStmts ss
                                      return (SGen p e : ss)
-  | otherwise                   = do v <- newEVarPos tempSym p
-                                     dsStmts (SGen v e : SBind (BEqn (LPat p) (RExp v)) : ss)
+  | otherwise                   = do v' <- newEVarPos tempSym p
+                                     dsStmts (SGen v' e : SBind (BEqn (LPat p) (RExp v')) : ss)
 dsStmts ss                      = internalError ("dsStmts; did not expect") ss
 
 
@@ -302,7 +305,11 @@ dsPat (ENeg (ELit (LRat p r)))    = return (ELit (LRat p (-r)))
 dsPat (ELit l)                  = dsLit l
 dsPat (ETup ps)                 = dsPat (foldl EAp (ECon (tuple (length ps))) ps)
 dsPat (EList ps)                = dsPat (foldr cons nil ps)
+dsPat (ERec m fs)               = liftM (ERec m) (mapM dsField fs)
 dsPat p                         = dsConPat p
+
+dsField (Field l p)             = liftM (Field l) (dsPat p)
+
 
 dsConPat (EAp p p')             = liftM2 EAp (dsConPat p) (dsInnerPat p')
 dsConPat (ECon c)               = return (ECon c)
