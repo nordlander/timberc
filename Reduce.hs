@@ -194,6 +194,7 @@ red gs []                               = case unique 0 gs of
         info                            = varInfo gs
 red gs ((env, p@(Scheme (F [sc1] t2) ps2 ke2)):ps)
                                         = do (t1,ps1) <- inst sc1
+                                             -- tr ("red " ++ render (pr t1 <+> text "<" <+> pr t2))
                                              pe <- newEnv assumptionSym ps2
                                              v  <- newName coercionSym
                                              (env',qe,eq) <- closePreds env (tvars sc1 ++ tvars t2 ++ tvars ps2) pe ke2
@@ -237,10 +238,14 @@ redf gs env (F ts t) (F ts' t') ps      = do te1' <- newEnv assumptionSym ts1'
         (ts1',ts2')                     = splitAt (length ts ) ts'
 redf gs env (R (TFun ts t)) b ps        = redf gs env (F (map scheme ts) (R t)) b ps
 redf gs env a (R (TFun ts t)) ps        = redf gs env a (F (map scheme ts) (R t)) ps
-redf gs env (R a) b@(F ts _) ps         = do (t:ts') <- mapM newTVar (replicate (length ts + 1) Star)
+redf gs env (R a@(TVar n)) b@(F ts _) ps
+  | n `elem` tvars b                    = fail "Infinite function type"
+  | otherwise                           = do (t:ts') <- mapM newTVar (replicate (length ts + 1) Star)
                                              s <- unify env [(a, TFun ts' t)]
                                              redf2 s gs env (F (map scheme ts') (R t)) b ps 
-redf gs env a@(F ts _) (R b) ps         = do (t:ts') <- mapM newTVar (replicate (length ts + 1) Star)
+redf gs env a@(F ts _) (R b@(TVar n)) ps
+  | n `elem`tvars a                     = fail "Infinite function type"
+  | otherwise                           = do (t:ts') <- mapM newTVar (replicate (length ts + 1) Star)
                                              s <- unify env [(TFun ts' t, b)]
                                              redf2 s gs env a (F (map scheme ts') (R t)) ps 
 redf gs env (R a) (R b) ps              = do (s,q,e:es,es') <- red ((tick env True, a `sub` b) : gs) ps
