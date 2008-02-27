@@ -5,9 +5,9 @@ import POSIX
 root env = class
 
    limit = read (head (tail env.argv))
-   primesBound = limit `div` log3 limit
+   primesBound = 100000     -- limit `div` log3 limit
 
-   primes := uniarray primesBound 0    --enough for primes < limit
+   primes := uniarray primesBound 0    --enough for primes < 1000000
    top := -1
 
    test k = loop 0
@@ -27,7 +27,6 @@ root env = class
      if k < limit then tryFrom (k+1)
 
    start = action
-     env.stdout.write ("Assigned array with "++show primesBound++" elements\n")
      top := 0
      primes!0 := 2
      tryFrom 3
