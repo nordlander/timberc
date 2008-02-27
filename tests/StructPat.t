@@ -16,3 +16,7 @@ basex (Point3D {base=Point{..}..}) = x
 h p = case p of
        Point3D{..} -> height
 
+g t = let Point{..}
+            | t > 0   = {x=0,y=0}
+            | otherwise = {x=1,y=1}
+      in x

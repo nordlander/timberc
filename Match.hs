@@ -93,9 +93,9 @@ matchRecs ws eqs eqs'           = matchRec ws (reverse eqs) : match1 ws eqs'
 
 matchRec (w:ws) eqs             = do vs <- newNamesPos tempSym fs 
                                      e <- match (vs ++ ws) (map matchAlt eqs)
-                                     return (ELet (zipWith mkEqn vs fs) e)
+                                     return (foldr ELet e (zipWith mkEqn vs fs))
   where ERec _ fs               = head (fst (head eqs))
-        mkEqn v (Field l _)     = BEqn (LFun v []) (RExp (ESelect (EVar w) l))
+        mkEqn v (Field l _)     = [BEqn (LFun v []) (RExp (ESelect (EVar w) l))]
         matchAlt (ERec _ fs:ps,rh)
                                 = (map patOf fs++ps,rh)
         patOf (Field _ p)       = p
@@ -145,21 +145,17 @@ rh2exp (RGrd gs)                = ECase (ETup []) [Alt EWild (RGrd gs)]
 
 lpatToCase e [BEqn (LPat p) rh] = pmc (rh2exp rh) [Alt p (RExp e)]
 lpatToCase e bs  
-  | all isFunPat bs             = return (ELet bs e)
-  | otherwise                   = error "Recursive pattern binding not allowed" 
-  where isFunPat (BEqn (LPat  _) _) 
-                                = False
-        isFunPat _              = True
+  | null pbs                    = return (ELet bs e)
+  | otherwise                   = errorTree "Recursive pattern binding not allowed" (head pbs)
+  where pbs                     = filter isLPatEqn bs
 
 lpatToCase2 ss [BEqn (LPat p) rh]= do v <- newNamePos selfSym p
                                       e <- pmc (rh2exp rh) [Alt p (RExp (EDo (Just v) Nothing ss))]
                                       return [SExp e]
 lpatToCase2 ss bs  
-  | all isFunPat bs             = return (map SBind bs ++ ss)
-  | otherwise                   = error "Recursive pattern binding not allowed" 
-  where isFunPat (BEqn (LPat  _) _) 
-                                = False
-        isFunPat _              = True
+  | null pbs                    = return (map SBind bs ++ ss)
+  | otherwise                   = errorTree "Recursive pattern binding not allowed" (head pbs)
+  where pbs                     = filter isLPatEqn bs
 
 
 mkLet bs e                       = do let bss = groupBindsS bs

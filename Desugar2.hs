@@ -30,10 +30,12 @@ dsDecls (DType c vs t : ds)     = liftM (DType c vs (dsType t) :) (dsDecls ds)
 dsDecls (DPSig v t : ds)        = liftM (DPSig v (dsQualPred t) :) (dsDecls ds)
 dsDecls (DDefault ts : ds)      = liftM (DDefault (map dsDefault ts) :) (dsDecls ds) 
 dsDecls (DBind b : ds)          = do bs' <- dsBinds bs
-                                     liftM (map DBind bs' ++) (dsDecls ds2)
+                                     let pbs = filter isLPatEqn bs'
+                                     if null pbs then liftM (map DBind bs' ++) (dsDecls ds2)
+                                      else errorTree "Top-level pattern bindings are not allowed" (head pbs)
   where (ds1,ds2)               = span isDBind ds
         bs                      = b : [ b' | DBind b' <- ds1 ]
-
+        
 
 dsConstr (Constr c ts ps)       = Constr c (map dsQualType ts) (map dsQual ps)
 
@@ -143,9 +145,9 @@ dsEqns ((LPat p,rh):eqns)       = do v <- newNamePos tempSym p
                                      dsFunBind v [([], rh)] ((LPat p, RExp (EVar v)) : eqns)
 -}
 dsEqns ((LPat p,rh) : eqns)     = do p <- dsPat p
-                                     rh <- dsRh rh
+                                     e <- dsExp (rh2exp rh)
                                      eqns <- dsEqns eqns
-                                     return ((LPat p,rh) : eqns)
+                                     return ((LPat p,RExp e) : eqns)
 dsEqns ((LFun v ps,rh):eqns)    = dsFunBind v [(ps,rh)] eqns
 
 

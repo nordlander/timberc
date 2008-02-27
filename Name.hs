@@ -318,7 +318,6 @@ pos n                           = location (annot n)
 -- Generated names ----------------------------------------------------------------
 
 genAnnot                        = noAnnot { generated = True }
-
 name0 s                         = Name s 0 Nothing genAnnot
 
 qName m n                       = mName (Just m) (name0 n)

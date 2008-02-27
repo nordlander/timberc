@@ -208,7 +208,7 @@ s2cEc env _ (EAp e1 e2)         = do (t,e1) <- s2cEi env e1
                                      return (Core.eAp2 e1 [e2])
 s2cEc env t (ELet bs e)         = do (te',bs') <- s2cBinds env te eqs
                                      e' <- s2cEc (addSigs te' env) t e
-                                     return (Core.eLet' (groupBinds bs') e')
+                                     return (Core.ELet (checkRecBinds bs') e')
   where (te,eqs)                = splitBinds bs
 s2cEc env t (ECase e alts)      = do e <- s2cEc env TWild e
                                      alts <- mapM (s2cA env t) alts
@@ -300,7 +300,7 @@ s2cEi env (EAp e1 e2)           = do (t,e1) <- s2cEi env e1
                                      return (t2, Core.eAp2 e1 [e2])
 s2cEi env (ELet bs e)           = do (te',bs') <- s2cBinds env te eqs
                                      (t,e') <- s2cEi (addSigs te' env) e
-                                     return (t, Core.eLet' (groupBinds bs') e')
+                                     return (t, Core.ELet (checkRecBinds bs') e')
   where (te,eqs)                = splitBinds bs
 s2cEi env (ECase e alts)        = do e <- s2cEc env TWild e
                                      alts <- mapM (s2cA env TWild) alts
@@ -380,3 +380,11 @@ mkWild vs t                     = t
 -- replace all variables vs in a predicate by _
 mkWild' vs (PType t)          = PType (mkWild vs t)
 mkWild' vs p                  = p
+
+-- Checking whether bindings are recursive 
+
+checkRecBinds (Core.Binds _ te  es@[(x,e)])
+                              = Core.Binds (x `elem` evars e) te es
+checkRecBinds (Core.Binds _ te es) 
+                              = Core.Binds True te es
+

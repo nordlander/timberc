@@ -179,8 +179,11 @@ isBSig _                        = False
 isPKind (PKind _ _)             = True
 isPKind _                       = False
 
-tAp isDType (DType _ _ _)           = True
+tAp isDType (DType _ _ _)       = True
 isDType _                       = False
+
+isLPatEqn (BEqn (LPat _) _)     = True
+isLPatEqn _                     = False
 
 tupSize (ETup es)               = length es
 tupSize _                       = -1
