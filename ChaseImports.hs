@@ -16,13 +16,13 @@ import qualified Config
 -- Data type of interface file -----------------------------------------------
 
 data IFace = IFace { impsOf      :: [Name],                         -- imported/used modules
-                     defaults    :: [Default Scheme],                 -- exported default declarations
+                     defaults    :: [Default Scheme],               -- exported default declarations
                      recordEnv   :: Map Name [Name],                -- exported record types and their selectors,
                      tsynEnv     :: Map Name ([Name],Syntax.Type),  -- type synonyms
                      tEnv        :: Types,                          -- Core type environment
                      insts       :: Binds,                          -- types for instances
                      valEnv      :: Binds,                          -- types for exported values (including sels and cons) and some finite eqns
-                     kdeclEnv    :: Kindle.Decls                   -- Kindle form of declarations
+                     kdeclEnv    :: Kindle.Decls                    -- Kindle form of declarations
                    }
            deriving (Show)
 
@@ -195,12 +195,12 @@ instance Pr IFace where
   pr (IFace ns xs rs ss ds1 is bs kds) =
                                   text "Imported/used modules: " <+> hsep (map prId ns) $$
                                   text "Default declarations: " <+> hpr ',' xs $$
-                                  text ("Record types and their selectors: "++show rs) $$
-                                  text "Type synonyms: " <+> hsep (map (prId . fst) ss) $$ 
+                                  -- text ("Record types and their selectors: "++show rs) $$
+                                  -- text "Type synonyms: " <+> hsep (map (prId . fst) ss) $$ 
                                   text "\nType definitions\n----------------" $$ pr ds1 $$ 
                                   text "\nCoercions and instances\n-----------------------" $$ prInsts is  $$ 
-                                  text "\nTop level bindings\n------------------" $$ pr bs $$
-                                  text "\nKindle declarations\n-------------------" $$ vcat (map pr kds)
+                                  text "\nTop level bindings\n------------------" $$ pr bs -- $$
+                                  -- text "\nKindle declarations\n-------------------" $$ vcat (map pr kds)
                                   
 -- prPair (n,t)                      = prId n <+> text "::" <+> pr t
 
