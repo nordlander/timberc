@@ -1,8 +1,11 @@
 module Primes where
 
-primesTo n       = sieve [2..n]
-  where sieve (x : xs)
-          | x*x > n = x : xs
-          | otherwise = x : sieve [ y | y <- xs, y `mod` x /= 0 ]
+import NoInteraction
 
-root _ = show(length(primesTo 100000))
+primesTo n             = sieve [2..n]
+  where sieve (x : xs)
+          | x*x > n    = x : xs
+          | otherwise  = x : sieve [ y | y <- xs, y `mod` x /= 0 ]
+
+root = trivial (\(_:a:_) -> show(length(primesTo (read a))))
+
