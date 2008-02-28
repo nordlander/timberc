@@ -173,7 +173,7 @@ mkCmdLineOpts flags  =  do cfg <- System.getEnv "TIMBER_CFG" `catch`
                                   { isVerbose = find Verbose,
                                     binTarget = first "a.out"
                                                 [ target | (BinTarget target) <- flags ],
-                                    target    = first "Trivial"
+                                    target    = first "POSIX"
                                                 [ target | (Target target) <- flags ],
                                     root      = first "root"
                                                 [ root | (Root root) <- flags ],

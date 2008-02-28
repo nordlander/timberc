@@ -3,7 +3,7 @@ module Interactive where
 import POSIX
 
 root env =
-    template
+    class
       init := True
       start = action
                 if init then
@@ -15,4 +15,4 @@ root env =
                 if head s == 'q' then
                    env.exit 1
                 env.stdout.write ("You said: "++s)
-      return Prog {..}
+      result Prog {..}
