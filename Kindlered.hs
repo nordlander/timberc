@@ -82,7 +82,7 @@ redExp env (EEnter e f es)              = do e <- redExp env e
                                              es <- mapM (redExp env) es
                                              redEnter env e f es
 redExp env e@(ECall (Prim IndexArray _) _)
-                                        = redIndexArray env e []
+                                        = redIndexArray env id e []
 redExp env (ECall p@(Prim SizeArray _) [e])
                                         = liftM (ECall p . (:[])) (redExp' env e)
 redExp env (ECall x es)                 = do es <- mapM (redExp env) es
@@ -92,7 +92,7 @@ redExp env (EVar x)                     = return (EVar x)
 redExp env (EThis)                      = return (EThis)
 redExp env (ELit l)                     = return (ELit l)
 redExp env a@(ESel e l)
-  | stateVar (annot l)                  = redIndexArray env a []
+  | stateVar (annot l)                  = redIndexArray env id a []
   | otherwise                           = liftM (flip ESel l) (redExp env e)
 redExp env (ECast t e)                  = liftM (ECast t) (redExp env e)
 
@@ -111,14 +111,16 @@ redExp' env e                           = redExp env e
 
 
 -- Convert an array indexing expression
-redIndexArray env (ECall (Prim IndexArray _) [a,i]) is
-                                    = redIndexArray env a (i:is)
-redIndexArray env a@(ESel e l) is
-  | stateVar (annot l)              = do e <- mkIndex env a is
+redIndexArray env g (ECall (Prim IndexArray _) [a,i]) is
+                                    = do e <- redIndexArray env id a (i:is)
+                                         return (g e)
+redIndexArray env g (ECast t e) is  = redIndexArray env (g . ECast t) e is
+redIndexArray env g a@(ESel e l) is
+  | stateVar (annot l)              = do e <- mkIndex env (g a) is
                                          return (clone (arrayDepth t - length is) id e)
   where ValT t                      = findSel env l
-redIndexArray env a is              = do a <- redExp env a
-                                         e <- mkIndex env a is
+redIndexArray env g a is            = do a <- redExp env a
+                                         e <- mkIndex env (g a) is
                                          return e
 
 
