@@ -13,6 +13,8 @@ l = array [array [1,2,3], array [4,5,6]]
 
 b = a!3!4
 
+xyz aaa = aaa!3!14
+
 c = a!5
 
 
