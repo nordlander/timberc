@@ -73,7 +73,6 @@ buildGraph vs                   = zip ns (map findDeps fvss)
 groupBindsS                     :: [Bind] ->  [[Bind]]
 groupBindsS bs                  = map (concat . map fst3) iss
   where is                      = graphInfo bs
-        g                       = buildGraph (graphInfo bs)
-        nss                     = scc g
-        iss                     = map (map (fromJust . flip lookup (zip [1..] is))) nss
+        g                       = buildGraph is
+        iss                     = map (map (fromJust . flip lookup (zip [1..] is))) (scc g)
       
