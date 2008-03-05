@@ -250,7 +250,7 @@ gdrhss  :: { [GExp Exp] }
 	| gdrhs			    		{ [$1] }
 
 gdrhs   :: { GExp Exp }
-	: '|' quals '=' exp    			{ GExp $2 $4 }
+        : '|' quals '=' exp    			{ GExp (reverse $2) $4 }
 
 
 -- Types ---------------------------------------------------------------------
@@ -448,7 +448,7 @@ gdcaserhss :: { [GExp Exp] }
         | gdcaserhs                             { [$1] }
 
 gdcaserhs :: { GExp Exp }
-        : '|' quals  '->' exp                   { GExp $2 $4 }
+        : '|' quals  '->' exp                   { GExp (reverse $2) $4 }
 
 
 -- Case statement alternatives ------------------------------------------------------------
@@ -475,7 +475,7 @@ sgdcaserhss :: { [GExp [Stmt]] }
         | sgdcaserhs                            { [$1] }
 
 sgdcaserhs :: { GExp [Stmt] }
-        : '|' quals  '->' stmtlist              { GExp $2 $4 }
+        : '|' quals  '->' stmtlist              { GExp (reverse $2) $4 }
 
 
 -- Statement sequences -----------------------------------------------------------
