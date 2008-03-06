@@ -29,9 +29,9 @@ dsDecls (DRec i c vs bs ss:ds)  = liftM (DRec i c vs (map dsQualBaseType bs) (ma
 dsDecls (DType c vs t : ds)     = liftM (DType c vs (dsType t) :) (dsDecls ds)
 dsDecls (DPSig v t : ds)        = liftM (DPSig v (dsQualPred t) :) (dsDecls ds)
 dsDecls (DDefault ts : ds)      = liftM (DDefault (map dsDefault ts) :) (dsDecls ds) 
-dsDecls (DBind b : ds)          = do bs' <- dsBinds bs
+dsDecls (DBind b : ds)          = do (bs',cs) <- dsBinds bs
                                      let pbs = filter isLPatEqn bs'
-                                     if null pbs then liftM (map DBind bs' ++) (dsDecls ds2)
+                                     if null cs then liftM (map DBind bs' ++) (dsDecls ds2)
                                       else errorTree "Top-level pattern bindings are not allowed" (head pbs)
   where (ds1,ds2)               = span isDBind ds
         bs                      = b : [ b' | DBind b' <- ds1 ]
@@ -115,25 +115,26 @@ dsClassPred p                   = internalError "Bad class predicate in dsClassP
 
 -- Bindings ---------------------------------------------------------------
 
-dsBinds []                      = return []
-dsBinds (BSig vs qt : bs)       = do bs <- dsBinds bs
-                                     return (BSig vs (dsQualWildType qt) : bs)
+dsBinds []                      = return ([],[])
+dsBinds (BSig vs qt : bs)       = do (bs,cs) <- dsBinds bs
+                                     return (BSig vs (dsQualWildType qt) : bs,cs)
 dsBinds bs                      = f [] bs
   where f eqns (BEqn lh rh :bs) = f ((lh,rh) : eqns) bs
-        f eqns bs               = do eqns <- dsEqns eqns
-                                     bs <- dsBinds bs
-                                     return (map (uncurry BEqn) (reverse eqns) ++ bs)
+        f eqns bs               = do (eqns,cs) <- dsEqns eqns
+                                     (bs,cs') <- dsBinds bs
+                                     return (map (uncurry BEqn) (reverse eqns) ++ bs,cs++cs')
 
 
 -- Equations -----------------------------------------------------------------
 
-dsEqns []                       = return []
+dsEqns []                       = return ([],[])
 dsEqns ((LPat (EVar x),r):eqns) = dsEqns ((LFun x [], r):eqns)
 {-
 dsEqns ((LPat (ERec _ fs),RExp (EVar v)):eqns)
                                 = do let sels = map (sel (EVar v)) fs
                                      dsEqns (sels ++ eqns)
   where sel e0 (Field n p)      = (LPat p, RExp (ESelect e0 n))
+-}
 dsEqns ((LPat p,RExp (EVar v)):eqns)
                                 = do p' <- dsPat p      -- Check validity
                                      sels <- mapM (sel (EVar v)) vs
@@ -142,29 +143,32 @@ dsEqns ((LPat p,RExp (EVar v)):eqns)
         sel e0 v                = do es <- mapM (newEVarPos paramSym) vs
                                      return (LFun v [], RExp (selectFrom e0 (vs `zip` es) p v))
 dsEqns ((LPat p,rh):eqns)       = do v <- newNamePos tempSym p
-                                     dsFunBind v [([], rh)] ((LPat p, RExp (EVar v)) : eqns)
--}
+                                     (eqns,cs) <- dsEqns ((LPat p, RExp (EVar v)) : eqns)
+                                     e <- dsExp (rh2exp rh)
+                                     return ((LFun v [],RExp e) : eqns,(v,p):cs) 
+{-
 dsEqns ((LPat p,rh) : eqns)     = do p <- dsPat p
                                      e <- dsExp (rh2exp rh)
                                      eqns <- dsEqns eqns
                                      return ((LPat p,RExp e) : eqns)
+-}
 dsEqns ((LFun v ps,rh):eqns)    = dsFunBind v [(ps,rh)] eqns
 
 
 dsFunBind v alts ((LFun v' ps,rh) : eqns)
   | v' == v                     = dsFunBind v ((ps,rh) : alts) eqns
 dsFunBind v [(ps,rh)] eqns      = do e <- dsExp (eLam ps (rh2exp rh))
-                                     eqns <- dsEqns eqns
-                                     return ((LFun v [], RExp e) : eqns)
+                                     (eqns,cs) <- dsEqns eqns
+                                     return ((LFun v [], RExp e) : eqns,cs)
 dsFunBind v alts eqns
   | length arities /= 1         = errorIds "Different arities for function" [v]
   | otherwise                   = do ws <- newNamesPos paramSym (fst (head alts))
                                      alts <- mapM dsA alts
                                      e <- pmc' ws alts
-                                     eqns <- dsEqns eqns 
-                                     return ((LFun v [], RExp (ELam (map EVar ws) e)) : eqns)
+                                     (eqns,cs) <- dsEqns eqns 
+                                     return ((LFun v [], RExp (ELam (map EVar ws) e)) : eqns,cs)
   where arities                 = nub (map (length . fst) alts)
-        dsA (ps,rh)             = liftM2 (,) (mapM dsPat ps) (dsRh rh)
+        dsA (ps,rh)             = liftM2 (,) (mapM dsPat ps) (dsRh [] rh)
 
 
 -- Helper functions --------------------------------------------------
@@ -183,8 +187,13 @@ zipSigs (v:vs) (ESig _ t : ps)  = ESig (EVar v) t : zipSigs vs ps
 zipSigs (v:vs) (p : ps)         = EVar v : zipSigs vs ps
 zipSigs _      _                = []
 
+rh2exp (RExp e)                 = e
+rh2exp (RWhere rh bs)           = ELet bs (rh2exp rh)
+rh2exp (RGrd gs)                = ECase (ETup []) [Alt EWild (RGrd gs)]
 
 selectFrom e0 s p v             = ECase e0 [Alt (subst s p) (RExp (subst s (EVar v)))]
+
+eCase cs e                      = dsExp (foldr (\(v,p) e -> ECase (EVar v) [Alt p (RExp e)]) e cs)
 
 -- Expressions --------------------------------------------------------
 
@@ -199,9 +208,9 @@ dsExp (ELam ps e)
                                      ws <- newNamesPos paramSym ps
                                      e' <- pmc' ws [(ps,RExp e)]
                                      return (ELam (zipSigs ws ps) e')
-dsExp (ELet bs e)               = do bs <- dsBinds bs
-                                     e <- dsExp e
-                                     mkLet bs e
+dsExp (ELet bs e)               = do (bs,cs) <- dsBinds bs
+                                     e <- eCase cs e
+                                     return (ELet bs e)
 dsExp (EIf e e1 e2)             = dsExp (ECase e [Alt true  (RExp e1), Alt false (RExp e2)])
 dsExp (ESectR e op)             = dsExp (EAp (op2exp op) e)
 dsExp (ESectL op e)             = do x <- newEVarPos paramSym op
@@ -209,7 +218,7 @@ dsExp (ESectL op e)             = do x <- newEVarPos paramSym op
 dsExp (ECase e alts)            = do e <- dsExp e
                                      alts <- mapM dsA alts
                                      pmc e alts
-  where dsA (Alt p rh)          = liftM2 Alt (dsPat p) (dsRh rh)
+  where dsA (Alt p rh)          = liftM2 Alt (dsPat p) (dsRh [] rh)
 dsExp (ESelect e s)             = liftM (flip ESelect s) (dsExp e)
 dsExp (ESel s)                  = do x <- newNamePos paramSym s
                                      return (ELam [EVar x] (ESelect (EVar x) s))
@@ -251,9 +260,9 @@ comp2exp e (QGen p e' : qs) r   = do f <- newNamePos functionSym p
 -- Statements ------------------------------------------------------------
 
 dsStmts []                      = return []
-dsStmts (SBind b : ss)          = do bs <- dsBinds bs
-                                     ss <- dsStmts ss2
-                                     cLet bs ss
+dsStmts (SBind b : ss)          = do (bs,_)  <- dsBinds bs  
+                                     ss <- dsStmts ss     -- this is the old desugaring!
+                                     return (map SBind bs ++ ss)
   where (ss1,ss2)               = span isSBind ss
         bs                      = b : [ b' | SBind b' <- ss1 ]
 dsStmts (s@(SAss p e) : ss)
@@ -283,16 +292,18 @@ dsStmts ss                      = internalError ("dsStmts; did not expect") ss
 
 -- Alternatives -----------------------------------------------------------------------
 
-dsRh (RExp e)                   = liftM  RExp (dsExp e)
-dsRh (RGrd gs)                  = liftM  RGrd (mapM dsGrd gs)
-dsRh (RWhere rh bs)             = liftM2 RWhere (dsRh rh) (dsBinds bs)
+dsRh cs (RExp e)                = liftM RExp (eCase cs e)
+dsRh cs (RGrd gs)               = liftM RGrd (mapM (dsGrd cs) gs)
+dsRh cs (RWhere rh bs)          = do (bs,cs') <- dsBinds bs
+                                     rh <- dsRh (cs++cs') rh
+                                     return (RWhere rh bs)
 
-dsGrd (GExp qs e)               = liftM2 GExp (mapM dsEQual qs) (dsExp e)
+dsGrd cs (GExp qs e)            = liftM2 GExp (mapM dsEQual qs) (eCase cs e)
 
 dsEQual (QExp e)                = liftM (QGen true) (dsExp e)
 dsEQual (QGen p e)              = liftM2 QGen (dsPat p) (dsExp e)
-dsEQual (QLet bs)               = liftM  QLet (dsBinds bs)
-
+dsEQual (QLet bs)               = do (bs,_) <- dsBinds bs
+                                     return (QLet bs)
 
 -- Patterns ----------------------------------------------------------------------------
 

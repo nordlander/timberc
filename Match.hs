@@ -4,7 +4,7 @@ import Common
 import Syntax
 import Monad
 import qualified List
-import Depend
+--import Depend
 
 pmc :: Exp -> [Alt Exp] -> M s Exp
 pmc e alts                      = do e' <- match0 e alts
@@ -127,24 +127,22 @@ matchCon (w:ws) ceqs            = do alts <- mapM matchAlt cs
 
 matchRhs (RExp e)               = return (eCommit e)
 matchRhs (RWhere rhs bs)        = do e <- matchRhs rhs
-                                     mkLet bs e
+                                     return (ELet bs e)
 matchRhs (RGrd gs)              = fat [ matchQuals qs e | GExp qs e <- gs ]
 
 
 matchQuals [] e                 = return (eCommit e)
 matchQuals (QGen p e' : qs) e   = match0 e' [Alt p (RGrd [GExp qs e])]
 matchQuals (QLet bs : qs) e     = do e' <- matchQuals qs e
-                                     mkLet bs e'
+                                     return (ELet bs e')
+
 
 -- Dependency analysis ------------------------------------
 
-rh2exp (RExp e)                 = e
-rh2exp (RWhere rh bs)           = ELet bs (rh2exp rh)
-rh2exp (RGrd gs)                = ECase (ETup []) [Alt EWild (RGrd gs)]
-
+{-
 
 lpatToCase e [BEqn (LPat p) rh] = pmc (rh2exp rh) [Alt p (RExp e)]
-lpatToCase e bs  
+lpatToCase e bs 
   | null pbs                    = return (ELet bs e)
   | otherwise                   = errorTree "Recursive pattern binding not allowed" (head pbs)
   where pbs                     = filter isLPatEqn bs
@@ -159,13 +157,12 @@ lpatToCase2 ss bs
 
 
 mkLet bs e                       = do let bss = groupBindsS bs
-                                      -- tr (show bss)
                                       foldM lpatToCase e (reverse bss)  -- reverse since foldM is monadic foldl
  
 cLet bs ss                       = do let bss = groupBindsS bs
                                       foldM lpatToCase2 ss (reverse bss)                                
         
-
+-}
 {-
 
 case e0 of

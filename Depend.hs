@@ -52,7 +52,7 @@ groupMap bs                     = map f bss
         f bs                    = (True, bs)
          
 -- Dependency analysis on Syntax bindlists -------------------------------------------
-
+{-
 graphInfo []                    =  []
 graphInfo (s@(BSig _ _) : e@(BEqn (LFun v _) rh) : bs)
                                 = ([s,e], [v], nub (idents rh)) : graphInfo bs
@@ -75,4 +75,4 @@ groupBindsS bs                  = map (concat . map fst3) iss
   where is                      = graphInfo bs
         g                       = buildGraph is
         iss                     = map (map (fromJust . flip lookup (zip [1..] is))) (scc g)
-      
+-}

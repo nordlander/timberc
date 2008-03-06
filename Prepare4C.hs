@@ -97,7 +97,6 @@ pSBind env n (x, Fun t te c)    = do f <- newName functionSym
                                      addToStore (f, Fun t ((y,TId n):te) c)
                                      return ([], (x, Fun t te (CRet (ECall f (EThis : map EVar (dom te))))))
 
-
 -- Prepare commands
 pCmd env (CRet e)               = do (bs,e) <- pExp env e
                                      return (cBind bs (CRet e))

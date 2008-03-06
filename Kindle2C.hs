@@ -195,6 +195,8 @@ k2cCmd (CRun e c)               = k2cExp e <> text ";" $$
 k2cCmd (CBind False [(_,Val _ (ECall (Prim UpdateArray _) [e1,e2,e3,_]))] c)
                                 = k2cExp2 (ECall (prim IndexArray) [e1,e2]) <+> text "=" <+> k2cExp e3 <> text ";" $$
                                   k2cCmd c
+k2cCmd (CBind False [(_,Val (TId (Prim UNITTYPE _)) e)] (CRet (ECast (TId (Prim UNITTYPE _)) (EVar (Prim UNITTERM _)))))
+                                = k2cExp e <> text ";"
 k2cCmd (CBind False bs c)       = k2cBindStubsC bs $$
                                   k2cValBinds (False,bs) $$
                                   k2cCmd c
