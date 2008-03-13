@@ -484,6 +484,12 @@ gen tvs0 sc@(Scheme t ps ke)    = do ids <- newNames tyvarSym (length tvs)
                                      return (Scheme (subst s t) (subst s ps) (ke' ++ ke))
   where tvs                     = nub (filter (`notElem` tvs0) (tvars t ++ tvars ps))
 
+genL tvs0 scs                   = do ids <- newNames tyvarSym (length tvs)
+                                     let s = tvs `zip` map TId ids
+                                         ke = ids `zip` map tvKind tvs
+                                         addQuant (Scheme t ps ke') = Scheme t ps (ke++ke')
+                                     return (map addQuant (subst s scs))
+  where tvs                     = nub (filter (`notElem` tvs0) (tvars scs))
 
 
 -- Variance ------------------------------------------------------------------

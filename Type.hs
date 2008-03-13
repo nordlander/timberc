@@ -85,23 +85,24 @@ tiBindsList env (bs:bss)        = do (ss1, pe1, bs') <- tiBinds env bs
 
                                      
 tiBinds env (Binds _ [] [])     = return ([], [], nullBinds)
-tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ render (vpr te) ++ ",  line: " ++ show (pos (fst(head te))))
+tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING line: " ++ show (pos (fst(head te))))
+                                     -- tr (render (nest 8 (vpr te)))
                                      -- tr ("tevars: " ++ show (tevars env))
                                      (s,pe,es1)   <- tiRhs0 env' explWits ts es
-                                     -- tr ("RESULT: " ++ render (vpr pe))
-                                     -- tr ("  EXPS: " ++ render (vpr es1))
+                                     -- tr ("RESULT:\n" ++ render (nest 8 (vpr pe)))
+                                     -- tr ("EXPS:\n" ++ render (nest 8 (vpr es1)))
                                      (s',qe,f) <- fullreduce (target te env) s pe `handle` posHandler es
-                                     -- tr ("PREDICATES OBTAINED: " ++ show qe)
+                                     -- tr ("PREDICATES OBTAINED:\n" ++ render (nest 8 (vpr qe)))
                                      let env1      = subst s' env
                                          (qe1,qe2) = partition (isFixed env1) qe
                                          (vs,qs)   = unzip qe2
                                          es2       = map f es1
                                          es3       = if rec && not (null vs) then map (subst (satSubst vs)) es2 else es2
                                          (es',ts') = unzip (zipWith (qual qe2) es3 (subst s' ts))
-                                     -- tr ("Witnesses returned: " ++ show qe1 ++ "   |   " ++ show qe2)
-                                     ts'' <- mapM (gen (tevars env1 ++ tvars qe1)) ts'
-                                     -- tr ("DONE " ++ render (vpr (xs `zip` ts'')))
-                                     -- tr ("EXPS " ++ render (vpr (xs `zip` es')))
+                                     -- tr ("BEFORE GEN:\n" ++ render (nest 8 (vpr (xs `zip` ts') $$ vpr qe2)))
+                                     ts'' <- genL (tevars env1 ++ tvars qe1) ts'
+                                     -- tr ("DONE " ++ render (nest 8 (vpr (xs `zip` ts''))))
+                                     -- tr ("EXPS " ++ render (nest 8 (vpr (xs `zip` es'))))
                                      return (mkEqns env s', qe1, Binds rec (xs `zip` ts'') (xs `zip` es'))
   where ts                      = map (lookup' te) xs
         (xs,es)                 = unzip eqs
@@ -272,7 +273,7 @@ tiLhs env alpha tiX xs          = do x <- newName tempSym
                                          es1 = map f es
                                          pes1 = subst s (map (filter (not . isCoercion . fst)) pes) -- preserve non-coercions for each alt
                                          (es2,ts2) = unzip (zipWith3 qual pes1 es1 ts1)
-                                     ts3 <- mapM (gen (tevars (subst s env'))) ts2
+                                     ts3 <- genL (tevars (subst s env')) ts2
                                      es2 <- mapM (redTerm (coercions env)) es2
                                      return (subst s alpha, ts3, es2)
 

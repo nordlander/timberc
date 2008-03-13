@@ -37,25 +37,26 @@ normalize env eqs pe                    = do -- tr ("NORMALIZE: " ++ render (vpr
                                              return (s1@@s0, pe1, f1)
                                              
 
-norm env pe                             = do -- tr ("NORM " ++ "\n" ++ render (vpr pe))
+norm env pe                             = do -- tr ("NORM A\n" ++ render (nest 8 (vpr pe)))
                                              (s1, pe1, f1) <- reduce env pe
-                                             -- tr ("NORM B ")
+                                             -- tr ("NORM B\n" ++ render (nest 8 (vpr pe1)))
                                              (s2, pe2, f2) <- simplify (subst s1 env) pe1
-                                             -- tr ("END NORM " ++ render (pr pe2))
+                                             -- tr ("NORM C\n" ++ render (nest 8 (vpr pe2)))
                                              return (s2@@s1, pe2, f2 . f1)
 
 
 -- Conservative reduction ----------------------------------------------------------------------
 
-reduce env pe                           = do -- tr ("###reduce\n" ++ render (vpr pe) ) -- ++ "\n\n" ++ show (tvars (typeEnv env)))
+reduce env pe                           = do -- tr ("###reduce\n" ++ render (nest 8 (vpr pe)) ) -- ++ "\n\n" ++ show (tvars (typeEnv env)))
                                              (s,q,[],es) <- red [] (map mkGoal pe)
-                                             -- tr ("###result\n" ++ render (vpr q))
+                                             -- tr ("###result\n" ++ render (nest 8 (vpr q)))
+                                             -- tr ("        " ++ show s)
                                              return (s, q, eLet pe (dom pe `zip` es))
   where mkGoal (v,p)                    = (tick env{errPos = pos v} (isCoercion v || isDummy v), p)
 
 -- Simplification ------------------------------------------------------------------------------
 
-simplify env pe                         = do -- tr ("****SIMPLIFY\n" ++ render (vpr pe))
+simplify env pe                         = do -- tr ("****SIMPLIFY\n" ++ render (nest 8 (vpr pe)))
                                              cs <- newNames skolemSym (length tvs)
                                              r <- expose (closePreds env [] (subst (tvs`zip`map TId cs) pe) (cs`zip`ks))
                                              case r of
@@ -103,13 +104,15 @@ a x < b x \\ x, a x < c x \\ x, b x < c Int \\ x
 resolve env pe                          = do -- tr ("############### Before resolve: ")
                                              -- tr (render (nest 8 (vpr pe)))
                                              -- tr ("tevars: " ++ show env_tvs ++ ",   reachable: " ++ show reachable_tvs)
-                                             (s,q,[],es) <- red [] (map mkGoal pe)
+                                             (s1,q1,[],es) <- red [] (map mkGoal pe)
                                              -- tr ("############### After resolve: ")
                                              -- tr (render (nest 8 (vpr q)))
-                                             let q' = filter badDummy q
-                                             assert1 (null q') "Cannot resolve predicates" (snd (head q'))
+                                             let f1 = eLet pe (dom pe `zip` es)
+                                                 badq = filter badDummy q1
+                                             assert1 (null badq) "Cannot resolve predicates" (snd (head badq))
                                              -- tr "DONE RESOLVING"
-                                             return (s, q, eLet pe (dom pe `zip` es))
+                                             (s2,q2,f2) <- simplify (subst s1 env) q1
+                                             return (s2@@s1, q2, f2 . f1)
   where env_tvs                         = tevars env
         reachable_tvs                   = vclose (map tvars pe) (ps ++ ns ++ env_tvs)
           where (ps,ns)                 = pols env
