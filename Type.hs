@@ -100,6 +100,8 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING line: " ++ show (pos 
                                          es3       = if rec && not (null vs) then map (subst (satSubst vs)) es2 else es2
                                          (es',ts') = unzip (zipWith (qual qe2) es3 (subst s' ts))
                                      -- tr ("BEFORE GEN:\n" ++ render (nest 8 (vpr (xs `zip` ts') $$ vpr qe2)))
+                                     -- Note: using genL below instead of mapM gen allows us to take a simplifying 
+                                     -- shortcut later on in Type2
                                      ts'' <- genL (tevars env1 ++ tvars qe1) ts'
                                      -- tr ("DONE " ++ render (nest 8 (vpr (xs `zip` ts''))))
                                      -- tr ("EXPS " ++ render (nest 8 (vpr (xs `zip` es'))))

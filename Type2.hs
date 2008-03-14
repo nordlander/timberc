@@ -45,6 +45,8 @@ t2Binds env (Binds r te eqs)    = do (s,es) <- t2ExpTs env1 scs es
 -- harmless w.r.t skolemization.
 -- Note also that this short-cut couldn't be taken in Type, since there we want to save the constraint rh < sc for 
 -- reduction at a later time where we'll have no information on which rh tvars that are generalizable and thus harmless.
+-- N.B.: in order for the shortcut to work, the type schemes of mutually recursive bindings must all be generalized using
+-- the same [tyvar/tvar] substitution.  See Type.tiBinds, where genL is used instead of mapM gen for generalization.
 t2ExpT env sc e                 = do (s1,rh,e) <- t2Exp env e
                                      s2 <- mgi' rh (quickSkolem sc)
                                      return (mergeSubsts [s1,s2], e)
