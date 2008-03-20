@@ -55,10 +55,10 @@ let f = \w0 v x -> e w0 (f w0 v 7)                                            ::
 \i -> i w0 :: (W->P->S->T)->P->S->T                \\ w0 :: W
 ---------------
 -}
-
-tiModule (xs',ds',bs',is') (Module v ns xs ds is bs) = 
+{-
+tiModule (xs',ds',bs',is') (Module v ns xs ds is bss) = 
                                   do (env1,ds1,bs1) <- typeDecls env0 ds
-                                     (is2,xs2) <- derive (bvars bs ++ bvars bs') (ds' `catDecls` ds1) xs
+                                     (is2,xs2) <- derive (concatMap bvars bss ++ bvars bs') (ds' `catDecls` ds1) xs
                                      (env2,bs2) <- instancePreds env1 (ieTot ++ concatMap tsigsOf is2)
                                      let env3 = insertDefaults env2 ieTot (xs' ++ xs2)
                                      (ss0,pe0,subInsts) <- tiBinds env3 subInsts
@@ -67,21 +67,40 @@ tiModule (xs',ds',bs',is') (Module v ns xs ds is bs) =
                                      -- in env2 are actually met by the equations in is, bs1 and bs2
                                      let is0  = concatBinds [bs1, bs2, subInsts]
                                          env4 = addCoercions (eqnsOf is' ++ eqnsOf is0) env3
-                                     (ss1,pe1,bs) <- tiBindsList (addTEnv0 ieTot env4) (groupBinds bs)
-                                     (ss2,pe2,classInsts) <- tiBinds (addTEnv0 (tsigsOf bs) env4) (concatBinds (classInsts : is2))
+                                     (ss1,pe1,bss) <- tiBindsList (addTEnv0 ieTot env4) bss
+                                     (ss2,pe2,classInsts) <- tiBinds (addTEnv0 (concatMap tsigsOf bss) env4) (concatBinds (classInsts : is2))
                                      assert0 (null (ss0++ss1++ss2)) "Internal: top-level type inference 1"
                                      assert0 (null (pe0++pe1++pe2)) "Internal: top-level type inference 2"
                                      let isFinal = concatBinds (groupBinds (is0 `catBinds` classInsts))
-                                     return (Module v ns xs2 ds1 isFinal bs)
-  where env0                    = addTEnv0 (tsigsOf bs') (impDecls (initEnv { modName = Just (str v) }) ds')
+                                     return (Module v ns xs2 ds1 isFinal bss)
+  where env0                    = addTEnv0 (tsigsOf bs') (impDecls (initEnv v) ds')
         ieTot                   = tsigsOf is' ++ tsigsOf is
         (subInsts,classInsts)   = splitInsts is
+-}
+
+tiModule (xs',ds',ws',bs') (Module v ns xs ds ws bss)
+                                = do (env1,ds',bs1) <- typeDecls env0 ds
+                                     (env2,bs2) <- instancePreds env1 pe
+                                     -- Here it should be checked that any coercions in weqs follow the
+                                     -- restricted rules for coercions, and that the equalities collected 
+                                     -- in env2 are actually met by the equations in bs1, bs2 and bss
+                                     let env3 = insertDefaults env2 pe (xs'++xs)
+                                         env4 = addCoercions (weqs1 ++ weqs) env3
+                                         weqs1 = eqnsOf bs1 ++ eqnsOf bs2
+                                     (ss0,pe0,bss') <- tiBindsList env4 bss
+                                     assert0 (null ss0) "Internal: top-level type inference 1"
+                                     assert0 (null pe0) "Internal: top-level type inference 2"
+                                     return (Module v ns xs ds' (dom weqs1 ++ ws) (groupBinds (concatBinds (bs1:bs2:bss'))))
+    where bs                    = concatBinds bss
+          weqs                  = restrict (eqnsOf bs') ws' ++ restrict (eqnsOf bs) ws
+          pe                    = restrict (tsigsOf bs') ws' ++ restrict (tsigsOf bs) ws
+          env0                  = addTEnv0 (tsigsOf bs') (impDecls (initEnv v) ds')
 
 
-tiBindsList env []              = return ([], [], nullBinds)
+tiBindsList env []              = return ([], [], [])
 tiBindsList env (bs:bss)        = do (ss1, pe1, bs') <- tiBinds env bs
                                      (ss2, pe2, bss') <- tiBindsList (addTEnv (tsigsOf bs') env) bss
-                                     return (ss1++ss2, pe1++pe2, bs' `catBinds` bss')
+                                     return (ss1++ss2, pe1++pe2, bs' : bss')
 
                                      
 tiBinds env (Binds _ [] [])     = return ([], [], nullBinds)

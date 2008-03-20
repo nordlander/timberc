@@ -174,20 +174,20 @@ compileTimber clo ifs t_file ti_file c_file h_file
                              writeFile h_file htxt
                              return ifs'
   where passes imps par = do (e0,e1,e2,e3) <- initEnvs imps
-                             (d1,a0) <- pass (desugar1 e0)    Desugar1            par
-                             rn      <- pass (renameM e1)     Rename              d1
-                             d2      <- pass desugar2         Desugar2            rn
-                             co      <- pass syntax2core      S2C                 d2
-                             kc      <- pass (kindcheck e2)   KCheck              co
-                             tc      <- pass (typecheck e2)   TCheck              kc
-                             rd      <- pass (termred e2)     Termred             tc
-                             tc2     <- pass (typecheck2 e2)  Type2               rd
-                             (ki,a2) <- pass (core2kindle e2 e3) C2K              tc2
-                             ki'     <- pass (kindlered e3)   Kindlered           ki
-                             ll      <- pass (lambdalift e3)  LLift               ki'
-                             pc      <- pass (prepare4c e2 e3)   Prepare4C        ll
-                             c       <- pass (kindle2c (init_order imps)) K2C     pc
-                             return (c,ifaceMod a0 rd a2)
+                             (d1,a0) <- pass (desugar1 e0)                Desugar1  par
+                             rn      <- pass (renameM e1)                 Rename    d1
+                             d2      <- pass desugar2                     Desugar2  rn
+                             co      <- pass syntax2core                  S2C       d2
+                             kc      <- pass (kindcheck e2)               KCheck    co
+                             tc      <- pass (typecheck e2)               TCheck    kc
+                             rd      <- pass (termred e2)                 Termred   tc
+                             tc2     <- pass (typecheck2 e2)              Type2     rd
+                             ki      <- pass (core2kindle e2 e3)          C2K       tc2
+                             ki'     <- pass (kindlered e3)               Kindlered ki
+                             ll      <- pass (lambdalift e3)              LLift     ki'
+                             pc      <- pass (prepare4c e2 e3)            Prepare4C ll
+                             c       <- pass (kindle2c (init_order imps)) K2C       pc
+                             return (c,ifaceMod a0 tc2 (declsOf ki))
 
         pass m p a      = do -- tr ("Pass " ++ show p ++ "...")
                              r <- m a

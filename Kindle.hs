@@ -203,6 +203,8 @@ rngType (FunT ts t)                     = t
 
 typeOf' b                               = rngType (typeOf b)
 
+declsOf (Module _ _ ds _)               = ds
+
 cBind [] c                              = c
 cBind bs c                              = CBind False bs c
 

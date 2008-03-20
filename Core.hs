@@ -6,7 +6,7 @@ import Data.Binary
 import Monad
 
 
-data Module     = Module Name [Name] [Default Scheme] Types Binds Binds
+data Module     = Module Name [Name] [Default Scheme] Types [Name] [Binds]
                 deriving  (Eq,Show)
 
 data Types      = Types   KEnv Decls
@@ -535,7 +535,7 @@ alphaConvert e | mustAc e       = ac nullSubst e
                | otherwise      = return e
 
 mustAc (ELam te e)              = True
-mustAc (ELet te e)              = True
+mustAc (ELet bs e)              = True
 mustAc (EDo x tx c)             = True
 mustAc (ETempl x tx te c)       = True
 mustAc (EAp e es)               = any mustAc (e:es)
@@ -579,7 +579,7 @@ instance AlphaConv Exp where
                                      liftM3 EDo (ac s' x) (ac s' tx) (ac s' c)
     ac s (ETempl x tx te c)     = do s' <- extSubst s (x : dom te)
                                      liftM4 ETempl (ac s' x) (ac s' tx) (ac s' te) (ac s' c)
-    
+        
 instance AlphaConv Pat where
     ac s p                      = return p
 
@@ -593,7 +593,11 @@ instance AlphaConv Cmd where
                                      liftM2 CLet (ac s' bs) (ac s' c)
 
 instance AlphaConv Type where
-    ac s (TId n)                = liftM TId (ac s n)
+    ac s (TId n)                = case lookup n s of
+                                    Just n'       -> return (TId n')
+                                    _ | isVar n   -> newTVar Star   -- not quite correct, really need an env to find kind of n
+                                                                    -- But we're past kind errors anyway when we alphaconvert...
+                                      | otherwise -> return (TId n)
     ac s (TFun t ts)            = liftM2 TFun (ac s t) (ac s ts)
     ac s (TAp t u)              = liftM2 TAp (ac s t) (ac s u)
     ac s (TVar n)               = newTVar (tvKind n)
@@ -628,14 +632,17 @@ instance BVars Binds where
 -- Modules -------------------------------------------------------------------
 
 instance Pr Module where
-    pr (Module i ns xs ds is bs)  = text "module" <+> prId i <+> text "where"
-                                  $$ prImports ns $$ prDefaults xs $$ pr ds $$ prInsts is $$ pr bs
+    pr (Module i ns xs ds is bss) = text "module" <+> prId i <+> text "where"
+                                    $$ prImports ns $$ prDefaults xs $$ pr ds $$ prImplicit is $$ vpr bss
 
-prImports []                     = empty
-prImports ns                     = text "import" <+> hpr ',' ns
+prImports []                      = empty
+prImports ns                      = text "import" <+> hpr ',' ns
 
 prDefaults []                     = empty
 prDefaults ns                     = text "default" <+> hpr ',' ns
+
+prImplicit []                     = empty
+prImplicit ns                     = text "implicit" <+> hpr ',' ns
 
 instance Pr (Module,a) where
   pr (m,_)                       = pr m

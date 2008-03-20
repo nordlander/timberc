@@ -4,21 +4,20 @@ import PP
 import Common
 import Core
 import Env
+import Derive
 import Depend
 import Monad
 
 kindcheck m                             = kiModule m
 
-kiModule (_,ds',_,_) (Module v ns xs ds is bs)
+kiModule (_,ds',_,bs') (Module v ns xs ds ws bss)
                                          = do ds <- kiDeclsList env (groupTypes ds)
+                                              (bss',xs1) <- derive (concatMap bvars bss ++ bvars bs') (ds' `catDecls` ds) xs
                                               let env' = addKEnv0 (ksigsOf ds) env
-                                              is <- kiBinds env' is
-                                              bs <- kiBinds env' bs
-                                              return (Module v ns xs ds is bs)
-  where env                             = addKEnv0 (ksigsOf ds') initEnv 
+                                              bss <- mapM (kiBinds env') (bss++bss')
+                                              return (Module v ns xs1 ds ws bss)
+  where env                             = addKEnv0 (ksigsOf ds') (initEnv v)
 
-kindcheckBinds ds b                     = kiBinds env b
-  where env                             = addKEnv0 (ksigsOf ds) initEnv              
 
 -- Kind unification ------------------------------------------------------------
 

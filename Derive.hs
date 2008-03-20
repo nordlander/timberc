@@ -3,10 +3,8 @@ module Derive where
 import Common
 import Core
 import Env
-import Kind
 import PP
-import qualified Syntax
-import Syntax2Core 
+
 
 derive ts ds []                       = return ([],[])
 derive ts ds (d@(Default _ _ _) : xs)
@@ -15,10 +13,9 @@ derive ts ds (d@(Default _ _ _) : xs)
 derive ts ds (Derive n sc : xs)       = do let (s,d) = analyze ds sc
                                            b <- mkFunPair d
                                            i <- mkInstance n ts s sc b
-                                           i' <- kindcheckBinds ds i
                                            -- tr ("### Default instance \n"++render (prInsts i'))
                                            (is,xs) <- derive ts ds xs
-                                           return (i':is,xs)
+                                           return (i:is,xs)
 
 analyze ds sc                         = case tFlat (scheme2Type sc) of
                                            (TId c,[t']) -> findDataType c t'
@@ -60,9 +57,9 @@ expand a from to e sc                 = exp0 to (e,scheme2Type sc)
                                            return (ECase e [(PCon (tuple n), lam)])
         expTup (e,_)                  = return e
 
-eLam' xs e                            = do ts <- mapM s2cType (replicate (length xs) Syntax.TWild)
+eLam' xs e                            = do ts <- mapM (\_ -> newTVar Star) xs
                                            return (ELam (zipWith (\x t -> (x,scheme t)) xs ts) e)
-
+                                           
 mkFunPair (nm,DData vs ss cs)         = do [from,to] <- mapM newName ["from"++str nm,"to"++str nm]
                                            frhs <- fromRHS
                                            trhs <- toRHS

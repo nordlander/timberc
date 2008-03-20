@@ -7,9 +7,9 @@ import Depend
 import PP
 import Char
 
-termred (_,ds',bs',is') m       = redModule (consOf ds') (eqnsOf is' ++ eqnsOf bs') m
+termred (_,ds',_,bs') m         = redModule (consOf ds') (eqnsOf bs') m
 
-redTerm coercions e             = redExp (Env {eqns = coercions, args = [], cons = cons0, isLoc = False, locs = [] }) e
+redTerm coercions e             = redExp (initEnv { eqns = coercions }) e
 
 isFinite e                      = finite initEnv e
 
@@ -42,7 +42,26 @@ addCons env css                 = env { cons = css ++ cons env }
 
 setLoc env                      = env { isLoc = True }
 
-redModule impCons impEqs (Module m ns xs ds ie bs)
+redModule impCons impEqs (Module m ns xs ds is bss)
+                                = do (bss,_) <- redTopBinds env1 bss
+                                     return (Module m ns xs ds is bss)
+  where env0                    = addCons initEnv (impCons ++ consOf ds)
+        env1                    = addEqns env0 (finiteEqns env0 impEqs)
+
+
+redTopBinds env []              = return ([], [])
+redTopBinds env (bs : bss)      = do Binds r te es <- redBinds env bs
+                                     (bss,vs) <- redTopBinds (addEqns env (finiteEqns env es)) bss
+                                     let necessary (v,_) = maybe (elem v vs) (const True) (fromMod v)
+                                         te' = filter necessary te
+                                         es' = filter necessary es
+                                         bs' = Binds r te' es'
+                                         bss' = if null te' then bss else bs':bss
+                                     return (bss', idents es' ++ vs)
+                                     
+
+{-
+redModule impCons impEqs (Module m ns xs ds ie [bs])
                                 = do es1' <- redEqns env0 es1
                                      let env1 = addEqns env0 (finiteEqns env0 es1')
                                          env2 = addEqns env1 (finiteEqns env1 impEqs)
@@ -52,13 +71,14 @@ redModule impCons impEqs (Module m ns xs ds ie bs)
                                      let es' = es1' ++ es2'
                                          vs  = idents es'
                                          necessary (v,_) = maybe (elem v vs) (\_ -> True) (fromMod v)
-                                     return (Module m ns xs ds ie' (Binds r (filter necessary te) (filter necessary es')))
+                                     return (Module m ns xs ds ie' [Binds r (filter necessary te) (filter necessary es')])
   where envFree (_,e)           = all isSafeId (idents e) && isSmall e
         Binds r te es           = bs
         (es1,es2)               = partition envFree es
         isSafeId (Prim _ _)     = True
         isSafeId x              = isGenerated x && not(isTemp x)
         env0                    = addCons initEnv (impCons ++ consOf ds)
+-}
      
 {-
 Definition of isSafeId should be reconsidered. Which generated names are safe? 
@@ -126,7 +146,7 @@ redExp env (ETempl x t te c)    = liftM (ETempl x t te) (redCmd env c)
 redExp env (EAct e e')          = liftM2 EAct (redExp env e) (redExp env e')
 redExp env (EReq e e')          = liftM2 EReq (redExp env e) (redExp env e')
 redExp env (EDo x t c)          = liftM (EDo x t) (redCmd env c)
-redExp env (ELam te e)          = do e <- redExp env e
+redExp env (ELam te e)          = do e <- redExp (addArgs env (dom te)) e
                                      redEta env te e
 redExp env (ESel e s)           = do e <- redExp env e
                                      redSel env e s
@@ -141,7 +161,7 @@ redExp env e@(EVar (Prim {}))   = return e
 redExp env e@(EVar (Tuple {}))  = return e
 redExp env e@(EVar x)           = case lookup x (eqns env) of
                                       Just (ERec _ _)
-                                         |not (x `elem` locs env) -> return e  
+                                         | not (x `elem` locs env) -> return e  
                                       Just e' -> alphaConvert e'
                                       _       -> return e
 redExp env (EAp e es)           = do e <- redExp env e
@@ -164,7 +184,7 @@ redApp env (EVar (Prim p a)) es
 redApp env e@(EVar x) es        = case lookup x (eqns env) of
                                        Just e' -> do e' <- alphaConvert e'; redApp env e' es
                                        Nothing -> return (EAp e es)
-redApp env (ELam te e) es       = redBeta (setLoc env) te e es
+redApp env (ELam te e) es       = do redBeta (setLoc env) te e es
 redApp env (ECase e alts) es    = liftM (ECase e) (redAlts env (mapSnd (`EAp` es) alts))
 redApp env (ELet bs e) es       = liftM (ELet bs) (redApp env e es)
 redApp env e es                 = return (EAp e es)
@@ -180,15 +200,16 @@ redBeta env ((x,t):te) b (e:es)
 redBeta env [] b []             = redExp env b
 
 
-redEta env te (EAp e es)        = do es <- mapM (redExp env) es
-                                     e <- redExp env e
+redEta env te (EAp e es)        = do es <- mapM (redExp env') es
+                                     e <- redExp env' e
                                      if okEta e && es == map EVar (dom te) then
                                         return e
                                       else do
-                                        liftM (ELam te) (redApp env e es)
+                                        liftM (ELam te) (redApp env' e es)
   where okEta (ECon _)          = False
         okEta (EVar (Prim _ _)) = False
         okEta _                 = True
+        env'                    = addArgs env (dom te)
 redEta env te e                 = liftM (ELam te) (redExp (addArgs env (dom te)) e)
 
 
@@ -200,7 +221,7 @@ redSel env e@(EVar x) s         = case lookup x (eqns env) of
 redSel env (ERec c eqs) s
   | all value (rng eqs)         = case lookup s eqs of
                                     Just e  -> return e
-                                    Nothing -> internalError0 "redSel: did not find selector" s
+                                    Nothing -> internalError0 ("redSel: did not find selector " ++ show s ++ "   in   " ++ show eqs) s
 redSel env e s                  = return (ESel e s)
 
 
@@ -245,8 +266,8 @@ redPrim env CharToInt _ [ELit (LChr _ x)]   = ELit (LInt Nothing (toInteger (ord
 redPrim env p a es                          = eAp (EVar (Prim p a)) es
 
 
-redMatch env a (ELet bs e)                  = ELet bs (redMatch env a e)
-redMatch env a (ELam te e)                  = ELam te (redMatch env a e)
+redMatch env a (ELet bs e)                  = ELet bs (redMatch (addArgs env (bvars bs)) a e)
+redMatch env a (ELam te e)                  = ELam te (redMatch (addArgs env (dom te)) a e)
 redMatch env a (EAp (EVar (Prim Commit _)) [e]) = e
 redMatch env a (ECase e alts)
   | complete (cons env) cs                  = ECase e (map PCon cs `zip` map (redMatch env a) es)

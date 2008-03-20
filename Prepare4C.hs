@@ -59,8 +59,8 @@ allCons env _                   = []
 
 pModule e2 dsi (Module m ns ds bs)      
                                 = do -- tr (render (vcat (map pr dsi))
-                                     let (_,_,Core.Binds _ te1 _,Core.Binds _ te2 _) = e2
-                                     tei <- Core2Kindle.c2kTEnv dsi (te1++te2)
+                                     let (_,_,_,Core.Binds _ te2 _) = e2
+                                     tei <- Core2Kindle.c2kTEnv dsi te2
                                      let env1 = addTEnv (primTEnv++tei) (addDecls (primDecls++dsi) env0)
                                          env  = addBinds bs (addDecls ds env1)
                                      (bs1,bs) <- pMap (pBind env) bs

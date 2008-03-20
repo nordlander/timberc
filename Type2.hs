@@ -7,17 +7,16 @@ import Decls
 
 typecheck2 e2 m                 = t2Module e2 m
 
-t2Module (xs',ds',is',bs') (Module v ns xs ds is bs)
-                                = do is <- t2Binds0 env2 is
-                                     bs <- t2Binds0 env2 bs
-                                     return (Module v ns xs ds is bs)
+t2Module (xs',ds',ws',bs') (Module v ns xs ds ws bss)
+                                = do bss <- mapM (t2Binds0 env2) bss
+                                     return (Module v ns xs ds ws bss)
   where env2                    = addTEnv0 te2 (addKEnv0 ke2 env1)
-        te2                     = tsigsOf is ++ tsigsOf bs ++ tenvSelsCons ds
+        te2                     = concatMap tsigsOf bss ++ tenvSelsCons ds
         ke2                     = ksigsOf ds
         env1                    = addTEnv0 te1 (addKEnv0 ke1 env0)
-        te1                     = tsigsOf is' ++ tsigsOf bs' ++ tenvSelsCons ds'
+        te1                     = tsigsOf bs' ++ tenvSelsCons ds'
         ke1                     = ksigsOf ds'
-        env0                    = addTEnv0 primPredEnv (initEnv { modName = Just (str v) })
+        env0                    = addTEnv0 primPredEnv (initEnv v)
         
 
 t2Binds0 env (Binds r te eqs)   = do (s,eqs) <- t2Eqs eqs

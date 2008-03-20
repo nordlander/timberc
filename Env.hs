@@ -582,12 +582,13 @@ instance Pr (Name,Name) where
 
 -- initEnv --------------------------------------------------------------------
 
-initEnv                 = nullEnv { kindEnv0 = primKindEnv,
+initEnv v               = nullEnv { kindEnv0 = primKindEnv,
                                     typeEnv0 = primTypeEnv,
                                     aboveEnv = primAboveEnv,
                                     belowEnv = primBelowEnv,
                                     classEnv = primClassEnv,
-                                    predEnv0 = primPredEnv  }
+                                    predEnv0 = primPredEnv,
+                                    modName  = Just (str v) }
 
 
 

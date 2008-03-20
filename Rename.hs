@@ -145,9 +145,12 @@ instance Rename Module where
                                         assert (null tDups) "Duplicate type constructors" tDups
                                         assert (null sDups) "Duplicate selectors" sDups
                                         assert (null cDups) "Duplicate constructors" cDups
-                                        assert (null wDups) "Duplicate instance signatures" wDups
+                                        assert (null wDups) "Duplicate implicit declarations" wDups
                                         assert (null eDups) "Duplicate top-level variable" eDups
                                         assert (null dks)   "Dangling kind signatures" dks
+                                        assert (null dws1)  "Dangling implicit declarations" dws1
+                                        assert (null dws2)  "Dangling implicit declarations" dws2
+                                        assert (null badImpl) "Illegal type signature for implicit identifier" badImpl
                                         env1 <- extRenTMod True  c env  (ts1 ++ ks1')
                                         env2 <- extRenEMod True  c env1 (cs1 ++ vs1 ++ vs1' ++ vss++is1)
                                         let env2' = env2 {rE = map (addTag cs11) (rE env2)}
@@ -155,14 +158,14 @@ instance Rename Module where
                                         env4 <- extRenTMod False c env3 ((ts2 \\ ks1') ++ ks2)
                                         env5 <- extRenEMod False c env4 (cs2 ++ (vs2 \\ vss) ++ vs2'++is2)
                                         env6 <- extRenLMod False c env5 ss2
-                                        let bs = shuffleD ws (bs1 ++ bs2)
+                                        let bs = shuffleB (bs1 ++ bs2)
                                         ds' <- rename env6 (filter (not . isDBind) (ds ++ ps) ++ map DBind (bs1' ++ bs2' ++ bs))
                                         return (Module c is ds' [])
    where (ks1,ts1,ss1,cs1,cs11,ws1,is1,bs1) = renameD [] [] [] [] [] [] [] [] ds
          (ks2,ts2,ss2,cs2, _  ,ws2,is2,bs2) = renameD [] [] [] [] [] [] [] [] ps
          vs1                       = bvars bs1
          vs2                       = bvars bs2
-         vss                       = concat [ ss | BSig ss _ <- bs1 ] \\ vs1 ++ ws1
+         vss                       = concat [ ss | BSig ss _ <- bs1 ] \\ vs1
          vs                        = vs1 ++ vs2
          ks                        = ks1 ++ ks2
          ts                        = ts1 ++ ts2
@@ -173,6 +176,9 @@ instance Rename Module where
          vs2'                      = bvars bs2'
          ks1'                      = ks1 \\ ts1
          dks                       = ks \\ ts
+         dws1                      = ws1 \\ concat [ ss | BSig ss _ <- bs1 ]
+         dws2                      = ws2 \\ concat [ ss | BSig ss _ <- bs2 ]
+         badImpl                   = concat [ ws | BSig ss t <- bs1++bs2, let ss' = ss \\ ws, ws /= [], isWild t ]
          kDups                     = duplicates ks
          tDups                     = duplicates ts
          sDups                     = duplicates (ss1 ++ ss2)
@@ -182,6 +188,15 @@ instance Rename Module where
          addTag cs p@(v,v')
            |v `elem` cs            = (v,v' {annot = (annot v') {forceTag = True}})
            |otherwise              = p 
+         isWild (TQual t ps)       = isWild t || any isWild [ t | PType t <- ps ]
+         isWild (TAp t t')         = isWild t || isWild t'
+         isWild (TSub t t')        = isWild t || isWild t'
+         isWild (TList t)          = isWild t
+         isWild (TTup ts)          = any isWild ts
+         isWild (TFun ts t)        = any isWild (t:ts)
+         isWild TWild              = True
+         isWild _                  = False
+         
 
 renameD ks ts ss cs cs1 ws is bs (DKSig c k : ds)
                                    = renameD (c:ks) ts ss cs cs1 ws is bs ds
@@ -193,8 +208,8 @@ renameD ks ts ss cs cs1 ws is bs (DData c _ _ cdefs : ds)
   where cons                       = [ c | Constr c _ _ <- cdefs ]
 renameD ks ts ss cs cs1 ws is bs (DType c _ _ : ds)
                                    = renameD ks (c:ts) ss cs cs1 ws is bs ds
-renameD ks ts ss cs cs1 ws is bs (DPSig v t : ds)
-                                   = renameD ks ts ss cs cs1 (v:ws) is bs ds
+renameD ks ts ss cs cs1 ws is bs (DImplicit vs : ds)
+                                   = renameD ks ts ss cs cs1 (ws++vs) is bs ds
 renameD ks ts ss cs cs1 ws is bs (DDefault (Derive i _ : _) : ds)
                                    = renameD ks ts ss cs cs1 ws (i:is) bs ds
 renameD ks ts ss cs cs1 ws is bs (DDefault _ : ds)
@@ -212,7 +227,7 @@ instance Rename Decl where
                                         liftM2 (DRec isC (renT env c) (map (renT env') vs)) (renameQTs env' ts) (rename env' ss)
   rename env (DType c vs t)        = do env' <- extRenT env vs
                                         liftM (DType (renT env c) (map (renT env') vs)) (rename env' t)
-  rename env (DPSig v t)           = liftM (DPSig (renE env v)) (renameQT env t)
+  rename env (DImplicit vs)        = return (DImplicit (map (renE env) vs))
   rename env (DDefault ts)         = liftM DDefault (rename env ts)
   rename env (DBind b)             = liftM DBind (rename env b)
 
@@ -383,36 +398,30 @@ renameS env (SAss p e : ss)
 
 -- Signature shuffling -------------------------------------------------------------------------
 
-shuffleD insts bs                  = shuffle insts [] bs
+shuffleB bs                        = shuffle [] bs
 
-shuffleB bs                        = shuffle [] [] bs
+
+shuffle [] []                      = []
+shuffle sigs []                    = errorIds "Dangling type signatures" (dom sigs)
+shuffle sigs (BSig vs t : bs)
+  | not (null s_dups)              = errorIds "Duplicate type signatures" s_dups
+  | otherwise                      = shuffle (vs `zip` repeat t ++ sigs) bs
+  where s_dups                     = duplicates vs ++ (vs `intersect` dom sigs)
+shuffle sigs (b@(BEqn (LFun v _) _) : bs)
+                                   = case lookup v sigs of
+                                       Just t  -> BSig [v] t : b : shuffle (prune sigs [v]) bs
+                                       Nothing -> b : shuffle sigs bs
+shuffle sigs (b@(BEqn (LPat (EVar v)) _) : bs) 
+                                   = case lookup v sigs of
+                                       Just t  -> BSig [v] t : b : shuffle (prune sigs [v]) bs
+                                       Nothing -> b : shuffle sigs bs
+shuffle sigs (BEqn (LPat p) rh : bs)
+                                   = BEqn (LPat p') rh : shuffle sigs' bs
+  where (sigs',p')                 = attach sigs p
+
+
 
 shuffleS ss                        = shuffle' [] ss
-
-
-shuffle [] [] []                   = []
-shuffle insts [] []                = errorIds "Dangling instance signatures" insts
-shuffle [] sigs []                 = errorIds "Dangling type signatures" (dom sigs)
-shuffle insts sigs (BSig vs t : bs)
-  | not (null s_dups)              = errorIds "Duplicate type signatures" s_dups
-  | not (null i_dups)              = errorIds "Signatures overlap with instances" i_dups
-  | otherwise                      = shuffle insts (vs `zip` repeat t ++ sigs) bs
-  where s_dups                     = duplicates vs ++ (vs `intersect` dom sigs)
-        i_dups                     = vs `intersect` insts
-shuffle insts sigs (b@(BEqn (LFun v _) _) : bs)
-                                   = case lookup v sigs of
-                                       Just t  -> BSig [v] t : b : shuffle insts (prune sigs [v]) bs
-                                       Nothing -> b : shuffle insts sigs bs
-shuffle insts sigs (b@(BEqn (LPat (EVar v)) _) : bs) 
-                                   = case lookup v sigs of
-                                       Just t  -> BSig [v] t : b : shuffle (insts \\ [v]) (prune sigs [v]) bs
-                                       Nothing -> b : shuffle (insts \\ [v]) sigs bs
-shuffle insts sigs (BEqn (LPat p) rh : bs)
-                                   = BEqn (LPat p') rh : shuffle (insts \\ pvars p) sigs' bs
-  where illegal                    = pvars p `intersect` insts
-        (sigs',p')                 = attach sigs p
-
-
 
 shuffle' [] []                     = []
 shuffle' sigs []                   = errorIds "Dangling type signatures for" (dom sigs)

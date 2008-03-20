@@ -99,20 +99,20 @@ findClosureName' env _              = internalError0 "c2k.findClosureName'"
 -- =========================================================================================
 
 -- Translate a Core.Module into a Kindle.Module
-cModule e2 e3 (Module m ns xs ds is bs)
+cModule e2 e3 (Module m ns xs ds ws bss)
                                     = do te0 <- tenv0 e2
                                          te  <- cTEnv (Decls.tenvSelsCons ds)
                                          let env = addTEnv (te ++ te0) (env0 (str m))
                                          mapM_ addToStore (filter (isClosure . fst) e3)
                                          ds1  <- cDecls env ds
-                                         bs  <- cBindsList env (groupBinds (is `catBinds` bs))
+                                         bs  <- cBindsList env bss
                                          ds2 <- currentStore
                                          let ds3 = ds1++reverse (filter (isQual m . fst) ds2)
-                                         return (Kindle.Module m ns ds3 bs,ds3)
+                                         return (Kindle.Module m ns ds3 bs)
 
 
 -- Compute the imported type environment
-tenv0 (_,ds,bs,is)                  = cTEnv (tsigsOf is ++ tsigsOf bs ++ Decls.tenvSelsCons ds ++ Env.primTypeEnv)
+tenv0 (_,ds,ws,bs)                  = cTEnv (tsigsOf bs ++ Decls.tenvSelsCons ds ++ Env.primTypeEnv)
 
 -- =========================================================================================
 -- Translating Core type declarations into Kindle.Decls

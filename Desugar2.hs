@@ -28,6 +28,7 @@ dsDecls (DData c vs bs cs : ds) = liftM (DData c vs (map dsQualBaseType bs) (map
 dsDecls (DRec i c vs bs ss:ds)  = liftM (DRec i c vs (map dsQualBaseType bs) (map dsSig ss) :) (dsDecls ds)
 dsDecls (DType c vs t : ds)     = liftM (DType c vs (dsType t) :) (dsDecls ds)
 dsDecls (DPSig v t : ds)        = liftM (DPSig v (dsQualPred t) :) (dsDecls ds)
+dsDecls (DImplicit vs : ds)     = liftM (DImplicit vs :) (dsDecls ds)
 dsDecls (DDefault ts : ds)      = liftM (DDefault (map dsDefault ts) :) (dsDecls ds) 
 dsDecls (DBind b : ds)          = do (bs',cs) <- dsBinds bs
                                      let pbs = filter isLPatEqn bs'
