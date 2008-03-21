@@ -183,12 +183,18 @@ pAlt env (AWild c)              = liftM AWild (pCmd env c)
 
 
 -- Prepare a right-hand-side expression
-pRhsExp env (ENew n bs)
+pRhsExp env (ENew n bs)         = pNewExp env n bs
+pRhsExp env (ECast t (ENew n bs))
+                                = do (bs',t',e') <- pNewExp env n bs
+                                     return (bs', t, ECast t e')
+pRhsExp env e                   = pExp' env e
+
+
+pNewExp env n bs
   | n `elem` nulls env          = return ([], TId n, EVar n)
   | otherwise                   = do (bs1,bs) <- pMap (pSBind env n) bs'
                                      return (bs1, TId n, ENew n bs)
   where bs'                     = if n `elem` singles env then prune bs [prim Tag] else bs
-pRhsExp env e                   = pExp' env e
 
 
 -- Prepare an expression in an arbitrary position
