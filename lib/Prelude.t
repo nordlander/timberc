@@ -355,3 +355,4 @@ mapM f (x : xs)     = do a <- f x
 struct Point where 
    x,y :: Int
 
+f @ g               = \x -> f (g x)

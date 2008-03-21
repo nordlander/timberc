@@ -43,7 +43,6 @@ Reserved operators
     | Bar
     | LeftArrow
     | RightArrow
-    | At
     | Tilde
     | Wildcard
     | Backslash2
@@ -96,7 +95,6 @@ reserved_ops
         ( "|",  Bar ),       
         ( "<-", LeftArrow ), 
         ( "->", RightArrow ),
-        ( "@",  At ),
         ( "_",  Wildcard ),
         ( "\\\\", Backslash2 )
       ]
