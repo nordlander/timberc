@@ -15,7 +15,7 @@ kiModule (_,ds',_,bs') (Module v ns xs ds ws bss)
                                               (bss',xs1) <- derive (concatMap bvars bss ++ bvars bs') (ds' `catDecls` ds) xs
                                               let env' = addKEnv0 (ksigsOf ds) env
                                               bss <- mapM (kiBinds env') (bss++bss')
-                                              return (Module v ns xs1 ds ws bss)
+                                              return (Module v ns xs1 ds (ws++dom(concatMap tsigsOf bss')) bss)
   where env                             = addKEnv0 (ksigsOf ds') (initEnv v)
 
 
