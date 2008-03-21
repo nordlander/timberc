@@ -1,0 +1,114 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html> <head>
+<title>Statements</title>
+<link href="simplestyle.css" rel="stylesheet" type="text/css">
+</head>
+
+<body>
+<h3>Statements</h3>
+<p>
+Statements form the bodies of classes. Within the sequence of statements forming a class definition, there may (and indeed, typically
+will) also occur definitions of actions and requests, which themselves have statement sequences as their bodies.
+<p>
+Statements will typically have side-effects, affecting the state of objects or the external world. This implies that the order of statements within
+a sequence is important. Also, for the statement forms that bind variables, the binding affects only the rest of the sequence.
+<p>
+The available statement forms are:
+<ul>
+  <li>
+  State variable initialization<p>
+  <em>svar</em> := <em>expr</em>
+  <p>
+  Here <em>svar</em> is a state variable. These have the same syntax as ordinary variables and share namespace, but
+  there are no rules for shadowing, so a state variable must be distinct from all ordinary variables in scope (and from other,
+  already defined state variables in scope). The variable
+  being defined may not occur in the right hand side. Initialisation implicitly declares this variables as part of the state of objects
+  instantiated from this class.
+  <li>
+  List of bindings.
+  <p> These have the same syntax as bind lists in general; they are recursive and within one binding group
+  order is insignificant (with the
+  exceptions detailed at the end of the <a href="bindings.html">bindings</a> page), but the bindings are only in scope
+  in the rest of the statement sequence.
+  <p> In addition to local bindings as they are used in general, a particularly important case is definitions of actions
+  and requests (which can only be defined in the statement sequence f a class).
+  <li>
+  Creation of objects<p>
+  <em>var</em> = new <em>expr</em>
+<p>
+  The <em>expr</em> must evaluate to a class; the effect is that a new object is created, its state initialized and its
+  interface bound to <em>var</em>
+<li> The result statement.
+  <p><tt>result</tt> <em>expr</em><p>
+  In the sequence of statements of a class, this must be last statement. It defines the interface of the class, i.e. how
+  the variable referring to an object may interact with it.
+  <p> Within an action or a request, the result statement indicates termination of the method and the value returned (for
+  requests; for actions the result is <tt>()</tt>, the dummy value of type <tt>()</tt>).
+  <p>
+  The forms of statements up to now are the only forms that may occur in the statement sequence at the outermost level of a class;
+  creating an object
+  may only involve initiating the state, creating other objects and returning the proper interface. The remaining forms
+  occur only within actions and requests.
+<li>
+State update.<p>
+<em>svar</em> <font color=red>(</font>! <em>expr</em> <font color=red>)*</font>:= <em>expr</em><p>
+The left hand side is here either a state variable or an array L-value (when the <em>svar</em> is an array). Array indexing
+is denoted by the <tt>!</tt> operator; several indexing operations may occur for multidimensional arrays. The right hand side may
+mention this and other state variables.</li>
+<li>
+Request/procedure call.
+<p>
+<em>pat</em> <- <em>expr</em><p>
+Here the right hand side must evaluate to a request or procedure; the statement expresses a call of this method and matching
+the pattern against the returned value.
+<p>
+The alternative form<p>
+<em>expr</em>
+<p>
+may also denote a request or procedure call where the pattern matching is omitted or an action call (which does no return  a value).
+<li>
+Conditional statement.
+<p>
+<tt>if</tt> <em>expr</em> <tt>then</tt><br>
+&nbsp;&nbsp;<em>stmts</em><br>
+<tt>elsif</tt> <em>expr</em> <tt>then</tt><br>
+&nbsp;&nbsp;<em>stmts</em><br>
+<tt>else</tt><br>
+&nbsp;&nbsp;<em>stmts</em>
+<p>
+The <tt>elsif</tt> may occur zero or more times; the <tt>else</tt> part zero or one time.
+<li>
+Case statement.<p>
+<tt>case</tt> <em>expr</em> <tt>of</tt><br>
+&nbsp;&nbsp;<em>pat1</em> <tt>-></tt> <em>stmts1</em><br>
+&nbsp;&nbsp;<em>pat2</em> <tt>-></tt> <em>stmts2</em><br>
+&nbsp;&nbsp;<tt>...</tt>
+<p>
+The alternatives may use guards and/or where clauses just as in function bindings.
+<li> Forall statement.
+<p>
+<tt>forall</tt> <font color= red>(</font><em>qual </em><font color= red>) +</font> <tt>do</tt><br>
+&nbsp;&nbsp;<em>stmts</em>
+<p>
+Here the simplest form of <em>qual</em> is <em>var</em> <- <em>expr</em>, where <em>expr</em> evaluates
+to a list. The statement sequence in the body will be executed once for each eement of the list, with <em>var</em> bound to
+that element.
+</ul>  
+We finish with a simple example.
+<pre>
+struct Counter where
+  inc   :: Action
+  read  :: Request Int
+  reset :: Action
+
+counter = class
+  s := 0
+  inc = action
+    s := s+1
+  read = request
+    result s
+  reset = action
+    s := 0
+  result Counter {..}
+</pre>
+</body> </html>

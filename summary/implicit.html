@@ -1,0 +1,116 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html> <head>
+<link href="simplestyle.css" rel="stylesheet" type="text/css">
+<title>Implicit struct types and qualified types</title>
+</head>
+
+<body>
+
+<h3>Implicit struct types and qualified types</h3>
+<p>
+In mathematics and in most programming languages, <tt>+</tt> and <tt>-</tt> denotes addition and subtraction; but what should
+their types be? Of course, we want to be able to add both integers and floating-point numbers, but these two functions correspond to
+completely different machine operations; we may also want to define arithmetic on new types, such as complex or rational numbers.
+<p>
+To better understand the problem, consider a function to add the elements of a list of integers to an accumulator.
+Assuming that <tt>+</tt> only means integer addition we could define
+<pre>
+add :: Int -> [Int] -> Int
+add ack (x : xs) = add (x + ack) xs
+add ack [] = ack
+</pre>
+<p>
+As long as there are elements in the list, we add them to the accumulator and call the function recursively; when the list is empty the
+ackumulator holds the result.
+<p> But this function makes perfect sense also for floats (or rationals, or complex numbers, or ...) and we would like to use it at
+those types, too. One could imagine an ad hoc solution just for the arithmetic operators, but we prefer a general solution.
+<p>
+A first step is to introduce the following struct type:
+<pre>
+struct Num a where
+  (+), (-), (*) :: a -> a -> a
+</pre>
+<p>
+An object of type <tt>Num Int</tt> has three fields, defining addition,
+subtraction and multiplication, respectively, on integers. (Of course, we can construct an object of this type using any three functions
+of the prescribed type, but the intention is to supply the standard arithmetic operators.) Similarly, an object of type <tt>Num Float</tt>
+defines the corresponding operators for floating-point numbers.
+<p>
+Assume that we have
+properly defined <tt>numInt :: Num Int</tt>. We can then define 
+<pre>
+add :: Int -> [Int] -> Int
+add ack (x : xs) = add (numInt.(+) x ack) xs
+add ack [] = ack
+</pre>
+<p>
+Unfortunately, the first argument in the recursive call now looks horrible. We cannot accept to write integer addition in this way. But there is
+at least something positive; we can generalize the type by giving the Num object as an argument:
+<pre>
+add :: Num a -> a -> [a] -> a
+add d ack (x : xs) = add d (d.(+) x ack) xs
+add d ack [] = ack
+</pre>
+<p>
+We can now use <tt>add</tt> for lists of any type of objects for which we can define the arithmetic operators, at the expense of passing an extra
+argument to the function.
+<p>
+The final step that gives an acceptable solution is to <em>let the compiler</em> handle the <tt>Num</tt> objects:
+<pre>
+implicit struct Num a where
+  (+), (-), (*) :: a -> a -> a
+
+add :: a -> [a] -> a \\ Num a
+add ack (x : xs) = add (x + ack) xs
+add ack [] = ack
+</pre>
+<p>
+<tt>Num</tt> is now an <em>implicit</em> struct type. For such types, the selectors are used without the
+dot notation identifying a struct value from which to select. Whenever a selector of an implicit type occurs in a function
+body, the compiler
+does the following:
+<ul>
+<li> adds an extra parameter of the implicit type to the function;</li>
+<li> changes the selector occurrences in the function body to a selection from that parameter.</li>
+<li> wherever the function is used, adds an object of the proper type as an extra argument.
+<li> changes the type of the function by adding the implicit struct type as a constraint after <tt>\\</tt>.
+</ul>
+<p>
+This solution combines ease of use and flexibility with type security. A possible disadvantage is inefficiency; an extra parameter is passed
+around. To address this, the user may add a specific type signature; if the user assigns the type <tt>Int -> [Int] -> Int</tt> to <tt>add</tt>,
+giving up flexibility, the compiler will not add the extra parameter, instead inserting integer operations directly into the function body.
+<p>
+Several implicit struct types, including <tt>Num</tt>, are defined in the Prelude, together with instances for common cases.
+<p>
+The compiler must be able to select the proper object of an implicit type to use whenever a function with a qualified type is used; this choice
+is guided by the context of the function application. In certain cases ambiguites can occur; these are resolved using default declarations.
+<p>
+We end by showing an instance of Num for rational numbers:
+<pre>
+data Rational = Rat Int Int
+
+implicit numRat :: Num Rational
+numRat = struct
+  Rat a b + Rat c d = Rat (a*d + b*c) (b*d)
+  Rat a b + Rat c d = Rat (a*d - b*c) (b*d)
+  Rat a b * Rat c d = Rat (a*c) (b*d)
+</pre>
+<p>
+This definition must be improved by reducing the fractions using Euclid's algorithm, but we omit that. We just note that the arithmetic operators in
+the right hand sides are at type <tt>Int</tt>; thus the compiler will insert the proper opertions from the instance <tt>numInt</tt>, avoiding
+the overhead of extra parameters.
+<h4>Subtyping constraints</h4>
+<p>
+Also subtyping relations may be used as constraints in qualified types. As a simple example, consider the function
+<pre>
+twice f x = f (f x)
+</pre>
+<p>
+Obviously, <tt>twice</tt> has a polymorphic type. At first, it seems that the type should be <tt> (a -> a) -> a -> a</tt>. However,it can be assigned
+the more general type
+<pre>
+twice :: (a -> b) -> a -> b \\ b < a
+</pre>
+<p>
+Types with subtype constraints will never be assigned by the compiler through type inference, but can be accepted in type-checking.
+</body> </html>

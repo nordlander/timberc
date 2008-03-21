@@ -1,0 +1,145 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html> <head>
+<title>Patterns and bindings</title>
+<link href="simplestyle.css" rel="stylesheet" type="text/css">
+</head>
+
+<body>
+<h3>Patterns and bindings</h3>
+
+<h4>Patterns and pattern matching</h4>
+<p>
+Patterns occur in several syntactic contexts in Timber (e.g. in the left hand sides of bindings, lambda expressions
+and case alternatives). Syntactically, patterns form a subset of expressions; a pattern is one of the following
+<ul>
+   <li> A variable.
+   <li> A literal.
+   <li> A constructor, possibly applied to a sequence of patterns. The sugered form for lists and tuples are allowed.
+   <li> A fully or incompletely defined struct expression (but not a layout-sensitive struct expression), where
+        the right hand sides of all fields are patterns.
+   <li> A pattern in parentheses.
+</ul>
+<p>
+At run-time, patterns are matched against values. Pattern-matching may succeed or fail; in the former case the result
+is a binding of the variables in the pattern to values. The rules are as follows:
+<ul>
+  <li> Matching a variable <em>x</em> against a value <em>v</em> always succeeds, binding <em>x</em> to <em>v</em>.
+  <li> Binding a literal <em>l</em> against a value <em>v</em> succeeds only if the <em>v</em> is the value
+  denoted by <em>l</em>; no variable is bound.
+  <li> Matching a constructor pattern <em>C p1 ... pn</em> against a value <em>v</em> succeeds only if
+  <em>v = C v1 ... vn</em> and matching <em>pi</em> against <em>vi</em> succeeds for all i; the resulting
+  binding is the union of the bindings resulting from each of these matchings.
+  <li> Matching a struct pattern against a value <em>v</em> starts by stuffing the record; it then has the form
+  <em>S {sel1 = p1, ... seln = pn}</em>. Matching against a value <em>v</em> succeeds if <em>v = S {sel1 = v1, seln = vn}</em>
+  and matching <em>pi</em> against <em>vi</em> succeeds for all i; the resulting
+  binding is the union of the bindings resulting from each of these matchings.</li>
+  <li> Mathing (<em>p</em>) against a value is the sama es matching <em>p</em> against the same value.
+  </ul>
+  <p>
+  In patterns the special "wildcard" variable <tt>_</tt> may be used; in contrast to other variables, it is not bound
+  by pattern-matching.
+<p>
+  A consequence of the way pattern-matching is done is that patterns must be linear; no variable may occur more than once in
+  a pattern.
+
+<h4>Bindings</h4>
+<p>
+Syntactically, bindings are divided into type signatures and equations. Equations are either function bindings, pattern bindings
+  or instance bindings for implicit struct types.
+
+<ul>
+<li><a name="sig"> Type signatures.</a> <p>
+  <em>var</em> <font color=red>(</font>, <em>var</em><font color=red> ) *</font> :: <em>qtype</em>
+  <p> Here a <em>qtype</em> is a (possibly) qualified type.
+    <table align=center><TR>
+<TH> Examples
+</TH>
+</TR>
+<TR><TD><tt>x, y, z :: Int</tt></TD></TR>
+<TR><TD><tt>map :: (a -> b) -> [a] -> [b]</tt></TD></TR>
+<TR><TD><tt> elem :: a -> [a] -> Bool \\ Eq a</tt></TD></TR>
+</table>
+</li>
+<li> <a name="fun">Function bindings.</a>
+<p> We present first the simplest form of function definition, a sequence of equations, and then how these may
+be extended with where-clauses and with guards; these extensions may be combined.
+<ul>
+<li> Simple function bindings. A simple function binding is a sequence of equations in layout-sensitive syntax, where
+each equation has the form<p>
+<em>var</em> <em>pat</em><font color=red> *</font> = <em>expr</em>
+<p>
+The variable in each of the equations (the name of the function) and the number of patterns must be the same in all equations.
+The order of equations is significant; when applying the function, pattern-matching is tried starting wih the first equation
+until it succeeds; the function value is computed from right hand side of that equation, using the variable bindings obtained.
+Within one equation, patterns are matched from left to right.
+<TH> Example
+</TH>
+</TR>
+<TR><TD><tt>showLine xs = concatMap showItem xs</tt></TD></TR>
+<TR><TD><tt></tt></TD></TR>
+</table>
+</li>
+<li> Bindings with <tt>where</tt>-clauses.<p>
+A binding may have attached a <tt>where</tt>-clause with a list of local bindings in layout-sensitive syntax<p>
+<em>var</em> <em>pat</em><font color=red> *</font> = <em>expr</em><br>
+<tt>&nbsp;&nbsp;where</tt> <em>bind</em> <font color=red>+</font>
+    <table align=center><TR>
+<TH> Example
+</TH>
+</TR>
+<TR><TD><tt>formatLine n xs = concatMap f xs</tt></TD></TR>
+<TR><TD><tt>&nbsp;&nbsp;where f x = rJust n (show x)</tt></TD></TR>
+</table>
+</li>
+<li>Guarded equations. In addition to patterns, the left hand side may include one or more guards<p>
+<em>var</em> <em>pat</em><font color=red> *</font><br>
+&nbsp; &nbsp;<font color= red>(</font> | <font color= red>(</font><em>qual</em><font color= red>) +</font>
+ = <em>expr</em> <font color= red>) +</font>
+<p>
+In the most common case, a <em>qual</em> is a Boolean expression. After pattern-matching has succeeded, the guards are
+evaluated in turn; the right hand side corresponding to the first true guard (if any) is used.
+    <table align=center><TR>
+<TH> Example
+</TH>
+</TR>
+<TR><TD><tt>lookup x [] = Nothing</tt></TD></TR>
+<TR><TD><tt>&nbsp;&nbsp;&nbsp;| x == a = Just b</tt></TD></TR>
+<TR><TD><tt>&nbsp;&nbsp;&nbsp;| True = lookup x xs</tt></TD></TR>
+</table>
+<p>
+More complicated guards that bind variables are possible, but omitted here.
+</ul>
+<li> Pattern bindings <p>
+<em>pat</em> = <em>expr</em>
+<p>
+where <em>pat</em> is not a variable (in which case the binding is, perhaps counter-intuitively, a function binding).
+<p>
+Pattern bindings bind the variables in <em>pat</em> by pattern-matching against the value of <em>expr</em>.
+A pattern binding may not occur as a top-level declaration, but only as a local binding.
+    <table align=center><TR>
+<TH> Example
+</TH>
+</TR>
+<TR><TD><tt>lookup' x ps = y</tt></TD></TR>
+<TR><TD><tt>&nbsp;&nbsp;&nbsp;where Just y = lookup x ps</tt></TD></TR>
+</table>
+<p> The pattern-binding in the <tt>where</tt>-clause will fail (and the function application give a run-time error), if
+the result of calling <tt>lookup</tt> is <tt>Nothing</tt>.
+<li> <a name="impl">Instance bindings for implicit struct types.</a>
+<p>
+<tt>implicit</tt> <em>var</em> :: <em>type</em><br>
+<em>funBind</em>
+<p>
+The type signature of an instance of an implicit type is prepended by the keyword <tt>implicit</tt>. For instances,
+a type signature is compulsory; only the function binding defining the instance is not sufficient,
+</ul>
+<p>
+The order between bindings in a sequence of bindings are not significant, with the following exceptions:
+<ul>
+  <li> All the equations that make up a function binding must be adjacent to each other with no other binding intervening.
+  <li> A type signature must precede the binding equations for the variables that are typed by the signature.
+</ul>
+<p>
+Function bindings are recursive. For pattern bindings certain limited forms of recursion are possible, in order
+to build finite, cyclic data structures. To be described more...
+</body> </html>
