@@ -5,10 +5,10 @@ import POSIX
 root env = class
 
    limit = read (head (tail env.argv))
-   primesBound = 100000     -- limit `div` log3 limit
+   primesBound = limit `div` log3 limit
 
-   primes := uniarray primesBound 0    --enough for primes < 1000000
-   top := -1
+   primes := uniarray primesBound 0
+   count := -1
 
    test k = loop 0
       where loop n = do 
@@ -22,25 +22,27 @@ root env = class
    tryFrom k = do
      p <- test k
      if p then 
-        top := top + 1
-        primes!top := k
+        count := count + 1
+        primes!count := k
      if k < limit then tryFrom (k+1)
 
    start = action
-     top := 0
+     count := 0
      primes!0 := 2
      tryFrom 3
-     env.stdout.write (show (top+1)++"\n")
+     env.stdout.write (show (count+1)++"\n")
      env.exit 0
+
    io = action
      result ()
+
    result Prog {..}          
 
 read str        = r (reverse str)
  where r (c:cs) = ord c - ord '0' + 10*r cs
        r []     = 0
 
-
+log3 :: Int -> Int
 log3 n  
   | n < 3       = 0
   | otherwise   = 1 + log3 (n `div` 3)
