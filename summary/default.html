@@ -39,7 +39,7 @@ default tD :: T D
 </pre>
 where <tt>T</tt> is an implicit struct type and <tt>D</tt> is a data type produces automatically an instance following
 the ideas of Hinze's and Peyton Jones' derivable type classes. The mechanism applies in some, rather restrictive, situations,
-but these including commn cases like the Prelude's <tt>Eq</tt> and <tt>Ord</tt>, for which it is easy but tedious
+but these including common cases like the Prelude's <tt>Eq</tt> and <tt>Ord</tt>, for which it is easy but tedious
 to define instances for a new data type.
 <p>
 The method applies only to one-parameter implicit
@@ -51,8 +51,13 @@ types, for which the types of all selectors are simple, according to the followi
   <li> if <tt>t1</tt> and <tt>t2</tt> are simple, then <tt> t1 -> t2</tt> is simple.
 </ul>
 The mechanism also requires that instances are defined for the unit type <tt>()</tt>, the type <tt>(a,b)</tt> of pairs and
-the primitive type <tt>Either a b</tt>. 
-
+the primitive type <tt>Either a b</tt>. The default instance builds an auxiliary type <tt>A</tt>using only these three
+constructors and defines functions in boh directions between between <tt>D</tt> and <tt>A</tt>. The default instance
+for <tt>D</tt> makes use of the instance
+for <tt>A</tt> (which is well-defined, since instances exist for <tt/()</tt>, pairs and <tt>Either</tt>).
+<p>
+In addition to the above mechanism, default instances can be defined for implicit types <tt>Show</tt> and <tt>Parse</tt> (defined in the Prelude), but as yet only for enumeration types (pending decisions on proper definitions of predefined implicit types for
+conversion between values of data types and strings).
 
 
 </body> </html>
