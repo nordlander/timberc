@@ -13,26 +13,19 @@ data Colour = Red | Blue | Green | Yellow | Black | White
 
 default eqColour :: Eq Colour
 
-implicit showColour :: Show Colour 
-showColour = struct
-  show Red    = "Red"
-  show Blue   = "Blue"
-  show Green  = "Green"
-  show Yellow = "Yellow"
-  show Black  = "Black"
-  show White  = "White"
+default showColour :: Show Colour 
+
+default parseColour :: Parse Colour
 
 type Guess = [Colour]
 
-struct Answer where
-  exact :: Int
-  near  :: Int
+data Answer = Answer Int Int
 
-implicit eqAnswer :: Eq Answer 
-eqAnswer = struct
-  a1 == a2 = a1.exact == a2.exact && a1.near == a2.near
+default eqAnswer :: Eq Answer
 
-  a1 /= a2 = not (a1 == a2)
+showAnswer (Answer e n) = show e ++ ' ' : show n
+
+exact (Answer e _) = e
 
 type Board = [(Guess,Answer)]
 
@@ -43,11 +36,11 @@ allCodes 0 = [[]]
 allCodes n = concat [[c:cs | c <- allColours] | cs <- allCodes (n-1)]
 
 mkAnswer :: String -> Answer
-mkAnswer cs = Answer{ exact = e, near = n }
-    where [e,n] = map read (words cs)
+mkAnswer cs = Answer e n
+    where [e,n] = map parse (words cs)
 
 answer :: Guess -> Guess -> Answer
-answer guess code = Answer {exact=e, near = n}
+answer guess code = Answer e n
    where e = equals guess code
 
          n  = sum [min (count c guess) (count c code) | c <- allColours] - e
@@ -66,16 +59,15 @@ contradictions board c = [(g,r) | (g,r) <- board, answer g c /= r]
 consistent :: Board -> [Guess] -> [Guess]
 consistent board cs = [ c | c <- cs, null (contradictions board c)]
 
-read str = r (reverse str)
- where r (c:cs) = ord c - ord '0' + 10 * r cs
-       r [] = 0
+showGuess [g]    = show g
+showGuess (g:gs) = show g ++ ' ' : showGuess gs
 
 
-data State = Idle | JustGuessed | GameOver
+data State = Idle | JustGuessed | Contradiction | GameOver 
            
 root env = class
   
-  gen = new baseGen (read (head (tail env.argv)))
+  gen = new baseGen (parse (head (tail env.argv)))
 
   board := []
   cs := [] 
@@ -100,11 +92,11 @@ root env = class
 
   mkGuess = do
      case cs of
-        [] -> do env.stdout.write "Contradictory answers!\n"
-                 state := GameOver
-                 checkQuit
+        [] -> do state := Contradiction
+                 env.stdout.write "Contradictory answers!\nTell me your secret: "
+
         _  -> do shift
-                 env.stdout.write ("My guess: "++show(head cs)++"\n")
+                 env.stdout.write ("My guess: "++showGuess (head cs)++"\nAnswer (two integers): ")
 
   checkQuit = do
      env.stdout.write "Do you want to play again? (y/n) "
@@ -115,23 +107,29 @@ root env = class
       Idle ->        do cs := allCodes 4
                         state := JustGuessed
                         mkGuess
+
       JustGuessed -> do ans = mkAnswer inp
-                        if ans.exact == 4 then
+                        if exact ans == 4 then
                            env.stdout.write "Yippee!\n"
                            state := GameOver
                            checkQuit
                         else
                            c:cs' = cs
                            board := (c,ans) : board
-                           -- cs := [c | c <- cs', consistent board c]
                            cs := consistent board cs'
                            mkGuess
-      
-      GameOver ->    do if head inp == 'y' then
-                           startGame
-                        else
-                           env.exit 0
-                           result ""
+
+      Contradiction -> do ss = map parse (words inp)
+                          (gs,a):_ = contradictions board ss
+                          env.stdout.write ("When I guessed "++showGuess gs++", you answered "++showAnswer a++".\n")
+                          env.stdout.write ("Correct answer should have been "++showAnswer (answer gs ss)++".\n")
+                          state := GameOver
+                          checkQuit
+
+      GameOver ->     do if head inp == 'y' then
+                            startGame
+                         else
+                            env.exit 0
 
   result Prog {..}
 

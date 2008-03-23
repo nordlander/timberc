@@ -167,6 +167,16 @@ showList = struct
   show [] = "[]"
   show (x : xs) = '[' : show x ++ concat (map (\x -> ',' : show x) xs) ++ "]"
 
+implicit struct Parse a where
+  parse :: String -> a
+
+implicit parseInt :: Parse Int
+parseInt = struct
+  parse str = r (reverse str)
+    where r (c:cs) = ord c - ord '0' + 10*r cs
+          r [] = 0
+
+
 implicit struct Enum a where
   fromEnum :: a -> Int
   toEnum :: Int -> a

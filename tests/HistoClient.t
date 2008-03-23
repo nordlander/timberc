@@ -19,7 +19,7 @@ root env = class
                    showResults rs
                    env.exit 0
                 else
-                   h.addObs(read d)
+                   h.addObs(parse d)
                    result ()
 
              showResults rs = do
@@ -31,10 +31,4 @@ root env = class
                   
 
              result Prog{..}
-
-
--- This removes the newline at the end of input strings!!!
-read str = r (tail(reverse str))
- where r (c:cs) = ord c - ord '0' + 10 * r cs
-       r [] = 0
 

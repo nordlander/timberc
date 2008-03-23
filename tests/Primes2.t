@@ -4,7 +4,7 @@ import POSIX
 
 root env = class
 
-   limit = read (head (tail env.argv))
+   limit = parse (head (tail env.argv))
    primesBound = limit `div` log3 limit
 
    primes := uniarray primesBound 0
@@ -37,10 +37,6 @@ root env = class
      result ()
 
    result Prog {..}          
-
-read str        = r (reverse str)
- where r (c:cs) = ord c - ord '0' + 10*r cs
-       r []     = 0
 
 log3 :: Int -> Int
 log3 n  
