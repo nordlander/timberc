@@ -11,11 +11,21 @@ derive ts ds (d@(Default _ _ _) : xs)
                                       = do (is,xs) <- derive ts ds xs
                                            return (is,d:xs)
 derive ts ds (Derive n sc : xs)       = do let (s,d) = analyze ds sc
-                                           b <- mkFunPair d
-                                           i <- mkInstance n ts s sc b
-                                           -- tr ("### Default instance \n"++render (prInsts i'))
+                                               n1 = str (fst s)
+                                               m = fromMod (fst s)
                                            (is,xs) <- derive ts ds xs
-                                           return (i:is,xs)
+                                           if n1=="Show" && m==Just "Prelude"
+                                             then do i <- mkShowInstance n sc s d
+                                                     return (i:is,xs)
+                                             else 
+                                             if n1=="Parse" && m==Just "Prelude" 
+                                             then do let eq = EVar (findByNameStr ts "==")
+                                                     i <- mkParseInstance n eq sc s d
+                                                     return (i:is,xs)
+                                             else do b <- mkFunPair d
+                                                     i <- mkInstance n ts s sc b
+                                                     -- tr ("### Default instance \n"++render (prInsts i))
+                                                     return (i:is,xs)
 
 analyze ds sc                         = case tFlat (scheme2Type sc) of
                                            (TId c,[t']) -> findDataType c t'
@@ -27,16 +37,18 @@ analyze ds sc                         = case tFlat (scheme2Type sc) of
                                                                               Nothing -> errorTree ("Unknown data type "++show d) sc
                                                                               Just d'@(DData _ _ _) -> ((c,c'),(d,d')) 
                                                                               Just _ -> errorTree (show d++" is not a data type") sc
-                                             Just (DRec True _ _ _) -> errorTree "Implicit struct types must have exactly one type parameter" sc
+                                             Just (DRec True _ _ _) -> errorTree "Default instances only for one-parameter implicit types; not" sc
                                              Just _ -> errorTree (show c++" is not an implicit struct type") sc         
                                                    
 mkInstance n ts (nm,DRec True [a] ps ss) sc (ns,bss)
                                       = do  fs <- mapM (mkField a ts ns) ss
                                             return (Binds False [(n,sc)] [(n,foldr ELet (ERec nm fs) bss)])
 
-mkField a ts [from,to] (nm,sc)        = do let nm' = lookup' [(name0 (str n),n {annot = (annot n) {explicit=False}}) | n <- ts ] (name0 (str nm))
+mkField a ts [from,to] (nm,sc)        = do let nm' = findByNameStr ts (str nm)
                                            e <- expand a from to (EVar nm') sc
                                            return (nm,e)
+
+findByNameStr ts s                  = lookup' [(name0 (str n),n {annot = (annot n) {explicit=False}}) | n <- ts ] (name0 s)
 
 expand a from to e sc                 = exp0 to (e,scheme2Type sc)
   where exp0 f (e,TFun ts t)          = do ns <- newNames paramSym (length ts)
@@ -60,6 +72,7 @@ expand a from to e sc                 = exp0 to (e,scheme2Type sc)
 eLam' xs e                            = do ts <- mapM (\_ -> newTVar Star) xs
                                            return (ELam (zipWith (\x t -> (x,scheme t)) xs ts) e)
                                            
+mkFunPair (nm,DData _ (_:_) _)        = errorIds "Not yet implemented: default instances for data type with subtypes" [nm]
 mkFunPair (nm,DData vs ss cs)         = do [from,to] <- mapM newName ["from"++str nm,"to"++str nm]
                                            frhs <- fromRHS
                                            trhs <- toRHS
@@ -116,3 +129,37 @@ scheme2Type (Scheme r _ _)            = rho2Type r
 rho2Type (R t)                        = t
 rho2Type (F ss r)                     = TFun (map scheme2Type ss) (rho2Type r) 
 
+mkShowInstance n sc s (nm, DData vs [] cs) 
+                                      = do sh <- mkShow
+                                           return (Binds False [(n,sc)] [(n,ERec (fst s) [(n',sh)])])
+  where DRec _ _ _ [(n',_)]           = snd s
+        mkShow                        = do x <- newName paramSym
+                                           as <- mapM mkShowAlt cs
+                                           eLam' [x] (ECase (EVar x) as)
+        mkShowAlt (nm,Constr [] _ _)  = return (PCon nm,foldr (\x y -> EAp cons [chr x,y]) nil (str nm))
+        mkShowAlt (nm,_)              = errorIds "Sorry, as yet only default Show for enumeration types, without constructors as" [nm]
+        cons                          = ECon (prim CONS)
+        nil                           = ECon (prim NIL)
+        chr c                         = ELit (LChr Nothing c)
+mkShowInstance n sc s (nm, DData vs _ cs) 
+                                      = errorIds "Not yet implemented: default Show instance for data type with subtypes" [nm]
+
+
+
+mkParseInstance n eq sc s (nm, DData vs [] cs) 
+                                      = do p <- mkParse
+                                           return (Binds False [(n,sc)] [(n,ERec (fst s) [(n',p)])])
+  where DRec _ _ _ [(n',_)]           = snd s
+        mkParse                       = do x <- newName paramSym
+                                           as <- mapM (mkParseAlt x) cs
+                                           eLam' [x] (EAp (EVar (prim Match)) [foldr (\x y -> EAp (EVar (prim Fatbar)) [x,y]) 
+                                                                              (EAp (EVar (prim Commit)) [EAp (EVar (prim Raise)) [ELit (LInt Nothing 1)]]) 
+                                                                              as]) 
+        mkParseAlt x (nm,Constr [] _ _) = return (ECase (EAp eq [EVar x, foldr (\x y -> EAp cons [chr x,y]) nil (str nm)])
+                                                  [(PCon (prim TRUE),EAp (EVar (prim Commit)) [ECon nm]),(PWild,EVar (prim Fail))])
+        mkParseAlt x (nm,_)           = errorIds "Sorry, as yet only default Parse for enumeration types, without constructors as" [nm]
+        cons                          = ECon (prim CONS)
+        nil                           = ECon (prim NIL)
+        chr c                         = ELit (LChr Nothing c)
+mkParseInstance n eq sc s (nm, DData vs _ cs) 
+                                      = errorIds "Not yet implemented: default Parse instance for data type with subtypes" [nm]
