@@ -262,7 +262,7 @@ comp2exp e (QGen p e' : qs) r   = do f <- newNamePos functionSym p
 
 dsStmts []                      = return []
 dsStmts (SBind b : ss)          = do (bs,_)  <- dsBinds bs  
-                                     ss <- dsStmts ss     -- this is the old desugaring!
+                                     ss <- dsStmts ss2     -- this is the old desugaring!
                                      return (map SBind bs ++ ss)
   where (ss1,ss2)               = span isSBind ss
         bs                      = b : [ b' | SBind b' <- ss1 ]
