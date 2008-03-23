@@ -23,7 +23,7 @@ fixity op               = case lookup op fixTable of
                            ("/",  Fixity LeftAss  7),
                            ("div",Fixity LeftAss  7),
                            ("mod",Fixity LeftAss  7),
---                           (".",  Fixity RightAss 9),
+                           ("@",  Fixity RightAss 9),
                            ("^",  Fixity RightAss 8),
                            ("==", Fixity NonAss   4),
                            ("/=", Fixity NonAss   4),
