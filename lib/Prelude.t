@@ -180,32 +180,29 @@ parseInt = struct
 implicit struct Enum a where
   fromEnum :: a -> Int
   toEnum :: Int -> a
---  enumFromThenTo :: a -> a -> a -> [a]
 
 implicit enumInt :: Enum Int
 enumInt =struct
   fromEnum n = n
   toEnum n = n
---  enumFromTo = fromToInt
-{-
-  enumFromThenTo a b c
-    | signum (b-a) == signum (c-a) = a : enumFromThenTo b (2*b - a) c
-    | a==c                         = [a]
-    | otherwise                    = []
-    where signum x
-            | x > 0 = 1
-            | x == 0 = 0
-            | x < 0 = -1
--}
 
 implicit enumChar :: Enum Char
 enumChar = struct
    fromEnum = primCharToInt
    toEnum = primIntToChar
---   enumFromTo a b = map primIntToChar (enumFromTo (primCharToInt a) (primCharToInt b))
-{-
-   enumFromThenTo a b c = map chr (enumFromThenTo (ord a) (ord b) (ord c))
--}
+
+implicit enumUnit :: Enum ()
+enumUnit = struct 
+  fromEnum () = 0
+  toEnum 0 = ()
+
+implicit enumEither :: Enum (Either () a) \\ Enum a
+enumEither = struct
+  fromEnum (Left ()) = 0
+  fromEnum (Right a) = 1 + fromEnum a
+  toEnum 0 = Left ()
+  toEnum n = Right (toEnum (n-1))
+
 forallDo f []       = do result ()
 forallDo f (x : xs) = do f x
                          forallDo f xs

@@ -169,17 +169,19 @@ ids     :: { [Name] }
         | id                                    { [$1] }
 
 -- Default declarations ---------------------------------------------------
+
 def     :: { [Default Type] }
-def     : prefs                                 { $1 }
-        | var '::' type                         { [Derive $1 $3] }  
+def     : '{' layout_off prefs '}'              { $3 }
+        | layout_on prefs close                 { $2 }
       
 prefs   ::  { [Default Type] }
-        : prefs ',' pref                        { $3 : $1 }
+        : prefs ';' pref                        { $3 : $1 }
         | pref                                  { [$1] }
  
 
 pref     :: { Default Type }
         : var '<' var                           { Default True $1 $3 }
+        | var '::' type                         { Derive $1 $3 }  
 
 
 -- Datatype declarations ---------------------------------------------------

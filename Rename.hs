@@ -210,10 +210,9 @@ renameD ks ts ss cs cs1 ws is bs (DType c _ _ : ds)
                                    = renameD ks (c:ts) ss cs cs1 ws is bs ds
 renameD ks ts ss cs cs1 ws is bs (DImplicit vs : ds)
                                    = renameD ks ts ss cs cs1 (ws++vs) is bs ds
-renameD ks ts ss cs cs1 ws is bs (DDefault (Derive i _ : _) : ds)
-                                   = renameD ks ts ss cs cs1 ws (i:is) bs ds
-renameD ks ts ss cs cs1 ws is bs (DDefault _ : ds)
-                                   = renameD ks ts ss cs cs1 ws is bs ds
+renameD ks ts ss cs cs1 ws is bs (DDefault ps : ds)
+                                   = renameD ks ts ss cs cs1 ws (is1 ++ is) bs ds
+  where is1                        = [i | Derive i _ <- ps]
 renameD ks ts ss cs cs1 ws is bs (DBind b : ds)
                                    = renameD ks ts ss cs cs1 ws is (b:bs) ds
 renameD ks ts ss cs cs1 ws is bs []       = (ks, ts, ss, cs, cs1, ws, is, reverse bs)

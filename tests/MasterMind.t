@@ -11,11 +11,10 @@ one row, indicating number of bulls and cows. Command line argument acts as seed
 
 data Colour = Red | Blue | Green | Yellow | Black | White
 
-default eqColour :: Eq Colour
-
-default showColour :: Show Colour 
-
-default parseColour :: Parse Colour
+default eqColour    :: Eq Colour
+        showColour  :: Show Colour 
+        parseColour :: Parse Colour
+        enumColour  :: Enum Colour
 
 type Guess = [Colour]
 
@@ -29,7 +28,7 @@ exact (Answer e _) = e
 
 type Board = [(Guess,Answer)]
 
-allColours = [Red, Blue, Green, Yellow, Black, White]
+allColours = [Red .. White]
 
 allCodes :: Int -> [Guess]
 allCodes 0 = [[]]
@@ -80,13 +79,9 @@ root env = class
      zs = drop n cs
      cs := zs ++ ys
   
-  start = action
-    env.stdout.write "Welcome to Mastermind!\n"
-    startGame
-   
   startGame = do
     board := []
-    cs := []
+    cs := allCodes 4
     state := Idle
     env.stdout.write "Choose your secret. Press return when ready.\n"
 
@@ -101,23 +96,26 @@ root env = class
   checkQuit = do
      env.stdout.write "Do you want to play again? (y/n) "
 
+  start = action
+    env.stdout.write "Welcome to Mastermind!\n"
+    startGame
+   
   io = action
     inp <- env.stdin.read
     case state of
-      Idle ->        do cs := allCodes 4
-                        state := JustGuessed
-                        mkGuess
+      Idle ->         do state := JustGuessed
+                         mkGuess
 
-      JustGuessed -> do ans = mkAnswer inp
-                        if exact ans == 4 then
-                           env.stdout.write "Yippee!\n"
-                           state := GameOver
-                           checkQuit
-                        else
-                           c:cs' = cs
-                           board := (c,ans) : board
-                           cs := consistent board cs'
-                           mkGuess
+      JustGuessed ->  do ans = mkAnswer inp
+                         if exact ans == 4 then
+                            env.stdout.write "Yippee!\n"
+                            state := GameOver
+                            checkQuit
+                         else
+                            c:cs' = cs
+                            board := (c,ans) : board
+                            cs := consistent board cs'
+                            mkGuess
 
       Contradiction -> do ss = map parse (words inp)
                           (gs,a):_ = contradictions board ss
