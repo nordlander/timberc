@@ -7,6 +7,10 @@
 
 struct TUP2;
 typedef struct TUP2 *TUP2;
+struct TUP3;
+typedef struct TUP3 *TUP3;
+struct TUP4;
+typedef struct TUP4 *TUP4;
 struct LIST;
 typedef struct LIST *LIST;
 struct NIL;
