@@ -11,7 +11,9 @@
 
 
 #define NTHREADS        5
-#define STACKSIZE       0x40000                 // words
+#define STACKSIZE       0x200000  // 0x200000 words = 0x800000 bytes = 8388608 bytes = 8 Mb = 2048 pages = 0x800 pages
+#define IDLESTACKSIZE   0x1000    // 0x1000 words = 0x4000 bytes = 16384 bytes = 16 Kb = 4 pages
+
 
 #define SLEEP()         sigsuspend(&enabled_mask)
 #define DISABLE(prev)   sigprocmask(SIG_SETMASK, &disabled_mask, prev)
@@ -93,16 +95,15 @@ Object ObjInit          = { NULL, NULL };
 struct Msg msg0         = { NULL, 0, { 0, 0 }, { INF, 0 }, NULL };
 
 struct Thread threads[NTHREADS];
-struct Thread thread0   = { NULL, NULL, NULL };         // the idle process
-struct Thread thread1   = { &thread0, &msg0, NULL };    // initial process & primary workhorse (default stack)
+struct Thread threadI   = { NULL, NULL, NULL };         // the idle process
 
 Msg savedMsg            = NULL;
 Msg msgQ                = NULL;
 Msg timerQ              = NULL;
 
-Thread threadPool       = threads;
-Thread activeStack      = &thread1;
-Thread current          = &thread1;
+Thread threadPool       = &threads[1];
+Thread activeStack      = threads;
+Thread current          = threads;
 
 
 // Memory management --------------------------------------------------------------------------------
@@ -219,7 +220,7 @@ void run(void) {
                 
                 if (!msgQ || (oldMsg && LESS(oldMsg->deadline, msgQ->deadline))) {
                         push(pop(&activeStack), &threadPool);
-                        Thread t = activeStack;                     // can't be NULL, may be &thread0
+                        Thread t = activeStack;                     // can't be NULL, may be &threadI
                         while (t->waitsFor) 
                                 t = t->waitsFor->ownedBy;
                         dispatch(t);
@@ -303,48 +304,74 @@ UNITTYPE UNLOCK( PID to ) {
         return (UNITTYPE)0;
 }
 
+
+//       I       4         3         2         1         0
+//   |-X---|-X-------|-X-------|-X-------|-X-------|-X-------|
+
+
 void init_threads(void) {
-        WORD stacksize = (((STACKSIZE-1) / pagesize) + 1) * pagesize;
-        ADDR adr;
+        WORD adjust = 0;
         int i;
 
-        for (i=0; i<NTHREADS-1; i++)
+        for (i=1; i<NTHREADS-1; i++)
                 threads[i].next = &threads[i+1];
         threads[NTHREADS-1].next = NULL;
-    
-        for (i=0; i<NTHREADS; i++) {
-                if (setjmp( threads[i].context ))
-                        run();
-                if (!(adr = allocwords(stacksize)))
-                        panic("Cannot allocate stack memory");
-                if (mprotect(adr, pagesize, PROT_NONE))
-                        panic("Cannot protect end-of-stack page");
-                SETSTACK( &threads[i].context, stacksize, adr );
+ 
+        i = NTHREADS;
+        {
+                volatile WORD xxxxx[i*STACKSIZE];       // note initialization above!!
+                threadI.next = NULL;
+                threadI.waitsFor = NULL;
+                threadI.msg = NULL;
+                threadI.visit_flag = 0;
+                threadI.placeholders = 0;
+                if (setjmp( threadI.context ))
+                        idle();
+                        
+                if (xxxxx < &adjust)
+                        adjust = pagesize;      // nonzero if stack grows downwards
+        }
+   
+        for (i=NTHREADS-1; i>0; i--) {
+                volatile WORD xxxxx[i*STACKSIZE];
+                xxxxx[0] = 0;
                 threads[i].waitsFor = NULL;
                 threads[i].msg = NULL;
                 threads[i].visit_flag = 0;
                 threads[i].placeholders = 0;
+                if (setjmp( threads[i].context ))
+                        run();
         }
 
-        thread0.next = NULL;
-        thread0.waitsFor = NULL;
-        thread0.msg = NULL;
-        thread0.visit_flag = 0;
-        thread0.placeholders = 0;
-        if (setjmp( thread0.context ))
-                idle();
-        if (!(adr = allocwords(pagesize)))
-                panic("Cannot allocate idle stack memory");
-        SETSTACK( &thread0.context, pagesize, adr);
+        {
+                volatile WORD xxxxx[NTHREADS*STACKSIZE+3*pagesize];
+                ADDR a = (ADDR)xxxxx;
+                if ((WORD)a & (BYTES(pagesize)-1))
+                        a = (ADDR)((WORD)(a + pagesize) & ~(BYTES(pagesize)-1));
+                if (mprotect(a, BYTES(pagesize), PROT_NONE))
+                        panic("Cannot protect end-of-stack page");                
                 
-        TIMERGET(msg0.baseline);
-        thread1.next = &thread0;
-        thread1.waitsFor = NULL;
-        thread1.msg = &msg0;
-        thread1.visit_flag = 0;
-        thread1.placeholders = 0;
+        }
 
-        activeStack = &thread1;
+        for (i=NTHREADS; i>0; i--) {
+                volatile WORD xxxxx[i*STACKSIZE];
+                ADDR a = (ADDR)xxxxx;
+                if ((WORD)a & (BYTES(pagesize)-1))
+                        a = (ADDR)((WORD)(a + pagesize) & ~(BYTES(pagesize)-1));
+                if (mprotect(a, BYTES(pagesize), PROT_NONE))
+                        panic("Cannot protect end-of-stack page");                
+        }
+
+        TIMERGET(msg0.baseline);
+        
+        threads[0].next = &threadI;
+        threads[0].waitsFor = NULL;
+        threads[0].msg = &msg0;
+        threads[0].visit_flag = 0;
+        threads[0].placeholders = 0;
+
+        activeStack = &threads[0];
+        threadPool  = &threads[1];
 }
 
 
