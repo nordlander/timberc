@@ -174,11 +174,15 @@ isRaise (EAp (EVar (Prim Raise _)) [_])
                                 = True
 isRaise _                       = False
 
+isPMC (EVar (Prim p _))         = p `elem` [Match,Commit,Fatbar,Fail]
+isPMC _                         = False
+
 
 -- reduce an application e es (head and args already individually reduced)
 redApp env e es
-  | not (null es')              = return (head es')
+  | exception                   = return (head es')
   where es'                     = filter isRaise (e:es)
+        exception               = not (isPMC e) && not (null es')
 redApp env (EVar (Prim p a)) es 
                                 = return (redPrim env p a es)
 redApp env e@(EVar x) es        = case lookup x (eqns env) of
