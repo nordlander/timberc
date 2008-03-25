@@ -47,8 +47,6 @@ struct Object {
         Thread wantedBy;
 };
 
-extern Object ObjInit;
-
 extern Thread current;
 
 #define WORDS(bytes)            (((bytes)+sizeof(WORD)-1)/sizeof(WORD))

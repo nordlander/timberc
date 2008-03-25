@@ -90,8 +90,6 @@ void panic(char *str) {
 
 // Thread management --------------------------------------------------------------------------------
 
-Object ObjInit          = { NULL, NULL };
-
 struct Msg msg0         = { NULL, 0, { 0, 0 }, { INF, 0 }, NULL };
 
 struct Thread threads[NTHREADS];

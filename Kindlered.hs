@@ -33,7 +33,7 @@ redBind env (x, Val t e)                = do e <- redExp env e
 
 single x e                              = length (filter (==x) (evars e)) == 1
 
-newObj (ENew _ bs)                      = prim Obj `elem` dom bs
+newObj (ENew _ bs)                      = prim OwnedBy `elem` dom bs
 newObj _                                = False
 
 -- Convert a command

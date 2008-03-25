@@ -137,9 +137,11 @@ primDecls                               = (prim Bool,       Struct [tagSig] [pri
                                           (prim RIGHT,      Struct [tagSig, (name0 "a",ValT TWild)] []) :
                                           []
                                           
-objTEnv                                 = [(prim Obj, ValT tObject)]
+objTEnv                                 = [(prim OwnedBy, ValT tThread),
+                                           (prim WantedBy, ValT tThread)]
 
-objInit                                 = [(prim Obj, Val tObject (EVar (prim ObjInit)))]
+objInit                                 = [(prim OwnedBy, Val tThread eNull),
+                                           (prim WantedBy, Val tThread eNull)]
 
 isInfix (Prim p _)                      = p `elem` [MIN____KINDLE_INFIX .. MAX____KINDLE_INFIX]
 isInfix _                               = False
@@ -166,9 +168,11 @@ tTime                                   = TId (prim Time)
 tMsg                                    = TId (prim Msg)
 tPID                                    = TId (prim PID)
 tUNIT                                   = TId (prim UNITTYPE)
-tObject                                 = TId (prim Object)
+tThread                                 = TId (prim Thread)
 tInt                                    = TId (prim Int)
 tArray                                  = TId (prim Array)
+
+eNull                                   = ECast tThread (ELit (LInt Nothing 0))
 
 
 -- Primitive names only visible after translation into Kindle

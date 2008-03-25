@@ -186,10 +186,6 @@ data Prim                       =
 
                                 | Tag                   -- first selector of every datatype/constructor struct
                                 
-                                | Obj                   -- first selector of every state struct
-                                | Object                -- its type
-                                | ObjInit               -- its initializer
-                                
                                 | Code                  -- selectors of struct Msg
                                 | Baseline
                                 | Deadline
@@ -199,6 +195,8 @@ data Prim                       =
                                 
                                 | OwnedBy               -- selectors of struct Object
                                 | WantedBy
+                                
+                                | Thread                -- type of selectors OwnedBy and WantedBy
                                 
                                 | CharBox               -- The Kindle structs for boxed values
                                 | FloatBox                
