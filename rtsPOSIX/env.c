@@ -72,7 +72,7 @@ Env_POSIX env                 = &env_struct;
 Prog_POSIX prog               = NULL;                         // Must be set by main()
 
 
-int copyEnvRoots() {        
+void copyEnvRoots(void) {
         prog = (Prog_POSIX)copy((ADDR)prog);
 }
 

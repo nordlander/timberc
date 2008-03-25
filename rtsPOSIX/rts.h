@@ -52,6 +52,7 @@ extern Object ObjInit;
 extern Thread current;
 
 #define WORDS(bytes)            (((bytes)+sizeof(WORD)-1)/sizeof(WORD))
+#define BYTES(words)            ((words)*sizeof(WORD))
 
 
 #if defined(__APPLE__)

@@ -34,6 +34,7 @@ Msg timerQorig = 0;                     // ptr holding original timerQ while cop
 
 char emergency = 0;                     // flag signalling heap overflow during gc
 
+void copyEnvRoots(void);
 
 void initheap() {
         base = allocwords(HEAPSIZE);
@@ -87,6 +88,7 @@ ADDR force2(WORD size) {                                // Overflow in tospace
         DISABLE(NULL);
         emergency = 1;
         panic("Overlow in tospace");                    // for now...
+        return NULL;
 }
 
 

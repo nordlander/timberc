@@ -263,6 +263,7 @@ UNITTYPE ASYNC( Msg m, Time bl, Time dl ) {
                 enqueueByDeadline(m, &msgQ);
         }
         ENABLE(&previous_mask);
+        return (UNITTYPE)0;
 }
 
 
@@ -299,6 +300,7 @@ UNITTYPE UNLOCK( PID to ) {
         }
         ENABLE(&previous_mask);
         GC_EPILOGUE(to);
+        return (UNITTYPE)0;
 }
 
 void init_threads(void) {
@@ -350,6 +352,7 @@ void init_threads(void) {
 
 POLY RAISE(Int err) {
         panic("Unhandled exception");
+        return NULL;
 }
 
 // String marshalling ----------------------------------------------------------------------------------
