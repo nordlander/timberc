@@ -575,7 +575,7 @@ addPreds env (n@(w,p):pe)
                                                 r <- implications env (predOf n') p
                                                 case r of
                                                    Equal -> addPreds (addEqs [(w,nameOf n')] env) pe
-                                                   _     -> fail "Ambiguous subtyping"
+                                                   _     -> fail ("Ambiguous subtyping: " ++ render (pr p))
                                              Nothing -> do 
                                                 addPreds (insertSubPred n env) pe
   | isClass' p                          = do r <- cmpNode [] [] (nodes (findClass env c))
@@ -589,7 +589,7 @@ addPreds env (n@(w,p):pe)
         cmpNode pre post (n':pe')       = do r <- implications env (predOf n') p
                                              case r of
                                                 Equal      -> return (Left (nameOf n'))
-                                                Similar    -> fail "Ambiguous instances"
+                                                Similar    -> fail ("Ambiguous instances for " ++ render (pr p))
                                                 ImplyRight -> cmpNode pre (nameOf n':post) pe'
                                                 ImplyLeft  -> cmpNode (nameOf n':pre) post pe'
                                                 Unrelated  -> cmpNode pre post pe'
