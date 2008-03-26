@@ -65,7 +65,7 @@ renT env v                         = case lookup v (rT env) of
 extRenE env vs
   | not (null shadowed)            = errorIds "Illegal shadowing of state variables" shadowed
   | not (null shadowed')           = errorIds "Illegal shadowing of state reference" shadowed'
-  | otherwise                      = do rE' <- renaming (noDups "Duplicate state variables" (legalBind vs))
+  | otherwise                      = do rE' <- renaming (noDups "Duplicate variables" (legalBind vs))
                                         return (env { rE = rE' ++ rE env })
   where shadowed                   = intersect vs (stateVars env)
         shadowed'                  = intersect vs (self env)
