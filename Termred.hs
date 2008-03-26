@@ -164,9 +164,9 @@ redExp env e@(EVar x)           = case lookup x (eqns env) of
                                          | not (x `elem` locs env) -> return e  
                                       Just e' -> alphaConvert e'
                                       _       -> return e
-redExp env (EAp e es)           = do e <- redExp env e
-                                     es <- mapM (redExp env) es
-                                     redApp env e es
+redExp env (EAp e es)           = do e' <- redExp env e
+                                     es' <- mapM (redExp env) es
+                                     redApp env e' es'
 redExp env e                    = return e
 
 
@@ -203,7 +203,7 @@ redBeta env ((x,t):te) b (e:es)
   | otherwise                   = liftM (ELet (Binds False [(x,t)] [(x,e)])) (redBeta env te b es)
 redBeta env [] b []             = redExp env b
 
-
+{-
 redEta env te (EAp e es)        = do es <- mapM (redExp env') es
                                      e <- redExp env' e
                                      if okEta e && es == map EVar (dom te) then
@@ -213,7 +213,7 @@ redEta env te (EAp e es)        = do es <- mapM (redExp env') es
   where okEta (ECon _)          = False
         okEta (EVar (Prim _ _)) = False
         okEta _                 = True
-        env'                    = addArgs env (dom te)
+        env'                    = addArgs env (dom te) -}
 redEta env te e                 = liftM (ELam te) (redExp (addArgs env (dom te)) e)
 
 
