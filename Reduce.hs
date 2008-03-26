@@ -253,6 +253,7 @@ redf gs env a@(F ts _) (R b@(TVar n)) ps
                                              redf2 s gs env a (F (map scheme ts') (R t)) ps 
 redf gs env (R a) (R b) ps              = do (s,q,e:es,es') <- red ((tick env True, a `sub` b) : gs) ps
                                              return (s,q,es,e,es')
+redf _ _ t1 t2 _                        = fail ("Cannot solve " ++ render (pr t1) ++ " < " ++ render (pr t2))
 
 
 redf1 gs env a b (sc1:ts1) (sc2:ts2) ps = do (s,q,es,e,es1,e2:es2) <- redf1 gs env a b ts1 ts2 ((env,sc):ps)
