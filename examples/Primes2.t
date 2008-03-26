@@ -3,7 +3,7 @@ module Primes2 where
 import POSIX 
 
 root env = class
-
+   limit :: Int
    limit = parse (head (tail env.argv))
    primesBound = limit `div` log3 limit
 

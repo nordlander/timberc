@@ -1,10 +1,4 @@
-TIMBERC=../timberc -c
+TIMBERC=../timberc -c -s
 
 tests:
-	$(TIMBERC) Synstest.t Data/Functional/List.t Data/Objects/Stack.t Data/Objects/Dictionary.t Solitaire/Card.t Solitaire/CardPile.t AbstractStack.t AbstractStackClient.t  Observer.t ImportChain1.t ImportChain2.t ImportChain3.t Conflict.t ConflictClient.t SizedPoint.t SizedPoint2.t Tail.t Twice.t NoInteraction.t Primes.t Array0.t Histo.t HistoClient.t Matrix.t HashTable.t Timer.t Reflex0.t UnionFind.t RandomGenerator.t MasterMind.t ManySimpleConstraints.t KindleArities.t Pointed.t Derive.t Cyclic.t StructPat.t
-
-
-
-
-
-
+	$(TIMBERC) Synstest.t Solitaire/Card.t Solitaire/CardPile.t AbstractStack.t AbstractStackClient.t  Observer.t ImportChain1.t ImportChain2.t ImportChain3.t Conflict.t ConflictClient.t SizedPoint.t SizedPoint2.t Tail.t Twice.t NoInteraction.t Primes.t Array0.t Histo.t HistoClient.t Matrix.t  ManySimpleConstraints.t KindleArities.t Pointed.t Derive.t Cyclic.t StructPat.t

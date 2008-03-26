@@ -5,9 +5,11 @@ data Bin = B0 | B1
 implicit struct Binary a where
   get :: [Bin] -> (a,[Bin])
 
+
 implicit binaryUnit :: Binary ()
 binaryUnit = struct
   get bs = ((),bs)
+
 
 implicit binaryEither :: Binary (Either a b) \\ Binary a, Binary b
 binaryEither = struct
@@ -23,3 +25,4 @@ toBin :: Either () () -> Bin
 toBin (Left a)  = B0
 toBin (Right a) = B1
  
+
