@@ -420,7 +420,8 @@ unify env ((t1,t2):_)                   = fail ("Cannot unify " ++ render(pr t1)
 
 tvarBind env n t eqs
   | t == TVar n                         = unify env eqs
-  | tvKind n /= kindOfType env t        = fail "Kind mismatch in unify"
+  | tvKind n /= kindOfType env t        = fail ("Kind mismatch in unify: "  ++ show (tvKind n) ++ 
+                                                " and " ++ show (kindOfType env t))
   | n `elem` tvars t                    = fail "Occurs check failed in unify"
   | n `elem` skolEnvs env (tyvars t)    = fail "Skolem escape in unify"
   | otherwise                           = do s' <- unify env (subst s eqs)
@@ -596,11 +597,12 @@ addPreds env (n@(w,p):pe)
 
 
 data Implications                       = Equal | Similar | ImplyRight | ImplyLeft | Unrelated
+                                        deriving (Eq,Show)
 
 implications env p1 p2                  = do (R c1,ps1) <- inst p1
                                              (R c2,ps2) <- inst p2
-                                             r1 <- expose (unify env [(c1,body p2)])
-                                             r2 <- expose (unify env [(body p1,c2)])
+                                             r1 <- expose (unify (addKEnv (quant p2) env) [(c1,body p2)])
+                                             r2 <- expose (unify (addKEnv (quant p1) env) [(body p1,c2)])
                                              case (r1,r2) of
                                                 (Right s, Right _) 
                                                   | subst s ps1 == ctxt p2  -> return Equal
