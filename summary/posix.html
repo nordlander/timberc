@@ -1,0 +1,87 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html> <head>
+<title>The POSIX environment</title>
+<link href="simplestyle.css" rel="stylesheet" type="text/css">
+</head>
+
+<body>
+<h3>The POSIX environment</h3>
+<p>
+Timber is intended to be usable in many different
+situations, ranging from embedded systems to
+standard desktop applications. The interfaces
+between the Timber program and the external environment
+is very different in these cases.
+<p>
+Thus a Timber application must be built for a particular target
+environment. This distribution provides only one environment,
+the POSIX environment. Also this is incomplete
+and allows only programs reading from and writing to
+<tt>stdin</tt> and <tt>stdout</tt>. A more complete
+version will be provided in a future release.
+<pre>
+module POSIX where
+    
+type RootType = Env -> Class Prog 
+
+struct File where
+    read  :: Request String
+    write :: String -> Request String
+    
+struct Env where
+    argv   :: [String]
+    stdin  :: File
+    stdout :: File
+    exit   :: Int -> Request ()
+
+struct Prog where
+    start :: Action
+    io    :: Action
+</pre>
+<p>
+The root module of a program targeted for this environment must
+<tt>import POSIX</tt> and contain
+a definition <tt>root :: RootType</tt>.
+<p>
+Here the type <tt>Env</tt> collects the services that the environment
+provides to the program: the program can access command line arguments
+through <tt>argv</tt>, the standard input and output streams
+as <tt>stdin</tt> and <tt>stdout</tt> and call a function <tt>exit</tt>
+to terminate the program with a status indication. Within a definition
+<pre>
+root env = ...
+</pre>
+these services are accessed using dot notation as <tt>env.argv</tt> etc.
+<p>
+Files support two methods:
+<ul>
+  <li><tt>read</tt>, which returns a string of the bytes that are available
+  in the file at the time of the call. Thus <tt>read</tt> does <em>not</em>
+  block waiting for user input; if no input is available, the empty string is returned.
+  Input is line-buffered, so no input is available until the user strikes return.
+  <li> <tt>write</tt> takes a string as argument and tries to write it to the file;
+  the returned value is the suffix of the argument string that was <em>not</em> written; for
+  <tt>stdout</tt> this should be the empty string.
+  and <tt>write</tt>.
+</ul>
+<p>
+The type <tt>Prog</tt> collects the services that the program offers to the
+environment, i.e. the methods it reacts to. 
+Execution of a program proceeds as follows. The runtime system is responsible
+for initialisation: it creates
+an environment object with interface <tt>env :: Env</tt>, applies <tt>root</tt> to <tt>env</tt> and
+creates an object of the resulting class; let us call the resulting
+interface <tt>p :: Prog</tt>. The run-time system sends a <tt>p.start</tt> message;
+execution of this message may
+lead to creation of more objects, scheduling of future actions etc.
+<p>
+After this initial computation the program comes to rest and
+reacts to events:
+<ul>
+  <li> Whenever the user strikes the return key,
+a <tt>p.io</tt> message is sent, leading to a new burst of activity.
+<li> Also timer events, scheduled using the <tt>after</tt> construct,
+  will be reported to the program, leading to execution of
+  the scheduled actions.
+
+</body> </html>

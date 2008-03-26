@@ -40,7 +40,7 @@ The available statement forms are:
   interface bound to <em>var</em>
 <li> The result statement.
   <p><tt>result</tt> <em>expr</em><p>
-  In the sequence of statements of a class, this must be last statement. It defines the interface of the class, i.e. how
+  In the sequence of statements of a class, this must be the last statement. It defines the interface of the class, i.e. how
   the variable referring to an object may interact with it.
   <p> Within an action or a request, the result statement indicates termination of the method and the value returned (for
   requests; for actions the result is <tt>()</tt>, the dummy value of type <tt>()</tt>).
@@ -65,7 +65,14 @@ the pattern against the returned value.
 The alternative form<p>
 <em>expr</em>
 <p>
-may also denote a request or procedure call where the pattern matching is omitted or an action call (which does no return  a value).
+may also denote a request or procedure call where the binding is omitted or an action call (which does no return  a value).
+<p>
+<li> After and before statements.
+<p>
+<tt>after</tt> <em>expr</em> <em>expr</em> <br>
+<tt>before</tt> <em>expr</em> <em>expr</em> <p>
+Here the first <em>expr</em> must be a time interval and the second an action; the latter is given a new baseline (the <tt>after</tt> case)
+or deadline (the <tt>before</tt> case).
 <li>
 Conditional statement.
 <p>
@@ -91,7 +98,7 @@ The alternatives may use guards and/or where clauses just as in function binding
 &nbsp;&nbsp;<em>stmts</em>
 <p>
 Here the simplest form of <em>qual</em> is <em>var</em> <- <em>expr</em>, where <em>expr</em> evaluates
-to a list. The statement sequence in the body will be executed once for each eement of the list, with <em>var</em> bound to
+to a list. The statement sequence in the body will be executed once for each element of the list, with <em>var</em> bound to
 that element.
 </ul>  
 We finish with a simple example.

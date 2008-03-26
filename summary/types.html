@@ -69,9 +69,9 @@ the same value.
 Character literals are written within
 single quoutes as in 'a' or '3'; common escaped characters are '\n' and '\t' for newline and tab, respectively. (Many other forms of
 character literals omitted.)
-<h4>Primitive composite types</h4>
+<h4>Primitive type constructors</h4>
 <p>
-The following types and type constructors are also primitive in the language.
+The following type constructors are also primitive in the language.
 <ul>
 <li>Lists.<p>The type <tt>[a]</tt>, for any type <tt>a</tt>, contains finite lists of values of type <tt>a</tt>.
   The list <tt>[3, 6, 7, 1]</tt> has type <tt>[Int]</tt> and <tt>[[3, 2], [4, -1, 7]]</tt> has type <tt>[[Int]]</tt>
@@ -101,11 +101,13 @@ interest is the case where <tt>a</tt> is a struct type with a number of methods 
 may send the object an action message with appropriate arguments. The message will at a later point in time execute the action, with
 exclusive access to the object's state.</li>
 <li>Requests.<p>
-For any <tt>a</tt>, <tt>Request a</tt> is the type of synchronous methods that return a value of type <tt>a</tt>. An object
+For any type <tt>a</tt>, <tt>Request a</tt> is the type of synchronous methods that return a value of type <tt>a</tt>. An object
 may offer a <tt>Request</tt> in its interface; a client who has access to this interface may then send a request message with appropriate
 arguments and wait for the result. Since all methods require exclusive access to the state of the receiving object during execution, cycles of requests lead to deadlock.</li>
 <li>Commands.<p> For any two types <tt>s</tt> and <tt>a</tt>, <tt>Cmd s a</tt> is the type of procedures that can execute in a
-state <tt>s</tt> and return a value of type <tt>a</tt>. 
+state <tt>s</tt> and return a value of type <tt>a</tt>.
+<li> Object references.<p>
+For any type <tt>a</tt>, <tt>Ref a</tt> is the type of references to objects with interface <tt>a</tt>.
 </li>
 </ul>
 <h3>Polymorphic types</h3>
@@ -268,5 +270,5 @@ The following subtyping relations hold between primitive types:<br>
 <tt>Class a < Cmd s a</tt><br>
 <tt>Request a < Cmd s a</tt><br>
 <tt>Action < Cmd s Msg</tt><br>
-
+<tt>Ref a < OID</tt>.
 </body> </html>

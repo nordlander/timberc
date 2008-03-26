@@ -8,7 +8,7 @@
 
 <h3>Implicit struct types and qualified types</h3>
 <p>
-In mathematics and in most programming languages, <tt>+</tt> and <tt>-</tt> denotes addition and subtraction; but what should
+In mathematics and in most programming languages, <tt>+</tt> and <tt>-</tt> denote addition and subtraction; but what should
 their types be? Of course, we want to be able to add both integers and floating-point numbers, but these two functions correspond to
 completely different machine operations; we may also want to define arithmetic on new types, such as complex or rational numbers.
 <p>
@@ -16,12 +16,12 @@ To better understand the problem, consider a function to add the elements of a l
 Assuming that <tt>+</tt> only means integer addition we could define
 <pre>
 add :: Int -> [Int] -> Int
-add ack (x : xs) = add (x + ack) xs
-add ack [] = ack
+add acc (x : xs) = add (x + acc) xs
+add acc [] = acc
 </pre>
 <p>
 As long as there are elements in the list, we add them to the accumulator and call the function recursively; when the list is empty the
-ackumulator holds the result.
+accumulator holds the result.
 <p> But this function makes perfect sense also for floats (or rationals, or complex numbers, or ...) and we would like to use it at
 those types, too. One could imagine an ad hoc solution just for the arithmetic operators, but we prefer a general solution.
 <p>
@@ -40,16 +40,16 @@ Assume that we have
 properly defined <tt>numInt :: Num Int</tt>. We can then define 
 <pre>
 add :: Int -> [Int] -> Int
-add ack (x : xs) = add (numInt.(+) x ack) xs
-add ack [] = ack
+add acc (x : xs) = add (numInt.(+) x acc) xs
+add acc [] = acc
 </pre>
 <p>
 Unfortunately, the first argument in the recursive call now looks horrible. We cannot accept to write integer addition in this way. But there is
 at least something positive; we can generalize the type by giving the Num object as an argument:
 <pre>
 add :: Num a -> a -> [a] -> a
-add d ack (x : xs) = add d (d.(+) x ack) xs
-add d ack [] = ack
+add d acc (x : xs) = add d (d.(+) x acc) xs
+add d acc [] = acc
 </pre>
 <p>
 We can now use <tt>add</tt> for lists of any type of objects for which we can define the arithmetic operators, at the expense of passing an extra
@@ -61,8 +61,8 @@ implicit struct Num a where
   (+), (-), (*) :: a -> a -> a
 
 add :: a -> [a] -> a \\ Num a
-add ack (x : xs) = add (x + ack) xs
-add ack [] = ack
+add acc (x : xs) = add (x + acc) xs
+add acc [] = acc
 </pre>
 <p>
 <tt>Num</tt> is now an <em>implicit</em> struct type. For such types, the selectors are used without the
