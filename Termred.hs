@@ -90,7 +90,7 @@ redModule impCons impEqs (Module m ns xs ds ie [bs])
 Definition of isSafeId should be reconsidered. Which generated names are safe? 
 -}   
 
-finiteEqns env eqs              = filter (finite env . snd) eqs
+finiteEqns env eqs              = filter p eqs
   where p (x,e)                 = isSmall e && finite env e
 
 
