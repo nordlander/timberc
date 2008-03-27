@@ -16,21 +16,27 @@ isFinite e                      = finite initEnv e
 
 data Env                        = Env { eqns :: Map Name Exp,
                                         args :: [Name],
-                                        cons :: [[Name]],
+                                        cons :: [Map Name Int],
                                         isLoc :: Bool,
                                         locs :: [Name]
                                       }
 
 initEnv                         = Env { eqns = [], args = [], cons = cons0, isLoc = False, locs = [] }
 
-cons0                           = [ [prim TRUE,prim FALSE] , [prim NIL,prim CONS] ]
+cons0                           = [ [(prim TRUE, 0), (prim FALSE, 0)] , [(prim NIL, 0), (prim CONS, 2)] ]
 
-consOf (Types _ ds)             = [ dom ce | (_,DData _ _ ce) <- ds ]
+consOf (Types _ ds)             = [ map f ce | (_,DData _ _ ce) <- ds ]
+  where f (c, Constr te pe _)   = (c, length te + length pe)
+
+
+conArity env (Tuple n _)        = n
+conArity env c                  = lookup' (concat (cons env)) c
+
 
 complete _ [Tuple _ _]          = True
 complete _ []                   = False
 complete [] cs0                 = False
-complete (cs:css) cs0           = all (`elem`cs0) cs  ||  complete css cs0
+complete (cs:css) cs0           = all (`elem`cs0) (dom cs)  ||  complete css cs0
 
 addArgs env vs                  = env { args = vs ++ args env }
 
@@ -190,10 +196,26 @@ redApp env e@(EVar x) es        = case lookup x (eqns env) of
                                        Just e' -> do e' <- alphaConvert e'; redApp env e' es
                                        Nothing -> return (EAp e es)
 redApp env (ELam te e) es       = do redBeta (setLoc env) te e es
-redApp env (ECase e alts) es    = liftM (ECase e) (redAlts env (mapSnd (`EAp` es) alts))
+redApp env (ECase e alts) es
+  | length alts' == length alts = liftM (ECase e) (redAlts env alts')
+  where alts'                   = [ a | Just a <- map (appAlt env es) alts ]
 redApp env (ELet bs e) es       = liftM (ELet bs) (redApp env e es)
 redApp env e es                 = return (EAp e es)
 
+
+appAlt env es (PCon c,e)        = case skipLambda (conArity env c) e es of
+                                    Just e' -> Just (PCon c, e')
+                                    _       -> Nothing
+appAlt env es a                 = Just a
+
+
+skipLambda 0 e es               = Just (EAp e es)
+skipLambda n (ELam te e) es
+  | n <= length te              = Just (ELam te1 (eLam te2 (EAp e es)))
+  where (te1,te2)               = splitAt n te
+skipLambda n e es               = Nothing
+
+  
 
 -- perform beta reduction (if possible)
 redBeta env ((x,t):te) (EVar y) (e:es)
