@@ -13,7 +13,7 @@
 #define TIMERQ_EPILOGUE()                                               
 
 #define allocwords(size)        (ADDR)malloc(size*sizeof(WORD))
-#define HEAPSIZE                0x10000000                  // in words
+#define HEAPSIZE                0x100000  //  0x100000 words = 0x400000 bytes = 4194304 bytes = 4 Mb = 1024 pages = 0x400 pages
 #define STARTGC(hp,lim)         ((hp) >= 3 * ((lim)/8))
 #define NEEDEXTRA(hp,lim)       ((hp) >= 7 * ((lim)/8))
 #define ISWHITE(a)              ((ADDR)(a) >= heapMin && (ADDR)(a) < heapMax)
@@ -57,7 +57,7 @@ void gcinit() {
 }
 
 void pruneStaticHeap() {
-        ADDR base1 = realloc(base, hp - base);          // Let current heap shrink to its current size
+        ADDR base1 = realloc(base, BYTES(hp - base));   // Let current heap shrink to its current size
         if (base1 != base)
                 panic("Cannot shrink static heap to current size");
         staticHeap = heapchain;                         // Remember the static chain (for debugging only)

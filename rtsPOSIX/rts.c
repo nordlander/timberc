@@ -180,6 +180,7 @@ void dispatch( Thread next ) {
 void idle(void) {
         ENABLE(&enabled_mask);
         while (1) {
+                gc();
                 SLEEP();
         }
 }
