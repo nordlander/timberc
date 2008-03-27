@@ -167,10 +167,11 @@ redExp env (ELet bs e)          = do bs'@(Binds rec te eqs) <- redBinds (setLoc 
 redExp env e@(EVar (Prim {}))   = return e
 redExp env e@(EVar (Tuple {}))  = return e
 redExp env e@(EVar x)           = case lookup x (eqns env) of
-                                      Just (ERec _ _)
-                                         | not (x `elem` locs env) -> return e  
-                                      Just e' -> alphaConvert e'
-                                      _       -> return e
+                                      Just e' | inline e' -> alphaConvert e'
+                                      _ -> return e
+  where inline (EVar _)         = True
+        inline (ECon _)         = True
+        inline _                = x `elem` locs env
 redExp env (EAp e es)           = do e' <- redExp env e
                                      es' <- mapM (redExp env) es
                                      redApp env e' es'
@@ -193,8 +194,10 @@ redApp env e es
 redApp env (EVar (Prim p a)) es 
                                 = return (redPrim env p a es)
 redApp env e@(EVar x) es        = case lookup x (eqns env) of
-                                       Just e' -> do e' <- alphaConvert e'; redApp env e' es
+                                       Just e' | inline e' -> do e' <- alphaConvert e'; redApp env e' es
                                        Nothing -> return (EAp e es)
+  where inline (ELam _ _)       = True
+        inline _                = x `elem` locs env
 redApp env (ELam te e) es       = do redBeta (setLoc env) te e es
 redApp env (ECase e alts) es
   | length alts' == length alts = liftM (ECase e) (redAlts env alts')
@@ -221,9 +224,9 @@ skipLambda n e es               = Nothing
 redBeta env ((x,t):te) (EVar y) (e:es)
   | x == y                      = redBeta env te e es                      -- trivial body
 redBeta env ((x,t):te) b (e:es)
-  | isGenerated x               = redBeta (addEqns env [(x,e)]) te b es    -- must be a witness, is a value & appears only once
-  | finite env e && value e     = redBeta (addEqns env [(x,e)]) te b es    -- can be safely ignored
+  | inline x e                  = redBeta (addEqns env [(x,e)]) te b es
   | otherwise                   = liftM (ELet (Binds False [(x,t)] [(x,e)])) (redBeta env te b es)
+  where inline x e              = isGenerated x || finite env e && value e && isSmall e
 redBeta env [] b []             = redExp env b
 
 {-
@@ -243,8 +246,11 @@ redEta env te e                 = liftM (ELam te) (redExp (addArgs env (dom te))
 redSel env e s
   | isRaise e                   = return e
 redSel env e@(EVar x) s         = case lookup x (eqns env) of
-                                    Just e' -> do e' <- alphaConvert e'; redSel env e' s
-                                    Nothing -> return (ESel e s)
+                                    Just e' | inline e' -> do e' <- alphaConvert e'
+                                                              redSel env e' s
+                                    _ -> return (ESel e s)
+  where inline (ERec _ _)       = True
+        inline _                = x `elem` locs env
 redSel env (ERec c eqs) s
   | all value (rng eqs)         = case lookup s eqs of
                                     Just e  -> return e
@@ -255,8 +261,11 @@ redSel env e s                  = return (ESel e s)
 redCase env e alts
   | isRaise e                   = return e
 redCase env e@(EVar x) alts     = case lookup x (eqns env) of
-                                    Just e' -> do e' <- alphaConvert e'; redCase env e' alts
+                                    Just e' | inline (eFlat e') -> do e' <- alphaConvert e'; redCase env e' alts
                                     Nothing -> liftM (ECase e) (redAlts env alts)
+  where inline (ECon _,_)       = True
+        inline (ELit _,_)       = True
+        inline _                = x `elem` locs env
 redCase env (ELit l) alts       = findLit env l alts
 redCase env e alts              = case eFlat e of
                                     (ECon k, es) -> findCon env k es alts
