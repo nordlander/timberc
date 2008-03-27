@@ -16,12 +16,10 @@ isFinite e                      = finite initEnv e
 
 data Env                        = Env { eqns :: Map Name Exp,
                                         args :: [Name],
-                                        cons :: [Map Name Int],
-                                        isLoc :: Bool,
-                                        locs :: [Name]
+                                        cons :: [Map Name Int]
                                       }
 
-initEnv                         = Env { eqns = [], args = [], cons = cons0, isLoc = False, locs = [] }
+initEnv                         = Env { eqns = [], args = [], cons = cons0 }
 
 cons0                           = [ [(prim TRUE, 0), (prim FALSE, 0)] , [(prim NIL, 0), (prim CONS, 2)] ]
 
@@ -40,13 +38,9 @@ complete (cs:css) cs0           = all (`elem`cs0) (dom cs)  ||  complete css cs0
 
 addArgs env vs                  = env { args = vs ++ args env }
 
-addEqns env eqs 
-   | isLoc env                  = env { eqns = eqs ++ eqns env, locs = dom eqs ++ locs env }
-   | otherwise                  = env { eqns = eqs ++ eqns env }
+addEqns env eqs                 = env { eqns = eqs ++ eqns env }
 
 addCons env css                 = env { cons = css ++ cons env }
-
-setLoc env                      = env { isLoc = True }
 
 redModule impCons impEqs (Module m ns xs ds is bss)
                                 = do (bss,_) <- redTopBinds env1 bss
@@ -159,11 +153,11 @@ redExp env (ESel e s)           = do e <- redExp env e
                                      redSel env e s
 redExp env (ECase e alts)       = do e <- redExp env e
                                      redCase env e alts
-redExp env (ELet bs e)          = do bs'@(Binds rec te eqs) <- redBinds (setLoc env) bs
+redExp env (ELet bs e)          = do bs'@(Binds rec te eqs) <- redBinds env bs
                                      if rec then
                                         liftM (ELet bs') (redExp env e)
                                       else
-                                        redBeta (setLoc env) te e (map (lookup' eqs) (dom te))
+                                        redBeta env te e (map (lookup' eqs) (dom te))
 redExp env e@(EVar (Prim {}))   = return e
 redExp env e@(EVar (Tuple {}))  = return e
 redExp env e@(EVar x)           = case lookup x (eqns env) of
@@ -171,7 +165,7 @@ redExp env e@(EVar x)           = case lookup x (eqns env) of
                                       _ -> return e
   where inline (EVar _)         = True
         inline (ECon _)         = True
-        inline _                = x `elem` locs env
+        inline _                = isGenerated x
 redExp env (EAp e es)           = do e' <- redExp env e
                                      es' <- mapM (redExp env) es
                                      redApp env e' es'
@@ -197,8 +191,9 @@ redApp env e@(EVar x) es        = case lookup x (eqns env) of
                                        Just e' | inline e' -> do e' <- alphaConvert e'; redApp env e' es
                                        Nothing -> return (EAp e es)
   where inline (ELam _ _)       = True
-        inline _                = x `elem` locs env
-redApp env (ELam te e) es       = do redBeta (setLoc env) te e es
+        inline (EVar _)         = True
+        inline _                = False
+redApp env (ELam te e) es       = do redBeta env te e es
 redApp env (ECase e alts) es
   | length alts' == length alts = liftM (ECase e) (redAlts env alts')
   where alts'                   = [ a | Just a <- map (appAlt env es) alts ]
@@ -224,9 +219,14 @@ skipLambda n e es               = Nothing
 redBeta env ((x,t):te) (EVar y) (e:es)
   | x == y                      = redBeta env te e es                      -- trivial body
 redBeta env ((x,t):te) b (e:es)
-  | inline x e                  = redBeta (addEqns env [(x,e)]) te b es
-  | otherwise                   = liftM (ELet (Binds False [(x,t)] [(x,e)])) (redBeta env te b es)
-  where inline x e              = isGenerated x || finite env e && value e && isSmall e
+  | inline x e                  = do e' <- redBeta (addEqns env [(x,e)]) te b es
+                                     return (bindx e')
+  | otherwise                   = liftM (ELet bs) (redBeta env te b es)
+  where inline x e              = isGenerated x || finite env e && value e
+        bindx e'
+          | x `elem` evars e'   = ELet bs e'
+          | otherwise           = e'
+        bs                      = Binds False [(x,t)] [(x,e)]
 redBeta env [] b []             = redExp env b
 
 {-
@@ -250,7 +250,8 @@ redSel env e@(EVar x) s         = case lookup x (eqns env) of
                                                               redSel env e' s
                                     _ -> return (ESel e s)
   where inline (ERec _ _)       = True
-        inline _                = x `elem` locs env
+        inline (EVar _)         = True
+        inline _                = False
 redSel env (ERec c eqs) s
   | all value (rng eqs)         = case lookup s eqs of
                                     Just e  -> return e
@@ -265,7 +266,8 @@ redCase env e@(EVar x) alts     = case lookup x (eqns env) of
                                     Nothing -> liftM (ECase e) (redAlts env alts)
   where inline (ECon _,_)       = True
         inline (ELit _,_)       = True
-        inline _                = x `elem` locs env
+        inline (EVar _, [])     = True
+        inline _                = False
 redCase env (ELit l) alts       = findLit env l alts
 redCase env e alts              = case eFlat e of
                                     (ECon k, es) -> findCon env k es alts
@@ -356,7 +358,7 @@ redCmd env (CExp e)             = liftM CExp (redExp env e)
 redCmd env (CGen p t (ELet bs e) c)
                                 = redCmd env (CLet bs (CGen p t e c))
 redCmd env (CGen p t e c)       = liftM2 (CGen p t) (redExp env e) (redCmd env c)
-redCmd env (CLet bs c)          = liftM2 CLet (redBinds (setLoc env) bs) (redCmd env c)
+redCmd env (CLet bs c)          = liftM2 CLet (redBinds env bs) (redCmd env c)
 redCmd env (CAss x e c)         = liftM2 (CAss x) (redExp env e) (redCmd env c)
 
 
