@@ -16,7 +16,7 @@ kindle2c is m                   = return (render h, render c)
 -- ====================================================================================================
 
 k2hModule (Module n ns ds bs)   = hHeader n ns $$$
-                                  k2cDeclStubs ds $$$
+                                  k2cDeclStubs True ds $$$
                                   k2cDecls True ds $$$
                                   k2cBindStubsH bs $$$
                                   k2cInitProcStub n <> text ";" $$$
@@ -34,9 +34,11 @@ includeGuard n                  = text ("#ifndef " ++ g) $$
                          
 hFooter n                       = text "#endif\n"
 
-k2cDeclStubs ds                 = vcat (map f ds)
-  where f (n, _)                = text "struct" <+> k2cName n <> text ";" $$
+k2cDeclStubs isH ds             = vcat (map f ds)
+  where f (n, _)
+          | isH==isQualified n  = text "struct" <+> k2cName n <> text ";" $$
                                   text "typedef" <+> text "struct" <+> k2cName n <+> text "*" <> k2cName n <> text ";"
+          | otherwise           = empty
 
 k2cDecls isH ds                 = vcat (map f ds)
   where f (n, Struct te cs)
@@ -87,6 +89,7 @@ k2cType (TWild)                 = text "POLY"
 -}
 
 k2cModule is (Module n ns ds bs)= cHeader n $$$
+                                  k2cDeclStubs False ds $$$
                                   k2cDecls False ds $$$
                                   k2cGCinfo ds $$$
                                   k2cBindStubsC bs $$$
