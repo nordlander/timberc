@@ -84,7 +84,8 @@ redModule impCons impEqs (Module m ns xs ds ie [bs])
 Definition of isSafeId should be reconsidered. Which generated names are safe? 
 -}   
 
-finiteEqns env eq               = filter (finite env . snd) eq
+finiteEqns env eqs              = filter (finite env . snd) eqs
+  where p (x,e)                 = isSmall e && finite env e
 
 
 -- can be safely ignored without changing cbv semantics
