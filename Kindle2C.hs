@@ -117,7 +117,7 @@ cFooter n                       = text "\n"
 k2cBindStubsC bs                = vcat (map f bs)
   where f (x, Fun t te c)
           | isQualified x       = empty
-          | otherwise           = k2cType t <+> k2cName x <+> k2cFunParams te <> text";"
+          | otherwise           = k2cStatic x <+> k2cType t <+> k2cName x <+> k2cFunParams te <> text";"
         f (x, Val t e)          = k2cStatic x <+> k2cType t <+> k2cName x <> text ";"
 
 
