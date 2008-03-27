@@ -17,7 +17,7 @@ kindle2c is m                   = return (render h, render c)
 
 k2hModule (Module n ns ds bs)   = hHeader n ns $$$
                                   k2cDeclStubs ds $$$
-                                  k2cDecls ds $$$
+                                  k2cDecls True ds $$$
                                   k2cBindStubsH bs $$$
                                   k2cInitProcStub n <> text ";" $$$
                                   hFooter n
@@ -38,13 +38,17 @@ k2cDeclStubs ds                 = vcat (map f ds)
   where f (n, _)                = text "struct" <+> k2cName n <> text ";" $$
                                   text "typedef" <+> text "struct" <+> k2cName n <+> text "*" <> k2cName n <> text ";"
 
-k2cDecls ds                     = vcat (map f ds)
-  where f (n, Struct te cs)     = text "struct"  <+> k2cName n <+> text "{" $$
+k2cDecls isH ds                 = vcat (map f ds)
+  where f (n, Struct te cs)
+          | isH==isQualified n  = text "struct"  <+> k2cName n <+> text "{" $$
                                      nest 4 (k2cGCsig $$ k2cSigs n te) $$
                                   text "}" <> text ";" $$
                                   k2cEnum cs $$
                                   k2cInfoStub n
-        k2cInfoStub n           = text "extern" <+> text "WORD" <+> k2cGCinfoName n <> text "[]" <> text ";"
+          | otherwise           = empty
+        k2cInfoStub n
+          | isH                 = text "extern" <+> text "WORD" <+> k2cGCinfoName n <> text "[]" <> text ";"
+          | otherwise           = empty
         k2cGCsig                = text "WORD *gcinfo;"
         k2cEnum []              = empty
         k2cEnum cs              = text "enum" <+> braces (commasep k2cTag cs) <> text ";"
@@ -83,6 +87,7 @@ k2cType (TWild)                 = text "POLY"
 -}
 
 k2cModule is (Module n ns ds bs)= cHeader n $$$
+                                  k2cDecls False ds $$$
                                   k2cGCinfo ds $$$
                                   k2cBindStubsC bs $$$
                                   k2cFunBinds bs $$$
