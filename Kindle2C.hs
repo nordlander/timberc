@@ -126,6 +126,10 @@ k2cStatic x
   | otherwise                   = text "static"
 
 
+k2cValBindStubsC bs             = vcat (map f bs)
+  where f (x, Val t e)          = k2cType t <+> k2cName x <> text ";"
+
+
 k2cInitProcStub n               = text "void _init_" <> text (modToundSc (str n)) <+> text "()"
 
 k2cInitImports ns               = vcat (map f ns)
@@ -212,10 +216,10 @@ k2cCmd (CBind False [(_,Val _ (ECall (Prim UpdateArray _) [e1,e2,e3,_]))] c)
                                   k2cCmd c
 k2cCmd (CBind False [(_,Val (TId (Prim UNITTYPE _)) e)] (CRet (ECast (TId (Prim UNITTYPE _)) (EVar (Prim UNITTERM _)))))
                                 = k2cExp e <> text ";"
-k2cCmd (CBind False bs c)       = k2cBindStubsC bs $$
+k2cCmd (CBind False bs c)       = k2cValBindStubsC bs $$
                                   k2cValBinds (False,bs) $$
                                   k2cCmd c
-k2cCmd (CBind True bs c)        = k2cBindStubsC bs $$
+k2cCmd (CBind True bs c)        = k2cValBindStubsC bs $$
                                   vcat (map k2cValBinds (groupMap bs)) $$
                                   k2cCmd c
 k2cCmd (CUpd x e c)             = k2cName x <+> text "=" <+> k2cExp e <> text ";" $$
