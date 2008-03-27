@@ -99,7 +99,7 @@ k2cModule is (Module n ns ds bs)= cHeader n $$$
 
 
 k2cGCinfo ds                    = vcat (map f ds)
-  where f (n, Struct te cs)     = text "WORD" <+> k2cGCinfoName n <> text "[]" <+> text "=" <+> 
+  where f (n, Struct te cs)     = k2cStatic n <+> text "WORD" <+> k2cGCinfoName n <> text "[]" <+> text "=" <+> 
                                   braces (k2cSize n <> text "," <+> k2cOffsets n te) <> text ";"
 
 
