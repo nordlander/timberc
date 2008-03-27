@@ -118,7 +118,12 @@ k2cBindStubsC bs                = vcat (map f bs)
   where f (x, Fun t te c)
           | isQualified x       = empty
           | otherwise           = k2cType t <+> k2cName x <+> k2cFunParams te <> text";"
-        f (x, Val t e)          = k2cType t <+> k2cName x <> text ";"
+        f (x, Val t e)          = k2cStatic x <+> k2cType t <+> k2cName x <> text ";"
+
+
+k2cStatic x
+  | isQualified x               = empty
+  | otherwise                   = text "static"
 
 
 k2cInitProcStub n               = text "void _init_" <> text (modToundSc (str n)) <+> text "()"
@@ -139,7 +144,7 @@ k2cInitProc n ns bs             = k2cInitProcStub n <+> text "{" $$
 
 
 k2cFunBinds bs                  = vcat (map f bs)
-  where f (x, Fun t te c)       = k2cType t <+> k2cName x <+> k2cFunParams te <+> text "{" $$
+  where f (x, Fun t te c)       = k2cStatic x <+> k2cType t <+> k2cName x <+> k2cFunParams te <+> text "{" $$
                                     nest 4 (k2cCmd c) $$
                                   text "}"
         f _                     = empty
