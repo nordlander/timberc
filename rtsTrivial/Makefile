@@ -13,7 +13,7 @@ $(OBJS): %.o: ../lib/%.t ../include/timber.h
 	$(TIMBERC) --target $(TIMBERTARGET) -c $<
 
 $(DEST): $(OBJS) rts.o
-	libtool -static -o $(DEST) $(OBJS) rts.o
+	ar rc $(DEST) $(OBJS) rts.o
 
 rts.o: rts.c rts.h ../include/timber.h ../include/arrays.c
 	$(CC) $(CFLAGS) -I../include -I../lib -I. -c rts.c
