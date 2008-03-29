@@ -102,6 +102,15 @@ ordFloat = Ord {..}
         (>)  = primFloatGT
         (>=) = primFloatGE
 
+implicit ordChar :: Ord Char
+ordChar = struct
+            a <  b = ord a <  ord b
+            a <= b = ord a <= ord b
+            a >  b = ord a >  ord b
+            a >= b = ord a >= ord b
+            (==) = eqChar.(==)
+            (/=) = eqChar.(/=)
+
 implicit ordTime :: Ord Time
 ordTime = Ord {..}
   where Eq {..} = eqTime
@@ -167,6 +176,12 @@ showList = struct
   show [] = "[]"
   show (x : xs) = '[' : show x ++ concat (map (\x -> ',' : show x) xs) ++ "]"
 
+implicit showTuple :: Show (a,b) \\ Show a, Show b = struct
+  show (a,b) = "("++show a++","++show b++")"
+
+implicit showUnit :: Show () = struct
+  show () = "()"
+
 implicit struct Parse a where
   parse :: String -> a
 
@@ -209,6 +224,10 @@ forallDo f (x : xs) = do f x
 
 
 data Maybe a = Just a | Nothing
+
+isNothing :: Maybe a -> Bool
+isNothing Nothing  = True
+isNothing (Just a) = False
 
 type String         = [Char]
 
@@ -290,6 +309,15 @@ drop n (x : xs)
 [] ++ ys            = ys
 (x:xs) ++ ys        = x : xs ++ ys
 
+($) :: (a -> b) -> a -> b
+f $ a = f a
+
+const :: a -> b -> a
+const a _ = a
+
+id :: a -> a
+id a = a
+
 flip               :: (a -> b -> c) -> b -> a -> c
 flip f x y          = f y x
 
@@ -363,3 +391,46 @@ struct Point where
    x,y :: Int
 
 f @ g               = \x -> f (g x)
+
+implicit struct Functor m where
+  ($^)   :: (a -> b) -> m a -> m b
+
+implicit struct Applicative m < Functor m where
+  ($*)   :: m (a -> b) -> m a -> m b
+  return :: a -> m a
+
+implicit struct Monad m < Applicative m where
+  (>>=)  :: m a -> (a -> m b) -> m b
+
+(>>) :: m a -> m b -> m b \\ Monad m
+ma >> mb = ma >>= \_ -> mb
+
+join :: m (m a) -> m a \\ Monad m
+join m = m >>= id
+
+implicit struct MPlus m where
+  mempty :: m a
+  mappend :: m a -> m a -> m a
+
+
+implicit functorMaybe :: Functor Maybe = struct
+  f $^ Nothing = Nothing
+  f $^ Just a  = Just (f a)
+
+implicit applicativeMaybe :: Applicative Maybe = Applicative {..}
+  where Functor {..} = functorMaybe
+        Just f $* Just a = Just (f a)
+        _      $* _      = Nothing
+
+implicit monadMaybe :: Monad Maybe = Monad {..}
+  where Applicative {..} = applicativeMaybe
+        Just a  >>= f = f a
+        Nothing >>= _ = Nothing
+
+implicit mPlusMaybe :: MPlus Maybe = struct
+  mempty = Nothing
+  Just a  `mappend` _ = Just a
+  Nothing `mappend` a = a
+
+implicit functorArray :: Functor Array = struct
+  f $^ a = array [f (a!i) | i <- [0..size a-1]]
