@@ -16,7 +16,7 @@ $(DEST): $(OBJS) rts.o
 	ar rc $(DEST) $(OBJS) rts.o
 
 rts.o: rts.c cyclic.c gc.c env.c rts.h ../include/timber.h ../include/timber.c
-	$(CC) $(CFLAGS) -Wall -O2 -g -I../include -I../lib -I. -c rts.c
+	$(CC) $(CFLAGS) -Wall -O2 -fno-strict-aliasing -g -I../include -I../lib -I. -c rts.c
 
 install: $(DEST)
 	$(INSTALL) -d $(DESTDIR)$(prefix)/rts$(TIMBERTARGET)
