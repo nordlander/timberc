@@ -62,6 +62,14 @@ hugs*)
 	;;
 esac
 
+case $(uname) in
+Darwin)
+        LDFLAGS+=" -Wl,-stack_size,0x3000000"
+        ;;
+*)
+        ;;
+esac
+
 # Look for Happy, otherwise touch Parser.hs to give current time stamp.
 AC_CHECK_PROGS(HAPPY, [happy])
 

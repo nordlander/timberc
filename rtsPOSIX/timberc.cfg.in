@@ -1,5 +1,5 @@
 CfgOpts
       { cCompiler = "@CC@ -DPOSIX"
       , compileFlags = " @CFLAGS@ "
-      , linkFlags = " @LDFLAGS@ -Wl,-stack_size,0x3000000 "
+      , linkFlags = " @LDFLAGS@ "
       }
