@@ -1,7 +1,5 @@
 module State where
 
-import PreludeExtra
-
 data State s a = SM (s -> (s,a))
 
 runState :: State s a -> s -> (s,a)
@@ -24,7 +22,8 @@ inState s m =
 implicit functorState :: Functor (State s) = struct
   f $^ SM fa = SM $ \s -> let (s',a) = fa s in (s',f a)
 
-implicit applicativeState :: Applicative (State s) = Applicative {..} where
+implicit applicativeState :: Applicative (State s) = Applicative {..} 
+  where
   Functor {..} = functorState
   SM fs $* SM as = SM $ \s -> let (s',f) = fs s
                                   (s'',a) = as s'
