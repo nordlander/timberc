@@ -55,7 +55,12 @@ extern Thread current;
 
 #if defined(__APPLE__)
 #include <libkern/OSAtomic.h>
-#define CAS(old,new,mem)        OSAtomicCompareAndSwap32((WORD)old,(WORD)new,(ADDR)mem)
+#define CAS(old,new,mem)        OSAtomicCompareAndSwap32((WORD)(old),(WORD)(new),(ADDR)(mem))
+#endif
+
+#if defined(__linux__)
+#include <atomic_ops.h>
+#define CAS(old,new,mem)        AO_compare_and_swap((AO_t*)(mem),(WORD)(old),(WORD)(new))
 #endif
 
 #define NEW(t,addr,words)       { ADDR top; do { addr = (t)hp; top = (ADDR)addr+(words); } while (!CAS(addr,top,&hp)); \

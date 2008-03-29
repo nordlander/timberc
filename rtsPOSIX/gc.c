@@ -1,5 +1,7 @@
 #include <stdlib.h>
+#if defined(__APPLE__)
 #include <mach-o/getsect.h>
+#endif
 
 #define NEW2(addr,words)        { ADDR top; do { addr = hp2; top = (ADDR)addr + (words); } while (!CAS(addr,top,&hp2)); \
                                   if (top >= lim2) addr = force2(words); }
@@ -53,7 +55,13 @@ void gcinit() {
         pagesize = sysconf(_SC_PAGESIZE) / sizeof(WORD);
         initheap();                                     // Allocate base (= heapchain)
         base2 = lim2 = hp2 = (ADDR)0;                   // no active tospace
+#if defined(__APPLE__)
         edata = (ADDR)get_end();
+#endif
+#if defined(__linux__)
+        extern int _end[];
+        edata = (ADDR)_end;
+#endif
 }
 
 void pruneStaticHeap() {

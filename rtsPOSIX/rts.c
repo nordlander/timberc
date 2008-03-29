@@ -76,6 +76,18 @@
 #define INF             0x7fffffff
 
 
+#if defined(__linux__)
+int _CAS(WORD old,WORD new,ADDR mem)
+{
+  if (*mem == old) {
+    *mem = new;
+    return 1;
+  } else {
+    return 0;
+  }
+}
+#endif
+
 sigset_t disabled_mask, enabled_mask;
 
 
