@@ -42,7 +42,8 @@ If you're running the compiler interactively under hugs, type
 
    main2 ["--help"]
 
-
+On Linux, you might have to do "ulimit -s unlimited" in your shell
+before running your program, or you'll get a segmentation fault.
 
 Caveats
 =======
@@ -64,6 +65,8 @@ To to
    - Construct a more interesting standard environment (rts.c).
    - Generate special type constructors for polymorphic data types instantiated with
      primitive types.
+   - (Linux) Fix terminal input.
+   - (Linux) Fix stack size setting.
 
 (Coming up)
 
