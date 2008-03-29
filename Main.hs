@@ -274,7 +274,7 @@ main2 args          = do (clo, files) <- Exception.catchDyn (cmdLineOpts args)
 
 handleError (ErrorCall mess) = do
   putStr ("*** Timber compilation error ***\n"++mess++"\n")
-  stopCompiler
+  abortCompiler
 handleError e = throw e
 
 test pass           = compileTimber clo [] "Test.t"
