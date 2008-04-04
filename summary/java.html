@@ -9,14 +9,14 @@
 <p>
 Timber can be seen as an object-oriented programming language with
 many familiar features, but also some less familiar. This page summarizes
-both similatities and differences.
+both similarities and differences.
 <ul>
 <li>
 The Timber compilation unit is a module. Within such a module one
 defines e.g. types, functions and classes. So there are many other
 entities in Timber than classes and objects.
 <li> The correspondence to a Java <tt>interface</tt> is a Timber
-  struct type. Here is an interface suitable for a smple counter object:
+  struct type. Here is an interface suitable for a simple counter object:
   <pre>
 struct Counter where
   incr  :: Action
@@ -33,7 +33,7 @@ A class that implements this interface provides two actions
 <li>
  A Timber class consists of
   <ul>
-    <li> Declaration and initialisation of local state variables;
+    <li> Declaration and initialization of local state variables;
     <li> Declarations of methods, i.e. actions and requests, that
     access and update the state.
     <li> Possibly local, auxiliary, definitions.
@@ -58,9 +58,9 @@ counter initVal = class
 </pre>
  <p>
   The class itself starts with the keyword <tt>class</tt>. We see
-  the initialisation of the state variable <tt>val</tt> to <tt>initVal</tt>,
+  the initialization of the state variable <tt>val</tt> to <tt>initVal</tt>,
   the three method declaration and finally the result specification;
-  here <tt>Prog {..}</tt> means: asemble a value of type <tt>Prog</tt>
+  here <tt>Prog {..}</tt> means: assemble a value of type <tt>Prog</tt>
   from definitions in scope.
   <p>
   Note that there is no constructor method within the class. Within
@@ -80,14 +80,20 @@ counter initVal = class
 <li>
  All types in Timber are first-class, which makes it possible to use classes
   and methods as parameters to functions, as function values, as elements in
-  data structures etc leading to new programming patterns.
-  <li> Timber does have subtyping between struct types and inclusion polymorphism
+  data structures etc leading to new programming patterns. <tt>counter</tt> above
+  is an example of this: it has type
+  <pre>
+counter :: Int -> Class Counter
+</pre>
+  i.e., it is a function that when applied to a integer (the start value) returns a
+  class, from which we later can create objects.
+  <li> Timber has subtyping between struct types and inclusion polymorphism
   but does not support inheritance. The first-order nature of the language
   makes it possible to find other ways to express most useful occurrences of
   inheritance.
   <li>
   Methods always execute with exclusive access to the state of objects; thus
-  they can execute concurrently, leading to a very simple cocurrency model for
+  they can execute concurrently, leading to a very simple concurrency model for
   Timber.
   
 </ul>

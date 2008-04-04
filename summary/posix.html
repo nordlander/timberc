@@ -62,13 +62,12 @@ Files support two methods:
   <li> <tt>write</tt> takes a string as argument and tries to write it to the file;
   the returned value is the suffix of the argument string that was <em>not</em> written; for
   <tt>stdout</tt> this should be the empty string.
-  and <tt>write</tt>.
 </ul>
 <p>
 The type <tt>Prog</tt> collects the services that the program offers to the
 environment, i.e. the methods it reacts to. 
 Execution of a program proceeds as follows. The runtime system is responsible
-for initialisation: it creates
+for initialization: it creates
 an environment object with interface <tt>env :: Env</tt>, applies <tt>root</tt> to <tt>env</tt> and
 creates an object of the resulting class; let us call the resulting
 interface <tt>p :: Prog</tt>. The run-time system sends a <tt>p.start</tt> message;

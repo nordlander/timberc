@@ -106,7 +106,7 @@ Also subtyping relations may be used as constraints in qualified types. As a sim
 twice f x = f (f x)
 </pre>
 <p>
-Obviously, <tt>twice</tt> has a polymorphic type. At first, it seems that the type should be <tt> (a -> a) -> a -> a</tt>. However,it can be assigned
+Obviously, <tt>twice</tt> has a polymorphic type. At first, it seems that the type should be <tt> (a -> a) -> a -> a</tt>. However, it can be assigned
 the more general type
 <pre>
 twice :: (a -> b) -> a -> b \\ b < a

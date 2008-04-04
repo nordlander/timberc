@@ -50,13 +50,13 @@ elem x (y : ys)     = x == y || elem x ys
 <li> In Timber one can express monadic computations using <tt>do</tt>-notation, but this is reserved for a particular primitive
    monad <tt>Cmd s</tt> of commands operating on a state <tt>s</tt>. It is possible to define the concept of a general
   monad as in Haskell, but the <tt>do</tt>-notation is not available for general monads.
-<li> The Command monad provides powerful constructs for object-oriented programming, with objects encapsulating a local
-state and methods manipulating this state. This is done while retaining the pure nature of the language; a computation with
-such side-effects is clearly indicated by a monadic type (and can hence not be used in a non-monadic context).
+<li> The Cmd monad provides powerful constructs for object-oriented programming, with objects encapsulating a local
+state and methods manipulating this state. This is achieved while retaining the pure nature of the language; a computation with
+side-effects is clearly indicated by a monadic type (and can hence not be used in a non-monadic context).
 <p>
 Further, methods execute concurrently, but with exclusive access to the state of the object; thus Timber is also a concurrent
 language with some real-time constructs. 
-  <p> The main program of a Timber program is not of type <tt>IO ()</tt> (this type does not exist in Timber), but their must
+  <li> The main program of a Timber program is not of type <tt>IO ()</tt> (this type does not exist in Timber), but there must
 be a designated root module with a root definition; the type of this depends on the target environment. In the present
 distribution, only a rudimentary <a href="posix.html">POSIX environment</a> is provided.
 <li> The type system of Timber implements many of the non-standard features that are implemented as extensions in GHC. See

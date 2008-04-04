@@ -33,10 +33,10 @@ is a binding of the variables in the pattern to values. The rules are as follows
   <em>S {sel1 = p1, ... seln = pn}</em>. Matching against a value <em>v</em> succeeds if <em>v = S {sel1 = v1, seln = vn}</em>
   and matching <em>pi</em> against <em>vi</em> succeeds for all i; the resulting
   binding is the union of the bindings resulting from each of these matchings.</li>
-  <li> Mathing (<em>p</em>) against a value is the sama es matching <em>p</em> against the same value.
+  <li> Mathing (<em>p</em>) against a value is the same as matching <em>p</em> against the same value.
   </ul>
   <p>
-  In patterns the special "wildcard" variable <tt>_</tt> may be used; in contrast to other variables, it is not bound
+The special "wildcard" variable <tt>_</tt> may be used in patterns; in contrast to other variables, it is not bound
   by pattern-matching.
 <p>
   A consequence of the way pattern-matching is done is that patterns must be linear; no variable may occur more than once in
@@ -72,11 +72,12 @@ The variable in each of the equations (the name of the function) and the number 
 The order of equations is significant; when applying the function, pattern-matching is tried starting wih the first equation
 until it succeeds; the function value is computed from right hand side of that equation, using the variable bindings obtained.
 Within one equation, patterns are matched from left to right.
-<TH> Example
+    <table align=center><TR>
+  <TH> Example
 </TH>
 </TR>
-<TR><TD><tt>showLine xs = concatMap showItem xs</tt></TD></TR>
-<TR><TD><tt></tt></TD></TR>
+<TR><TD><tt>zip (x:xs) (y:ys) = (x,y) : zip xs ys</tt></TD></TR>
+<TR><TD><tt>zip _ _ = []</tt></TD></TR>
 </table>
 </li>
 <li> Bindings with <tt>where</tt>-clauses.<p>
@@ -109,7 +110,7 @@ evaluated in turn; the right hand side corresponding to the first true guard (if
 <p>
 More complicated guards that bind variables are possible, but omitted here.
 </ul>
-<li> Pattern bindings <p>
+<li> Pattern bindings. <p>
 <em>pat</em> = <em>expr</em>
 <p>
 where <em>pat</em> is not a variable (in which case the binding is, perhaps counter-intuitively, a function binding).
@@ -127,7 +128,7 @@ A pattern binding may not occur as a top-level declaration, but only as a local 
 the result of calling <tt>lookup</tt> is <tt>Nothing</tt>.
 <li> <a name="impl">Instance bindings for implicit struct types.</a>
 <p>
-<tt>implicit</tt> <em>var</em> :: <em>type</em><br>
+<tt>implicit</tt> <em>var</em> <tt>::</tt> <em>type</em><br>
 <em>funBind</em>
 <p>
 The type signature of an instance of an implicit type is prepended by the keyword <tt>implicit</tt>. For instances,

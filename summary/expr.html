@@ -87,7 +87,7 @@ sum [] = 0
 sum (x : xs) = x + sum xs
 </pre>
 </li>
-<li> Function (and constructor)  application. Application is denoted by juxtaposition and binds tighter than all operators and is left associative.
+<li> Function (and constructor)  application. Application is denoted by juxtaposition, binds tighter than all operators and is left associative.
 <table align=center><TR>
 <TH> Examples
 <TH>Comments</TH>
@@ -153,7 +153,7 @@ a list with its first argument as first element ("head") and second argument as 
 <TH> Examples
 </TH><TH>Desugared forms</TH>
 </TR>
-<TR><TD><tt>([1,3,7</tt></TD><TD><tt>(:) 1 ((:) 3 ((:) 7 []))</tt></TD></TR>
+<TR><TD><tt>[1,3,7]</tt></TD><TD><tt>(:) 1 ((:) 3 ((:) 7 []))</tt></TD></TR>
 <TR><TD><tt>[f x, p 3]&nbsp;&nbsp;</tt></TD><TD><tt>(:) (f x) ((:) (p 3) [])</tt></TD></TR>
 </table>
 <p>
@@ -219,7 +219,7 @@ of the form <em>x = x </em> for each selector <em>x</em> that is not explicitly 
 </TR>
 <TR><TD><tt>Counter {..} </tt></TD><TD><tt> Counter {inc = inc, read = read}</tt></TD></TR>
 <TR><TD><tt>Counter {read = readreq ..}</tt></TD><TD><tt>Counter {read = readreq, inc = inc}</tt></TD></TR>
-<TR><TD><tt>Point {x=0}</tt></TD><TD><tt>Point {x=0, y=y}</tt></TD></TR>
+<TR><TD><tt>Point {x=0..}</tt></TD><TD><tt>Point {x=0, y=y}</tt></TD></TR>
 </table>
 <p>
 Obviously, because of subtyping, the type name cannot be omitted here.
@@ -258,8 +258,8 @@ where the sequence of alternatives is layout-sensitive. The simplest form of an 
 </TH>
 </TR>
 <TR><TD><tt>case f a b of</tt></TD></TR>
-<TR><TD><tt>&nbsp;>&nbsp;[] -> 0</tt></TD></TR>
-<TR><TD><tt>>&nbsp;>&nbsp;x : xs -> g x + h 3 xs </tt></TD></TR>
+<TR><TD><tt>&nbsp;&nbsp;[] -> 0</tt></TD></TR>
+<TR><TD><tt>&nbsp;&nbsp;x : xs -> g x + h 3 xs </tt></TD></TR>
 </table>
 <p>
 </ul>
@@ -284,4 +284,6 @@ The syntax of these constructs are similar; they are all built from sequences of
 In all cases, statement sequences have layout-sensitive syntax. See the  <a href="stmts.html"> statements</a> page
 for further descriptions.
 <h4>Further forms of expressions</h4>
+<p>
+To be written.
 </body> </html>
