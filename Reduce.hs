@@ -37,6 +37,7 @@ normalize env eqs pe                    = do -- tr ("NORMALIZE: " ++ render (vpr
                                              return (s1@@s0, pe1, f1)
                                              
 
+norm env []                             = return ([], [], id)
 norm env pe                             = do -- tr ("NORM A\n" ++ render (nest 8 (vpr pe)))
                                              (s1, pe1, f1) <- reduce env pe
                                              -- tr ("NORM B\n" ++ render (nest 8 (vpr pe1)))
@@ -56,8 +57,8 @@ reduce env pe                           = do -- tr ("###reduce\n" ++ render (nes
 
 -- Simplification ------------------------------------------------------------------------------
 
-simplify env pe                         = do -- tr ("****SIMPLIFY\n" ++ render (nest 8 (vpr pe)))
-                                             cs <- newNames skolemSym (length tvs)
+simplify env pe                         = do cs <- newNames skolemSym (length tvs)
+                                             -- tr ("****SIMPLIFY\n" ++ render (nest 8 (vpr (subst (tvs`zip`map TId cs) pe))))
                                              r <- expose (closePreds env [] (subst (tvs`zip`map TId cs) pe) (cs`zip`ks))
                                              case r of
                                                Right (env',qe,eq) -> return (nullSubst, pe', eLet' (subst s bss))

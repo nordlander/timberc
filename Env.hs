@@ -406,7 +406,7 @@ rank info (env,TFun [l] u)              = subrank (tFlat l) (tFlat u)
             b                           = length (filter (==n) ub)   -- # of upper var bounds for n
             v                           = polarity pvs n             -- polarity of n in target type
     subrank (TVar n,ts) (TVar n',ts')
-      | n == n' && ts == ts'            = RUnif     -- identical types, just eliminate the predicate
+      | n == n'                         = RUnif     -- identical heads, and we only have invariant constructors
       | l==0 && b==1 && null ts && not (isPos v)
                                         = RUnif     -- no n embeddings, only one bound (here!), no variance problems, set n = upper bound
       | l'==0 && b'==1 && null ts' && not (isNeg v')
