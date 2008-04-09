@@ -80,14 +80,16 @@ findClosureName env ts t            = do ds <- currentStore
                                          case find ds of
                                             Just n  -> return n
                                             Nothing -> do
-                                               n <- newNameMod (Just (mname env)) closureSym
+                                               n <- getName env (t:ts)
                                                addToStore (n, Kindle.Struct [(prim Code, Kindle.FunT ts t)] [])
                                                return n
   where find []                     = Nothing
         find ((n,Kindle.Struct [(x,Kindle.FunT ts' t')] _) : ds)  |  isClosure n && ts == ts' && t == t'     
                                     = Just n
         find (_ : ds)               = find ds
-
+        getName env ts              = case filter isLocal (idents ts) of
+                                        [] -> newNameMod (Just (mname env)) closureSym
+                                        _  -> newName closureSym
 
 findClosureName' env (TFun ts t)    = do (t:ts) <- mapM (kindleType env) (t:ts)
                                          findClosureName env ts t
@@ -107,7 +109,8 @@ cModule e2 e3 (Module m ns xs ds ws bss)
                                          ds1  <- cDecls env ds
                                          bs  <- cBindsList env bss
                                          ds2 <- currentStore
-                                         let ds3 = ds1++reverse (filter (isQual m . fst) ds2)
+                                         let fromCurrent n = not (isQualified n)|| isQual m n
+                                             ds3 = ds1++reverse (filter (fromCurrent . fst) ds2)
                                          return (Kindle.Module m ns ds3 bs)
 
 

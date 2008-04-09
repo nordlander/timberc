@@ -55,28 +55,6 @@ let f = \w0 v x -> e w0 (f w0 v 7)                                            ::
 \i -> i w0 :: (W->P->S->T)->P->S->T                \\ w0 :: W
 ---------------
 -}
-{-
-tiModule (xs',ds',bs',is') (Module v ns xs ds is bss) = 
-                                  do (env1,ds1,bs1) <- typeDecls env0 ds
-                                     (is2,xs2) <- derive (concatMap bvars bss ++ bvars bs') (ds' `catDecls` ds1) xs
-                                     (env2,bs2) <- instancePreds env1 (ieTot ++ concatMap tsigsOf is2)
-                                     let env3 = insertDefaults env2 ieTot (xs' ++ xs2)
-                                     (ss0,pe0,subInsts) <- tiBinds env3 subInsts
-                                     -- Here it should be checked that the equations in subInsts follow the
-                                     -- restricted rules for coercions, and that the equalities collected 
-                                     -- in env2 are actually met by the equations in is, bs1 and bs2
-                                     let is0  = concatBinds [bs1, bs2, subInsts]
-                                         env4 = addCoercions (eqnsOf is' ++ eqnsOf is0) env3
-                                     (ss1,pe1,bss) <- tiBindsList (addTEnv0 ieTot env4) bss
-                                     (ss2,pe2,classInsts) <- tiBinds (addTEnv0 (concatMap tsigsOf bss) env4) (concatBinds (classInsts : is2))
-                                     assert0 (null (ss0++ss1++ss2)) "Internal: top-level type inference 1"
-                                     assert0 (null (pe0++pe1++pe2)) "Internal: top-level type inference 2"
-                                     let isFinal = concatBinds (groupBinds (is0 `catBinds` classInsts))
-                                     return (Module v ns xs2 ds1 isFinal bss)
-  where env0                    = addTEnv0 (tsigsOf bs') (impDecls (initEnv v) ds')
-        ieTot                   = tsigsOf is' ++ tsigsOf is
-        (subInsts,classInsts)   = splitInsts is
--}
 
 tiModule (xs',ds',ws',bs') (Module v ns xs ds ws bss)
                                 = do (env1,ds',bs1) <- typeDecls env0 ds
@@ -110,7 +88,7 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING line: " ++ show (pos 
                                      (s,pe,es1)   <- tiRhs0 env' explWits ts es
                                      -- tr ("RESULT:\n" ++ render (nest 8 (vpr pe)))
                                      -- tr ("EXPS:\n" ++ render (nest 8 (vpr es1)))
-                                     (s',qe,f) <- fullreduce (target te env) s pe `handle` posHandler es
+                                     (s',qe,f) <- fullreduce (target te env) s pe `handle` (posError "Type" (posInfo es))
                                      -- tr ("PREDICATES OBTAINED:\n" ++ render (nest 8 (vpr qe)))
                                      let env1      = subst s' env
                                          (qe1,qe2) = partition (isFixed env1) qe
@@ -134,14 +112,6 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING line: " ++ show (pos 
                 f x t           = (x, eLam te (EAp (EVar x) (es ++ map EVar (dom te))))
                   where te      = abcSupply `zip` ctxt t
                 
-posHandler es msg  
-  | head msg == '('             = do 
-                                     -- tr ("xs = "++show xs)
-                                     posError "Type" (Between p p) (unwords rest)
-  | otherwise                   = posError "Type" (posInfo es) msg
-  where ps:rest                 = words msg
-        p                       = read ps
-
 
 tiRhs0 env explWits ts es       = do (ss,pes,es') <- fmap unzip3 (mapM (tiExpT' env) (zip3 explWits ts es))
                                      return (concat ss, concat pes, es')
@@ -166,7 +136,7 @@ tiExpT' env (False, Scheme t0 ps [], e)
 tiExpT' env (explWit, Scheme t0 ps ke, e)
                                 = do (ss,qe,t,e)  <- tiExp env e
                                      -- tr ("INFERRED: " ++ render (pr t) ++ "\n" ++ render (vpr qe))
-                                     (s,qe,f)     <- normalize (target t env) ss qe `handle` posHandler e
+                                     (s,qe,f)     <- normalize (target t env) ss qe `handle` (posError "Type" (posInfo e))
                                      c            <- newNamePos coercionSym e
                                      pe0          <- newEnv assumptionSym ps
                                      let env1      = subst s env
@@ -261,7 +231,7 @@ tiExp env (EDo x tx c)
                                      return (s'++s, pe, R (tCmd tx t), EDo x tx c)
   | otherwise                   = internalError0 "Explicitly typed do expressions not yet implemented"
 tiExp env (ETempl x tx te c)
-  | isTVar tx                   = do n <- newNameMod (modName env) stateSym
+  | isTVar tx                   = do n <- newName stateSym
                                      let env' = setSelf x (TId n) (addTEnv te (addKEnv0 [(n,Star)] env))
                                      (s,pe,t,c) <- tiCmd env' c
                                      return ((TId n, tx):s, pe, R (tClass t), ETempl x (TId n) te c)
