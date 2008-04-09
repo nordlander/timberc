@@ -1,4 +1,4 @@
-module Data'Functional'List where
+module List where
 
 delete             :: a -> [a] -> [a] \\ Eq a
 delete              = deleteBy (==)

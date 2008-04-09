@@ -1,4 +1,4 @@
-module Data'Objects'Dictionary where
+module Dictionary where
 
   struct Dictionary a b where
     insert :: a -> b -> Action

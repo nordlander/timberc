@@ -1,4 +1,4 @@
-module Solitaire'Card where
+module Card where
 
 data Rank = Ace | King | Queen | Jack | Num Int
 
@@ -12,12 +12,7 @@ showRank = struct
   show Jack    = "Jack"
   show (Num n) = "Num " ++ show n
 
-implicit showSuit :: Show Suit 
-showSuit = struct
-  show Spades   = "Spades"
-  show Hearts   = "Hearts"
-  show Diamonds = "Diamonds"
-  show Clubs    = "Clubs"
+default showSuit :: Show Suit 
 
 type Pos = (Int,Int)
 
