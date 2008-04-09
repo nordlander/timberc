@@ -49,7 +49,7 @@ elem x (y : ys)     = x == y || elem x ys
   in its right operand).
 <li> In Timber one can express monadic computations using <tt>do</tt>-notation, but this is reserved for a particular primitive
    monad <tt>Cmd s</tt> of commands operating on a state <tt>s</tt>. It is possible to define the concept of a general
-  monad as in Haskell, but the <tt>do</tt>-notation is not available for general monads.
+  monad as in Haskell (it is in fact defined in the prelude), but the <tt>do</tt>-notation is not available for general monads.
 <li> The Cmd monad provides powerful constructs for object-oriented programming, with objects encapsulating a local
 state and methods manipulating this state. This is achieved while retaining the pure nature of the language; a computation with
 side-effects is clearly indicated by a monadic type (and can hence not be used in a non-monadic context).

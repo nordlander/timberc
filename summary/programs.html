@@ -26,7 +26,7 @@ The syntax of a Timber module is
 
 <p>
 Here, as in many places of Timber syntax, indentation is significant. The import and top-level declarations must be indented at
-least one step and be vertically aligned, i.e. the first character of each declaration must be in the same column.
+least one step and be vertically aligned, i.e., the first character of each declaration must be in the same column.
 An exception is the (common) case where there is no private part; then indentation can be omitted (and all declarations start in the
 leftmost column).
 <h4>Module names</h4>
@@ -45,7 +45,7 @@ The module name is given in the header, as described above.
 <p>
 A module may depend on other modules, i.e. use types or values defined in these modules. In a Timber program
 the dependency graph between modules must be acyclic; no recursive dependencies are allowed. This means that
-modules can be compiled in dependency order, i.e. when a certain module is compiled, all the modules it depends on have already
+modules can be compiled in dependency order: when a certain module is compiled, all the modules it depends on have already
 been compiled. The present distribution does not include tools to decide on a proper compilation sequence; the user must compile
 modules in appropriate order.
 
@@ -68,7 +68,7 @@ Name clashes are handled as follows:
 <ul>
   <li> Within a module, name clashes are forbidden in the sense that one cannot define two top-level
   entities within the same namespace and with the same name. Thus the exported names from a module cannot clash.</li>
-  <li> Fully qualified names are supposed to never clash, i.e. a Timber installation is supposed to be set up so
+  <li> Fully qualified names are supposed to never clash, i.e., a Timber installation is supposed to be set up so
   that fully qualified module names are globally unique. Thus <tt>use</tt> of a module can never lead to name clashes
   and clashes on <tt>import</tt> can be resolved by resorting to qualified names.</li>
   <li> If a module imports two entities with the same simple name from two different modules, this simple name is not in

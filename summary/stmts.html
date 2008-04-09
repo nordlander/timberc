@@ -44,11 +44,13 @@ The available statement forms are:
   the variable referring to an object may interact with it.
   <p> Within an action or a request, the result statement indicates termination of the method and the value returned (for
   requests; for actions the result is <tt>()</tt>, the dummy value of type <tt>()</tt>).
-  <p>
+</ul>
+<p>
   The forms of statements up to now are the only forms that may occur in the statement sequence at the outermost level of a class;
   creating an object
   may only involve initiating the state, creating other objects and returning the proper interface. The remaining forms
-  occur only within actions and requests.
+  occur only within methods and procedures.
+<ul>
 <li>
 State update.<p>
 <em>svar</em> <font color=red>(</font>! <em>expr</em> <font color=red>)*</font>:= <em>expr</em><p>

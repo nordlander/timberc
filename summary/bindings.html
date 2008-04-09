@@ -104,6 +104,7 @@ evaluated in turn; the right hand side corresponding to the first true guard (if
 </TH>
 </TR>
 <TR><TD><tt>lookup x [] = Nothing</tt></TD></TR>
+<TR><TD><tt>lookup x ((a,b) : xs)</tt></TD></TR>
 <TR><TD><tt>&nbsp;&nbsp;&nbsp;| x == a = Just b</tt></TD></TR>
 <TR><TD><tt>&nbsp;&nbsp;&nbsp;| True = lookup x xs</tt></TD></TR>
 </table>

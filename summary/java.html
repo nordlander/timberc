@@ -88,8 +88,8 @@ counter :: Int -> Class Counter
   i.e., it is a function that when applied to a integer (the start value) returns a
   class, from which we later can create objects.
   <li> Timber has subtyping between struct types and inclusion polymorphism
-  but does not support inheritance. The first-order nature of the language
-  makes it possible to find other ways to express most useful occurrences of
+  but does not support inheritance. Since classes and methods are first-class types
+  in Timber it is often possible to find other ways to express most useful occurrences of
   inheritance.
   <li>
   Methods always execute with exclusive access to the state of objects; thus
