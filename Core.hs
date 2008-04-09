@@ -418,6 +418,23 @@ instance Subst Cmd Name Type where
     subst s (CRet e)            = CRet (subst s e)
     subst s (CExp e)            = CExp (subst s e)
 
+instance Subst Scheme Name Name where
+    subst s (Scheme rh ps ke)   = Scheme (subst s rh) (subst s ps) (map (subKE s) ke)
+      where subKE s (n,k)       = case lookup n s of
+                                    Just n' -> (n',k)
+                                    Nothing -> (n,k)
+
+instance Subst Rho Name Name where
+    subst s (R t)               = R (subst s t)
+    subst s (F scs rh)          = F (subst s scs) (subst s rh)
+
+instance Subst Type Name Name  where
+    subst s (TId c)             = case lookup c s of
+                                    Just c' -> TId c'
+                                    Nothing -> TId c
+    subst s (TVar _)            = internalError0 "TVar in top-level type"
+    subst s (TAp t t')          = TAp (subst s t) (subst s t')
+    subst s (TFun ts t)         = TFun (subst s ts) (subst s t)
 
 -- Type identifiers ---------------------------------------------------------
 
@@ -788,7 +805,7 @@ instance Pr Exp where
                                        nest 4 (pr c)
     prn 0 e                     = prn 1 e
 
-    prn 1 (EAp e es)            = hang (prn 1 e) 2 (sep (map (prn 2) es))
+    prn 1 (EAp e es)            = prn 1 e <+> sep (map (prn 2) es)
 
     prn 1 e                     = prn 2 e
         

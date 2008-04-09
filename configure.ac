@@ -78,6 +78,11 @@ if test "x$HAPPY" = "x"; then
 	touch $srcdir/Parser.hs
 fi
 
+# Make sure TIBROWSER is set
+if test "x$TIBROWSER" = "x"; then
+	AC_CHECK_PROGS(TIBROWSER,[more])
+fi
+
 # Checks for libraries.
 
 # Checks for header files.

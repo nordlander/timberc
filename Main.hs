@@ -166,7 +166,7 @@ Yet unknown:
 compileTimber clo ifs t_file ti_file c_file h_file
                         = do putStrLn $ "[compiling " ++ show t_file ++ "]"
                              txt <- readFile t_file
-                             let par@(Syntax.Module _ is _ _) = runM (pass parser Parser txt)
+                             let par@(Syntax.Module n is _ _) = runM (pass parser Parser txt)
                              (imps,ifs') <- chaseImports is ifs
                              let ((htxt,mtxt),ifc) = runM (passes imps par)
                              encodeFile ti_file ifc
@@ -252,7 +252,7 @@ main2 args          = do (clo, files) <- Exception.catchDyn (cmdLineOpts args)
                              m <- helpMsg
                              fatalErrorHandler (CmdLineError m)
                          
-                         mapM listIface i_files
+                         mapM (listIface cfg) i_files
                          Monad.when (null t_files) stopCompiler
                          
                          compileAll clo [] t_files `catchException` handleError
@@ -290,8 +290,8 @@ test pass           = compileTimber clo [] "Test.t"
                                         
 
 
-checkRoot clo def           = do if1 <- decodeModule (modToPath rootMod ++ ".ti")
-                                 if2 <- decodeModule (modToPath rtsMod ++ ".ti")
+checkRoot clo def           = do (if1,_) <- decodeModule (modToPath rootMod ++ ".ti")
+                                 (if2,_) <- decodeModule (modToPath rtsMod ++ ".ti")
                                  let ts = tEnv if2
                                      ke = Core.ksigsOf ts
                                      ds = Core.tdefsOf ts

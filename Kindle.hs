@@ -313,7 +313,10 @@ instance Ids Bind where
     idents (Val t e)                    = idents e
     idents (Fun t te c)                 = idents c \\ dom te
 
-
+instance Ids AType where
+  idents (TId c)                        = [c]
+  idents (TArray t)                     = idents t
+  idents TWild                          = []
 -- Substitutions ------------------------------------------------------------------------------------------
 
 instance Subst Exp Name Exp where

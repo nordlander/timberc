@@ -356,7 +356,11 @@ isGenerated _                   = False
 
 isState n                       = stateVar (annot n)
 
-isQualified n                   = fromMod n /= Nothing
+isQualified (Name _ _ (Just _) _) = True
+isQualified _                    = False
+
+isLocal (Name _ _ Nothing _)    = True
+isLocal _                       = False
 
 -- Equality & Order ----------------------------------------------------------------
 

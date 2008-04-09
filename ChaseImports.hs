@@ -1,6 +1,7 @@
 module ChaseImports where
 
 import Common
+import List (isPrefixOf)
 import Data.Binary
 import Rename 
 import Core
@@ -12,6 +13,7 @@ import qualified Kindle
 import Depend
 import Termred
 import qualified Config
+import System
 
 -- Data type of interface file -----------------------------------------------
 
@@ -85,7 +87,7 @@ chaseImports imps ifs                = do bms <- mapM (readImport ifs) imps
                                           return (map fst bms ++ rms, [(c,ifc) | (c,(_,_,ifc)) <- newpairs])
   where readIfile ifs c              = case lookup c ifs of
                                         Just ifc -> return (ifc,False)
-                                        Nothing -> do ifc <- decodeModule f
+                                        Nothing -> do (ifc,f) <- decodeModule f
                                                       putStrLn ("[reading " ++ show f ++ "]")
                                                       return (ifc,True)
                                           where f = modToPath(str c) ++ ".ti"
@@ -106,7 +108,10 @@ init_order imps                      = case topSort transImps imps of
                                          Left ms  -> errorIds "Mutually recursive modules" ms
                                          Right is -> map fst is
 
-decodeModule f                       = catch (decodeFile f) (\e -> decodeFile (Config.libDir ++ "/" ++ f))
+decodeModule f                       = (do ifc <- decodeFile f
+                                           return (ifc,f)) `catch`  (\e -> do ifc <- decodeFile libf
+                                                                              return (ifc,libf))
+  where libf                         = Config.libDir ++ "/" ++ f
 
 
 -- Building environments in which to compile the current module -----------------------------------------------
@@ -202,11 +207,47 @@ instance Pr IFace where
                                   -- text "Type synonyms: " <+> hsep (map (prId . fst) ss) $$ 
                                   text "\nType definitions\n----------------" $$ pr ds1 $$ 
 --                                  text "\nCoercions and instances\n-----------------------" $$ prInsts is  $$ 
-                                  text "\nTop level bindings\n------------------" $$ pr bs -- $$
+                                  text "\nTop level bindings\n------------------" $$ pr (simpVars bs) -- $$
                                   -- text "\nKindle declarations\n-------------------" $$ vcat (map pr kds)
                                   
 -- prPair (n,t)                      = prId n <+> text "::" <+> pr t
+   where simpVars (Binds rec te eqns) = Binds rec (map sV te) eqns
+         
+sV (n,t@(Scheme rh ps ke))            = case zip (filter isGenerated (idents (Scheme rh ps []))) abcSupply of
+                                          [] -> (n,t)
+                                          s ->  (n,subst s t) 
 
+listIface cfg f                   = do (ifc,f) <- decodeModule f
+                                       let modul = rmSuffix ".ti" f
+                                           htmlfile = modul++".html"
+                                       if (Config.libDir `isPrefixOf` htmlfile)
+                                        then system (Config.browser cfg ++" " ++ htmlfile)
+                                        else do writeFile htmlfile (render(toHTML modul (ifc :: IFace)))
+                                                system (Config.browser cfg ++" " ++ htmlfile)
 
-listIface f                       = do ifc <- decodeModule f
-                                       putStrLn (render(pr (ifc :: IFace)))
+toHTML n (IFace ns xs rs ss ds ws bs _) = text "<html><body>\n" $$
+                                          text ("<h2>API for module "++n++"</h2>\n") $$
+                                          section ns "Imported modules" (hpr ',' ) $$
+                                          section xs "Default declarations" (hpr ',') $$
+                                          section ke' "Kind declarations" (pr . flip Types []) $$
+                                          section ds' "Type declarations" (pr . Types [] . map addSubs) $$
+                                          section te' "Toplevel declarations" (pr . stripTopdecls) $$
+                                          text "</html>"
+                      
+  where section xs header f             = if null xs 
+                                           then empty 
+                                           else text ("<h4>"++header++"</h4>\n<pre>") $$ f xs $$ text "</pre>"
+        Types ke ds'                    = ds
+        ke'                             = [(n,k) | (n,k) <- ke, notElem n (dom ds')]
+        Binds _ te _                    = bs
+        addSubs (n,DData vs _ cs)       = (n,DData vs (map (\(_,Constr (s:_) _ _) -> s) cs1) cs2)
+         where (cs1,cs2)                = partition (isGenerated . fst) cs
+        addSubs (n,DRec b vs _ ss)      = (n,DRec b vs (map snd ss1) ss2)
+         where (ss1, ss2)               = partition (isGenerated .fst) (map stripStar ss)
+        addSubs d                       = d
+        stripStar (n,Scheme rh ps ke)   = (n,Scheme rh ps (filter (( /= Star) . snd) ke))
+        te'                             = map (sV . stripStar)  (filter (not . isGenerated . fst) te)
+        stripTopdecls te                = bs1 ++ bs2
+         where (bs1,bs2)                = partition (flip elem ws . fst ) te
+                                                  
+        

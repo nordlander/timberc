@@ -53,7 +53,8 @@ import CompileConfig          ( timberRoot )
 -- command line switches.
 data CfgOpts         = CfgOpts { cCompiler       :: FilePath,
                                  compileFlags    :: String,
-                                 linkFlags       :: String
+                                 linkFlags       :: String,
+                                 browser         :: FilePath
                                } deriving (Show, Eq, Read)
 
 -- | Command line options.
