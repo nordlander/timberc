@@ -220,7 +220,7 @@ parse t_file            = do t_exists <- Directory.doesFileExist t_file
 
 compileAll clo ifs []   = return ifs
 compileAll clo ifs (p@(ms,t_file):t_files)
-                        = do res <- checkUpToDate clo t_file ti_file c_file h_file
+                        = do res <- checkUpToDate clo t_file ti_file c_file h_file (impNames ms)
                              if res then do 
                                  putStrLn ("[skipping " ++ t_file ++ " (output is up to date)]")
                                  compileAll clo ifs t_files
@@ -233,7 +233,7 @@ compileAll clo ifs (p@(ms,t_file):t_files)
         h_file          = base ++ ".h"
 
 
-checkUpToDate clo t_file ti_file c_file h_file
+checkUpToDate clo t_file ti_file c_file h_file imps
   | shortcut clo        = do ti_exists <- Directory.doesFileExist ti_file
                              c_exists  <- Directory.doesFileExist c_file
                              h_exists  <- Directory.doesFileExist h_file
@@ -244,9 +244,15 @@ checkUpToDate clo t_file ti_file c_file h_file
                                  ti_time <- Directory.getModificationTime ti_file
                                  c_time  <- Directory.getModificationTime c_file
                                  h_time  <- Directory.getModificationTime h_file
-                                 return (t_time < ti_time && t_time < c_time && t_time < h_time)
+                                 ti_OKs <- mapM (tiOK ti_time) imps
+                                 return (t_time < ti_time && t_time < c_time && t_time < h_time && and ti_OKs)
   | otherwise           = return False
-
+  where tiOK ti_time1 n = do let ti_file = modToPath (str n) ++ ".ti"
+                             ti_exists <- Directory.doesFileExist ti_file
+                             if (not ti_exists) then
+                                return True  -- library module
+                               else do ti_time <- Directory.getModificationTime ti_file
+                                       return (ti_time <= ti_time1)
 ------------------------------------------------------------------------------
 
 main                = do args <- getArgs
