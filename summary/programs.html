@@ -46,8 +46,7 @@ The module name is given in the header, as described above.
 A module may depend on other modules, i.e. use types or values defined in these modules. In a Timber program
 the dependency graph between modules must be acyclic; no recursive dependencies are allowed. This means that
 modules can be compiled in dependency order: when a certain module is compiled, all the modules it depends on have already
-been compiled. The present distribution does not include tools to decide on a proper compilation sequence; the user must compile
-modules in appropriate order.
+been compiled. A compiler option can make the compiler decide on recompilation order after a system has been changed.
 
 <h4>Import and use of other modules</h4>
 <p>
