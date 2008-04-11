@@ -1,4 +1,4 @@
-module ChaseImports where
+module Interfaces where
 
 import Common
 import List (isPrefixOf)
@@ -10,7 +10,6 @@ import Decls
 import PP
 import qualified Core2Kindle 
 import qualified Kindle 
-import Depend
 import Termred
 import qualified Config
 import System
@@ -42,19 +41,14 @@ ifaceMod                   :: (Map Name [Name], Map Name ([Name], Syntax.Type)) 
 ifaceMod (rs,ss) (Module _ ns xs ds ws bss) kds
    | not(null vis)                   = errorIds "Private types visible in interface" vis
    | not(null ys)                    = errorTree "Public default declaration mentions private instance" (head ys)
---   | otherwise                       = IFace ns xs' rs ss ds1 is' bs' kds
    | otherwise                       = IFace ns xs' rs ss ds1 ws bs' kds
   where Types ke te                  = ds
-  --      Binds r1 ts1 es1             = is
         Binds r2 ts2 es2             = concatBinds bss
         xs'                          = [d | d@(Default True _ _) <- xs]
         ys                           = [d | d@(Default _ i1 i2) <- xs', isPrivate i1 || isPrivate i2 ]
         ds1                          = Types (filter exported ke) (filter exported' te)
---        is'                          = Binds r1  (ws1 ++ is1) (filter exported es1)
         bs'                          = Binds r2 (filter exported ts2) (filter (\ eqn -> fin eqn &&  exported eqn) es2)
---        vis                          = nub (localTypes [] (rng (tsigsOf is') ++ rng (tsigsOf bs')))
         vis                          = nub (localTypes [] (rng (tsigsOf bs')))
---        (ws1,is1)                    = partition (\(n,_) -> isWitness n) (filter exported ts1)
         exported (n,_)               = isQualified n
         exported' p@(n,_)            = isQualified n && (not(isAbstract p)) --Constructors/selectors are exported
         fin (_,e)                    = isFinite e && null(filter isPrivate (constrs e))
@@ -67,65 +61,21 @@ isAbstract (_,DRec _ _ _ ((c,_):_))  = isPrivate c
 isAbstract (_,_)                     = False     -- this makes abstract types without selectors/constructors non-private...
 
 
--- Getting import info ---------------------------------------------------------
-{-
-chaseImports takes as input 
-   - the list of import/use declaration from a module
-   - a map of module names, for which the interfacde file has already been read, to IFace values
-and returns import info for all (transitively) imported files in the form of
-  a map from names of imported modules to triples containing
-   - an indication of whether the import/use is direct or indirect (True means direct)
-   - an indication of whether it is import or use (True means import)
-   - the interface info
--}
-type ImportInfo                      =  (Bool, Bool, IFace)
-
-chaseImports                         :: [Syntax.Import] -> Map Name IFace -> IO (Map Name ImportInfo, Map Name IFace)
-chaseImports imps ifs                = do bms <- mapM (readImport ifs) imps
-                                          let newpairs = [p | (p,True) <- bms]
-                                          rms <- chaseRecursively ifs (map impName imps) [] (concatMap (transImps . snd) newpairs)
-                                          return (map fst bms ++ rms, [(c,ifc) | (c,(_,_,ifc)) <- newpairs])
-  where readIfile ifs c              = case lookup c ifs of
-                                        Just ifc -> return (ifc,False)
-                                        Nothing -> do (ifc,f) <- decodeModule f
-                                                      putStrLn ("[reading " ++ show f ++ "]")
-                                                      return (ifc,True)
-                                          where f = modToPath(str c) ++ ".ti"
-        readImport ifs (Syntax.Import b c) 
-                                     = do (ifc,isNew) <- readIfile ifs c
-                                          return ((c,(b,True,ifc)),isNew)
-        impName (Syntax.Import b c)  = c
-        chaseRecursively ifs vs ms []= return ms
-        chaseRecursively ifs vs ms (r : rs)
-             | elem r vs             = chaseRecursively ifs vs ms rs
-             | otherwise             = do (ifc,isNew)  <- readIfile ifs r
-                                          chaseRecursively ifs (r : vs) ((r,(False,False,ifc)) : ms) 
-                                                           ((if isNew then impsOf ifc else []) ++ rs)
-                                            
-transImps (_,_,ifc)                  = impsOf ifc
-
-init_order imps                      = case topSort transImps imps of
-                                         Left ms  -> errorIds "Mutually recursive modules" ms
-                                         Right is -> map fst is
-
-decodeModule f                       = (do ifc <- decodeFile f
-                                           return (ifc,f)) `catch`  (\e -> do ifc <- decodeFile libf
-                                                                              return (ifc,libf))
-  where libf                         = Config.libDir ++ "/" ++ f
-
 
 -- Building environments in which to compile the current module -----------------------------------------------
 {- 
    Input to initEnvs is a map as built by chaseImports;
    output is four tuples of data suitable for various compiler passes.
 -}
+type ImportInfo a                     =  (Bool, Bool, a)
+
 
 type Desugar1Env     = (Map Name [Name], Map Name Name, Map Name ([Name], Syntax.Type))
 type RenameEnv       = (Map Name Name, Map Name Name, Map Name Name)
 type CheckEnv        = ([Default Scheme], Types, [Name], Binds)
 type KindleEnv       = Map Name Kindle.Decl
 
-initEnvs             :: Map a ImportInfo -> M s (Desugar1Env, RenameEnv, CheckEnv, KindleEnv)
+initEnvs             :: Map a (ImportInfo IFace) -> M s (Desugar1Env, RenameEnv, CheckEnv, KindleEnv)
 initEnvs bms         = do ims <- mapM (mkEnv . snd) bms
                           let (rs,xs,ss,rnL,rnT,rnE,ds,ws,bs,kds) 
                                = foldr mergeMod ([],[],[],[],[],[],Types [] [],[],Binds False [] [],[]) ims
@@ -147,7 +97,6 @@ initEnvs bms         = do ims <- mapM (mkEnv . snd) bms
           where Types ke ds'         = ds
                 Binds r te es        = bs
                 te'                  = if direct then te ++ concatMap (tenvSelCon ke) ds' else []
---                te''                 = if direct then te  ++ tsigsOf is ++ concatMap (tenvCon ke) ds' else []
                 te''                 = if direct then te  ++ concatMap (tenvCon ke) ds' else []
                 ls                   = [ s | (_,DRec _ _ _ cs) <- ds', (s,_) <- cs, not (isGenerated s) ]
                 unMod b ps           = if b then [(tag0 (mName Nothing c),y) | (c,y) <- ps] ++ ps else ps
@@ -203,12 +152,11 @@ instance Pr IFace where
   pr (IFace ns xs rs ss ds1 ws bs kds) =
                                   text "Imported/used modules: " <+> hsep (map prId ns) $$
                                   text "Default declarations: " <+> hpr ',' xs $$
-                                  -- text ("Record types and their selectors: "++show rs) $$
-                                  -- text "Type synonyms: " <+> hsep (map (prId . fst) ss) $$ 
+                                  text ("Record types and their selectors: "++show rs) $$
+                                  text "Type synonyms: " <+> hsep (map (prId . fst) ss) $$ 
                                   text "\nType definitions\n----------------" $$ pr ds1 $$ 
---                                  text "\nCoercions and instances\n-----------------------" $$ prInsts is  $$ 
-                                  text "\nTop level bindings\n------------------" $$ pr (simpVars bs) -- $$
-                                  -- text "\nKindle declarations\n-------------------" $$ vcat (map pr kds)
+                                  text "\nTop level bindings\n------------------" $$ pr (simpVars bs)  $$
+                                  text "\nKindle declarations\n-------------------" $$ vcat (map pr kds)
                                   
 -- prPair (n,t)                      = prId n <+> text "::" <+> pr t
    where simpVars (Binds rec te eqns) = Binds rec (map sV te) eqns
@@ -223,7 +171,9 @@ listIface cfg f                   = do (ifc,f) <- decodeModule f
                                        if (Config.libDir `isPrefixOf` htmlfile)
                                         then system (Config.browser cfg ++" " ++ htmlfile)
                                         else do writeFile htmlfile (render(toHTML modul (ifc :: IFace)))
+                                                putStrLn (render(pr ifc))
                                                 system (Config.browser cfg ++" " ++ htmlfile)
+
 
 toHTML n (IFace ns xs rs ss ds ws bs _) = text "<html><body>\n" $$
                                           text ("<h2>API for module "++n++"</h2>\n") $$
@@ -243,7 +193,7 @@ toHTML n (IFace ns xs rs ss ds ws bs _) = text "<html><body>\n" $$
         addSubs (n,DData vs _ cs)       = (n,DData vs (map (\(_,Constr (s:_) _ _) -> s) cs1) cs2)
          where (cs1,cs2)                = partition (isGenerated . fst) cs
         addSubs (n,DRec b vs _ ss)      = (n,DRec b vs (map snd ss1) ss2)
-         where (ss1, ss2)               = partition (isGenerated .fst) (map stripStar ss)
+         where (ss1, ss2)               = partition (isGenerated . fst) (map stripStar ss)
         addSubs d                       = d
         stripStar (n,Scheme rh ps ke)   = (n,Scheme rh ps (filter (( /= Star) . snd) ke))
         te'                             = map (sV . stripStar)  (filter (not . isGenerated . fst) te)
@@ -251,3 +201,10 @@ toHTML n (IFace ns xs rs ss ds ws bs _) = text "<html><body>\n" $$
          where (bs1,bs2)                = partition (flip elem ws . fst ) te
                                                   
         
+decodeModule f                       = (do ifc <- decodeFile f
+                                           putStrLn ("[reading " ++ show f ++ "]")
+                                           return (ifc,f)) `catch`  (\e -> do ifc <- decodeFile libf
+                                                                              putStrLn ("[reading " ++ show libf ++ "]")
+                                                                              return (ifc,libf))
+           where libf                = Config.libDir ++ "/" ++ f
+

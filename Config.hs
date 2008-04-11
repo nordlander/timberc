@@ -62,6 +62,7 @@ data CmdLineOpts     = CmdLineOpts { isVerbose :: Bool,
                                      binTarget :: String,
                                      target    :: String,
                                      root      :: String,
+                                     make      :: String,
                                      shortcut  :: Bool,
                                      stopAtC   :: Bool,
                                      stopAtO   :: Bool,
@@ -90,6 +91,10 @@ options              = [ Option []
                                 ["root"]
                                 (ReqArg Root "NAME['MODULE]")
                                 "Define root of executable program",
+                         Option []
+                                ["make"]
+                                (ReqArg Make "NAME['MODULE]")
+                                "Make program with given root module",
                          Option ['s']
                                 ["shortcut"]
                                 (NoArg ShortCut)
@@ -125,6 +130,7 @@ data Flag            = Help
                      | BinTarget String
                      | Target String
                      | Root String
+                     | Make String
                      | ShortCut
                      | StopAtC
                      | StopAtO
@@ -178,6 +184,8 @@ mkCmdLineOpts flags  =  do cfg <- System.getEnv "TIMBER_CFG" `catch`
                                                 [ target | (Target target) <- flags ],
                                     root      = first "root"
                                                 [ root | (Root root) <- flags ],
+                                    make      = first ""
+                                                [ root | Make root <- flags ],
                                     shortcut  = find ShortCut,
                                     stopAtC   = find StopAtC,
                                     stopAtO   = find StopAtO,

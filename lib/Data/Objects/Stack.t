@@ -1,4 +1,4 @@
-module Stack where
+module Data'Objects'Stack where
 
 struct Stack a where 
   push :: a -> Action

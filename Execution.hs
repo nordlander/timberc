@@ -16,6 +16,8 @@ module Execution (
     
 import System                 (system, exitWith, ExitCode(..))
 import qualified Monad
+import qualified Directory
+import Common
 
 -- Timber compiler
 import Config
@@ -30,7 +32,20 @@ compileC cfg clo c_file = do let cmd = cCompiler cfg
                                      ++ " -I " ++ rtsDir clo ++ " " 
                                      ++ " -I . "
                                      ++ c_file
-                             execCmd clo cmd
+                                 o_file = rmSuffix ".c" (rmDirs c_file) ++ ".o"
+                             res <- checkUpToDate c_file o_file
+                             if not res then do
+                                putStrLn ("[compiling "++c_file++"]")
+                                execCmd clo cmd
+                              else return ()
+  where checkUpToDate c_file o_file
+                        = do o_exists <- Directory.doesFileExist o_file
+                             if not o_exists then
+                                return False
+                               else do
+                                 c_time  <- Directory.getModificationTime c_file
+                                 o_time  <- Directory.getModificationTime o_file
+                                 return (c_time <= o_time)
 
 -- | Link together a bunch of object files.
 linkO cfg clo r o_files = do let Just rmod  = fromMod r
@@ -44,12 +59,13 @@ linkO cfg clo r o_files = do let Just rmod  = fromMod r
                                        ++ unwords o_files ++ " "
                                        ++ " -L" ++ rtsDir clo ++ " " 
                                        ++ " -I" ++ includeDir ++ " " 
+                                       ++ " -I" ++ libDir ++ " " 
                                        ++ " -I " ++ rtsDir clo ++ " " 
-                                       ++ " -I " ++ libDir ++ " " 
                                        ++ " -DROOT=" ++ rootId ++ " "
                                        ++ " -DROOTINIT=" ++ initId ++ " "
                                        ++ rtsDir clo ++ "/main.c "
                                        ++ " -lTimber "
+                             putStrLn "[linking]"
                              execCmd clo cmd
 
 

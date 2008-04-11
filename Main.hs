@@ -21,6 +21,7 @@ import qualified Core
 import Desugar1
 import Rename
 import Desugar2
+import Depend
 import Syntax2Core
 import Kind
 import Type
@@ -33,7 +34,7 @@ import Lambdalift
 import Prepare4C
 import Kindle2C
 import Data.Binary
-import ChaseImports
+import Interfaces
 import GHC.Exception
 {-
 
@@ -163,16 +164,15 @@ Yet unknown:
 -- | right now.
 
 
-compileTimber clo ifs t_file ti_file c_file h_file
-                        = do putStrLn $ "[compiling " ++ show t_file ++ "]"
-                             txt <- readFile t_file
-                             let par@(Syntax.Module n is _ _) = runM (pass parser Parser txt)
-                             (imps,ifs') <- chaseImports is ifs
+compileTimber clo ifs (sm,t_file) ti_file c_file h_file
+                        = do let par@(Syntax.Module n is _ _) = sm
+                             putStrLn ("[compiling "++ t_file++"]")
+                             (imps,ifs') <- chaseIfaceFiles is ifs
                              let ((htxt,mtxt),ifc) = runM (passes imps par)
                              encodeFile ti_file ifc
                              writeFile c_file mtxt
                              writeFile h_file htxt
-                             return ifs'
+                             return ((n,ifc):ifs')
   where passes imps par = do (e0,e1,e2,e3) <- initEnvs imps
                              (d1,a0) <- pass (desugar1 e0)                Desugar1  par
                              rn      <- pass (renameM e1)                 Rename    d1
@@ -197,17 +197,35 @@ compileTimber clo ifs t_file ti_file c_file h_file
                                 $ fail ("#### Terminated after " ++ show p ++ ".")
                              return r                                  
 
+makeProg clo cfg root   = do txt <- readFile (root ++ ".t")
+                             let ms@(Syntax.Module n is _ _) = runM (parser txt)
+                             (imps,ss) <- chaseSyntaxFiles is [(n,ms)]
+                             let cs = compile_order imps
+                                 is = filter nonDummy cs
+                             let ps = map (\(n,ii) -> (thd ii,modToPath (str n)++".t")) is ++ [(ms,root++".t")]
+                             ifs <- compileAll (clo {shortcut = True}) [] ps
+                             r <- checkRoot clo ifs root
+                             let basefiles = map (rmSuffix ".t" . snd) ps
+                                 c_files   = map (++ ".c") basefiles
+                                 o_files   = map ((++ ".o") . rmDirs) basefiles
+                             mapM (compileC cfg clo) c_files
+                             linkO cfg clo{binTarget = root} r o_files
+  where nonDummy (_,(_,_,Syntax.Module n _ _ _)) = str n /= ""
 
-compileAll clo ifs []   = return ()
-compileAll clo ifs (t_file:t_files)
-                        = do t_exists <- Directory.doesFileExist t_file
+
+parse t_file            = do t_exists <- Directory.doesFileExist t_file
                              Monad.when (not t_exists) (fail ("File " ++ t_file ++ " does not exist."))
-                             res <- checkUpToDate clo t_file ti_file c_file h_file
+                             txt <- readFile t_file
+                             return (runM (parser txt),t_file)
+
+compileAll clo ifs []   = return ifs
+compileAll clo ifs (p@(ms,t_file):t_files)
+                        = do res <- checkUpToDate clo t_file ti_file c_file h_file
                              if res then do 
-                                 putStrLn ("[skipping " ++ show t_file ++ " (output is up to date)]")
+                                 putStrLn ("[skipping " ++ t_file ++ " (output is up to date)]")
                                  compileAll clo ifs t_files
                               else do
-                                 ifs' <- compileTimber clo ifs t_file ti_file c_file h_file
+                                 ifs' <- compileTimber clo ifs p ti_file c_file h_file
                                  compileAll clo (ifs' ++ ifs) t_files
   where base            = rmSuffix ".t" t_file
         ti_file         = base ++ ".ti"
@@ -248,27 +266,26 @@ main2 args          = do (clo, files) <- Exception.catchDyn (cmdLineOpts args)
                          
                          Monad.when (not (null badfiles)) $ do
                              fail ("Bad input files: " ++ showids badfiles)
-                         Monad.when (null t_files && null i_files) $ do 
-                             m <- helpMsg
-                             fatalErrorHandler (CmdLineError m)
                          
                          mapM (listIface cfg) i_files
-                         Monad.when (null t_files) stopCompiler
+--                         Monad.when (null t_files) stopCompiler
                          
-                         compileAll clo [] t_files `catchException` handleError
+                         ps <- mapM parse t_files
+                         ifs <- compileAll clo [] ps `catchException` handleError
                          Monad.when (stopAtC clo) stopCompiler
                          
+                         let root = make clo
+                         Monad.when (root/="") (makeProg clo cfg root)
+
                          let basefiles = map (rmSuffix ".t") t_files
                              c_files   = map (++ ".c") basefiles
-                         putStrLn "[compiling C files]"
                          mapM (compileC cfg clo) c_files
                          Monad.when (stopAtO clo) stopCompiler
 
                          let basenames = map rmDirs basefiles
                              o_files   = map (++ ".o") basenames
-                         putStrLn "[linking]"
-                         r <- checkRoot clo (last basenames)
-                         linkO cfg clo r o_files
+                         Monad.when(not (null basenames)) (do r <- checkRoot clo ifs (last basenames)
+                                                              linkO cfg clo r o_files)
 
                          return ()
 
@@ -276,22 +293,23 @@ handleError (ErrorCall mess) = do
   putStr ("*** Timber compilation error ***\n"++mess++"\n")
   abortCompiler
 handleError e = throw e
-
+{-
 test pass           = compileTimber clo [] "Test.t"
   where clo         = CmdLineOpts { isVerbose = False,
                                     binTarget = "a.out",
                                     target    = "Trivial",
                                     root      = "root",
+                                    make      = "",
                                     shortcut  = False,
                                     stopAtC   = False,
                                     stopAtO   = False,
                                     dumpAfter = (==pass),
                                     stopAfter = const False }
-                                        
+-}                                      
 
 
-checkRoot clo def           = do (if1,_) <- decodeModule (modToPath rootMod ++ ".ti")
-                                 (if2,_) <- decodeModule (modToPath rtsMod ++ ".ti")
+checkRoot clo ifs def       = do if1 <- getIFile rootMod
+                                 if2 <- getIFile rtsMod 
                                  let ts = tEnv if2
                                      ke = Core.ksigsOf ts
                                      ds = Core.tdefsOf ts
@@ -313,7 +331,10 @@ checkRoot clo def           = do (if1,_) <- decodeModule (modToPath rootMod ++ "
                                             then return n
                                             else fail ("Incorrect root type: " ++ render (pr t))
                                 _ -> fail ("Cannot locate root " ++ (root clo) ++ " in module " ++ rootMod)
-
+        getIFile m          = case lookup (name0 m) ifs of
+                                Just ifc -> return ifc
+                                Nothing -> do (ifc,_) <- decodeModule (modToPath m ++ ".ti")
+                                              return ifc
 
 ------------------------------------------------------------------------------
 
@@ -324,5 +345,66 @@ fatalErrorHandler e =  do putStrLn (show e)
 
 
 
+
+
+-- Getting import info ---------------------------------------------------------
+{-
+chaseImports takes as input 
+   - the list of import/use declarations from a module
+   - a map of module names, for which the interface file has already been read, to IFace values
+and returns import info for all (transitively) imported files in the form of
+a map from names of imported modules to triples containing
+   - an indication of whether the import/use is direct or indirect (True means direct)
+   - an indication of whether it is import or use (True means import)
+   - the interface info
+-}
+
+chaseImps                         :: (String -> IO (a,String)) -> (a -> [Name]) -> String -> [Syntax.Import] -> Map Name a -> IO (Map Name (ImportInfo a), Map Name a)
+chaseImps readModule iNames suff imps ifs              
+                                     = do bms <- mapM (readImport ifs) imps
+                                          let newpairs = [p | (p,True) <- bms]
+                                          rms <- chaseRecursively ifs (map impName imps) [] (concatMap (iNames  . thd . snd) newpairs)
+                                          return (map fst bms ++ rms, [(c,ifc) | (c,(_,_,ifc)) <- newpairs])
+  where readIfile ifs c              = case lookup c ifs of
+                                        Just ifc -> return (ifc,False)
+                                        Nothing -> do (ifc,f) <- readModule f
+                                                      return (ifc,True)
+                                          where f = modToPath(str c) ++ suff
+        readImport ifs (Syntax.Import b c) 
+                                     = do (ifc,isNew) <- readIfile ifs c
+                                          return ((c,(b,True,ifc)),isNew)
+        chaseRecursively ifs vs ms []= return ms
+        chaseRecursively ifs vs ms (r : rs)
+             | elem r vs             = chaseRecursively ifs vs ms rs
+             | otherwise             = do (ifc,isNew)  <- readIfile ifs r
+                                          chaseRecursively ifs (r : vs) ((r,(False,False,ifc)) : ms) 
+                                                           ((if isNew then iNames ifc else []) ++ rs)
+        
+thd (_,_,x)                         = x
+
+chaseIfaceFiles                      = chaseImps decodeModule impsOf ".ti"
+                                     
+impName (Syntax.Import b c)          = c
+impNames (Syntax.Module _ is _ _) = map impName is
+
+chaseSyntaxFiles                     = chaseImps readSyntax impNames ".t"
+  where readSyntax f                 = (do cont <- readFile f
+                                           let sm = runM (parser cont)
+                                           return (sm,f)) `catch` (\ e -> do  t_exists <- Directory.doesFileExist libf
+                                                                              if t_exists 
+                                                                                then return (Syntax.Module (name0 "") [] [] [],libf) 
+                                                                                else fail ("File "++ f ++ " does not exist."))
+                                                                              
+           where libf                = Config.libDir ++ "/" ++ f
+
+transImps (_,_,ifc)                  = impsOf ifc
+
+compile_order imps                   = case topSort (impNames . thd)  imps of 
+                                         Left ms  -> errorIds "Mutually recursive modules" ms
+                                         Right is -> is
+
+init_order imps                      = case topSort transImps imps of
+                                         Left ms  -> errorIds "Mutually recursive modules" ms
+                                         Right is -> map fst is
 
 
