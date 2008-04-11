@@ -171,7 +171,6 @@ listIface cfg f                   = do (ifc,f) <- decodeModule f
                                        if (Config.libDir `isPrefixOf` htmlfile)
                                         then system (Config.browser cfg ++" " ++ htmlfile)
                                         else do writeFile htmlfile (render(toHTML modul (ifc :: IFace)))
-                                                putStrLn (render(pr ifc))
                                                 system (Config.browser cfg ++" " ++ htmlfile)
 
 
