@@ -109,9 +109,12 @@ cModule e2 e3 (Module m ns xs ds ws bss)
                                          ds1  <- cDecls env ds
                                          bs  <- cBindsList env bss
                                          ds2 <- currentStore
-                                         let fromCurrent n = not (isQualified n)|| isQual m n
-                                             ds3 = ds1++reverse (filter (fromCurrent . fst) ds2)
-                                         return (Kindle.Module m ns ds3 bs)
+                                         let (dsQ,dsNQ) = partition (isQualified . fst) (reverse ds2)
+                                             dsThis = ds1 ++ filter (isQual m . fst) dsQ
+                                             ds3 = dsThis ++ dsNQ
+                                         --let fromCurrent n = not (isQualified n)|| isQual m n
+                                         --    ds3 = ds1++reverse (filter (fromCurrent . fst) ds2)
+                                         return (Kindle.Module m ns ds3 bs,dsThis)
 
 
 -- Compute the imported type environment
