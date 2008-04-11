@@ -1,4 +1,4 @@
-module Card where
+module Solitaire'Card where
 
 data Rank = Ace | King | Queen | Jack | Num Int
 
@@ -32,7 +32,7 @@ showCard = struct
 card :: Rank -> Suit -> Pos -> Class Card
 card rank suit p = class
   up  := False
-  pos := p
+  pos := p 
 
   flip     = action up := not up
   faceUp   = request result up

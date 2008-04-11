@@ -1,4 +1,4 @@
-module CardPile where
+module Solitaire'CardPile where
 
 import Data'Objects'Stack
 import Solitaire'Card
@@ -20,7 +20,7 @@ cardPile ct p relPos = class
     c.setPos (relPos p sz)
 
   canTake c = request
-    t <- top
+    t <- top 
     result (ct c t)
 
   result CardPile{..}
