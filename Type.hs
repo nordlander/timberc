@@ -57,21 +57,23 @@ let f = \w0 v x -> e w0 (f w0 v 7)                                            ::
 -}
 
 tiModule (xs',ds',ws',bs') (Module v ns xs ds ws bss)
-                                = do (env1,ds',bs1) <- typeDecls env0 ds
+                                = do env0' <- impPreds env0 pe'
+                                     (env1,ds1,bs1) <- typeDecls env0' ds
                                      (env2,bs2) <- instancePreds env1 pe
                                      -- Here it should be checked that any coercions in weqs follow the
                                      -- restricted rules for coercions, and that the equalities collected 
                                      -- in env2 are actually met by the equations in bs1, bs2 and bss
-                                     let env3 = insertDefaults env2 pe (xs'++xs)
+                                     let env3 = insertDefaults env2 (pe'++pe) (xs'++xs)
                                          env4 = addCoercions (weqs1 ++ weqs) env3
                                          weqs1 = eqnsOf bs1 ++ eqnsOf bs2
                                      (ss0,pe0,bss') <- tiBindsList env4 bss
                                      assert0 (null ss0) "Internal: top-level type inference 1"
                                      assert0 (null pe0) "Internal: top-level type inference 2"
-                                     return (Module v ns xs ds' (dom weqs1 ++ ws) (groupBinds (concatBinds (bs1:bs2:bss'))))
+                                     return (Module v ns xs ds1 (dom weqs1 ++ ws) (groupBinds (concatBinds (bs1:bs2:bss'))))
     where bs                    = concatBinds bss
           weqs                  = restrict (eqnsOf bs') ws' ++ restrict (eqnsOf bs) ws
-          pe                    = restrict (tsigsOf bs') ws' ++ restrict (tsigsOf bs) ws
+          pe                    = restrict (tsigsOf bs) ws
+          pe'                   = restrict (tsigsOf bs') ws'
           env0                  = addTEnv0 (tsigsOf bs') (impDecls (initEnv v) ds')
 
 

@@ -302,7 +302,13 @@ solve r g gs
 
 try r accum wg g gs
   | isNullWG wg || isNull accum         = unexpose accum
-  | otherwise                           = do res <- expose (hyp wit g gs)
+  | otherwise                           = do case r of
+                                                RClass i | str i /= str j -> do
+                                                     tr ("****** i: " ++ show (str i) ++ " " ++ show (tag i) ++ " (" ++ show (fromMod i)++")")
+                                                     tr ("****** j: " ++ show (str j) ++ " " ++ show (tag j) ++ " (" ++ show (fromMod j)++")")
+                                                  where j = tId (tHead (body (snd (head (nodes wg)))))
+                                                _ -> return ()
+                                             res <- expose (hyp wit g gs)
                                              accum <- plus (g : gs) accum res
                                              -- tr ("New accum: " ++ show accum)
                                              try r accum (wg2 res) g gs
@@ -316,7 +322,7 @@ mayPrune _         _          _         = True
 
 
 hyp (w,p) (env,c) gs                    = do (R c',ps) <- inst p
-                                             -- tr ("### Trying: " ++ render (pr c) ++ "  with  " ++ render (pr w))
+                                             -- tr ("### Trying: " ++ render (pr c) ++ "  with  " ++ render (pr (w,p)))
                                              s <- unify env [(c,c')]
                                              -- tr ("    OK")
                                              let ps' = repeat (subst s env) `zip` subst s ps

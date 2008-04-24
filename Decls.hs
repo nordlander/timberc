@@ -45,6 +45,8 @@ instancePreds env pe                    = do (env',qe,eq) <- closePreds0 env pe
                                              let bss = preferParams env' pe qe eq
                                              return (env', concatBinds bss)
 
+impPreds env pe                         = addPreds (addPEnv0 pe env) pe
+
 
 -- Computes the stand-alone type schemes associated with selectors and constructors
 -- Note: these constants have no corresponding definition (i.e., no rhs)
