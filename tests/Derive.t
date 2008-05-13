@@ -19,6 +19,7 @@ data U2 = U2
 data U3 = U3
 
 -}
+{-
 implicit eqPair :: Eq (a,b) \\ Eq a, Eq b
 eqPair = struct
   (a,b) == (c,d) = a==c && b==d
@@ -30,7 +31,7 @@ eqEither = struct
   Right x == Right y = x==y
   _ == _ = False
   x /= y = not(x == y)
-
+-}
 data F = F1 | F2
 
 -- data D a b = C1 (Int->Int) a b | C2 b

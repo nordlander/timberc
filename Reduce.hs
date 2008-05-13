@@ -580,7 +580,7 @@ addPreds env (n@(w,p):pe)
                                                 r <- implications env (predOf n') p
                                                 case r of
                                                    Equal -> addPreds (addEqs [(w,nameOf n')] env) pe
-                                                   _     -> fail ("Ambiguous subtyping: " ++ render (pr p))
+                                                   _     -> errorTree "Ambiguous subtyping:" p
                                              Nothing -> do 
                                                 addPreds (insertSubPred n env) pe
   | isClass' p                          = do r <- cmpNode [] [] (nodes (findClass env c))
@@ -591,16 +591,17 @@ addPreds env (n@(w,p):pe)
         c                               = headsym p
 
         cmpNode pre post []             = return (Right (pre,post))
-        cmpNode pre post (n':pe')       = do r <- implications env (predOf n') p
+        cmpNode pre post ((w',p'):pe')  = do r <- implications env p' p
                                              case r of
-                                                Equal      -> return (Left (nameOf n'))
-                                                Similar    -> fail ("Ambiguous instances for " ++ render (pr p))
-                                                ImplyRight -> cmpNode pre (nameOf n':post) pe'
-                                                ImplyLeft  -> cmpNode (nameOf n':pre) post pe'
+                                                Equal 
+                                                  | isGenerated w || isGenerated w' -> return (Left w')
+                                                  | otherwise                   -> errorIds "Ambiguous instances" [w,w']
+                                                ImplyRight -> cmpNode pre (w':post) pe'
+                                                ImplyLeft  -> cmpNode (w':pre) post pe'
                                                 Unrelated  -> cmpNode pre post pe'
 
 
-data Implications                       = Equal | Similar | ImplyRight | ImplyLeft | Unrelated
+data Implications                       = Equal | ImplyRight | ImplyLeft | Unrelated
                                         deriving (Eq,Show)
 
 implications env p1 p2                  = do (R c1,ps1) <- inst p1
@@ -609,8 +610,6 @@ implications env p1 p2                  = do (R c1,ps1) <- inst p1
                                              r2 <- expose (unify (addKEnv (quant p1) env) [(body p1,c2)])
                                              case (r1,r2) of
                                                 (Right s, Right _)          -> return Equal
---                                                  | subst s ps1 == ctxt p2  -> return Equal
---                                                  | otherwise               -> return Similar
                                                 (Right _, Left _)           -> return ImplyRight
                                                 (Left _, Right _)           -> return ImplyLeft
                                                 (Left _, Left _)            -> return Unrelated
