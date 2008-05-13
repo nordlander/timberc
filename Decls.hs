@@ -4,6 +4,7 @@ import Common
 import Core
 import Env
 import Reduce
+import PP
 
 -- Declaration processing ---------------------------------------------------------------------
 

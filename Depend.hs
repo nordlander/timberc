@@ -3,6 +3,7 @@ module Depend where
 import Common
 import Core
 import Syntax
+import PP
 
 type Graph a                    = Map a [a]
 
@@ -13,7 +14,7 @@ graph nbors ps                  = map f ps
 scc                             :: Eq a => Graph a -> [[a]]
 scc g                           = dfs g' (concat (dfs g (dom g)))
   where g'                      = [(i,[x | (x,ys) <- g, i `elem` ys]) | (i,_) <- g]
- 
+
 dfs g is                        = snd (dfs' ([],[]) is)
    where dfs' p []              = p
          dfs' p@(vs,ns) (x:xs)

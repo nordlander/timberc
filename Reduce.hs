@@ -302,13 +302,7 @@ solve r g gs
 
 try r accum wg g gs
   | isNullWG wg || isNull accum         = unexpose accum
-  | otherwise                           = do case r of
-                                                RClass i | str i /= str j -> do
-                                                     tr ("****** i: " ++ show (str i) ++ " " ++ show (tag i) ++ " (" ++ show (fromMod i)++")")
-                                                     tr ("****** j: " ++ show (str j) ++ " " ++ show (tag j) ++ " (" ++ show (fromMod j)++")")
-                                                  where j = tId (tHead (body (snd (head (nodes wg)))))
-                                                _ -> return ()
-                                             res <- expose (hyp wit g gs)
+  | otherwise                           = do res <- expose (hyp wit g gs)
                                              accum <- plus (g : gs) accum res
                                              -- tr ("New accum: " ++ show accum)
                                              try r accum (wg2 res) g gs
@@ -473,6 +467,7 @@ preferLocals env pe qe eq               = walk [] (equalities env)
                                           in  (pe2, groupBinds (Binds False (pe1++qe) (prune eq (dom bs) ++ mapSnd EVar bs)))
         walk bs ((x,y):eqs)
           | x `notElem` vs1             = walk bs eqs
+          | y `notElem` vs1             = walk bs eqs
           | otherwise                   = case (x `elem` vs0, y `elem` vs0) of
                                             (True,  True)  -> walk ((x,y):bs) eqs
                                             (True,  False) -> walk ((x,y):bs) eqs
@@ -485,6 +480,7 @@ preferParams env pe qe eq               = walk [] [] (equalities env)
   where walk ws bs []                   = groupBinds (Binds False (prune qe ws) (prune eq (ws ++ dom bs) ++ mapSnd EVar bs))
         walk ws bs ((x,y):eqs)
           | x `notElem` vs1             = walk ws bs eqs
+          | y `notElem` vs1             = walk ws bs eqs
           | otherwise                   = case (x `elem` vs0, y `elem` vs0) of
                                             (True,  True)  -> walk ws bs eqs
                                             (True,  False) -> walk ws ((y,x):bs) eqs
@@ -492,6 +488,7 @@ preferParams env pe qe eq               = walk [] [] (equalities env)
                                             (False, False) -> walk (x:ws) bs eqs
         vs0                             = dom pe
         vs1                             = vs0 ++ dom qe
+
 
 {-
                                                         Top-level & local reduction:        Action during simplify:
