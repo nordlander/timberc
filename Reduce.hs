@@ -182,7 +182,9 @@ resolve env pe                          = do -- tr ("############### Before reso
 --
 -------------------------------------------------------------------------------------------------
 
-redg r i gs                             = do (s,q,e:es) <- solve r g (gs1++gs2)
+redg r i gs                             = do -- tr ("***All goals:")
+                                             -- tr (render (nest 4 (vpr (rng gs))))
+                                             (s,q,e:es) <- solve r g (gs1++gs2)
                                              let (es1,es2) = splitAt i es
                                              return (s, q, es1++[e]++es2, [])
   where (gs1, g:gs2)                    = splitAt i gs
@@ -198,7 +200,7 @@ red gs []                               = case unique 0 gs of
         info                            = varInfo gs
 red gs ((env, p@(Scheme (F [sc1] t2) ps2 ke2)):ps)
                                         = do (t1,ps1) <- inst sc1
-                                             -- tr ("red " ++ render (pr t1 <+> text "<" <+> pr t2))
+                                             -- tr ("redf " ++ render (pr t1 <+> text "<" <+> pr t2))
                                              pe <- newEnv assumptionSym ps2
                                              v  <- newName coercionSym
                                              (env',qe,eq) <- closePreds env (tvars sc1 ++ tvars t2 ++ tvars ps2) pe ke2
@@ -276,7 +278,8 @@ redf2 s gs env a b ps                   = do (s',q,es,e,es') <- redf (subst s gs
 
 -- Predicate reduction ----------------------------------------------------------------------
 
-solve RFun (env,p) gs                   = do (s,q,es,[e]) <- red gs [(env, scheme' (F [scheme a] (R b)))]
+solve RFun (env,p) gs                   = do -- tr ("------ Resubmitting: " ++ render (pr p))
+                                             (s,q,es,[e]) <- red gs [(env, scheme' (F [scheme a] (R b)))]
                                              return (s, q, e:es)
   where (a,b)                           = subs p
 solve RUnif (env,p) gs                  = do -- tr ("------ Unifying: " ++ render (pr p))
@@ -289,11 +292,11 @@ solve RVar g gs                         = do -- tr ("------ Abstracting\n" ++ re
                                              return (nullSubst, concat qs, es)
 solve r g gs
   | mayLoop g                           = do assert0 (conservative g) "Recursive constraint"
-                                             -- tr ("%%%%%% Avoiding loop: " ++ render (pr (snd g)))
+                                             -- tr ("------ Avoiding loop: " ++ render (pr (snd g)))
                                              (s,q,es,_) <- red gs []
                                              (q',e) <- newHyp (subst s g)
                                              return (s, q'++q, e:es)
-  | otherwise                           = do -- tr ("Solving " ++ render (pr (snd g)))
+  | otherwise                           = do -- tr ("------ Solving " ++ render (pr (snd g)))
                                              -- tr (render (nest 4 (vpr (rng gs1))) ++ "\n    --\n" ++ render (nest 4 (vpr (rng gs2))))
                                              -- tr ("Witness graph: " ++ show (findWG r g))
                                              try r (Left msg) (findWG r g) (logHistory g) gs
@@ -302,7 +305,8 @@ solve r g gs
 
 try r accum wg g gs
   | isNullWG wg || isNull accum         = unexpose accum
-  | otherwise                           = do res <- expose (hyp wit g gs)
+  | otherwise                           = do -- tr ("Trying " ++ render (pr (predOf wit)))
+                                             res <- expose (hyp wit g gs)
                                              accum <- plus (g : gs) accum res
                                              -- tr ("New accum: " ++ show accum)
                                              try r accum (wg2 res) g gs

@@ -378,8 +378,10 @@ unique i (g:gs)                         = case uniqueRank g of
                                             Nothing -> unique (i+1) gs
   where uniqueRank (_,TFun [l] u)       = uniqueRank' (tHead l) (tHead u)
         uniqueRank (_,t)                = if null (tvars t) then Just (RClass (tId (tHead t))) else Nothing
-        uniqueRank' (TFun _ _) _        = Just RFun
-        uniqueRank' _ (TFun _ _)        = Just RFun
+        uniqueRank' (TFun _ _) (TFun _ _)
+                                        = Just RFun
+        uniqueRank' (TFun _ _) _        = Just RUnif
+        uniqueRank' _ (TFun _ _)        = Just RUnif
         uniqueRank' (TId i) (TId j)     = Just (RConCon i j)
         uniqueRank' _ _                 = Nothing
 
@@ -388,8 +390,9 @@ rank info (env,TFun [l] u)              = subrank (tFlat l) (tFlat u)
   where 
     (emb,vs,lb,ub,lb',ub',pvs)          = info
     approx                              = forced env                 -- solve subtype predicates at all costs
-    subrank (TFun _ _, _) _             = RFun                       -- resubmit to predicate scheme reducer
-    subrank _ (TFun _ _, _)             = RFun                       -- resubmit to predicate scheme reducer
+    subrank (TFun _ _,_) (TFun _ _,_)   = RFun                       -- resubmit to predicate scheme reducer
+    subrank (TFun _ _, _) _             = RUnif
+    subrank _ (TFun _ _, _)             = RUnif
     subrank (TId i,_) (TId j,_)         = RConCon i j                -- only one choice, highest rank
     subrank (TId i,_) (TVar n,_)
       | l==0 && b==0 && not (isNeg v)   = ROrd 0 Pos i               -- no embeddings, only constant bounds, right polarity

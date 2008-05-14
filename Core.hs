@@ -749,15 +749,13 @@ instance Pr Scheme where
     prn n sc                    = parens (prn 0 sc)
 
 instance Pr Rho where
-    prn 0 (F (sc:scs) rh)       = prn 1 sc <+> text "->" <+> prn 0 (F scs rh)
-    prn 0 (F [] rh)             = prn 1 rh
+    prn 0 (F scs rh)            = hsep (punctuate (text " ->") (map (prn 1) scs ++ [prn 1 rh]))
     prn 0 rh                    = prn 1 rh
     prn 1 (R t)                 = prn 1 t
     prn 1 rh                    = parens (prn 0 rh)
     
 instance Pr Type where
-    prn 0 (TFun (t:ts) t')      = prn 1 t <+> text "->" <+> prn 0 (TFun ts t')
-    prn 0 (TFun [] t)           = prn 1 t
+    prn 0 (TFun ts t)           = hsep (punctuate (text " ->") (map (prn 1) (ts++[t])))
     prn 0 t                     = prn 1 t
     
     prn 1 (TAp (TId (Prim LIST _)) t) = text "[" <> prn 0 t <> text "]"
@@ -769,7 +767,7 @@ instance Pr Type where
 
     prn 2 (TId c)               = prId c
     prn 2 (TVar _)              = text "_"
---   prn 2 (TVar n)              = text "_" <> pr n
+--    prn 2 (TVar n)              = text "_" <> pr n
 
     prn 2 t                     = parens (prn 0 t)
 
