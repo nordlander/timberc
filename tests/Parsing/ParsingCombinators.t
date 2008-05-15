@@ -17,7 +17,7 @@ struct P a where
 -- run a parser
 
 parseP :: P a -> [Token] -> ([Token],Maybe a)
-parseP = runState @ parse'
+parseP p s = runState (parse' p) s
 
 -- elementary combinators
 

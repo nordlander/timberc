@@ -3,6 +3,7 @@ module Test where
 import ParsingCombinators
 import POSIX
 
+{-
 p2 = parseP (return (F$ \a->F$ \b->"42") $** token 'a' $** token 'b') "ab"
 p2a = parseP (return (\a -> \b -> 42) $* token 'a' $* token 'b') "ab"
 
@@ -18,7 +19,8 @@ p5' = return (F$ \a -> F$ \b -> 424242:b) $** token 'a' $** p5'
 p5 = parseP p5' "aa"
 
 pMany = parseP (many (token 'a')) "aaa"
-
+-}
+{-
 data T = Leaf Token | Node T T
 
 implicit showT :: Show T = struct
@@ -33,7 +35,7 @@ pT' = return (F$ \_ -> F$ \a -> F$ \_ -> F$ \b -> F$ \_ -> Node a b) $**
       pT' $** 
       token ')'
    $+ return (F$ Leaf) $** token '.'
-
+-}
 --pT = parseP pT' "((" -- "(.(.))"
 
 data Exp = EVar Var
@@ -58,20 +60,20 @@ eOp  = F$ \x -> F$ \y -> F$ \z -> EOp x y z
 var  = F$ \x -> Var x
 op   = F$ \x -> Op x
 
----
+
 pExp = return eOp  $** pVar $** pOp $** pExp
     $+ return eVar $** pVar
     $+                 parens pExp
 
 pVar = return var  $** accept (\x -> x >= 'a' && x <= 'z')
 pOp  = return op   $** accept (\x -> x `elem` "+-*/")
----
-pExp' = parseP pExp "a"
+
+pExp' = parseP pExp "a*(b+c)"
              
 root env =
     class
        start = action
-                 env.stdout.write $ show $ pExp'
+                 env.stdout.write (show pExp' ++ "\n")
                  env.exit 0
        io = action
                result ()

@@ -222,7 +222,7 @@ redBeta env ((x,t):te) b (e:es)
   | inline x e                  = do e' <- redBeta (addEqns env [(x,e)]) te b es
                                      return (bindx e')
   | otherwise                   = liftM (ELet bs) (redBeta env te b es)
-  where inline x e              = isGenerated x || finite env e && value e
+  where inline x e              = value e && (isGenerated x || finite env e)
         bindx e'
           | x `elem` evars e'   = ELet bs e'
           | otherwise           = e'
