@@ -185,10 +185,6 @@ selectFrom e0 s p v             = ECase e0 [Alt (subst s p) (RExp (subst s (EVar
 
 eCase cs e                      = dsExp (foldr (\(v,p) e -> ECase (EVar v) [Alt p (RExp e)]) e cs)
 
-sCase cs ss                     = do x <- newName tempSym
-                                     e <- eCase cs (EDo (Just x) Nothing ss)
-                                     return [SExp e]
-
 
 -- Expressions --------------------------------------------------------
 
@@ -254,9 +250,15 @@ comp2exp e (QGen p e' : qs) r   = do f <- newNamePos functionSym p
 
 -- Statements ------------------------------------------------------------
 
+sCase [] ss                     = dsStmts ss
+sCase cs ss                     = do x <- newName tempSym
+                                     e <- eCase cs (EDo (Just x) Nothing ss)
+                                     return [SExp e]
+
+
 dsStmts []                      = return []
 dsStmts (SBind b : ss)          = do (bs,cs) <- dsBinds bs
-                                     ss <- if null cs then dsStmts ss2 else sCase cs ss2
+                                     ss <- sCase cs ss2
                                      return (map SBind bs ++ ss)
   where (ss1,ss2)               = span isSBind ss
         bs                      = b : [ b' | SBind b' <- ss1 ]
