@@ -391,7 +391,7 @@ instance Show Name where
   show (Name s n m a)           = s ++ tag ++ mod
      where tag                  = if n/=0 && generated a  then '_' : show n else ""
            mod                  = if m==Nothing || suppressMod a then "" else "'" ++ fromJust m
-  show (Tuple n _)              = show ('(' : replicate (n-1) ',' ++ ")")
+  show (Tuple n _)              = '(' : replicate (n-1) ',' ++ ")"
   show (Prim p _)               = strRep p
 
 instance Pr Name where
