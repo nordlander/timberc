@@ -6,6 +6,7 @@ import Syntax
 import Match
 import Maybe
 import Fixity
+import PP
 
 desugar2 :: Module -> M s Module
 desugar2 m = dsModule m
@@ -121,21 +122,15 @@ dsBinds (BSig vs qt : bs)       = do (bs,cs) <- dsBinds bs
                                      return (BSig vs (dsQualWildType qt) : bs,cs)
 dsBinds bs                      = f [] bs
   where f eqns (BEqn lh rh :bs) = f ((lh,rh) : eqns) bs
-        f eqns bs               = do (eqns,cs) <- dsEqns eqns
+        f eqns bs               = do (eqns,cs) <- dsEqns (reverse eqns)
                                      (bs,cs') <- dsBinds bs
-                                     return (map (uncurry BEqn) (reverse eqns) ++ bs,cs++cs')
+                                     return (map (uncurry BEqn) eqns ++ bs,cs++cs')
 
 
 -- Equations -----------------------------------------------------------------
 
 dsEqns []                       = return ([],[])
 dsEqns ((LPat (EVar x),r):eqns) = dsEqns ((LFun x [], r):eqns)
-{-
-dsEqns ((LPat (ERec _ fs),RExp (EVar v)):eqns)
-                                = do let sels = map (sel (EVar v)) fs
-                                     dsEqns (sels ++ eqns)
-  where sel e0 (Field n p)      = (LPat p, RExp (ESelect e0 n))
--}
 dsEqns ((LPat p,RExp (EVar v)):eqns)
                                 = do p' <- dsPat p      -- Check validity
                                      sels <- mapM (sel (EVar v)) vs
@@ -147,12 +142,6 @@ dsEqns ((LPat p,rh):eqns)       = do v <- newNamePos tempSym p
                                      (eqns,cs) <- dsEqns ((LPat p, RExp (EVar v)) : eqns)
                                      e <- dsExp (rh2exp rh)
                                      return ((LFun v [],RExp e) : eqns,(v,p):cs) 
-{-
-dsEqns ((LPat p,rh) : eqns)     = do p <- dsPat p
-                                     e <- dsExp (rh2exp rh)
-                                     eqns <- dsEqns eqns
-                                     return ((LPat p,RExp e) : eqns)
--}
 dsEqns ((LFun v ps,rh):eqns)    = dsFunBind v [(ps,rh)] eqns
 
 
@@ -195,6 +184,11 @@ rh2exp (RGrd gs)                = ECase (ETup []) [Alt EWild (RGrd gs)]
 selectFrom e0 s p v             = ECase e0 [Alt (subst s p) (RExp (subst s (EVar v)))]
 
 eCase cs e                      = dsExp (foldr (\(v,p) e -> ECase (EVar v) [Alt p (RExp e)]) e cs)
+
+sCase cs ss                     = do x <- newName tempSym
+                                     e <- eCase cs (EDo (Just x) Nothing ss)
+                                     return [SExp e]
+
 
 -- Expressions --------------------------------------------------------
 
@@ -261,8 +255,8 @@ comp2exp e (QGen p e' : qs) r   = do f <- newNamePos functionSym p
 -- Statements ------------------------------------------------------------
 
 dsStmts []                      = return []
-dsStmts (SBind b : ss)          = do (bs,_)  <- dsBinds bs  
-                                     ss <- dsStmts ss2     -- this is the old desugaring!
+dsStmts (SBind b : ss)          = do (bs,cs) <- dsBinds bs
+                                     ss <- if null cs then dsStmts ss2 else sCase cs ss2
                                      return (map SBind bs ++ ss)
   where (ss1,ss2)               = span isSBind ss
         bs                      = b : [ b' | SBind b' <- ss1 ]
