@@ -100,20 +100,13 @@ extRenSelf env s                   = do rE' <- renaming (legalBind [s])
                                         return (env { rE = rE' ++ rE env, self = [s] })
 
 extRenXMod pub m rX vs             = if pub
-                                      then do rX' <- renaming (map (qName (str m)) (legalBind vs))
-                                              return  (mergeRenamings1 (map suppressPair rX') rX ++ rX')
+                                      then do rX1 <- renaming (map (qName (str m)) (legalBind vs))
+                                              let rX2 = map suppressPair rX1
+                                              return  (mergeRenamings1 (map dropModFst rX2) rX ++ rX2)
                                       else do rX' <- renaming (legalBind vs)
                                               return (mergeRenamings1 rX' rX) 
-{-
-                                     do rX' <- renaming (map (mName (qual pub)) (legalBind vs))
-                                        let rX'' = if pub 
-                                                   then (mergeRenamings1 (map suppressPair rX') rX) ++ rX'
-                                                   else mergeRenamings1 rX' rX
-                                        return (rX'') 
--}
-  where qual True                  = Just (str m)
-        qual False                 = Nothing
-        suppressPair (n1,n2)       = (dropMod n1, n2 {annot = (annot n2) {suppressMod = True}}) 
+  where suppressPair (n1,n2)       = (n1, n2 {annot = (annot n2) {suppressMod = True}}) 
+        dropModFst (n1,n2)         = (dropMod n1,n2)
 
 legalBind vs                        = map checkName vs
   where checkName v@(Tuple _ _)	    = errorIds "Tuple constructors may not be redefined" [v]
