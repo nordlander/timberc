@@ -349,6 +349,9 @@ div, mod           :: Int -> Int -> Int
 div                 = primIntDiv
 mod                 = primIntMod
 
+(/)                :: Float -> Float -> Float
+(/)                 = primFloatDiv
+
 even, odd          :: Int -> Bool
 even x              = x `mod` 2 == 0
 odd x               = x `mod` 2 == 1
