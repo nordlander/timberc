@@ -99,7 +99,7 @@ initEnvs bms         = do ims <- mapM (mkEnv . snd) bms
                 te'                  = if direct then te ++ concatMap (tenvSelCon ke) ds' else []
                 te''                 = if direct then te  ++ concatMap (tenvCon ke) ds' else []
                 ls                   = [ s | (_,DRec _ _ _ cs) <- ds', (s,_) <- cs, not (isGenerated s) ]
-                unMod b ps           = if b then [(tag0 (mName Nothing c),y) | (c,y) <- ps] ++ ps else ps
+                unMod b ps           = if b then [(tag0 (dropMod c),y) | (c,y) <- ps] ++ ps else ps
 
 -- Checking that public part is closed ---------------------------------------------------------
 

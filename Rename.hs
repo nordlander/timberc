@@ -99,14 +99,21 @@ extRenLMod pub m env vs            = do rL' <- extRenXMod pub m (rL env) vs
 extRenSelf env s                   = do rE' <- renaming (legalBind [s])
                                         return (env { rE = rE' ++ rE env, self = [s] })
 
-extRenXMod pub m rX vs             = do rX' <- renaming (map (mName (qual pub)) (legalBind vs))
+extRenXMod pub m rX vs             = if pub
+                                      then do rX' <- renaming (map (qName (str m)) (legalBind vs))
+                                              return  (mergeRenamings1 (map suppressPair rX') rX ++ rX')
+                                      else do rX' <- renaming (legalBind vs)
+                                              return (mergeRenamings1 rX' rX) 
+{-
+                                     do rX' <- renaming (map (mName (qual pub)) (legalBind vs))
                                         let rX'' = if pub 
                                                    then (mergeRenamings1 (map suppressPair rX') rX) ++ rX'
                                                    else mergeRenamings1 rX' rX
                                         return (rX'') 
+-}
   where qual True                  = Just (str m)
         qual False                 = Nothing
-        suppressPair (n1,n2)       = (mName Nothing n1, n2 {annot = (annot n2) {suppressMod = True}}) 
+        suppressPair (n1,n2)       = (dropMod n1, n2 {annot = (annot n2) {suppressMod = True}}) 
 
 legalBind vs                        = map checkName vs
   where checkName v@(Tuple _ _)	    = errorIds "Tuple constructors may not be redefined" [v]
@@ -327,7 +334,7 @@ instance Rename Exp where
   rename env (EAfter e1 e2)        = liftM2 EAfter (rename env e1) (rename env e2)
   rename env (EBefore e1 e2)       = liftM2 EBefore (rename env e1) (rename env e2)
   rename env e@(EBStruct (Just c) ls bs)
-                                   = do let ls' = map (mName Nothing) ls
+                                   = do let ls' = map (dropMod . annotGenerated) ls
                                         env' <- extRenE env ls' 
                                         r <- rename env' (ERec (Just (c,True)) (map (\(s,s') -> Field s (EVar s')) (ls `zip` ls')))
                                         bs' <- mapM (renSBind env' env) bs
@@ -338,8 +345,8 @@ renRec env Nothing                 = Nothing
 
 renSBind envL envR (BEqn (LFun v ps) rh)    = do envR' <- extRenE envR (pvars ps)
                                                  ps'   <- rename envR' ps
-                                                 liftM (BEqn (LFun (renE envL v) ps')) (rename envR' rh)
-renSBind envL envR (BEqn (LPat (EVar v)) rh)= liftM (BEqn (LPat (EVar (renE envL v)))) (rename envR rh)
+                                                 liftM (BEqn (LFun (annotGenerated (renE envL v)) ps')) (rename envR' rh)
+renSBind envL envR (BEqn (LPat (EVar v)) rh)= liftM (BEqn (LPat (EVar (annotGenerated (renE envL v))))) (rename envR rh)
 renSBind _ _ (BEqn (LPat p) _)              = errorTree "Illegal pattern in struct value" p 
 renSBind _ _ s@(BSig vs t)                  = errorTree "Signature in struct value" s 
 

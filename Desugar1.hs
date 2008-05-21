@@ -52,9 +52,9 @@ mkEnv c ds (rs,rn,ss)           = (env {sels = map transClose recEnv, modName = 
         closeRecEnvImp          = map transClose recEnvImp
         recEnv                  = recEnvLoc ++ recEnvImp
         selsLocQual             = concatMap (snd . snd) recEnvLoc
-        selsLoc                 = map (mName  Nothing) selsLocQual
+        selsLoc                 = map dropMod selsLocQual
         rnSels                  = zip selsLoc selsLocQual ++ zip selsLocQual selsLocQual ++ rn
-        sels (Sig vs _)         = map (mName (Just (str c))) vs
+        sels (Sig vs _)         = map (qName (str c)) vs
         transClose (c,(cs,ss))  = (c, sort (ss ++ nub(concat (map (selectors [c]) cs))))
         selectors cs0 c
           | c `elem` cs0        = errorIds "Circular struct dependencies" (c:cs0)
@@ -197,9 +197,9 @@ instance Desugar1 Exp where
       | otherwise                  = ERec (Just (c,True)) (sortFields (fs' ++ ds1 env fs))
       where miss                   = ren env (selsFromType env c) \\ ren env (bvars fs)
             dups                   = duplicates (ren env (bvars fs))
-            fs'                    = map (\s -> Field (tag0 (mkLocal s)) (EVar (mName Nothing (tag0 s)))) miss
+            fs'                    = map (\s -> Field (tag0 (mkLocal s)) (EVar (dropMod (tag0 s)))) miss
             mkLocal s
-              | fromMod s == modName env = mName Nothing s
+              | fromMod s == modName env = dropMod s
               | otherwise          = s
     ds1 env (EBStruct _ _ bs)      = EBStruct (Just c) labs (ds1 env bs)
       where labs                   = selsFromType env c
@@ -334,6 +334,7 @@ eDo env ss                       = EDo (self env) Nothing ss
 maybeGen e []                    = [SExp e]
 maybeGen e ss                    = SGen EWild e : ss
 
+name' s                          = Name s 0 Nothing noAnnot
 
 -- Printing --------
 

@@ -261,21 +261,22 @@ strRep2 p
 noAnnot                         = Annot { location = Nothing, explicit = False, stateVar = False, 
                                           generated = False, suppressMod = False, forceTag = False }
 
-qualName s                      = case splitString s of
-                                    [x]      -> (x, Nothing)
-                                    (x : xs) -> (x, Just (joinString xs))
-
-
-name l s                        = (name' s) { annot = loc l }
-
-name' s                         = case lookup s rigidNames of
+-- This function is used (only) by the parser to build Names
+name l s                        = case lookup s rigidNames of
                                     Just n -> n 
-                                    Nothing -> Name s' 0 m noAnnot
-                                       where (s',m) = qualName s
- 
-loc l                           = noAnnot { location = Just l }
+                                    Nothing -> Name s' 0 m (noAnnot {location = Just l})
+                                       where (s',m) =  case splitString s of
+                                                          [x]      -> (x, Nothing)
+                                                          (x : xs) -> (x, Just (joinString xs))
 
-mName m c                       = c {fromMod = m}
+joinString [x]                  = x
+joinString (x : xs)             = x ++ '\'' : joinString xs                             
+
+
+ 
+
+dropMod n                       = n {fromMod = Nothing}
+qName m n                       = n {fromMod = Just m}
 
 prim p                          = Prim p noAnnot
 
@@ -294,8 +295,6 @@ splitString s                   = case break2 s of
                  | otherwise    = (xs, z : ys)
          move (xs,ys)           = (xs ++ ys, [])
 
-joinString [x]                  = x
-joinString (x : xs)             = x ++ '\'' : joinString xs                             
 
 splitQual s def                 = case splitString s of
                                     [x]    -> (x, def)
@@ -308,7 +307,7 @@ tag0 n                          = n
 annotExplicit n                 = n { annot = a { explicit = True } }
   where a                       = annot n
 
-annotState n                    = n { annot = a { stateVar = True } }
+annotGenerated n                = n { annot = a { generated = True } }
   where a                       = annot n
 
 pos n                           = location (annot n)
@@ -318,7 +317,6 @@ pos n                           = location (annot n)
 genAnnot                        = noAnnot { generated = True }
 name0 s                         = Name s 0 Nothing genAnnot
 
-qName m n                       = mName (Just m) (name0 n)
 
 
 -- Textual name supply ---------------------------------------------------------------------------

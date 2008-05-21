@@ -330,8 +330,8 @@ checkRoot clo ifs def       = do if1 <- getIFile rootMod
                                          
   where rtsMod              = target clo
         (r,rootMod)         = splitQual (root clo) def
-        rootN               = qName rootMod r
-        rootT               = qName rtsMod "RootType"
+        rootN               = qName rootMod (name0 r)
+        rootT               = qName rtsMod (name0 "RootType")
         checkRoot' te t0    = case [ (n,t) | (n,t) <- te, n == rootN ] of
                                 [(n,t)]  -> if Core.simpleInst t t0
                                             then return n
