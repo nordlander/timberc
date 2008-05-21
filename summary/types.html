@@ -20,7 +20,7 @@ the type <tt>Request</tt> <em>a</em> of methods (in the object-oriented sense) r
 <a name="kind"><h3>Kinds and kind declarations</h3></a>
 <p>
 Timber types and type constructors are classified by their <em>kind</em>. All types have kind <tt>*</tt>, while
-type constructors that expect one type type argument (such as e.g. <tt>Request</tt>) have
+type constructors that expect one type argument (such as e.g. <tt>Request</tt>) have
 kind <tt>* -> *</tt>. In general, a kind is either <tt>*</tt> or <tt>k1 -> k2</tt> where <tt>k1</tt> and <tt>k2</tt> are
 kinds. A type constructor of kind  <tt>k1 -> k2</tt> expects an argument of kind <tt>k1</tt>; the result is then a type (constructor)
 of kind <tt>k2</tt>.
@@ -42,16 +42,16 @@ an abstract type and the signatures of the operators; the actual type definition
 
 <h3>Primitive types</h3>
 <p>
-We first describe the primitive types of Timber. One should realize that in Timber code, it is always clear from the context whether
+We first describe the primitive types of Timber. In Timber code it is always clear from the context whether
 an expression denotes a type or a value, so some types use the same syntax for type expressions as for
-values without confusion. (A beginner might disagree about the last two words.)
+values, without confusion. (A beginner might disagree about the last two words.)
 
 <h4>Primitive simple types</h4>
 <p>
 As part of the language, the following primitive types are provided:
 <ul>
   <li> The type <tt>Int</tt> of finite-precision integers.</li>
-  <li> The type <tt>Float</tt> of single-precision floaing-point numbers.</li>
+  <li> The type <tt>Float</tt> of single-precision floating-point numbers.</li>
   <li> The type <tt>Char</tt> of characters.</li>
   <li> The type <tt>Time</tt> of time intervals.</li>
   <li> The type <tt>Bool</tt>, with the two values <tt>True</tt> and <tt>False</tt>.</li>
@@ -94,20 +94,21 @@ data Either a b = Left a | Right b
 <p>
 It is only primitive because of its role in generating default instances.</li>
 <li>Classes.<p>
-For any type <a>, the type <tt>Class a</tt> contains templates from which one can instantiate objects of type <tt>a</tt>. Of particular
+For any type <tt>a</tt>, the type <tt>Class a</tt> contains templates from which one can instantiate objects
+with interface of type <tt>a</tt>. Of particular
 interest is the case where <tt>a</tt> is a struct type with a number of methods manipulating an internal state of the object.</li>
 <li>Actions.<p>
 <tt>Action</tt> is the type of asynhronous methods. An object may offer an <tt>Action</tt> in its interface; a client who has access to this interface
-may send the object an action message with appropriate arguments. The message will at a later point in time execute the action, with
+may send the object an action message with appropriate arguments. The message will, at an unspecified later point in time, execute the action, with
 exclusive access to the object's state.</li>
 <li>Requests.<p>
 For any type <tt>a</tt>, <tt>Request a</tt> is the type of synchronous methods that return a value of type <tt>a</tt>. An object
 may offer a <tt>Request</tt> in its interface; a client who has access to this interface may then send a request message with appropriate
-arguments and wait for the result. Since all methods require exclusive access to the state of the receiving object during execution, cycles of requests lead to deadlock.</li>
+arguments and wait for the result. Since all methods require exclusive access to the state of the receiving object during execution, cycles of requests lead to deadlock. Deadlock is detected by the runtime system and an exception is raised.</li>
 <li>Commands.<p> For any two types <tt>s</tt> and <tt>a</tt>, <tt>Cmd s a</tt> is the type of procedures that can execute in a
 state <tt>s</tt> and return a value of type <tt>a</tt>.
 <li> Object references.<p>
-For any type <tt>a</tt>, <tt>Ref a</tt> is the type of references to objects with interface <tt>a</tt>.
+For any type <tt>a</tt>, <tt>Ref a</tt> is the type of references to objects with interface of type <tt>a</tt>.
 </li>
 </ul>
 <h3>Polymorphic types</h3>
@@ -262,7 +263,7 @@ data CEntry > Entry = Corrupt
 Type <tt>CEntry</tt> adds another constructor to the type <tt>Entry</tt> defined above; a <tt>CEntry</tt> is either a proper
 entry as above or <tt>Corrupt</tt>. A function that is defined to take a <tt>Entry</tt> as argument cannot accept a <tt>CEntry</tt>;
 it may stumble on a <tt>Corrupt</tt> entry. The converse is OK; newly defined functions on <tt>CEntry</tt> values can happily
-take an <tt>Entry</tt>; it will not have to use its <tt>Corrupt</tt> case.
+take an <tt>Entry</tt>; they will not have to use their <tt>Corrupt</tt> case.
 
 <h4>Subtyping among primitive types</h4>
 <p>

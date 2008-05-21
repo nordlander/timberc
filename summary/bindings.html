@@ -10,11 +10,11 @@
 <h4>Patterns and pattern matching</h4>
 <p>
 Patterns occur in several syntactic contexts in Timber (e.g. in the left hand sides of bindings, lambda expressions
-and case alternatives). Syntactically, patterns form a subset of expressions; a pattern is one of the following
+and case alternatives). Syntactically, patterns form a subset of expressions; a pattern is one of the following:
 <ul>
    <li> A variable.
    <li> A literal.
-   <li> A constructor, possibly applied to a sequence of patterns. The sugered form for lists and tuples are allowed.
+   <li> A constructor, possibly applied to a sequence of patterns. The sugered forms for lists and tuples are allowed.
    <li> A fully or incompletely defined struct expression (but not a layout-sensitive struct expression), where
         the right hand sides of all fields are patterns.
    <li> A pattern in parentheses.
@@ -50,7 +50,7 @@ Syntactically, bindings are divided into type signatures and equations. Equation
 <ul>
 <li><a name="sig"> Type signatures.</a> <p>
   <em>var</em> <font color=red>(</font>, <em>var</em><font color=red> ) *</font> :: <em>qtype</em>
-  <p> Here a <em>qtype</em> is a (possibly) qualified type.
+  <p> Here a <em>qtype</em> is a (possibly qualified) type.
     <table align=center><TR>
 <TH> Examples
 </TH>
@@ -68,7 +68,7 @@ be extended with where-clauses and with guards; these extensions may be combined
 each equation has the form<p>
 <em>var</em> <em>pat</em><font color=red> *</font> = <em>expr</em>
 <p>
-The variable in each of the equations (the name of the function) and the number of patterns must be the same in all equations.
+The variable (the name of the function) and the number of patterns must be the same in all equations.
 The order of equations is significant; when applying the function, pattern-matching is tried starting wih the first equation
 until it succeeds; the function value is computed from right hand side of that equation, using the variable bindings obtained.
 Within one equation, patterns are matched from left to right.
@@ -136,7 +136,7 @@ The type signature of an instance of an implicit type is prepended by the keywor
 a type signature is compulsory; only the function binding defining the instance is not sufficient,
 </ul>
 <p>
-The order between bindings in a sequence of bindings are not significant, with the following exceptions:
+The order between bindings in a sequence of bindings is not significant, with the following exceptions:
 <ul>
   <li> All the equations that make up a function binding must be adjacent to each other with no other binding intervening.
   <li> A type signature must precede the binding equations for the variables that are typed by the signature.
