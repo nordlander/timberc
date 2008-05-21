@@ -44,23 +44,30 @@ answer guess code = Answer e n
 
          n  = sum [min (count c guess) (count c code) | c <- allColours] - e
 
-         count c xs = length [x | x <- xs, x==c]
+         count c [] = 0
+         count c (x:xs)
+           | c==x = 1 + count c xs
+           | otherwise = count c xs
 
+         equals :: Guess -> Guess -> Int
          equals [] [] = 0
          equals (x:xs) (y:ys)
            |x==y      = 1 + equals xs ys
            |otherwise = equals xs ys
 
+contradiction ((g,r):bs) ss 
+  | answer g ss /= r = (g,r)
+  | otherwise = contradiction bs ss
 
-contradictions :: Board -> Guess -> Board
-contradictions board c = [(g,r) | (g,r) <- board, answer g c /= r]
+consistentWith :: Board -> Guess -> Bool
+consistentWith [] _ = True
+consistentWith ((g,r) : bs) s = answer g s == r && consistentWith bs s
 
 consistent :: Board -> [Guess] -> [Guess]
-consistent board cs = [ c | c <- cs, null (contradictions board c)]
+consistent board cs = [ c | c <- cs, consistentWith board c]
 
 showGuess [g]    = show g
 showGuess (g:gs) = show g ++ ' ' : showGuess gs
-
 
 data State = Idle | JustGuessed | Contradiction | GameOver 
            
@@ -118,7 +125,7 @@ root env = class
                             mkGuess
 
       Contradiction -> do ss = map parse (words inp)
-                          (gs,a):_ = contradictions board ss
+                          (gs,a) = contradiction board ss
                           env.stdout.write ("When I guessed "++showGuess gs++", you answered "++showAnswer a++".\n")
                           env.stdout.write ("Correct answer should have been "++showAnswer (answer gs ss)++".\n")
                           state := GameOver
