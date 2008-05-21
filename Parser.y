@@ -143,11 +143,11 @@ topdecl :: { [Decl] }
         | 'struct' conid tyvars optsups optsigs            { [DRec False $2 (reverse $3) $4 $5] }
         | 'implicit' 'struct' conid tyvars optsups optsigs { [DRec True $3 (reverse $4) $5 $6] }
         | 'implicit' var '::' type                         { [DPSig $2 $4] }  
-        | 'implicit' var '::' type rhs                     { [DBind (BEqn (exp2lhs (EVar $2)) $5), DPSig $2 $4] }
+        | 'implicit' var '::' type rhs                     { [DBind [BEqn (exp2lhs (EVar $2)) $5], DPSig $2 $4] }
         | 'implicit' ids                                   { [DImplicit $2] }
         | 'default' def                                    { [DDefault (reverse $2)] }
-        | vars '::' type		                   { [DBind (BSig (reverse $1) $3)] }
-        | lhs rhs 					   { [DBind (BEqn $1 $2)] }
+        | vars '::' type		                   { [DBind [BSig (reverse $1) $3]] }
+        | lhs rhs 					   { [DBind [BEqn $1 $2]] }
 
 optsups :: { [Type] }
         : '<' types				{ reverse $2 }

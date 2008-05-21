@@ -159,7 +159,7 @@ instance Rename Module where
                                         env5 <- extRenEMod False c env4 (cs2 ++ (vs2 \\ vss) ++ vs2'++is2)
                                         env6 <- extRenLMod False c env5 ss2
                                         let bs = shuffleB (bs1 ++ bs2)
-                                        ds' <- rename env6 (filter (not . isDBind) (ds ++ ps) ++ map DBind (bs1' ++ bs2' ++ bs))
+                                        ds' <- rename env6 (filter (not . isDBind) (ds ++ ps) ++ [DBind (bs1' ++ bs2' ++ bs)])
                                         return (Module c is ds' [])
    where (ks1,ts1,ss1,cs1,cs11,ws1,is1,bs1) = renameD [] [] [] [] [] [] [] [] ds
          (ks2,ts2,ss2,cs2, _  ,ws2,is2,bs2) = renameD [] [] [] [] [] [] [] [] ps
@@ -213,9 +213,9 @@ renameD ks ts ss cs cs1 ws is bs (DImplicit vs : ds)
 renameD ks ts ss cs cs1 ws is bs (DDefault ps : ds)
                                    = renameD ks ts ss cs cs1 ws (is1 ++ is) bs ds
   where is1                        = [i | Derive i _ <- ps]
-renameD ks ts ss cs cs1 ws is bs (DBind b : ds)
-                                   = renameD ks ts ss cs cs1 ws is (b:bs) ds
-renameD ks ts ss cs cs1 ws is bs []       = (ks, ts, ss, cs, cs1, ws, is, reverse bs)
+renameD ks ts ss cs cs1 ws is bs (DBind bs' : ds)
+                                   = renameD ks ts ss cs cs1 ws is (bs++bs') ds
+renameD ks ts ss cs cs1 ws is bs []       = (ks, ts, ss, cs, cs1, ws, is, bs)
 
 
 instance Rename Decl where
@@ -228,7 +228,7 @@ instance Rename Decl where
                                         liftM (DType (renT env c) (map (renT env') vs)) (rename env' t)
   rename env (DImplicit vs)        = return (DImplicit (map (renE env) vs))
   rename env (DDefault ts)         = liftM DDefault (rename env ts)
-  rename env (DBind b)             = liftM DBind (rename env b)
+  rename env (DBind bs)            = liftM DBind (rename env bs)
 
 instance Rename (Default Type) where
   rename env (Default pub a b)     = return (Default pub (renE env a) (renE env b))

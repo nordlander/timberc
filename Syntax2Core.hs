@@ -35,7 +35,7 @@ s2cDecls env [] ke ts ws bs xs  = do (te,bs) <- s2cBinds env te es
                                      xs' <- mapM s2cDefault xs
                                      let ds = Core.Types (reverse ke ++ ke') (reverse ts)
                                      return (xs', ds, ws, bs)
-  where (te,es)                 = splitBinds (reverse bs)
+  where (te,es)                 = splitBinds bs
         impl_ke                 = dom ts \\ dom ke
 
 s2cDecls env (DKSig c k : ds) ke ts ws bs xs
@@ -58,8 +58,8 @@ s2cDecls env (DImplicit vs : ds) ke ts ws bs xs
                                 = s2cDecls env ds ke ts (ws++vs) bs xs
 s2cDecls env (DDefault d : ds) ke ts ws bs xs
                                 = s2cDecls env ds ke ts ws bs (d ++ xs)
-s2cDecls env (DBind b : ds) ke ts ws bs xs
-                                = s2cDecls env ds ke ts ws (b:bs) xs
+s2cDecls env (DBind bs' : ds) ke ts ws bs xs
+                                = s2cDecls env ds ke ts ws (bs++bs') xs
 
 
 s2cDefault (Default t a b)        = return (Default t a b)

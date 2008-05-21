@@ -112,26 +112,14 @@ sortFields fs                   = sortBy cmp fs
   where cmp (Field l1 _) (Field l2 _) = compare (str l1) (str l2)
 
 -- Desugaring -------------------------------------------------------------------------------------------
-{-
-dsDecls env (DInst t bs : ds)   = do w <- newName instanceSym
-                                     s <- renaming xs
-                                     let bs' = map (substB s) bs
-                                         r   = ERec (Just (type2head t,True)) (map mkField s)
-                                     dsDecls env (DPSig w t : DBind (BEqn (LPat (EVar w)) (RWhere (RExp r) bs')) : ds)
-  where mkField (x,x')          = Field x (EVar x')
-        xs                      = nub (bvars bs)
-        substB s (BSig vs t)    = BSig (substVars s vs) t
-        substB s (BEqn lh rh)   = BEqn (substL s lh) rh
-        substL s (LPat p)       = LPat (subst (mapSnd EVar s) p)
-        substL s (LFun v ps)    = LFun (substVar s v) ps
--}
+
 dsDecls env (DType c vs t : ds) = liftM (DType c vs (ds1 env t) :) (dsDecls env ds)
 dsDecls env (DData c vs ss cs : ds) = liftM (DData c vs (ds1 env ss) (ds1 env cs) :) (dsDecls env ds)
 dsDecls env (DRec b c vs ss ss' : ds) = liftM (DRec b c vs (ds1 env ss) (ds1 env ss') :) (dsDecls env ds)
-dsDecls env (DPSig n t : ds)    = liftM (\ds -> DImplicit [n] : DBind (BSig [n] (ds1 env t)) : ds) (dsDecls env ds)
+dsDecls env (DPSig n t : ds)    = liftM (\ds -> DImplicit [n] : DBind [BSig [n] (ds1 env t)] : ds) (dsDecls env ds)
 dsDecls env (DImplicit ws : ds) = liftM (DImplicit ws :) (dsDecls env ds)
 dsDecls env (DDefault ts : ds)  = liftM (DDefault (ds1 env ts) :) (dsDecls env ds)
-dsDecls env (DBind b : ds)      = liftM (DBind (ds1 env b) :) (dsDecls env ds)
+dsDecls env (DBind bs : ds)     = liftM (DBind (ds1 env bs) :) (dsDecls env ds)
 dsDecls env (d : ds)            = liftM (d :) (dsDecls env ds)
 dsDecls env []                  = return []
 
@@ -172,7 +160,7 @@ instance Desugar1 Pred where
     ds1 env (PType t)           = PType (ds1 env t)
     ds1 env p                   = p
 instance Desugar1 Decl where
-    ds1 env (DBind b)           = DBind (ds1 env b)
+    ds1 env (DBind bs)          = DBind (ds1 env bs)
     ds1 env d                   = d
 
 instance Desugar1 Bind where

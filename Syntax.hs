@@ -19,7 +19,7 @@ data Decl   = DKSig   Name Kind
             | DPSig   Name Type 
             | DDefault [Default Type]  
             | DImplicit [Name]
-            | DBind   Bind
+            | DBind   [Bind]
             deriving  (Eq,Show)
 
 data Constr =  Constr Name [Type] [Pred]
@@ -375,7 +375,7 @@ instance Pr Decl where
     pr (DPSig v t)              = text "implicit struct" <+> prId v <+> text "::" <+> pr t
     pr (DDefault ts)            = text "default" <+> hpr ',' ts
     pr (DImplicit ns)           = text "implicit" <+> hpr ',' ns 
-    pr (DBind b)                = pr b
+    pr (DBind bs)               = vpr bs
 
 prPreds []                      = empty
 prPreds ps                      = text " \\\\" <+> hpr ',' ps

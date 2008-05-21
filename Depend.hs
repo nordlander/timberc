@@ -33,28 +33,25 @@ topSort nbors ms                = case dropWhile (null . tail) ns of
                                     xs : _ -> Left xs
           where ns              = scc (graph nbors ms)
 
-groupBinds (Binds _ te es)      = zipWith f tes ess
+groupBinds (Binds _ te es)      = map f ess
   where gs                      = scc (graph evars es)
-        tes                     = group te gs
         ess                     = group es gs
-        f te es@[(x,e)]         = Binds (x `elem` evars e) te es
-        f te' _                 = Binds True (restrict te xs) (restrict es xs)
-          where xs              = dom te'
+        f [(x,e)]               = Binds (x `elem` evars e) (restrict te [x]) (restrict es [x])
+        f es'                   = Binds True (restrict te xs) (restrict es xs)
+          where xs              = dom es'
 
 
-groupTypes (Types ke ts)        = zipWith Types kes tss
+groupTypes (Types ke ts)        = map f tss
   where gs                      = scc (graph tycons ts)
-        kes                     = group ke gs
         tss                     = group ts gs
-        f ke te@[_]             = Types ke ts
-        f ke' _                 = Types (restrict ke cs) (restrict ts cs)
-          where cs              = dom ke'
+        f ts'                   = Types (restrict ke cs) (restrict ts cs)
+          where cs              = dom ts'
 
 
 groupMap bs                     = map f bss
   where gs                      = scc (graph evars bs)
         bss                     = group bs gs
-        f bs@[(x,b)]            = (x `elem` evars b, bs)
+        f bs@[(x,b)]            = (x `elem` evars b, restrict bs [x])
         f bs'                   = (True, restrict bs xs)
           where xs              = dom bs'
          

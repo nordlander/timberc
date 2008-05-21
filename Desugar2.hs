@@ -31,12 +31,10 @@ dsDecls (DType c vs t : ds)     = liftM (DType c vs (dsType t) :) (dsDecls ds)
 dsDecls (DPSig v t : ds)        = liftM (DPSig v (dsQualPred t) :) (dsDecls ds)
 dsDecls (DImplicit vs : ds)     = liftM (DImplicit vs :) (dsDecls ds)
 dsDecls (DDefault ts : ds)      = liftM (DDefault (map dsDefault ts) :) (dsDecls ds) 
-dsDecls (DBind b : ds)          = do (bs',cs) <- dsBinds bs
+dsDecls (DBind bs : ds)         = do (bs',cs) <- dsBinds bs
                                      let pbs = filter isLPatEqn bs'
-                                     if null cs then liftM (map DBind bs' ++) (dsDecls ds2)
+                                     if null cs then liftM (DBind bs' :) (dsDecls ds)
                                       else errorTree "Top-level pattern bindings are not allowed" (head pbs)
-  where (ds1,ds2)               = span isDBind ds
-        bs                      = b : [ b' | DBind b' <- ds1 ]
         
 
 dsConstr (Constr c ts ps)       = Constr c (map dsQualType ts) (map dsQual ps)
@@ -153,7 +151,7 @@ dsFunBind v [(ps,rh)] eqns      = do e <- dsExp (eLam ps (rh2exp rh))
 dsFunBind v alts eqns
   | length arities /= 1         = errorIds "Different arities for function" [v]
   | otherwise                   = do ws <- newNamesPos paramSym (fst (head alts))
-                                     alts <- mapM dsA alts
+                                     alts <- mapM dsA (reverse alts)
                                      e <- pmc' ws alts
                                      (eqns,cs) <- dsEqns eqns 
                                      return ((LFun v [], RExp (ELam (map EVar ws) e)) : eqns,cs)
