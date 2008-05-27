@@ -379,8 +379,11 @@ rtype (t, FunR f eqs ts)                = (length ts, TFun ts t)
 cBindsList env []                       = return []
 cBindsList env (bs:bss)                 = do (te,bf) <- cBinds env bs
                                              bs <- cBindsList (addTEnv te env) bss
-                                             return (flat (bf Kindle.CBreak) ++ bs)
-  where flat (Kindle.CBind r bs c)      = bs ++ flat c                    -- temporary, awaiting full recursive value implementation
+                                             return (flatBinds bf ++ bs)
+
+
+flatBinds bf                            = flat (bf Kindle.CBreak)
+  where flat (Kindle.CBind r bs c)      = bs ++ flat c
         flat _                          = []
 
 
@@ -398,9 +401,7 @@ cBinds env (Binds rec te eqs)           = do te <- cTEnv te
         okRec' (TVar _)                 = False                           -- ( won't appear, but bad anyway )
         okRec' (TAp t _)                = okRec' t                        -- Discard type arguments
         comb False bf bs                = bf . Kindle.CBind False bs
-        comb True bf bs                 = Kindle.CBind True (f (bf Kindle.CBreak) ++ bs)
-          where f (Kindle.CBind _ bs c) = bs ++ f c
-                f Kindle.CBreak         = []
+        comb True bf bs                 = Kindle.CBind True (flatBinds bf ++ bs)
 
 
 -- Translate a list of Core equations into a list of Kindle bindings on basis of declared type
