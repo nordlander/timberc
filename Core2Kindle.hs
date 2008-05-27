@@ -389,7 +389,7 @@ cBinds env (Binds rec te eqs)           = do te <- cTEnv te
                                              assert (not rec || all okRec (rng te)) "Illegal value recursion" (dom te)
                                              (bf,_,bs) <- cEqs (if rec then addTEnv te env else env) te eqs
                                              -- (Ignore returned type equalities, because te will have no unification variables)
-                                             return (te, bf . Kindle.CBind rec bs)
+                                             return (te, comb rec bf bs)
   where okRec (ValT ke t)               = okRec' t
         okRec (FunT ke ts t)            = True                            -- Good: recursive function
         okRec' (TFun _ _)               = True                            -- ( won't appear, but good anyway )
@@ -397,6 +397,10 @@ cBinds env (Binds rec te eqs)           = do te <- cTEnv te
         okRec' (TId n)                  = isCon n                         -- Bad: type variable (black hole)
         okRec' (TVar _)                 = False                           -- ( won't appear, but bad anyway )
         okRec' (TAp t _)                = okRec' t                        -- Discard type arguments
+        comb False bf bs                = bf . Kindle.CBind False bs
+        comb True bf bs                 = Kindle.CBind True (f (bf Kindle.CBreak) ++ bs)
+          where f (Kindle.CBind _ bs c) = bs ++ f c
+                f Kindle.CBreak         = []
 
 
 -- Translate a list of Core equations into a list of Kindle bindings on basis of declared type
