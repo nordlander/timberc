@@ -292,7 +292,7 @@ ds1S env (SWhile e ss' : ss)     = internalError0 "while stmt not yet implemente
 
 ds1Forall env [] ss              = eDo env ss
 ds1Forall env (QLet bs : qs) ss  = ELet bs (eDo env [SForall qs ss])
-ds1Forall env (QGen p e : qs) ss = EAp (EAp (EVar (name (0,0) "forallDo")) (ELam [p] (eDo env [SForall qs ss]))) e
+ds1Forall env (QGen p e : qs) ss = EAp (EAp (EVar (name' "forallDo")) (ELam [p] (eDo env [SForall qs ss]))) e
 ds1Forall env (QExp e : qs) ss   = EIf e (eDo env [])  (eDo env [SForall qs ss])
 
 ds1T env [SRet e]                = [SRet (ds1 env e)]

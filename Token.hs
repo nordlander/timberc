@@ -6,10 +6,10 @@ import Char
 
 
 data Token 
-    = VarId      String
-    | ConId      String
-    | VarSym     String
-    | ConSym     String
+    = VarId      (String,String)
+    | ConId      (String,String)
+    | VarSym     (String,String)
+    | ConSym     (String,String)
     | IntTok     String
     | FloatTok   String
     | Character  Char

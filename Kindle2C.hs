@@ -22,7 +22,7 @@ k2hModule (Module n ns ds bs)   = hHeader n ns $$$
                                   k2cInitProcStub n <> text ";" $$$
                                   hFooter n
   
-k2cImport n                     = text "#include \"" <> text (concat (intersperse "/" (splitString (str n)))) <> text ".h\""
+k2cImport n                     = text "#include \"" <> text (modToPath (str n) ++ ".h\"")
 
 
 hHeader n []                    = includeGuard n $$ text "#include \"rts.h\"" $$ text "#include \"timber.h\""
@@ -118,7 +118,7 @@ k2cOffsets n ((x,ValT t):te)
 k2cGCinfoName n                 = text "__GC__" <> k2cName n
 
 
-cHeader n                       = text "#include \"" <> text (last (splitString (str n))) <> text ".h\"" 
+cHeader n                       = text "#include \"" <> text (modToPath (str n)) <> text ".h\"" 
 cFooter n                       = text "\n"
 
 

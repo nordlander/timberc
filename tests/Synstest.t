@@ -31,7 +31,7 @@ h :: D -> C
 h (x,y) = [x]
 
 implicit struct Num2 a where
-  (+') :: Fun a a B
+  (.+) :: Fun a a B
 
 
 type String = [Char]

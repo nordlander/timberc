@@ -1,6 +1,6 @@
 module Observer where
 
-import Data'Functional'List
+import Data.Functional.List
 
 sequence :: [Action] -> Cmd a ()
 sequence [] = do result ()

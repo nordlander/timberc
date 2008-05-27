@@ -11,6 +11,7 @@ import System.Console.GetOpt
 import qualified Directory
 
 -- Timber Compiler
+import System.FilePath
 import Config
 import Execution
 import PP
@@ -165,7 +166,7 @@ Yet unknown:
 
 
 compileTimber clo ifs (sm,t_file) ti_file c_file h_file
-                        = do let par@(Syntax.Module n is _ _) = sm
+                        = do let Syntax.Module n is _ _ = sm
                              putStrLn ("[compiling "++ t_file++"]")
                              (imps,ifs') <- chaseIfaceFiles is ifs
                              let ((htxt,mtxt),ifc) = runM (passes imps par)
@@ -225,13 +226,16 @@ compileAll clo ifs (p@(ms,t_file):t_files)
                                  putStrLn ("[skipping " ++ t_file ++ " (output is up to date)]")
                                  compileAll clo ifs t_files
                               else do
-                                 ifs' <- compileTimber clo ifs p ti_file c_file h_file
+                                 ifs' <- compileTimber clo ifs (longName p) ti_file c_file h_file
                                  compileAll clo (ifs' ++ ifs) t_files
   where base            = rmSuffix ".t" t_file
         ti_file         = base ++ ".ti"
         c_file          = base ++ ".c"
         h_file          = base ++ ".h"
-
+        qm              = takeBaseName t_file
+        longName (Syntax.Module m a b c,t)
+          |reverse(takeWhile (/= '.') (reverse qm))==str m = (Syntax.Module (name0 qm) a b c,t_file)
+          |otherwise = errorIds "Module name not last constructor id in file name" [m]
 
 checkUpToDate clo t_file ti_file c_file h_file imps
   | shortcut clo        = do ti_exists <- Directory.doesFileExist ti_file
@@ -391,7 +395,7 @@ thd (_,_,x)                         = x
 chaseIfaceFiles                      = chaseImps decodeModule impsOf ".ti"
                                      
 impName (Syntax.Import b c)          = c
-impNames (Syntax.Module _ is _ _) = map impName is
+impNames (Syntax.Module _ is _ _)    = map impName is
 
 chaseSyntaxFiles                     = chaseImps readSyntax impNames ".t"
   where readSyntax f                 = (do cont <- readFile f

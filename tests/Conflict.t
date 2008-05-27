@@ -7,7 +7,7 @@ module Conflict where
   length = 3
 
   -- Prelude def can be used qualified
-  a = length'Prelude 
+  a = Prelude.length
 
 private
   

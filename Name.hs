@@ -262,39 +262,29 @@ noAnnot                         = Annot { location = Nothing, explicit = False, 
                                           generated = False, suppressMod = False, forceTag = False }
 
 -- This function is used (only) by the parser to build Names
-name l s                        = case lookup s rigidNames of
+name l (q,s)                    = case lookup s rigidNames of
                                     Just n -> n 
-                                    Nothing -> Name s' 0 m (noAnnot {location = Just l})
-                                       where (s',m) =  case splitString s of
-                                                          [x]      -> (x, Nothing)
-                                                          (x : xs) -> (x, Just (joinString xs))
-
+                                    Nothing -> Name s 0 (m q) (noAnnot {location = Just l})
+                                       where m "" = Nothing
+                                             m q = Just q
 joinString [x]                  = x
-joinString (x : xs)             = x ++ '\'' : joinString xs                             
-
-
- 
+joinString (x : xs)             = x ++ '.' : joinString xs                             
 
 dropMod n                       = n {fromMod = Nothing}
 qName m n                       = n {fromMod = Just m}
+
+-- Used for module names in import clauses
+modId n@(Name _ _ Nothing _)    = n
+modId (Name s t (Just m) a)     = Name (m++'.':s) t Nothing a
 
 prim p                          = Prim p noAnnot
 
 tuple n                         = Tuple n noAnnot
 
 
-splitString s                   = case break2 s of
+splitString s                   = case break (=='.') s of
                                     (local,[])  -> [local]                                 
-                                    (local,suf) 
-                                        | all (isUpper . head) mods -> local : mods
-                                        | otherwise -> error ("Illegal module name in qualified name " ++ s)
-                                        where mods = splitString suf
-   where break2 xs              = move (break (== '\'') xs)
-         move (xs,y:z:ys)
-                 | z == '\''    = move (xs++[y],z : ys)
-                 | otherwise    = (xs, z : ys)
-         move (xs,ys)           = (xs ++ ys, [])
-
+                                    (local,suf)  -> local : splitString (tail suf)
 
 splitQual s def                 = case splitString s of
                                     [x]    -> (x, def)
@@ -386,9 +376,9 @@ instance Ord Name where
 -- Printing Names -----------------------------------------------------------------
 
 instance Show Name where
-  show (Name s n m a)           = s ++ tag ++ mod
+  show (Name s n m a)           = mod ++ s ++ tag
      where tag                  = if n/=0 && generated a  then '_' : show n else ""
-           mod                  = if m==Nothing || suppressMod a then "" else "'" ++ fromJust m
+           mod                  = if m==Nothing || suppressMod a then "" else fromJust m ++ "."
   show (Tuple n _)              = '(' : replicate (n-1) ',' ++ ")"
   show (Prim p _)               = strRep p
 
@@ -436,7 +426,7 @@ where the variable in the RHS refers to the parameter of the LHS rather than the
 
 name2str n                      = render (prId3 n)
 
-modToPath m                     = concat (List.intersperse "/" (splitString m))
+modToPath m                     = m -- concat (List.intersperse "/" (splitString m))
 
 modToundSc m                    = concat (List.intersperse "_" (splitString m))
 

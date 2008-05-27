@@ -437,3 +437,4 @@ implicit mPlusMaybe :: MPlus Maybe = struct
 
 implicit functorArray :: Functor Array = struct
   f $^ a = array [f (a!i) | i <- [0..size a-1]]
+

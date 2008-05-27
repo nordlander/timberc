@@ -18,10 +18,10 @@ parser str = runPM2 parse str
 %token
         VARID 	 { VarId $$ }
 	CONID	 { ConId $$ }
-	'-'	 { VarSym "-" }
-        '<'      { VarSym "<" }
-        '>'      { VarSym ">" }
-        '*'	 { VarSym "*" }
+        '-'	 { VarSym ("","-") }
+        '<'      { VarSym ("","<") }
+        '>'      { VarSym ("",">") }
+        '*'	 { VarSym ("","*") }
 	VARSYM	 { VarSym $$ }
 	CONSYM	 { ConSym $$ }
 	INT	 { IntTok $$ }
@@ -102,12 +102,7 @@ Reserved Ids
 -- Module Header ------------------------------------------------------------
 
 module  :: { Module }
-        : 'module' modid 'where' body		{ mkModule $2 $4 }
-
-modid   :: { Name }
-        : CONID                                 { name0 $1 }
-
-
+        : 'module' conid 'where' body		{ mkModule $2 $4 }
 
 body    :: { ([Import],[Decl],[Decl]) }
         : '{' layout_off imports topdecls '}' private	{ (reverse $3,reverse $4, $6) }
@@ -126,8 +121,8 @@ imports :: { [Import] }
         | {- empty -}                           { [] }
 
 import  :: { Import }
-        : 'import' modid                        { Import True $2 }
-        | 'use' modid                           { Import False $2 }
+        : 'import' conid                        { Import True (modId $2) }
+        | 'use' conid                           { Import False (modId $2) }
 
 
 -- Top-level declarations ---------------------------------------------------
@@ -599,16 +594,16 @@ consym  :: { Name }
 
 
 
-VARSYM1 :: { String }
+VARSYM1 :: { (String,String) }
 	: VARSYM0				{ $1 }
-	| '-'					{ "-" }
+	| '-'					{ ("","-") }
 
-VARSYM0 :: { String }
+VARSYM0 :: { (String,String) }
         : VARSYM                                { $1 }
-        | '<'                                   { "<" }
-        | '>'                                   { ">" }
-        | '*'                                   { "*" }
-        | '\\\\'				{ "\\\\" }
+        | '<'                                   { ("","<") }
+        | '>'                                   { ("",">") }
+        | '*'                                   { ("","*") }
+        | '\\\\'				{ ("","\\\\") }
         
 
 -- Layout ---------------------------------------------------------------------

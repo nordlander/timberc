@@ -127,41 +127,11 @@ lexToken cont =
               Octal       (n,rest) -> forward (length n) (IntTok n) rest
               Hexadecimal (n,rest) -> forward (length n) (IntTok n) rest
 
-          | isLower c ->
-              let (vidtail, rest) = span isIdent s
-                  vid             = c:vidtail
-                  l_vid           = 1 + length vidtail
-              in
-                  case lookup vid reserved_ids of
-                  Just keyword -> forward l_vid keyword rest
-                  Nothing      -> forward l_vid (VarId vid) rest
+          | isLower c -> lexVarId "" c s
 
-          | isUpper c ->
-              let (contail, rest) = span isIdent s
-                  l_con           = 1 + length contail
-                  con             = c:contail
-              in
-                  case lookup con reserved_ids of
-                  Just keyword -> forward l_con keyword rest
-                  Nothing      -> -- lexQual l_con con rest
-                                      (forward l_con (ConId con) rest)
-                  
-          | isSymbol c ->
-              let (symtail, rest) = span isSymbol s
-                  sym             = c : symtail
-                  l_sym           = 1 + length symtail
-              in
-                  case rest of
-                  '\'' : _ -> let (qualtail,rest') = span isIdent rest
-                              in  case c of 
-                                   ':' -> forward (l_sym + length qualtail) (ConSym (sym ++ qualtail)) rest'
-                                   _  ->  forward (l_sym + length qualtail) (VarSym (sym ++ qualtail)) rest' 
- 
-                  _        -> case lookup sym reserved_ops of
-                                Just t  -> forward l_sym t rest
-                                Nothing -> case c of
-                                 ':' -> forward l_sym (ConSym sym) rest
-                                 _   -> forward l_sym (VarSym sym) rest
+          | isUpper c -> lexQualName "" c s
+
+          | isSymbol c -> lexSymbol "" c s
 
           | otherwise ->
               (unPM $
@@ -173,6 +143,12 @@ lexToken cont =
       special t = forward 1 t s
       forward n t s = (unPM $ cont t) s loc (x + n)
  
+      join "" n = n
+      join q n  = q ++ '.' : n
+
+      len "" n = length n
+      len q n  = length q + length n + 1
+
       lexFloatRest r = case span isDigit r of
                        (r2, 'e':r3) -> lexFloatExp (r2 ++ "e") r3
                        (r2, 'E':r3) -> lexFloatExp (r2 ++ "e") r3
@@ -185,6 +161,40 @@ lexToken cont =
       lexFloatExp2 r1 r2 = case span isDigit r2 of
                            ("", _ ) -> Nothing
                            (ds, r3) -> Just (r1++ds,r3)
+      
+      lexVarId q c s = let (vidtail, rest) = span isIdent s
+                           vid             = c:vidtail
+                           l_vid           = len q vid
+              in
+                  case lookup vid reserved_ids of
+                  Just keyword -> case q of
+                                    "" -> forward l_vid keyword rest
+                                    _ -> (unPM $ parseError "illegal qualified name") s loc x
+                  Nothing      -> forward l_vid (VarId (q,vid)) rest
+
+      lexQualName q c s = let (contail, rest) = span isIdent s
+                              con             = join q (c:contail)
+                              l_con           = length con
+                          in case rest of
+                               '.': c' : rest'
+                                  | isUpper c' -> lexQualName con c' rest'
+                                  | isLower c' -> lexVarId con c' rest'
+                                  | isSymbol c' -> lexSymbol con c' rest'
+                                  | otherwise -> (unPM $ parseError "illegal qualified name") s loc x
+                               _ -> forward l_con (ConId (q,c:contail)) rest
+                  
+      lexSymbol q c s = let (symtail, rest) = span isSymbol s
+                            sym             = c:symtail
+                            l_sym = len q sym
+                        in case lookup sym reserved_ops of
+                                Just t  -> case q of
+                                    "" -> forward l_sym t rest
+                                    _ -> (unPM $ parseError "illegal qualified name") s loc x
+                                Nothing -> case c of
+                                 ':' -> forward l_sym (ConSym (q,sym)) rest
+                                 _   -> forward l_sym (VarSym (q,sym)) rest
+   
+      
     lexToken' _  _ _ =
         internalError0 "Lexer.lexToken: empty input stream."
 

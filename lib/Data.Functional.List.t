@@ -1,4 +1,4 @@
-module Data'Functional'List where
+module List where
 
 delete             :: a -> [a] -> [a] \\ Eq a
 delete              = deleteBy (==)
@@ -59,8 +59,12 @@ words               :: String -> [String]
 words s             = case dropWhile isSpace s of
                         "" -> []
                         s' -> w : words s''
-                           where (w,s'') = break isSpace s'
-
+                           where (w,s'') = acc s' []
+                                 acc [] w = (reverse w,[])
+                                 acc (c:cs) w
+                                  |isSpace c = (reverse w,cs)
+                                  |otherwise = acc cs (c:w) 
+                         
 isSpace c           = elem c " \t\n"
 
 unlines             :: [String] -> String

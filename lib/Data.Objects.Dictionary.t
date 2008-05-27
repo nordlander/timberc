@@ -1,4 +1,4 @@
-module Data'Objects'Dictionary where
+module Dictionary where
 
   struct Dictionary a b where
     insert :: a -> b -> Action
@@ -12,7 +12,7 @@ module Data'Objects'Dictionary where
       dict := ins a b dict
 
     lookup a = request
-      result lookup'Prelude a dict
+      result Prelude.lookup a dict
 
     result Dictionary {..}
 
