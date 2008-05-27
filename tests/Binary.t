@@ -28,12 +28,8 @@ binaryEither = struct
 
 default binaryMaybe :: Binary (Maybe a) \\ Binary a
 
-{-
+
 
 data A = C1 | C2 
 
 default binaryA :: Binary A
-
-gives a type error!!
-
--}

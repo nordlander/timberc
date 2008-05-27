@@ -8,7 +8,7 @@ pointedUnit = { p = () }
 
 implicit pointedPair :: Pointed (a,b) \\ Pointed a, Pointed b
 pointedPair = struct
-   p = (p,p)
+  p = (p,p)
 
 implicit pointedEitherL :: Pointed (Either a b) \\ Pointed a
 pointedEitherL = struct
