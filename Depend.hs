@@ -56,12 +56,17 @@ groupMap bs                     = map f bss
           where xs              = dom bs'
          
 -- Dependency analysis on Syntax bindlists -------------------------------------------
-{-
+
+isFunEqn v (BEqn (LFun v' _) _) = v == v'
+isFunEqn v _                    = False
+
 graphInfo []                    =  []
-graphInfo (s@(BSig _ _) : e@(BEqn (LFun v _) rh) : bs)
-                                = ([s,e], [v], nub (idents rh)) : graphInfo bs
+graphInfo (s@(BSig [v] _) : bs)
+                                = (s:bs1, [v], nub (idents bs1)) : graphInfo bs2
+  where (bs1,bs2)               = span (isFunEqn v) bs
 graphInfo (e@(BEqn (LFun v _) rh) : bs) 
-                                = ([e], [v], nub (idents rh)) : graphInfo bs
+                                = (e:bs1, [v], nub (idents (e:bs1))) : graphInfo bs2
+  where (bs1,bs2)               = span (isFunEqn v) bs
 graphInfo (e@(BEqn (LPat p) rh) : bs)  
                                 = ([e], nub (idents p), nub (idents rh)) : graphInfo bs
 graphInfo (BSig _ _ : bs)       = graphInfo bs
@@ -70,13 +75,12 @@ buildGraph                      :: [([Bind],[Name],[Name])] -> Graph Int
 buildGraph vs                   = zip ns (map findDeps fvss)
   where (_,bvss,fvss)           = unzip3 vs
         ns                      = [1..]
-        ds                      = concatMap mkDict (zip bvss ns)
+        dict                    = concatMap mkDict (zip bvss ns)
         mkDict (vs,n)           = map (\v -> (v,n)) vs
-        findDeps xs             = [n | Just n <- map (flip lookup ds) xs]
+        findDeps xs             = [n | Just n <- map (flip lookup dict) xs]
 
 groupBindsS                     :: [Bind] ->  [[Bind]]
-groupBindsS bs                  = map (concat . map fst3) iss
-  where is                      = graphInfo bs
-        g                       = buildGraph is
-        iss                     = map (map (fromJust . flip lookup (zip [1..] is))) (scc g)
--}
+groupBindsS bs                  = map f gs
+  where infos                   = graphInfo bs
+        gs                      = scc (buildGraph infos)
+        f indices               = concat (map (\i -> fst3 (fromJust (lookup i (zip [1..] infos)))) indices)

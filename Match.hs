@@ -4,7 +4,6 @@ import Common
 import Syntax
 import Monad
 import qualified List
---import Depend
 
 pmc :: Exp -> [Alt Exp] -> M s Exp
 pmc e alts                      = do e' <- match0 e alts
@@ -135,6 +134,8 @@ matchQuals [] e                 = return (eCommit e)
 matchQuals (QGen p e' : qs) e   = match0 e' [Alt p (RGrd [GExp qs e])]
 matchQuals (QLet bs : qs) e     = do e' <- matchQuals qs e
                                      return (ELet bs e')
+matchQuals (QExp e' : qs) e     = matchQuals (QGen true e' : qs) e
+
 
 
 -- Dependency analysis ------------------------------------

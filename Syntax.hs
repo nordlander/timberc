@@ -109,7 +109,7 @@ data Qual   = QExp    Exp
 data Stmt   = SExp    Exp
             | SRet    Exp
             | SGen    Pat Exp
-            | SBind   Bind
+            | SBind   [Bind]
             | SAss    Pat Exp
             | SForall [Qual] [Stmt]
             | SWhile  Exp [Stmt]
@@ -204,6 +204,7 @@ rAp (RGrd gs) es                = RGrd [ GExp qs (foldl EAp e es) | GExp qs e <-
 
 eLet [] e                       = e
 eLet bs e                       = ELet bs e
+
 
 simpleEqn x e                   = BEqn (LFun x []) (RExp e)
 
@@ -320,7 +321,7 @@ instance Subst Stmt Name Exp where
     subst s (SExp e)            = SExp (subst s e)
     subst s (SRet e)            = SRet (subst s e)
     subst s (SGen p e)          = SGen p (subst s e)
-    subst s (SBind b)           = SBind (subst s b)
+    subst s (SBind bs)          = SBind (subst s bs)
     subst s (SAss p e)          = SAss p (subst s e)
     subst s (SForall qs st)     = SForall (subst s qs) (subst s st)
     subst s (SWhile e st)       = SWhile (subst s e) (subst s st)
@@ -545,7 +546,7 @@ instance Pr Stmt where
     pr (SExp e)                 = pr e
     pr (SRet e)                 = text "result" <+> pr e
     pr (SGen p e)               = pr p <+> text "<-" <+> pr e
-    pr (SBind b)                = pr b
+    pr (SBind bs)               = vpr bs
     pr (SAss p e)               = pr p <+> text ":=" <+> pr e
     pr (SIf e ss)               = text "if" <+> pr e <+> text "then" $$ nest 4 (pr ss)
     pr (SElsif e ss)            = text "elsif" <+> pr e <+> text "then" $$ nest 4 (pr ss)
@@ -625,7 +626,7 @@ identStmts []                   = []
 identStmts (SExp e : ss)        = idents e ++ identStmts ss
 identStmts (SRet e : ss)        = idents e ++ identStmts ss
 identStmts (SGen p e : ss)      = idents e ++ (identStmts ss \\ pvars p)
-identStmts (SBind b : ss)       = identSBind [b] ss
+identStmts (SBind bs : ss)      = identSBind bs ss
 identStmts (SAss p e : ss)      = idents e ++ (identStmts ss \\ pvars p)
 identStmts (SForall qs ss' : ss)= identQuals qs ++ (identStmts ss' \\ bvars qs) ++ identStmts ss
 identStmts (SWhile e ss' : ss)  = idents e ++ identStmts ss' ++ identStmts ss
@@ -634,9 +635,9 @@ identStmts (SElsif e ss' : ss)  = idents e ++ identStmts ss' ++ identStmts ss
 identStmts (SElse ss' : ss)     = identStmts ss' ++ identStmts ss
 identStmts (SCase e as : ss)    = idents e ++ idents as ++ identStmts ss
 
-identSBind bs (SBind b : ss )   = identSBind (b:bs) ss
-identSBind bs ss                = idents bs' ++ (identStmts ss \\ bvars bs')
-  where bs'                     = reverse bs
+identSBind bs (SBind bs' : ss ) = identSBind (bs++bs') ss
+identSBind bs ss                = idents bs ++ (identStmts ss \\ bvars bs)
+
 
 pvars p                         = evars p
 
@@ -667,14 +668,9 @@ instance BVars [Qual] where
 instance BVars [Stmt] where
     bvars []                            = []
     bvars (SGen p e : ss)               = pvars p ++ bvars ss
-    bvars (SBind (BEqn (LPat p) _):ss)  = pvars p ++ bvars ss
-    bvars (SBind (BEqn (LFun v _)_):ss) = bvars' v ss
-      where bvars' v (SBind (BEqn (LFun v' _) _) : ss)
-              | v == v'                 = bvars' v ss
-              | otherwise               = v : bvars' v' ss
-            bvars' v ss                 = v : bvars ss
+    bvars (SBind bs : ss)               = bvars bs ++ bvars ss
     bvars (_ : ss)                      = bvars ss
-    
+  
 
 instance BVars Lhs where
     bvars (LFun v ps)           = pvars ps

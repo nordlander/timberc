@@ -3,7 +3,6 @@ module Env where
 import PP
 import Common
 import Core
-import Depend
 
 
 
@@ -462,6 +461,11 @@ varInfo gs                              = (emb, vs, lb, ub, lb', ub', polvs)
 inst (Scheme t ps ke)           = do ts <- mapM newTVar ks
                                      let s = vs `zip` ts
                                      return (subst s t, subst s ps)
+  where (vs,ks)                 = unzip ke
+
+
+wildify ke pe                   = do ts <- mapM newTVar ks
+                                     return (subst (vs `zip` ts) pe)
   where (vs,ks)                 = unzip ke
 
 

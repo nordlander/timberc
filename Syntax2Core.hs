@@ -4,7 +4,6 @@ module Syntax2Core where
 import Common
 import Syntax
 import Monad
-import Depend
 import qualified Core
 import PP
 
@@ -14,8 +13,8 @@ syntax2core m = s2c m
 -- translate a module in the empty environment
 
 s2c                             :: Module -> M s Core.Module
-s2c (Module v is ds ps)         = do (xs,ts,ws,bs) <- s2cDecls env0 ds [] [] [] [] []
-                                     return (Core.Module v is' xs ts ws (groupBinds bs))
+s2c (Module v is ds ps)         = do (xs,ts,ws,bss) <- s2cDecls env0 ds [] [] [] [] []
+                                     return (Core.Module v is' xs ts ws bss)
   where env0                    = Env { sigs = [] }
         is'                     = [n | Import _ n <- is]
 
@@ -30,41 +29,46 @@ addSigs te env                  = env { sigs = te ++ sigs env }
 
 -- Translate top-level declarations, accumulating signature environment env, kind environment ke, 
 -- type declarations ts, implicit names ws, bindings bs as well as default declarations xs
-s2cDecls env [] ke ts ws bs xs  = do (te,bs) <- s2cBinds env te es
+s2cDecls env [] ke ts ws bss xs = do bss <- s2cBindsList env (reverse bss)
                                      ke' <- mapM s2cKSig (impl_ke `zip` repeat KWild)
                                      xs' <- mapM s2cDefault xs
                                      let ds = Core.Types (reverse ke ++ ke') (reverse ts)
-                                     return (xs', ds, ws, bs)
-  where (te,es)                 = splitBinds bs
-        impl_ke                 = dom ts \\ dom ke
+                                     return (xs', ds, ws, bss)
+  where impl_ke                 = dom ts \\ dom ke
 
-s2cDecls env (DKSig c k : ds) ke ts ws bs xs
+s2cDecls env (DKSig c k : ds) ke ts ws bss xs
                                 = do ck  <- s2cKSig (c,k)
-                                     s2cDecls env ds (ck:ke) ts ws bs xs
-s2cDecls env (DData c vs bts cs : ds) ke ts ws bs xs
+                                     s2cDecls env ds (ck:ke) ts ws bss xs
+s2cDecls env (DData c vs bts cs : ds) ke ts ws bss xs
                                 = do bts <- mapM s2cQualType bts
                                      cs  <- mapM s2cConstr cs
-                                     s2cDecls env' ds ke ((c,Core.DData vs bts cs):ts) ws bs xs
+                                     s2cDecls env' ds ke ((c,Core.DData vs bts cs):ts) ws bss xs
   where env'                    = addSigs (teConstrs c vs cs) env
-s2cDecls env (DRec isC c vs bts ss : ds) ke ts ws bs xs
+s2cDecls env (DRec isC c vs bts ss : ds) ke ts ws bss xs
                                 = do bts <- mapM s2cQualType bts
                                      sss <- mapM s2cSig ss
-                                     s2cDecls env' ds ke ((c,Core.DRec isC vs bts (concat sss)):ts) ws bs xs
+                                     s2cDecls env' ds ke ((c,Core.DRec isC vs bts (concat sss)):ts) ws bss xs
   where env'                    = addSigs (teSigs c vs ss) env
-s2cDecls env (DType c vs t : ds) ke ts ws bs xs
+s2cDecls env (DType c vs t : ds) ke ts ws bss xs
                                 = do t <- s2cType t
-                                     s2cDecls env ds ke ((c,Core.DType vs t):ts) ws bs xs
-s2cDecls env (DImplicit vs : ds) ke ts ws bs xs
-                                = s2cDecls env ds ke ts (ws++vs) bs xs
-s2cDecls env (DDefault d : ds) ke ts ws bs xs
-                                = s2cDecls env ds ke ts ws bs (d ++ xs)
-s2cDecls env (DBind bs' : ds) ke ts ws bs xs
-                                = s2cDecls env ds ke ts ws (bs++bs') xs
+                                     s2cDecls env ds ke ((c,Core.DType vs t):ts) ws bss xs
+s2cDecls env (DImplicit vs : ds) ke ts ws bss xs
+                                = s2cDecls env ds ke ts (ws++vs) bss xs
+s2cDecls env (DDefault d : ds) ke ts ws bss xs
+                                = s2cDecls env ds ke ts ws bss (d ++ xs)
+s2cDecls env (DBind bs : ds) ke ts ws bss xs
+                                = s2cDecls env ds ke ts ws (bs:bss) xs
 
 
-s2cDefault (Default t a b)        = return (Default t a b)
-s2cDefault (Derive n t)           = do t <- s2cQualType t
-                                       return (Derive n t)
+s2cBindsList env []             = return []
+s2cBindsList env (bs:bss)       = do (te,bs) <- s2cBinds env bs
+                                     bss <- s2cBindsList (addSigs te env) bss
+                                     return (bs:bss)
+
+
+s2cDefault (Default t a b)      = return (Default t a b)
+s2cDefault (Derive n t)         = do t <- s2cQualType t
+                                     return (Derive n t)
 
 --translate a constructor declaration
 s2cConstr (Constr c ts ps)      = do ts <- mapM s2cQualType ts
@@ -178,11 +182,14 @@ splitBinds bs                           = s2cB [] [] bs
 
 
 -- translate equation eqs in the scope of corresponding signatures sigs
-s2cBinds env sigs eqs                   = do (ts,es) <- fmap unzip (mapM s2cEqn eqs)
+s2cBinds env bs                         = do (ts,es) <- fmap unzip (mapM s2cEqn eqs)
                                              let te = vs `zip` ts
                                              te' <- s2cTE te
-                                             return (te, Core.Binds True te' (vs `zip` es))
-  where vs                              = dom eqs
+                                             return (te, Core.Binds (isRec eqs) te' (vs `zip` es))
+  where (sigs,eqs)                      = splitBinds bs
+        vs                              = dom eqs
+        isRec [(v,e)]                   = v `elem` evars e
+        isRec _                         = True
         env'                            = addSigs sigs env
         s2cEqn (v,e)                    = case lookup v sigs of
                                             Nothing -> s2cEi env' e
@@ -202,10 +209,9 @@ s2cEc env _ (EAp e1 e2)         = do (t,e1) <- s2cEi env e1
                                      let (t1,_) = splitT t
                                      e2 <- s2cEc env (peel t1) e2
                                      return (Core.eAp2 e1 [e2])
-s2cEc env t (ELet bs e)         = do (te',bs') <- s2cBinds env te eqs
+s2cEc env t (ELet bs e)         = do (te',bs') <- s2cBinds env bs
                                      e' <- s2cEc (addSigs te' env) t e
-                                     return (Core.eLet' (groupBinds bs') e')
-  where (te,eqs)                = splitBinds bs
+                                     return (Core.ELet bs' e')
 s2cEc env t (ECase e alts)      = do e <- s2cEc env TWild e
                                      alts <- mapM (s2cA env t) alts
                                      return (Core.ECase e (alts++dflt))
@@ -243,7 +249,7 @@ s2cE env (ETempl (Just x) Nothing ss)   = do c <- s2cS (addSigs te env) (map uns
     sigs []                             = []
     sigs (SGen (ESig (EVar v) t) _ :ss) = (v,t) : sigs ss
     sigs (SAss (ESig (EVar v) t) _ :ss) = (v,t) : sigs ss
-    sigs (SBind (BSig vs t) : ss)       = vs `zip` repeat t ++ sigs ss
+    sigs (SBind bs : ss)                = concat [ vs `zip` repeat t | BSig vs t <- bs ] ++ sigs ss
     sigs (_ : ss)                       = sigs ss
 
     unsig (SAss (ESig p t) e)           = SAss p e
@@ -272,15 +278,9 @@ s2cS env (SGen (EVar v) e : ss)         = do (_,e') <- s2cEi env e
 s2cS env (SAss (EVar v) e : ss)         = do e' <- s2cEc env (lookupT v env) e
                                              c <- s2cS env ss
                                              return (Core.CAss v e' c)
-s2cS env (SBind b : ss)                 = s2cS' env [b] ss
-
-
--- translate a binding group prefix of a statement list
-s2cS' env bs (SBind b : ss)             = s2cS' env (b:bs) ss
-s2cS' env bs ss                         = do (te',bs') <- s2cBinds env te es
+s2cS env (SBind bs : ss)                = do (te',bs') <- s2cBinds env bs
                                              c <- s2cS (addSigs te' env) ss
-                                             return (Core.cLet' (groupBinds bs') c)
-  where (te,es)                         = splitBinds (reverse bs)
+                                             return (Core.CLet bs' c)
 
 
 -- Expressions, synthesize mode ================================================================
@@ -294,10 +294,9 @@ s2cEi env (EAp e1 e2)           = do (t,e1) <- s2cEi env e1
                                      let (t1,t2) = splitT t
                                      e2 <- s2cEc env (peel t1) e2
                                      return (t2, Core.eAp2 e1 [e2])
-s2cEi env (ELet bs e)           = do (te',bs') <- s2cBinds env te eqs
+s2cEi env (ELet bs e)           = do (te',bs') <- s2cBinds env bs
                                      (t,e') <- s2cEi (addSigs te' env) e
-                                     return (t, Core.eLet' (groupBinds bs') e')
-  where (te,eqs)                = splitBinds bs
+                                     return (t, Core.ELet bs' e')
 s2cEi env (ECase e alts)        = do e <- s2cEc env TWild e
                                      alts <- mapM (s2cA env TWild) alts
                                      return (TWild, Core.ECase e (alts++dflt))

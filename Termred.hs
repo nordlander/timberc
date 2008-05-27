@@ -3,7 +3,6 @@ module Termred(termred, redTerm, isFinite, constrs) where
 import Monad
 import Common
 import Core
-import Depend
 import PP
 import Char
 

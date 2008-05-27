@@ -4,7 +4,6 @@ import Monad
 import Common
 import Core
 import Name
-import Depend
 import PP
 import qualified Decls
 import qualified Env
@@ -401,9 +400,10 @@ cBinds env (Binds rec te eqs)           = do te <- cTEnv te
 
 
 -- Translate a list of Core equations into a list of Kindle bindings on basis of declared type
-cEqs env te eqs                         = do (bfs,eqs,bs) <- fmap unzip3 (mapM cEq eqs)
+cEqs env te eqs                         = do (bfs,eqs,bs) <- fmap unzip3 (mapM (cEq env te) eqs)
                                              return (foldr (.) id bfs, eqs, bs)
-  where cEq (x,e)                       = case lookup' te x of
+
+cEq env te (x,e)                        = case lookup' te x of
                                             ValT _ t -> do                       -- don't instantiate; leave skolemized instead!
                                                 (bf,eq,e) <- cValExpT env t e
                                                 t <- kindleType env t

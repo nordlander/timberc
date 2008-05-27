@@ -692,6 +692,7 @@ prInst (i, p)                   = text "implicit" <+> prId i <+> text "::" <+> p
 -- Bindings -----------------------------------------------------------------
 
 instance Pr Binds where
+--    pr (Binds True te eqns)     = text "rec" $$ vpr te $$ vpr eqns
     pr (Binds _ te eqns)        = vpr te $$ vpr eqns
     
 instance Pr (Name, Scheme) where
@@ -786,9 +787,12 @@ instance Pr Pat where
 
 -- Expressions -------------------------------------------------------------
 
+prParam (x,Scheme t [] [])      = prId x
+prParam (x,sc)                  = parens (pr (x,sc))
+
 instance Pr Exp where
---    prn 0 (ELam te e)           = hang (char '\\' <> sep (map (parens . pr) te) <+> text "->") 4 (pr e)
-    prn 0 (ELam te e)           = hang (char '\\' <> sep (map prId (dom te)) <+> text "->") 4 (pr e)
+    prn 0 (ELam te e)           = hang (char '\\' <> sep (map prParam te) <+> text "->") 4 (pr e)
+--    prn 0 (ELam te e)           = hang (char '\\' <> sep (map prId (dom te)) <+> text "->") 4 (pr e)
     prn 0 (ELet bs e)           = text "let" $$ nest 4 (pr bs) $$ text "in" <+> pr e
     prn 0 (ECase e alts)        = text "case" <+> pr e <+> text "of" $$ 
                                        nest 2 (vpr alts)

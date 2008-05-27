@@ -119,7 +119,9 @@ dsDecls env (DRec b c vs ss ss' : ds) = liftM (DRec b c vs (ds1 env ss) (ds1 env
 dsDecls env (DPSig n t : ds)    = liftM (\ds -> DImplicit [n] : DBind [BSig [n] (ds1 env t)] : ds) (dsDecls env ds)
 dsDecls env (DImplicit ws : ds) = liftM (DImplicit ws :) (dsDecls env ds)
 dsDecls env (DDefault ts : ds)  = liftM (DDefault (ds1 env ts) :) (dsDecls env ds)
-dsDecls env (DBind bs : ds)     = liftM (DBind (ds1 env bs) :) (dsDecls env ds)
+dsDecls env ds@(DBind _ : _)    = dsDs [] ds
+  where dsDs bs (DBind bs':ds)  = dsDs (bs++bs') ds
+        dsDs bs ds              = liftM (DBind (ds1 env bs) :) (dsDecls env ds)
 dsDecls env (d : ds)            = liftM (d :) (dsDecls env ds)
 dsDecls env []                  = return []
 
@@ -169,6 +171,7 @@ instance Desugar1 Bind where
 
 instance Desugar1 Lhs where
     ds1 env (LFun v ps)         = LFun v (ds1 (patEnv env) ps)
+    ds1 env (LPat (EVar x))     = LFun x []
     ds1 env (LPat p)            = LPat (ds1 (patEnv env) p)
 
 instance Desugar1 (Rhs Exp) where
@@ -259,7 +262,9 @@ ds1S env (SExp e : ss)           = SGen EWild (ds1 env e) : ds1S env ss
 ds1S env [SRet e]                = [SRet (ds1 env e)]
 ds1S env (s@(SRet _) : ss)       = errorTree "Result statement must be last in sequence" s
 ds1S env (SGen p e : ss)         = SGen (ds1 (patEnv env) p) (ds1 env e) : ds1S env ss
-ds1S env (SBind b : ss)          = SBind (ds1 env b) : ds1S env ss
+ds1S env ss@(SBind _ : _)        = dsBs [] ss
+  where dsBs bs (SBind bs' : ss) = dsBs (bs++bs') ss
+        dsBs bs ss               = SBind (ds1 env bs) : ds1S env ss
 ds1S env (SAss p e : ss)         = dsAss p e : ds1S env ss
   where dsAss (EAp (EAp (EVar (Prim IndexArray _)) a) i) e
                                  = dsAss a (EAp (EAp (EAp (EVar (prim UpdateArray)) a) i) e)
@@ -293,7 +298,9 @@ ds1Forall env (QExp e : qs) ss   = EIf e (eDo env [])  (eDo env [SForall qs ss])
 ds1T env [SRet e]                = [SRet (ds1 env e)]
 ds1T env [s]                     = errorTree "Last statement in class must be result, not" s
 ds1T env (s@(SRet _) : ss)       = errorTree "Result statement must be last in sequence" s
-ds1T env (SBind b : ss)          = SBind (ds1 env b) : ds1T env ss
+ds1T env ss@(SBind _ : _)        = dsBs [] ss
+  where dsBs bs (SBind bs' : ss) = dsBs (bs++bs') ss
+        dsBs bs ss               = SBind (ds1 env bs) : ds1T env ss
 ds1T env (s@(SAss p e) : ss)     = SAss (ds1 (patEnv env) p) (ds1 env e) : ds1T env ss
 ds1T env (s : _)                 = errorTree "Illegal statement in class: " s
 

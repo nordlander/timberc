@@ -16,6 +16,7 @@ This module does the following:
 import Monad
 import Common
 import Syntax
+import Depend
 import PP
 import List(sort)
 
@@ -118,9 +119,11 @@ legalBind vs                        = map checkName vs
 
 -- Binding of overloaded names ------------------------------------------------------------------------
 
-oloadBinds xs ds                    = map mkSig te ++ map mkEqn te
+oloadBinds xs ds                    = f te
   where te                          = [ (s,t') | DRec True c vs _ sels <- ds, let p = PType (foldl TAp (TCon c) (map TVar vs)),
                                                  Sig ss t <- sels, s <- ss, s `notElem` xs, let t' = tQual [p] t ]
+        f []                        = []
+        f (sig:te)                  = mkSig sig : mkEqn sig : f te
         mkSig (s,t)                 = BSig [s] t
         mkEqn (s,TQual t ps)        = BEqn (LFun s' (w:ws)) (RExp (foldl EAp (ESelect w s') ws))
           where w:ws                = map EVar (take (length ps) abcSupply)
@@ -158,13 +161,15 @@ instance Rename Module where
                                         env4 <- extRenTMod False c env3 ((ts2 \\ ks1') ++ ks2)
                                         env5 <- extRenEMod False c env4 (cs2 ++ (vs2 \\ vss) ++ vs2'++is2)
                                         env6 <- extRenLMod False c env5 ss2
-                                        let bs = shuffleB (bs1 ++ bs2)
-                                        ds' <- rename env6 (filter (not . isDBind) (ds ++ ps) ++ [DBind (bs1' ++ bs2' ++ bs)])
-                                        return (Module c is ds' [])
-   where (ks1,ts1,ss1,cs1,cs11,ws1,is1,bs1) = renameD [] [] [] [] [] [] [] [] ds
-         (ks2,ts2,ss2,cs2, _  ,ws2,is2,bs2) = renameD [] [] [] [] [] [] [] [] ps
-         vs1                       = bvars bs1
-         vs2                       = bvars bs2
+                                        ds <- rename env6 (filter (not . isDBind) (ds ++ ps))
+                                        bs <- rename env6 (bs1' ++ bs2' ++ shuffleB (bs1 ++ bs2))
+                                        return (Module c is (ds ++ map DBind (groupBindsS bs)) [])
+   where (ks1,ts1,ss1,cs1,cs11,ws1,is1,bss1) = renameD [] [] [] [] [] [] [] [] ds
+         (ks2,ts2,ss2,cs2, _  ,ws2,is2,bss2) = renameD [] [] [] [] [] [] [] [] ps
+         vs1                       = concat (map bvars bss1)
+         vs2                       = concat (map bvars bss2)
+         bs1                       = concat (reverse bss1)
+         bs2                       = concat (reverse bss2)
          vss                       = concat [ ss | BSig ss _ <- bs1 ] \\ vs1
          vs                        = vs1 ++ vs2
          ks                        = ks1 ++ ks2
@@ -198,24 +203,25 @@ instance Rename Module where
          isWild _                  = False
          
 
-renameD ks ts ss cs cs1 ws is bs (DKSig c k : ds)
-                                   = renameD (c:ks) ts ss cs cs1 ws is bs ds
-renameD ks ts ss cs cs1 ws is bs (DRec _ c _ _ sigs : ds)
-                                   = renameD ks (c:ts) (sels++ss) cs cs1 ws is bs ds
+renameD ks ts ss cs cs1 ws is bss (DKSig c k : ds)
+                                   = renameD (c:ks) ts ss cs cs1 ws is bss ds
+renameD ks ts ss cs cs1 ws is bss (DRec _ c _ _ sigs : ds)
+                                   = renameD ks (c:ts) (sels++ss) cs cs1 ws is bss ds
   where sels                       = concat [ vs | Sig vs t <- sigs ]
-renameD ks ts ss cs cs1 ws is bs (DData c _ _ cdefs : ds)
-                                   = renameD ks (c:ts) ss (cons++cs) (if c `elem` cons then c:cs1 else cs1) ws is bs ds
+renameD ks ts ss cs cs1 ws is bss (DData c _ _ cdefs : ds)
+                                   = renameD ks (c:ts) ss (cons++cs) (if c `elem` cons then c:cs1 else cs1) ws is bss ds
   where cons                       = [ c | Constr c _ _ <- cdefs ]
-renameD ks ts ss cs cs1 ws is bs (DType c _ _ : ds)
-                                   = renameD ks (c:ts) ss cs cs1 ws is bs ds
-renameD ks ts ss cs cs1 ws is bs (DImplicit vs : ds)
-                                   = renameD ks ts ss cs cs1 (ws++vs) is bs ds
-renameD ks ts ss cs cs1 ws is bs (DDefault ps : ds)
-                                   = renameD ks ts ss cs cs1 ws (is1 ++ is) bs ds
+renameD ks ts ss cs cs1 ws is bss (DType c _ _ : ds)
+                                   = renameD ks (c:ts) ss cs cs1 ws is bss ds
+renameD ks ts ss cs cs1 ws is bss (DImplicit vs : ds)
+                                   = renameD ks ts ss cs cs1 (ws++vs) is bss ds
+renameD ks ts ss cs cs1 ws is bss (DDefault ps : ds)
+                                   = renameD ks ts ss cs cs1 ws (is1 ++ is) bss ds
   where is1                        = [i | Derive i _ <- ps]
-renameD ks ts ss cs cs1 ws is bs (DBind bs' : ds)
-                                   = renameD ks ts ss cs cs1 ws is (bs++bs') ds
-renameD ks ts ss cs cs1 ws is bs []       = (ks, ts, ss, cs, cs1, ws, is, bs)
+renameD ks ts ss cs cs1 ws is bss (DBind bs : ds)
+                                   = renameD ks ts ss cs cs1 ws is (bs : bss) ds
+renameD ks ts ss cs cs1 ws is bss []
+                                   = (ks, ts, ss, cs, cs1, ws, is, bss)
 
 
 instance Rename Decl where
@@ -304,7 +310,9 @@ instance Rename Exp where
   rename env (ELam ps e)           = do env' <- extRenE env (pvars ps)
                                         liftM2 ELam (rename env' ps) (rename env' e)
   rename env (ELet bs e)           = do env' <- extRenE env (bvars bs)
-                                        liftM2 ELet (rename env' (shuffleB bs)) (rename env' e)
+                                        bs' <- rename env' (shuffleB bs)
+                                        e' <- rename env' e
+                                        return (foldr ELet e' (groupBindsS bs'))
   rename env (ECase e as)          = liftM2 ECase (rename env e) (rename env as)
   rename env (EIf e1 e2 e3)        = liftM3 EIf (rename env e1) (rename env e2) (rename env e3)
   rename env (ENeg e)              = liftM ENeg (rename env e)
@@ -331,7 +339,7 @@ instance Rename Exp where
                                         env' <- extRenE env ls' 
                                         r <- rename env' (ERec (Just (c,True)) (map (\(s,s') -> Field s (EVar s')) (ls `zip` ls')))
                                         bs' <- mapM (renSBind env' env) bs
-                                        return (ELet bs' r)
+                                        return (foldr ELet r (groupBindsS bs'))
 
 renRec env (Just (n, t))           = Just (renT env n, t)
 renRec env Nothing                 = Nothing
@@ -350,7 +358,9 @@ instance Rename (Rhs Exp) where
   rename env (RExp e)              = liftM RExp (rename env e)
   rename env (RGrd gs)             = liftM RGrd (rename env gs)
   rename env (RWhere e bs)         = do env' <- extRenE env (bvars bs)
-                                        liftM2 RWhere (rename env' e) (rename env' (shuffleB bs))
+                                        bs' <- rename env' (shuffleB bs)
+                                        e' <- rename env' e
+                                        return (foldr (flip RWhere) e' (groupBindsS bs'))
 
 
 instance Rename (GExp Exp) where
@@ -371,7 +381,7 @@ renameQ env (QGen p e : qs) e0     = do e <- rename env e
 renameQ env (QLet bs : qs) e0      = do env' <- extRenE env (bvars bs)
                                         bs <- rename env' bs
                                         (qs,e0) <- renameQ env' qs e0
-                                        return (QLet bs : qs, e0)
+                                        return (map QLet (groupBindsS bs) ++ qs, e0)
 
 
 instance Rename (Alt Exp) where
@@ -384,10 +394,10 @@ renameS env [SRet e]               = liftM (:[]) (liftM SRet (rename env e))
 renameS env (SExp e : ss)          = liftM2 (:) (liftM SExp (rename env e)) (renameS env ss)
 renameS env (SGen p e : ss)        = do env' <- extRenE env (pvars p)
                                         liftM2 (:) (liftM2 SGen (rename env' p) (rename env e)) (renameS env' ss)
-renameS env ss@(SBind _ : _)       = do env' <- extRenE env (bvars ss1)
-                                        liftM2 (++) (mapM (renameB env') ss1) (renameS env' ss2)
-  where (ss1,ss2)                  = span isSBind ss
-        renameB env (SBind b)      = liftM SBind (rename env b)
+renameS env (SBind bs : ss)        = do env' <- extRenE env (bvars bs)
+                                        bs' <- rename env' bs
+                                        ss' <- renameS env' ss
+                                        return (map SBind (groupBindsS bs') ++ ss')
 renameS env (SAss p e : ss)
   | not (null illegal)             = errorIds "Unknown state variables" illegal
   | otherwise                      = liftM2 (:) (liftM2 SAss (rename (unvoidAll env) p) (rename env e)) (renameS (unvoid (pvars p) env) ss)
@@ -410,10 +420,6 @@ shuffle sigs (b@(BEqn (LFun v _) _) : bs)
                                    = case lookup v sigs of
                                        Just t  -> BSig [v] t : b : shuffle (prune sigs [v]) bs
                                        Nothing -> b : shuffle sigs bs
-shuffle sigs (b@(BEqn (LPat (EVar v)) _) : bs) 
-                                   = case lookup v sigs of
-                                       Just t  -> BSig [v] t : b : shuffle (prune sigs [v]) bs
-                                       Nothing -> b : shuffle sigs bs
 shuffle sigs (BEqn (LPat p) rh : bs)
                                    = BEqn (LPat p') rh : shuffle sigs' bs
   where (sigs',p')                 = attach sigs p
@@ -424,21 +430,9 @@ shuffleS ss                        = shuffle' [] ss
 
 shuffle' [] []                     = []
 shuffle' sigs []                   = errorIds "Dangling type signatures for" (dom sigs)
-shuffle' sigs (SBind (BSig vs t) : ss)
-  | not (null dups)                = errorIds "Multiple type signatures for" dups
-  | otherwise                      = shuffle' (vs `zip` repeat t ++ sigs) ss
-  where dups                       = duplicates vs ++ (vs `intersect` dom sigs)
-shuffle' sigs (s@(SBind (BEqn (LFun v ps) rh)) : ss)
-                                   = case lookup v sigs of
-                                       Just t  -> SBind (BSig [v] t) : s : shuffle' (prune sigs [v]) ss
-                                       Nothing -> s : shuffle' sigs ss
-shuffle' sigs (s@(SBind (BEqn (LPat (EVar v)) _)) : ss) 
-                                   = case lookup v sigs of
-                                       Just t  -> SBind (BSig [v] t) : s : shuffle' (prune sigs [v]) ss
-                                       Nothing -> s : shuffle' sigs ss
-shuffle' sigs (SBind (BEqn (LPat p) rh) : ss)
-                                   = SBind (BEqn (LPat p') rh) : shuffle' sigs' ss
-  where (sigs',p')                 = attach sigs p
+shuffle' sigs (SBind bs : ss)      = SBind (shuffle sigs1 bs) : shuffle' sigs2 ss
+  where (sigs1,sigs2)              = partition ((`elem` vs) . fst) sigs
+        vs                         = bvars bs
 shuffle' sigs (SGen p e : ss)      = SGen p' e : shuffle' sigs' ss
   where (sigs',p')                 = attach sigs p
 shuffle' sigs (SAss p e : ss)      = SAss p' e : shuffle' sigs' ss

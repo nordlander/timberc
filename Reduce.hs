@@ -206,15 +206,19 @@ red gs ((env, p@(Scheme (F [sc1] t2) ps2 ke2)):ps)
                                              (env',qe,eq) <- closePreds env (tvars sc1 ++ tvars t2 ++ tvars ps2) pe ke2
                                              let ps' = repeat (tick env' False) `zip` ps1
                                              (s,q,es,e,es') <- redf gs env' t1 t2 (ps'++ps)
+                                             pe1 <- wildify ke2 pe
+                                             qe1 <- wildify ke2 qe
                                              let (es1,es2) = splitAt (length ps') es'
-                                                 bss = preferParams env' pe qe eq
+                                                 bss = preferParams env' pe1 qe1 eq
                                                  e' = eLet' bss (EAp e [eAp (EVar v) es1])
-                                             return (s, q, es, eLam pe (ELam [(v,sc1)] e') : es2)
+                                             return (s, q, es, eLam pe1 (ELam [(v,sc1)] e') : es2)
 red gs ((env, Scheme (R t) ps' ke):ps)  = do pe <- newEnv assumptionSym ps'
                                              (env',qe,eq) <- closePreds env (tvars t ++ tvars ps') pe ke
                                              (s,q,e:es,es') <- red ((env',t) : gs) ps
-                                             let bss = preferParams env' pe qe eq
-                                             return (s, q, es, eLam pe (eLet' bss e) : es')
+                                             pe1 <- wildify ke pe
+                                             qe1 <- wildify ke qe
+                                             let bss = preferParams env' pe1 qe1 eq
+                                             return (s, q, es, eLam pe1 (eLet' bss e) : es')
 
 {-
    ts   -> t    <        ts'   -> t'

@@ -140,7 +140,7 @@ tiExpT' env (explWit, Scheme t0 ps ke, e)
                                      -- tr ("INFERRED: " ++ render (pr t) ++ "\n" ++ render (vpr qe))
                                      (s,qe,f)     <- normalize (target t env) ss qe `handle` (posError "Type" (posInfo e))
                                      c            <- newNamePos coercionSym e
-                                     pe0          <- newEnv assumptionSym ps
+                                     pe0          <- newEnv assumptionSym ps >>= wildify ke
                                      let env1      = subst s env
                                          (qe1,qe2) = partition (isFixed env1) (subst s qe)
                                          (e',t')   = qual qe2 (f e) (scheme' (subst s t))
