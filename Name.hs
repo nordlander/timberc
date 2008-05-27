@@ -256,7 +256,8 @@ strRep2 p
   where s                       = show p
 
 
--- Name construction ------------------------------------------------------------
+-- Name construction -----
+-------------------------------------------------------
 
 noAnnot                         = Annot { location = Nothing, explicit = False, stateVar = False, 
                                           generated = False, suppressMod = False, forceTag = False }
@@ -284,11 +285,11 @@ tuple n                         = Tuple n noAnnot
 
 splitString s                   = case break (=='.') s of
                                     (local,[])  -> [local]                                 
-                                    (local,suf)  -> local : splitString (tail suf)
+                                    (qualStart,suf)  -> qualStart : splitString (tail suf)
 
 splitQual s def                 = case splitString s of
                                     [x]    -> (x, def)
-                                    (x:xs) -> (x, joinString xs)
+                                    xs -> (last xs, joinString (init xs))
 
 
 tag0 (Name s t m a)             = Name s 0 m a

@@ -169,7 +169,7 @@ compileTimber clo ifs (sm,t_file) ti_file c_file h_file
                         = do let Syntax.Module n is _ _ = sm
                              putStrLn ("[compiling "++ t_file++"]")
                              (imps,ifs') <- chaseIfaceFiles is ifs
-                             let ((htxt,mtxt),ifc) = runM (passes imps par)
+                             let ((htxt,mtxt),ifc) = runM (passes imps sm)
                              encodeFile ti_file ifc
                              writeFile c_file mtxt
                              writeFile h_file htxt
