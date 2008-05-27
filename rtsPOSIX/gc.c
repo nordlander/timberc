@@ -14,7 +14,7 @@
 #define TIMERQ_PROLOGUE()       { if (hp2 && (timerQ==(Msg)1)) timerQ = timerQorig; }                   // reinstall timerQ if marked
 #define TIMERQ_EPILOGUE()                                               
 
-#define allocwords(size)        (ADDR)malloc(size*sizeof(WORD))
+#define allocwords(size)        (ADDR)malloc(BYTES(size))
 #define HEAPSIZE                0x100000  //  0x100000 words = 0x400000 bytes = 4194304 bytes = 4 Mb = 1024 pages = 0x400 pages
 #define STARTGC(hp,lim)         ((hp) >= 3 * ((lim)/8))
 #define NEEDEXTRA(hp,lim)       ((hp) >= 7 * ((lim)/8))

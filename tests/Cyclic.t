@@ -21,3 +21,9 @@ root env =
                s := s.r
                env.stdout.write (show s.v)
        result Prog {..}
+
+
+ggg n = let apa = 'a':bepa
+            bepa = 'b':cepa
+            cepa = 'c':apa
+        in apa

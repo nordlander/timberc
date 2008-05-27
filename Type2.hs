@@ -49,7 +49,7 @@ t2Binds env (Binds r te eqs)    = do ts <- mapM t2Inst scs
 -- step in under a polymorphic binding.
 
 t2ExpT env t0 e                 = do (s1,t1,e) <- t2Exp env e
-                                     s2 <- mgi' t0 t1
+                                     s2 <- mgi t0 t1
                                      return (mergeSubsts [s1,s2], e)
                                      
 
@@ -150,7 +150,7 @@ t2Ap env s1 (F scs rh) e es     = do ts <- mapM t2Inst scs
                                      return (s, subst s rh, EAp e es)
 t2Ap env s1 rh e es             = do (s2,rhs,es) <- t2Exps env es
                                      t <- newTVar Star
-                                     s3 <- mgi' rh (F (map scheme' rhs) (R t))
+                                     s3 <- mgi rh (F (map scheme' rhs) (R t))
                                      let s = mergeSubsts [s1,s2,s3]
                                      return (s, R (subst s t), EAp e es)
 
@@ -175,27 +175,27 @@ t2Inst (Scheme rh ps ke)        = do ts <- mapM newTVar ks
 
 
 
-mgi' (R t) (R u)                = return (unif [(t,u)])
-mgi' (F ts t) (F us u)          = do s <- mgi' t u
+mgi (R t) (R u)                 = return (unif [(t,u)])
+mgi (F ts t) (F us u)           = do s <- mgi t u
                                      ss <- mapM mgiSc (us `zip` ts)
                                      return (mergeSubsts (s:ss))
-mgi' (R (TFun ts t)) rh         = mgi' (F (map scheme ts) (R t)) rh
-mgi' rh (R (TFun us u))         = mgi' rh (F (map scheme us) (R u))
-mgi' (R t) (F us u)             = do (t':ts) <- mapM newTVar (replicate (length us + 1) Star)
+mgi (R (TFun ts t)) rh          = mgi (F (map scheme ts) (R t)) rh
+mgi rh (R (TFun us u))          = mgi rh (F (map scheme us) (R u))
+mgi (R t) (F us u)              = do (t':ts) <- mapM newTVar (replicate (length us + 1) Star)
                                      let s1 = unif [(t,TFun ts t')]
-                                     s2 <- mgi' (R (subst s1 t)) (F us u)
+                                     s2 <- mgi (R (subst s1 t)) (F us u)
                                      return (s2@@s1)
-mgi' (F ts t) (R u)             = do (u':us) <- mapM newTVar (replicate (length ts + 1) Star)
+mgi (F ts t) (R u)              = do (u':us) <- mapM newTVar (replicate (length ts + 1) Star)
                                      let s1 = unif [(u,TFun us u')]
-                                     s2 <- mgi' (F ts t) (R (subst s1 u))
+                                     s2 <- mgi (F ts t) (R (subst s1 u))
                                      return (s2@@s1)
 
 
 mgiSc (Scheme rh [] [], Scheme rh' [] [])
-                                = mgi' rh rh'
+                                = mgi rh rh'
 mgiSc (sc, sc')                 = do t <- t2Inst sc
                                      t' <- t2Inst sc'           -- Note: don't skolemize, use unification variables instead,
-                                     mgi' t t'                  -- since no unification errors should appear in this pass anyway
+                                     mgi t t'                  -- since no unification errors should appear in this pass anyway
 
 
 unif []                         = nullSubst
