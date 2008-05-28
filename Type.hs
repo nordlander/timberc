@@ -137,7 +137,8 @@ tiExpT' env (False, Scheme t0 ps [], e)
                                      return (ss, (c, Scheme (F [scheme' t] t0) ps []) : qe, e1)
 tiExpT' env (explWit, Scheme t0 ps ke, e)
                                 = do (ss,qe,t,e)  <- tiExp env e
-                                     -- tr ("INFERRED: " ++ render (pr t) ++ "\n" ++ render (vpr qe))
+--                                     tr ("REQUIRED: " ++ render (pr (Scheme t0 ps ke)))
+--                                     tr ("INFERRED: " ++ render (pr t) ++ "\n" ++ render (nest 4 (vpr qe)))
                                      (s,qe,f)     <- normalize (target t env) ss qe `handle` (posError "Type" (posInfo e))
                                      c            <- newNamePos coercionSym e
                                      pe0          <- newEnv assumptionSym ps >>= wildify ke
@@ -196,8 +197,8 @@ tiExp env (ERec c eqs)          = do alphas <- mapM newTVar (kArgs (findKind env
                                      (t,ts,sels') <- tiLhs env (foldl TAp (TId c) alphas) tiSel sels
                                      (s,pe,es') <- tiRhs env ts es
                                      -- tr ("RECORD " ++ render (pr t))
-                                     -- tr (render (vpr (sels `zip` ts)))
-                                     -- tr ("    pe :\n" ++ render (vpr pe))
+                                     -- tr (render (nest 4 (vpr (sels `zip` ts))))
+                                     -- tr ("    pe :\n" ++ render (nest 4 (vpr pe)))
                                      e <- mkRec env c (map flatSels sels' `zip` es')
                                      return (s, pe, R t, e)
   where (sels,es)               = unzip eqs

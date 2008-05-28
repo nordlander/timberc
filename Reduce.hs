@@ -433,7 +433,7 @@ tvarBind env n t eqs
                                                 " and " ++ show (kindOfType env t))
   | n `elem` tvars t                    = fail "Occurs check failed in unify"
   | n `elem` skolEnvs env (tyvars t)    = fail "Skolem escape in unify"
-  | otherwise                           = do s' <- unify env (subst s eqs)
+  | otherwise                           = do s' <- unify (subst s env) (subst s eqs)
                                              return (s' @@ s)
   where s                               = n +-> t
 
