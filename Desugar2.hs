@@ -133,7 +133,7 @@ dsEqns ((LPat p,RExp (EVar v)):eqns)
   where vs                      = pvars p
         sel e0 v                = do es <- mapM (newEVarPos paramSym) vs
                                      return (LFun v [], RExp (selectFrom e0 (vs `zip` es) p v))
-dsEqns ((LPat p,rh):eqns)       = do v <- newNamePos tempSym p
+dsEqns ((LPat p,rh):eqns)       = do v <- newNamePos patSym p
                                      eqns <- dsEqns ((LPat p, RExp (EVar v)) : eqns)
                                      e <- dsExp (rh2exp rh)
                                      return ((LFun v [],RExp e) : eqns)

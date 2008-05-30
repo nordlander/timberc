@@ -318,6 +318,7 @@ assert0 e msg
 witnessSym                      = "w"
 assumptionSym                   = "v"
 tempSym                         = "x"
+patSym                          = "p"
 functionSym                     = "f"
 dummySym                        = "d"
 paramSym                        = "a"
@@ -336,7 +337,7 @@ instanceSym                     = "inst"
 closureSym                      = "CLOS"
 
 isCoercion n                    = isGenerated n && str n == coercionSym
-isTemp n                        = isGenerated n && str n == tempSym
+isPatTemp n                     = isGenerated n && str n == patSym
 isClosure n                     = isGenerated n && str n == closureSym
 isDummy n                       = isGenerated n && str n == dummySym
 -- isTag n                         = isGenerated n && str n == tagSym
