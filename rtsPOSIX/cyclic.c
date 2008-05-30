@@ -13,7 +13,7 @@
 #define CURRENT_CYCLE(obj,roots)    ((ADDR)(roots) <= (obj))
 
 
-void visit(ADDR obj, Array roots) {
+void visit(ADDR obj, Array roots, Int limit) {
         ADDR info = (ADDR)CLR0(GCINFO(obj));
         GCINFO(obj) = MARK_VISITED(info);
         WORD size = info[0];
@@ -23,11 +23,11 @@ void visit(ADDR obj, Array roots) {
                         ADDR obj1 = (ADDR)obj[offset];
                         if (ISPLACEHOLDER(obj1)) {
                                 int index = INDEXOF(obj1);
-                                if (index >= 0)
+                                if (index >= 0 && index < limit)
                                         obj[offset] = (WORD)roots->elems[index];
                         }
                         else if (CURRENT_CYCLE(obj1,roots) && !VISITED(obj1))
-                                visit(obj1, roots);
+                                visit(obj1, roots, limit);
                         offset = info[++i];
                 }
         } else if (info[1]) {
@@ -37,30 +37,49 @@ void visit(ADDR obj, Array roots) {
                         ADDR obj1 = (ADDR)obj[i];
                         if (ISPLACEHOLDER(obj1)) {
                                 int index = INDEXOF(obj1);
-                                if (index >= 0)
+                                if (index >= 0 && index < limit)
                                         obj[i] = (WORD)roots->elems[index];
                         }
                         else if (CURRENT_CYCLE(obj1,roots) && !VISITED(obj1))
-                                visit(obj1, roots);
+                                visit(obj1, roots, limit);
                         i++;
                 }
         }
 }
 
-Array CYCLIC_BEGIN(int n) {
-    Array roots = EmptyArray(n);
-    int i;
-    for (i = 0; i < n; i++)
-        roots->elems[i] = (POLY)PLACEHOLDER(i);
-    current->visit_flag = TOGGLE0(current->visit_flag);
-    current->placeholders += n;
-    return roots;
+void visitRoots(Array roots, int limit) {
+        int i;
+        for (i = 0; i < limit; i++) {
+                ADDR obj = (ADDR)roots->elems[i];
+                if (ISPLACEHOLDER(obj)) {
+                        int index = INDEXOF(obj);
+                        if (index >= 0 && index < i)
+                                roots->elems[i] = roots->elems[index];
+                }
+                visit(obj, roots, limit);
+        }        
+}
+
+Array CYCLIC_BEGIN(Int n, Int updates) {
+        Array roots = EmptyArray(n);
+        int i;
+        for (i = 0; i < n; i++)
+                roots->elems[i] = (POLY)PLACEHOLDER(i);
+        if (updates % 2 == 0)
+                current->visit_flag = TOGGLE0(current->visit_flag);
+        current->placeholders += n;
+        return roots;
+}
+
+void CYCLIC_UPDATE(Array roots, Int limit) {
+        current->visit_flag = TOGGLE0(current->visit_flag);
+        current->placeholders -= roots->size;
+        visitRoots(roots, limit);
+        current->placeholders += roots->size;
 }
 
 void CYCLIC_END(Array roots) {
-    int i;
-    current->visit_flag = TOGGLE0(current->visit_flag);
-    current->placeholders -= roots->size;
-    for (i = 0; i < roots->size; i++)
-        visit((ADDR)roots->elems[i], roots);
+        current->visit_flag = TOGGLE0(current->visit_flag);
+        current->placeholders -= roots->size;
+        visitRoots(roots, roots->size);
 }

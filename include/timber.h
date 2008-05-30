@@ -140,7 +140,8 @@ Array EmptyArray(Int);
 Array CloneArray(Array,Int);
 Array primUpdateArray(Array,Int,POLY);
 
-Array CYCLIC_BEGIN(Int);
+Array CYCLIC_BEGIN(Int, Int);
+void  CYCLIC_UPDATE(Array, Int);
 void  CYCLIC_END(Array);
 
 #endif

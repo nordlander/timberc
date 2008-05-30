@@ -162,9 +162,8 @@ k2cFunBinds bs                  = vcat (map f bs)
         f _                     = empty
 
 
-
 k2cValBinds (rec,bs)
-  | not rec || all isNew bs     = vcat (map f bs) $$
+  | not rec || isSafe bs        = vcat (map f bs) $$
                                   vcat (map g bs)
   where f (x, Val t (ENew n bs)) 
                                 = newCall t x n
@@ -177,29 +176,59 @@ k2cValBinds (rec,bs)
         g (x, Val t (ECast _ (ENew n bs)))
                                 = k2cStructBinds (ECast (TId n) (EVar x)) bs
         g _                     = empty
-        isNew (_, Val _ (ENew _ _))
-                                = True
-        isNew (_, Val _ (ECast _ (ENew _ _)))
-                                = True
-        isNew _                 = False
-k2cValBinds (_,bs)              = text "{   Array roots = CYCLIC_BEGIN(" <> text (show (length bs)) <> text ");" $$
+        vs                      = dom bs
+        isSafe bs               = all isConst bs && strictBs bs `intersect` vs == []
+        isConst (_, Val _ (ENew _ _))           = True
+        isConst (_, Val _ (ECast _ (ENew _ _))) = True
+        isConst _                               = False
+k2cValBinds (_,bs)              = text ("{   Array roots = CYCLIC_BEGIN(" ++ show size ++ "," ++ show n_upd ++ ");") $$
                                   nest 4 (vcat (zipWith f [0..] bs) $$
-                                          vcat (zipWith g [0..] bs) $$
+                                          vcat (zipWith3 g [0..] upd bs) $$
                                           text "CYCLIC_END(roots);") $$
                                   text "}"
-  where f i (x, Val t _)        = k2cName x <+> text "=" <+> k2cExp (rootInd' t i) <> text ";"
-        g i (x, Val t (ENew n bs'))
-                                = newCall t x n $$
+  where size                    = length bs
+        upd                     = updates [] bs
+        n_upd                   = length (filter id upd)
+        f i (x, Val t _)        = k2cName x <+> text "=" <+> k2cExp (rootInd' t i) <> text ";"
+        g i u (x, Val t (ENew n bs'))
+                                = update u i $$
+                                  newCall t x n $$
                                   k2cExp (rootInd i) <+> text "=" <+> k2cExp (ECast TWild (EVar x)) <> text ";" $$
                                   k2cStructBinds (rootInd' t i) bs'
-        g i (x, Val t (ECast _ (ENew n bs')))
-                                = newCall t x n $$
+        g i u (x, Val t (ECast _ (ENew n bs')))
+                                = update u i $$
+                                  newCall t x n $$
                                   k2cExp (rootInd i) <+> text "=" <+> k2cExp (ECast TWild (EVar x)) <> text ";" $$
                                   k2cStructBinds (ECast (TId n) (rootInd' t i)) bs'
-        g i (x, Val t e)        = k2cName x <+> text "=" <+> k2cExp e <> text ";" $$
+        g i u (x, Val t e)      = update u i $$
+                                  k2cName x <+> text "=" <+> k2cExp e <> text ";" $$
                                   k2cExp (rootInd i) <+> text "=" <+> k2cExp (ECast TWild (EVar x)) <> text ";"
+        update True i           = text ("CYCLIC_UPDATE(roots, " ++ show i ++ ");")
+        update False i          = empty
         rootInd i               = ECall (prim IndexArray) [EVar (name0 "roots"), ELit (LInt Nothing i)]
         rootInd' t i            = ECast t (rootInd i)
+
+
+strictBs bs                     = concat [ strict e | (_,Val _ e) <- bs ]
+                                -- We assume all free variables of function closures have been extracted as value
+                                -- bindings by llift, hence only Val patterns need to be considered above
+strict (ECast _ e)              = strict e
+strict (ESel e l)               = evars e
+strict (EEnter e l es)          = evars (e:es)
+strict (ECall f es)             = evars es
+strict (ENew _ bs)              = strictBs bs
+strict _                        = []
+
+updates prev []                 = []
+updates prev ((x,Val _ e):bs)   = mustUpdate : updates ((x,fwrefs):prev') bs
+  where computed                = dom prev
+        bwrefs                  = strict e `intersect` computed
+        fragile                 = concat [ fws | (y,fws) <- prev, y `elem` bwrefs ]
+        mustUpdate              = not (null (fragile `intersect` computed))
+        fwrefs                  = evars e `intersect` (x:dom bs)
+        prev' | mustUpdate      = [ (y,fws \\ computed) | (y,fws) <- prev ]
+              | otherwise       = prev
+        
 
 
 newCall t x n                   = text "NEW" <+> parens (k2cType t <> text "," <+> 
