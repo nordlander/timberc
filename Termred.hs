@@ -59,30 +59,6 @@ redTopBinds env (bs : bss)      = do Binds r te es <- redBinds env bs
                                      return (bss', idents es' ++ vs)
                                      
 
-{-
-redModule impCons impEqs (Module m ns xs ds ie [bs])
-                                = do es1' <- redEqns env0 es1
-                                     let env1 = addEqns env0 (finiteEqns env0 es1')
-                                         env2 = addEqns env1 (finiteEqns env1 impEqs)
-                                     ie' <- redBinds env2 ie
-                                     let env3 = addEqns env2 (finiteEqns env2 (eqnsOf ie'))
-                                     es2' <- redEqns env3 es2
-                                     let es' = es1' ++ es2'
-                                         vs  = idents es'
-                                         necessary (v,_) = maybe (elem v vs) (\_ -> True) (fromMod v)
-                                     return (Module m ns xs ds ie' [Binds r (filter necessary te) (filter necessary es')])
-  where envFree (_,e)           = all isSafeId (idents e) && isSmall e
-        Binds r te es           = bs
-        (es1,es2)               = partition envFree es
-        isSafeId (Prim _ _)     = True
-        isSafeId x              = isGenerated x && not(isTemp x)
-        env0                    = addCons initEnv (impCons ++ consOf ds)
--}
-     
-{-
-Definition of isSafeId should be reconsidered. Which generated names are safe? 
--}   
-
 finiteEqns env eqs              = filter p eqs
   where p (x,e)                 = isSmall e && finite env e
 
@@ -228,7 +204,7 @@ redBeta env ((x,t):te) b (e:es)
         bs                      = Binds False [(x,t)] [(x,e)]
 redBeta env [] b []             = redExp env b
 
-{-
+
 redEta env te (EAp e es)        = do es <- mapM (redExp env') es
                                      e <- redExp env' e
                                      if okEta e && es == map EVar (dom te) then
@@ -238,7 +214,7 @@ redEta env te (EAp e es)        = do es <- mapM (redExp env') es
   where okEta (ECon _)          = False
         okEta (EVar (Prim _ _)) = False
         okEta _                 = True
-        env'                    = addArgs env (dom te) -}
+        env'                    = addArgs env (dom te) 
 redEta env te e                 = liftM (ELam te) (redExp (addArgs env (dom te)) e)
 
 
