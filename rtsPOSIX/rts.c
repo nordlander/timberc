@@ -56,8 +56,8 @@
                           } \
                         }
 
-#define LESS(a,b)       ( ((a).tv_sec <  (b).tv_sec) || (((a).tv_sec == (b).tv_sec) && ((a).tv_usec <  (b).tv_usec)) )
-#define LESSEQ(a,b)     ( ((a).tv_sec <= (b).tv_sec) || (((a).tv_sec == (b).tv_sec) && ((a).tv_usec <= (b).tv_usec)) )
+#define LESS(a,b)       ( ((a).tv_sec < (b).tv_sec) || (((a).tv_sec == (b).tv_sec) && ((a).tv_usec <  (b).tv_usec)) )
+#define LESSEQ(a,b)     ( ((a).tv_sec < (b).tv_sec) || (((a).tv_sec == (b).tv_sec) && ((a).tv_usec <= (b).tv_usec)) )
 #define ADD(a,t)        { (a).tv_usec += (t) % 1000000; \
                           if ((a).tv_usec >= 1000000) { \
                                   (a).tv_usec -= 1000000; \
