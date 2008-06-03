@@ -23,33 +23,33 @@ t2Module (xs',ds',ws',bs') (Module v ns xs ds ws bss)
 t2Binds0 env (Binds r te eqs)   = do (s,eqs) <- t2Eqs eqs
                                      return (Binds r (subst s te) eqs)
   where t2Eqs []                = return (nullSubst, [])
-        t2Eqs ((x,e):eqs)       = do (s1,e) <- t2ExpT env sc e
+        t2Eqs ((x,e):eqs)       = do (s1,e) <- t2ExpTscoped env sc e
                                      (s2,eqs) <- t2Eqs eqs      
-                                     return (mergeSubsts[restrict s1 (tvars sc),s2], (x, subst s1 e):eqs)
+                                     return (mergeSubsts [restrict s1 (tvars sc),s2], (x, subst s1 e):eqs)
           where sc              = findType env x
 
 
-t2Binds env (Binds r te eqs)    = do (s,es) <- t2ExpTs env1 scs es
-                                     scs <- mapM (t2Gen (subst s env)) (subst s scs)
-                                     return (s, Binds r (xs `zip` scs) (xs `zip` es))
+t2Binds env (Binds r te eqs)    = do (s,eqs) <- t2Eqs eqs
+                                     return (s, Binds r (subst s te) eqs)
   where env1                    = if r then addTEnv te env else env
-        (xs,es)                 = unzip eqs
-        scs                     = rng te
+        t2Eqs []                = return (nullSubst, [])
+        t2Eqs ((x,e):eqs)       = do (s1,e) <- t2ExpTscoped env1 sc e
+                                     (s2,eqs) <- t2Eqs eqs
+                                     return (mergeSubsts [s1,s2], (x,e):eqs)
+          where sc              = lookup' te x
 
 
--- The main purpose of Type2 is to assign correct inferred types not only to the binding nodes, but to all syntactic 
--- nodes in the scope of such a binding as well.  However, since Timber does not (yet?) support scoped type variables,
--- we cannot just apply substitutions containing generalized type variables (lower case TId's) to inner nodes.  Instead
--- we want to work with unification variables (TVar's) only, as these will be approximated as wildcard types (_) when the
--- resulting program is output.  Luckily this is ok, because we can rely on the program being type correct at this stage.
--- Thus any distinction between generalized variables (that must be kept untouched) and arbitrary unification variables
--- is just artificial here, and we can proceed using fresh unification variables in type environments created when we
--- step in under a polymorphic binding.
-
-t2ExpT env sc e                 = do (s1,rh,e) <- t2Exp env e
-                                     s2 <- mgi rh (quickSkolem sc)
-                                     return (mergeSubsts [s1,s2], e)
+t2ExpTscoped env sc e           = do (s1,rh,e) <- t2Exp env e
+                                     rh' <- t2Inst sc
+                                     s2 <- mgi rh rh'
+                                     s3 <- mgi rh' (quickSkolem sc)
+                                     return (mergeSubsts [s1,s2,s3], e)
                                      
+t2ExpT env sc e                 = do (s1,rh,e) <- t2Exp env e
+                                     rh' <- t2Inst sc
+                                     s2 <- mgi rh rh'
+                                     return (mergeSubsts [s1,s2], e)
+
 
 t2ExpTs env [] []               = return (nullSubst, [])
 t2ExpTs env (sc:scs) (e:es)     = do (s1,e) <- t2ExpT env sc e
@@ -80,8 +80,8 @@ t2Exp env (ELet bs e)           = do (s1,bs) <- t2Binds env bs
                                      (s2,rh,e) <- t2Exp (addTEnv (subst s1 (tsigsOf bs)) env) e
                                      return (mergeSubsts [s1,s2], rh, ELet bs e)
 t2Exp env (ERec c eqs)          = do alphas <- mapM newTVar (kArgs (findKind env c))
-                                     (t,ts) <- t2Lhs env (foldl TAp (TId c) alphas) t2Sel ls
-                                     (s,es) <- t2ExpTs env ts es
+                                     (t,scs) <- t2Lhs env (foldl TAp (TId c) alphas) t2Sel ls
+                                     (s,es) <- t2ExpTs env scs es
                                      return (s, R (subst s t), ERec c (ls `zip` es))
   where (ls,es)                 = unzip eqs
         t2Sel env x l           = t2Exp env (ESel (EVar x) l)

@@ -432,9 +432,10 @@ instance Subst Type Name Name  where
     subst s (TId c)             = case lookup c s of
                                     Just c' -> TId c'
                                     Nothing -> TId c
-    subst s (TVar _)            = internalError0 "TVar in top-level type"
     subst s (TAp t t')          = TAp (subst s t) (subst s t')
     subst s (TFun ts t)         = TFun (subst s ts) (subst s t)
+    subst s (TVar n)            = TVar n
+    
 
 -- Type identifiers ---------------------------------------------------------
 
@@ -696,7 +697,11 @@ instance Pr Binds where
     pr (Binds _ te eqns)        = vpr te $$ vpr eqns
     
 instance Pr (Name, Scheme) where
-    pr (v, sc)                  = prId v <+> text "::" <+> pr sc
+    pr (v, sc)                  = prId v <+> text "::" <+> pr sc'
+      where sc'                 = subst s sc
+            s                   = map f (tyvars sc)
+            f v@(Name s n m a)  = (v, Name ('_':s) n m a)
+            f v                 = (v,v)
                                   
 instance Pr (Name, Exp) where
     pr (v, e)                   = prId v <+> text "=" <+> pr e
