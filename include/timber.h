@@ -144,4 +144,6 @@ Array CYCLIC_BEGIN(Int, Int);
 void  CYCLIC_UPDATE(Array, Int);
 void  CYCLIC_END(Array);
 
+POLY primRefl(POLY in);
+
 #endif

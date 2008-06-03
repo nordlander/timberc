@@ -40,3 +40,7 @@ struct Array {
 };
 */
 WORD __GC__Array[] = {0, 1};                            // zero size => dynamic, flag 1 => node contains all pointers
+
+POLY primRefl(POLY in) {
+        return in;
+}
