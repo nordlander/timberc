@@ -709,6 +709,11 @@ instance Pr (Name, Exp) where
 instance Pr [(Name, Scheme)] where
     pr ss                       = vpr ss
         
+
+prTop te                        = vcat (map pr' te)
+  where pr' (v,sc)              = prId v <+> text "::" <+> pr sc
+
+
 -- Sub/supertypes -----------------------------------------------------------
 
 prSups []                       = empty

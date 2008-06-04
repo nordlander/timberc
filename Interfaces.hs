@@ -180,7 +180,7 @@ toHTML n (IFace ns xs rs ss ds ws bs _) = text "<html><body>\n" $$
                                           section xs "Default declarations" (hpr ',') $$
                                           section ke' "Kind declarations" (pr . flip Types []) $$
                                           section ds' "Type declarations" (pr . Types [] . map addSubs) $$
-                                          section te' "Toplevel declarations" (pr . stripTopdecls) $$
+                                          section te' "Toplevel declarations" (prTop . stripTopdecls) $$
                                           text "</html>"
                       
   where section xs header f             = if null xs 
