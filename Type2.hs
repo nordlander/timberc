@@ -9,28 +9,50 @@ import PP
 typecheck2 e2 m                 = t2Module e2 m
 
 t2Module (xs',ds',ws',bs') (Module v ns xs ds ws bss)
-                                = do bss <- mapM (t2Binds0 env2) bss
+                                = do bss <- t2BindsList env2 bss
                                      return (Module v ns xs ds ws bss)
   where env2                    = addTEnv0 te2 (addKEnv0 ke2 env1)
-        te2                     = concatMap tsigsOf bss ++ tenvSelsCons ds
+        te2                     = tenvSelsCons ds
         ke2                     = ksigsOf ds
         env1                    = addTEnv0 te1 (addKEnv0 ke1 env0)
         te1                     = tsigsOf bs' ++ tenvSelsCons ds'
         ke1                     = ksigsOf ds'
         env0                    = addTEnv0 primPredEnv (initEnv v)
-        
+
+t2BindsList env []              = return []
+t2BindsList env (bs:bss)        = do bs <- t2Binds0 env bs
+                                     bss <- t2BindsList (addTEnv (tsigsOf bs) env) bss
+                                     return (bs:bss)
+
+-- t2Binds0 is a variant of t2Binds that is optimized for use on the program top level, where the only free 
+-- occurrences of unification variables are in partial type signatures.  After type-checking a right-hand side,
+-- all unification variables that still remain will be generalized before a dependent binding group is checked.
+-- Thus there is no need to propagate any substitution from one top-level binding group to the next; and
+-- furthermore, the only fragment of a substitution that can possibly affect the type of a binding whithin
+-- the *same* group must have the free unification variables of the corresponding type signature as its domain.
+-- Hence the restriction of s1 to the tvars of sc below.  Note: this optimization has considerable impact on
+-- the efficiency of the Type2 pass!
+-- Another difference between t2Binds0 and t2Binds is that t2Binds0 also applies the computed substitution to
+-- the top-level *term* of a binding, so that nested signatures inside the right-hand side term may be properly 
+-- updated.  Note that this is done as early as possible (immediately after a right-hand side has been checked),
+-- in order to allow the computed substitution to be restricted before it is applied to any sibling bindings.
 
 t2Binds0 env (Binds r te eqs)   = do (s,eqs) <- t2Eqs eqs
-                                     return (Binds r (subst s te) eqs)
-  where t2Eqs []                = return (nullSubst, [])
-        t2Eqs ((x,e):eqs)       = do (s1,e) <- t2ExpTscoped env sc e
-                                     (s2,eqs) <- t2Eqs eqs      
+                                     let (xs,scs) = unzip te
+                                     scs <- mapM (t2Gen env) (subst s scs)
+                                     return (Binds r (xs `zip` scs) eqs)
+  where env1                    = if r then addTEnv te env else env
+        t2Eqs []                = return (nullSubst, [])
+        t2Eqs ((x,e):eqs)       = do (s1,e) <- t2ExpTscoped env1 sc e
+                                     (s2,eqs) <- t2Eqs eqs
                                      return (mergeSubsts [restrict s1 (tvars sc),s2], (x, subst s1 e):eqs)
-          where sc              = findType env x
+          where sc              = lookup' te x
 
 
 t2Binds env (Binds r te eqs)    = do (s,eqs) <- t2Eqs eqs
-                                     return (s, Binds r (subst s te) eqs)
+                                     let (xs,scs) = unzip te
+                                     scs <- mapM (t2Gen (subst s env)) (subst s scs)
+                                     return (s, Binds r (xs `zip` scs) eqs)
   where env1                    = if r then addTEnv te env else env
         t2Eqs []                = return (nullSubst, [])
         t2Eqs ((x,e):eqs)       = do (s1,e) <- t2ExpTscoped env1 sc e
@@ -38,12 +60,16 @@ t2Binds env (Binds r te eqs)    = do (s,eqs) <- t2Eqs eqs
                                      return (mergeSubsts [s1,s2], (x,e):eqs)
           where sc              = lookup' te x
 
+-- Note: the program is known to be typeable at this point, thus there is no need to generalize, freshly 
+-- instantiate, and then match an inferred type against a skolemized version of the expected type scheme 
+-- (together with checking for escaping skolem variables).  Instead, all we need to ensure is that any 
+-- type equalities implied by the match are captured in the resulting substitution, treating all-quantified 
+-- variables as scoped constants when we are inside the scope of a type signature (t2ExpTscoped), or 
+-- replacing them with fresh unification variables in all other cases (t2ExpT).
 
 t2ExpTscoped env sc e           = do (s1,rh,e) <- t2Exp env e
-                                     rh' <- t2Inst sc
-                                     s2 <- mgi rh rh'
-                                     s3 <- mgi rh' (quickSkolem sc)
-                                     return (mergeSubsts [s1,s2,s3], e)
+                                     s2 <- mgi rh (quickSkolem sc)
+                                     return (mergeSubsts [s1,s2], e)
                                      
 t2ExpT env sc e                 = do (s1,rh,e) <- t2Exp env e
                                      rh' <- t2Inst sc
@@ -160,7 +186,7 @@ t2Lhs env alpha t2X xs          = do x <- newName tempSym
 
 t2Gen env (Scheme rh ps ke)     = do ids <- newNames tyvarSym (length tvs)
                                      let s = tvs `zip` map TId ids
-                                     return (Scheme (subst s (tFun ps rh)) [] (ke ++ ids `zip` map tvKind tvs))
+                                     return (Scheme (subst s rh) ps (ke ++ ids `zip` map tvKind tvs))
   where tvs                     = nub (filter (`notElem` tvs0) (tvars rh))
         tvs0                    = tevars env
     
