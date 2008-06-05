@@ -3,9 +3,9 @@
 #include "POSIX.h"
 
 void ROOTINIT(void);
-Prog_POSIX ROOT(Env_POSIX, POLY);
+ACTION ROOT(Env_POSIX, POLY);
 
-extern Prog_POSIX prog;
+extern ACTION prog;
 extern Env_POSIX env;
 
 int main(int argc, char **argv) {
@@ -13,6 +13,6 @@ int main(int argc, char **argv) {
     ROOTINIT();
     pruneStaticHeap();
     prog = ROOT(env, (POLY)0);
-    prog->start_POSIX(prog,-1,-1);
+    prog->Code(prog,-1,-1);
     run();
 }

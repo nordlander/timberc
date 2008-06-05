@@ -26,17 +26,13 @@ root env = class
         primes!count := k
      if k < limit then tryFrom (k+1)
 
-   start = action
+   result action
      count := 0
      primes!0 := 2
      tryFrom 3
      env.stdout.write (show (count+1)++"\n")
      env.exit 0
 
-   io = action
-     result ()
-
-   result Prog {..}          
 
 log3 :: Int -> Int
 log3 n  

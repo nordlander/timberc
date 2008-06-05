@@ -79,4 +79,5 @@ void pruneStaticHeap();
 
 void init_rts(int, char**);
 
+#define ACTION CLOS_145_POSIX
 #endif

@@ -30,5 +30,8 @@ root env = class
                    env.stdout.write ("  " ++ show (rs!(size bds))++"\n")
                   
 
-             result Prog{..}
+             result action
+               env.installR env.stdin io
+               env.stdout.write "Welcome!\n"
+      
 

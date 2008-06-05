@@ -15,13 +15,13 @@ s3 = f 2
 root env =
     class
        s := s1
-       start = action
-                 env.stdout.write (show s1.v)
        io = action
+               env.stdin.read
                s := s.r
                env.stdout.write (show s.v)
-       result Prog {..}
-
+       result action
+         env.installR env.stdin io
+         env.stdout.write (show s1.v)
 
 ggg n = let apa = 'a':bepa
             bepa = 'b':cepa

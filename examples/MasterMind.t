@@ -5,34 +5,28 @@ import RandomGenerator
 import POSIX
 
 {-
-Standard Mastermind, where the program does the guessing. Answers are given as two integers (separated by space(s) on 
+Standard Mastermind, where the program does the guessing. Answers are given as two integers (separated by space(s)) on 
 one row, indicating number of bulls and cows. Command line argument acts as seed for random number generation.
 -}
 
 data Colour = Red | Blue | Green | Yellow | Black | White
 
 default eqColour :: Eq Colour
-
-implicit showColour :: Show Colour 
-showColour = struct
-  show Red    = "Red"
-  show Blue   = "Blue"
-  show Green  = "Green"
-  show Yellow = "Yellow"
-  show Black  = "Black"
-  show White  = "White"
+        showColour :: Show Colour 
+        parseColour :: Parse Colour
+        eqAnswer :: Eq Answer
 
 type Guess = [Colour]
 
-struct Answer where
-  exact :: Int
-  near  :: Int
+data Answer = Answer Int Int
 
-implicit eqAnswer :: Eq Answer 
-eqAnswer = struct
-  a1 == a2 = a1.exact == a2.exact && a1.near == a2.near
+implicit showAnswer :: Show Answer
+showAnswer = struct
+   show (Answer e n) = show e ++ " " ++ show n
 
-  a1 /= a2 = not (a1 == a2)
+implicit showGuess :: Show Guess
+showGuess = struct
+  show ss = unwords (map show ss)
 
 type Board = [(Guess,Answer)]
 
@@ -43,11 +37,11 @@ allCodes 0 = [[]]
 allCodes n = concat [[c:cs | c <- allColours] | cs <- allCodes (n-1)]
 
 mkAnswer :: String -> Answer
-mkAnswer cs = Answer{ exact = e, near = n }
-    where [e,n] = map read (words cs)
+mkAnswer cs = Answer e n
+    where [e,n] = map parse (words cs)
 
 answer :: Guess -> Guess -> Answer
-answer guess code = Answer {exact=e, near = n}
+answer guess code = Answer e n
    where e = equals guess code
 
          n  = sum [min (count c guess) (count c code) | c <- allColours] - e
@@ -66,16 +60,11 @@ contradictions board c = [(g,r) | (g,r) <- board, answer g c /= r]
 consistent :: Board -> [Guess] -> [Guess]
 consistent board cs = [ c | c <- cs, null (contradictions board c)]
 
-read str = r (reverse str)
- where r (c:cs) = ord c - ord '0' + 10 * r cs
-       r [] = 0
-
-
-data State = Idle | JustGuessed | GameOver
+data State = Idle | JustGuessed | GameOver | GetSecret
            
 root env = class
   
-  gen = new baseGen (read (head (tail env.argv)))
+  gen = new baseGen (parse (head (tail env.argv)))
 
   board := []
   cs := [] 
@@ -88,51 +77,59 @@ root env = class
      zs = drop n cs
      cs := zs ++ ys
   
-  start = action
-    env.stdout.write "Welcome to Mastermind!\n"
-    startGame
-   
   startGame = do
     board := []
     cs := []
-    state := Idle
     env.stdout.write "Choose your secret. Press return when ready.\n"
+    state := Idle
 
   mkGuess = do
      case cs of
-        [] -> do env.stdout.write "Contradictory answers!\n"
-                 state := GameOver
-                 checkQuit
-        _  -> do shift
-                 env.stdout.write ("My guess: "++show(head cs)++"\n")
+        [] ->    env.stdout.write "Contradictory answers!\n"
+                 env.stdout.write "Tell me your secret: "
+                 state := GetSecret
+        _  ->    shift
+                 env.stdout.write ("My guess: "++ show (head cs) ++"\n")
+                 env.stdout.write "Answer (two integers): "
+                 state := JustGuessed
 
   checkQuit = do
      env.stdout.write "Do you want to play again? (y/n) "
+     state := GameOver
 
-  io = action
+  inpHandler = action
     inp <- env.stdin.read
     case state of
-      Idle ->        do cs := allCodes 4
-                        state := JustGuessed
+      Idle ->           cs := allCodes 4
                         mkGuess
-      JustGuessed -> do ans = mkAnswer inp
-                        if ans.exact == 4 then
+
+      JustGuessed ->    ans = mkAnswer inp
+                        Answer e n = ans
+                        if e == 4 then
                            env.stdout.write "Yippee!\n"
-                           state := GameOver
                            checkQuit
                         else
                            c:cs' = cs
                            board := (c,ans) : board
-                           -- cs := [c | c <- cs', consistent board c]
                            cs := consistent board cs'
                            mkGuess
       
-      GameOver ->    do if head inp == 'y' then
+      GameOver ->       if head inp == 'y' then
                            startGame
                         else
                            env.exit 0
-                           result ""
 
-  result Prog {..}
+      GetSecret ->     ss = map parse (words inp)
+                       (g',r'):_ = contradictions board ss
+                       env.stdout.write ("When I guessed "++show g'++", you answered "++show r'++".\n")
+                       env.stdout.write ("Correct answer should have been "++show (answer g' ss)++".\n")
+                       checkQuit
+
+  result 
+     action
+         env.installR env.stdin inpHandler
+         env.stdout.write "Welcome to Mastermind!\n"
+         startGame
+
 
 

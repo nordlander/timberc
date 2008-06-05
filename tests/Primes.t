@@ -7,6 +7,5 @@ primesTo n             = sieve [2..n]
           | x*x > n    = x : xs
           | otherwise  = x : sieve [ y | y <- xs, y `mod` x /= 0 ]
 
-
 root = trivial (\(_:a:_) -> show (length (primesTo (parse a))))
 

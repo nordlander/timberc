@@ -1,22 +1,41 @@
 module POSIX where
     
-type RootType = Env -> Class Prog 
+type RootType = Env -> Class Prog
 
-data AccessMode = Read | Write
+type Prog = Action
 
 struct File where
-    read  :: Request String
-    write :: String -> Request String
+    close :: Request ()
+    seek  :: Int -> Request Int
     
+struct RFile < File where
+    read  :: Request String
+    
+struct WFile < File where
+    write :: String -> Request Int
+   
 struct Env where
-    argv   :: [String]
-    stdin  :: File
-    stdout :: File
-    exit   :: Int -> Request ()
-    open   :: String -> AccessMode -> Request File
- 
-struct Prog where
-    start :: Action
-    io    :: Action
+    exit     :: Int -> Request ()
+    argv     :: [String]
+    stdin    :: RFile
+    stdout   :: WFile
+    openR    :: String -> Request (Maybe RFile)
+    openW    :: String -> Request (Maybe WFile)
+    installR :: RFile -> Action -> Request ()
+    installW :: WFile -> Action -> Request ()
+
+{-
+root env = 
+    class
+        s := "!"
+        bla = action
+                  x <- env.stdin.read
+                  env.stdout.write (x ++ s)
+                  s := '!':s
+        result action
+                 env.installR env.stdin bla
 
 
+root env = class result action
+             env.stdout.write "Hello world!"
+-}

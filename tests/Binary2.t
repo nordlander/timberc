@@ -24,5 +24,3 @@ binaryBin = struct
 toBin :: Either () () -> Bin
 toBin (Left a)  = B0
 toBin (Right a) = B1
- 
-
