@@ -45,7 +45,7 @@ Lexer:
 
 Parser:
 - Checks basic syntax and builds parse tree
-- Builds constructor syntax (pared as qualified types)
+- Builds constructor syntax (parsed as qualified types)
 - Resolves nested infix expressions
 - Converts record labels to proper selectors (with prefix .)
 - Replaces prefix tuple constructors with primitive names
@@ -227,7 +227,7 @@ compileAll clo ifs (p@(ms,t_file):t_files)
                                  compileAll clo ifs t_files
                               else do
                                  ifs' <- compileTimber clo ifs (longName p) ti_file c_file h_file
-                                 compileAll clo (ifs' ++ ifs) t_files
+                                 compileAll clo ifs' t_files
   where base            = rmSuffix ".t" t_file
         ti_file         = base ++ ".ti"
         c_file          = base ++ ".c"
@@ -272,7 +272,8 @@ main2 args          = do (clo, files) <- Exception.catchDyn (cmdLineOpts args)
 
                          let t_files  = filter (".t"  `isSuffixOf`) files
                              i_files  = filter (".ti" `isSuffixOf`) files
-                             badfiles = files \\ (t_files++i_files)
+                             o_files  = filter (".o" `isSuffixOf`) files
+                             badfiles = files \\ (t_files++i_files++o_files)
                          
                          Monad.when (not (null badfiles)) $ do
                              fail ("Bad input files: " ++ showids badfiles)
@@ -293,9 +294,9 @@ main2 args          = do (clo, files) <- Exception.catchDyn (cmdLineOpts args)
                          Monad.when (stopAtO clo) stopCompiler
 
                          let basenames = map rmDirs basefiles
-                             o_files   = map (++ ".o") basenames
+                             o_files'   = map (++ ".o") basenames
                          Monad.when(not (null basenames)) (do r <- checkRoot clo ifs (last basenames)
-                                                              linkO cfg clo r o_files)
+                                                              linkO cfg clo r (o_files ++ o_files'))
 
                          return ()
 
@@ -339,7 +340,7 @@ checkRoot clo ifs def       = do if1 <- getIFile rootMod
         checkRoot' te t0    = case [ (n,t) | (n,t) <- te, n == rootN ] of
                                 [(n,t)]  -> if Core.simpleInst t t0
                                             then return n
-                                            else fail ("Incorrect root type: " ++ render (pr t))
+                                            else fail ("Incorrect root type: " ++ render (pr t)++"; should be "++render(pr t0))
                                 _ -> fail ("Cannot locate root " ++ (root clo) ++ " in module " ++ rootMod)
         getIFile m          = case lookup (name0 m) ifs of
                                 Just ifc -> return ifc
@@ -358,23 +359,15 @@ fatalErrorHandler e =  do putStrLn (show e)
 
 
 -- Getting import info ---------------------------------------------------------
-{-
-chaseImports takes as input 
-   - the list of import/use declarations from a module
-   - a map of module names, for which the interface file has already been read, to IFace values
-and returns import info for all (transitively) imported files in the form of
-a map from names of imported modules to triples containing
-   - an indication of whether the import/use is direct or indirect (True means direct)
-   - an indication of whether it is import or use (True means import)
-   - the interface info
--}
+
 
 chaseImps                         :: (String -> IO (a,String)) -> (a -> [Name]) -> String -> [Syntax.Import] -> Map Name a -> IO (Map Name (ImportInfo a), Map Name a)
 chaseImps readModule iNames suff imps ifs              
                                      = do bms <- mapM (readImport ifs) imps
                                           let newpairs = [p | (p,True) <- bms]
-                                          rms <- chaseRecursively ifs (map impName imps) [] (concatMap (iNames  . thd . snd) newpairs)
-                                          return (map fst bms ++ rms, [(c,ifc) | (c,(_,_,ifc)) <- newpairs])
+                                              ifs1 =  [(c,ifc) | (c,(_,_,ifc)) <- newpairs] ++ ifs
+                                          (rms,ifs2) <- chaseRecursively ifs1 (map impName imps) [] (concatMap (iNames  . thd . snd) (dom bms))
+                                          return (map fst bms ++ rms, ifs2)
   where readIfile ifs c              = case lookup c ifs of
                                         Just ifc -> return (ifc,False)
                                         Nothing -> do (ifc,f) <- readModule f
@@ -383,12 +376,12 @@ chaseImps readModule iNames suff imps ifs
         readImport ifs (Syntax.Import b c) 
                                      = do (ifc,isNew) <- readIfile ifs c
                                           return ((c,(b,True,ifc)),isNew)
-        chaseRecursively ifs vs ms []= return ms
+        chaseRecursively ifs vs ms []= return (ms,ifs)
         chaseRecursively ifs vs ms (r : rs)
              | elem r vs             = chaseRecursively ifs vs ms rs
              | otherwise             = do (ifc,isNew)  <- readIfile ifs r
-                                          chaseRecursively ifs (r : vs) ((r,(False,False,ifc)) : ms) 
-                                                           ((if isNew then iNames ifc else []) ++ rs)
+                                          chaseRecursively (if isNew then (r,ifc) : ifs else ifs) (r : vs) ((r,(False,False,ifc)) : ms) 
+                                                           (rs ++ iNames ifc)
         
 thd (_,_,x)                         = x
 
