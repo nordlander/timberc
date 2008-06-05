@@ -33,9 +33,12 @@ leftmost column).
 <p>
 A module has a simple name, which is an identifier starting with an
 upper-case letter. Modules are conventionally stored in files of the same name with suffix <tt>.t</tt>, i.e.
-module <tt>Dictionary</tt> is stored in <tt>Dictionary.t</tt>. Projects and Timber sites may also use hierarchical
-file systems to organize module libraries; if <tt>Dictionary.t</tt> resides in dictionary <tt>Data/Object</tt>, the
-fully qualified name of the module, used by clients, is <tt>Data'Object'Dictionary</tt>. Such qualified names are
+module <tt>Dictionary</tt> is stored in <tt>Dictionary.t</tt>. However, to allow 
+
+Projects and Timber sites may also use hierarchical module names to allow multiple modules with the same name
+or to indicate structure e.g. in a library. Thus, module <tt>Dictionary</tt> may need to be referred to by
+clients as <tt>Data.Object.Dictionary</tt>; it is up to the implementation whether this module is
+stored in <tt>Data.Object.Dictionary.t</tt> or in <tt>Data/Object/Dictioary.t</tt>
 relative to some installation-dependent notion of search paths. Module hierarchies in Timber have no other significance
 than to support organizing and subsequently finding modules in a file system.
 <p>
@@ -54,9 +57,9 @@ Following the header is a sequence of import/use declarations, i.e. declaration 
 There are two forms of such declarations:
 <ul>
   <li> <em>Import declarations</em>, exemplified by<br>
-  <tt>import Data'Objects'Dictionary</tt></li>
+  <tt>import Data.Objects.Dictionary</tt></li>
   <li> <em>Use declarations</em>, as in<br>
-  <tt>use Data'Objects'Dictionary</tt></li>
+  <tt>use Data.Objects.Dictionary</tt></li>
 </ul>
 <p>
 Both forms of declaration give access to all exported entities from the named module; the difference is that in the latter case

@@ -1,0 +1,93 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html> <head>
+<title>The POSIX environment</title>
+<link href="simplestyle.css" rel="stylesheet" type="text/css">
+</head>
+
+<body>
+<h3>The POSIX environment</h3>
+<p>
+Timber is intended to be usable in many different
+situations, ranging from embedded systems to
+standard desktop applications. The interfaces
+between the Timber program and the external environment
+are very different in these cases.
+<p>
+Thus a Timber application must be built for a particular target
+environment. This distribution provides only one environment,
+the POSIX environment. Also this is incomplete and a more complete
+version will be provided in a future release.
+<pre>
+module POSIX where
+    
+type RootType = Env -> Class Prog
+
+type Prog = Action
+
+struct File where
+    close :: Request ()
+    seek  :: Int -> Request Int
+    
+struct RFile < File where
+    read  :: Request String
+    
+struct WFile < File where
+    write :: String -> Request Int
+   
+struct Env where
+    exit     :: Int -> Request ()
+    argv     :: [String]
+    stdin    :: RFile
+    stdout   :: WFile
+    openR    :: String -> Request (Maybe RFile)
+    openW    :: String -> Request (Maybe WFile)
+    installR :: RFile -> Action -> Request ()
+    installW :: WFile -> Action -> Request ()
+</pre>
+<p>
+The root module of a program targeted for this environment must
+<tt>import POSIX</tt> and contain
+a definition <tt>root :: RootType</tt>.
+<p>
+Here the type <tt>Env</tt> collects the services that the environment
+provides to the program: the program can  call a function <tt>exit</tt>
+to terminate the program with a status indication, access command line arguments
+through <tt>argv</tt>, the standard input and output streams
+as <tt>stdin</tt> and <tt>stdout</tt>, open files for reading and
+writing and install listeners on files; see below for more on these.
+Within a definition
+<pre>
+root env = ...
+</pre>
+these services are accessed using dot notation as <tt>env.argv</tt> etc.
+<p>
+The <tt>read</tt> and <tt>write</tt> on files are <em>non-blocking</em> operations:
+<ul>
+  <li><tt>read</tt> returns a string of the bytes that are available
+  in the file at the time of the call. If no input is available, the empty string is returned.
+  Input is line-buffered, so no input is available until the user strikes return.
+  <li> <tt>write</tt> takes a string as argument and tries to write it to the file;
+  the returned value is the number of characters written; for regular files this should be
+  expected to be the length of the argument.
+</ul>
+<p>
+Because of the non-blocking nature of input and output, programs need a way to be notified
+when input is available or output is possible. This is the role of the listeners; a call
+<p>
+<tt>env.installR env.stdin inpHandler</tt>
+<p>
+installs the action <tt>inpHandler</tt> as a listener on <tt>stdin</tt>; whenever input
+is available (i.e. the user strikes return), the runtime system calls the listener. So, in
+this case <tt>inpHandler</tt> will typically start by reading <tt>stdin</tt>.
+<p>
+Execution of a program proceeds as follows. The runtime system is responsible
+for initialization: it creates
+an environment object with interface <tt>env :: Env</tt>, applies <tt>root</tt> to <tt>env</tt> and
+creates an object of the resulting class; this gives an interface to the initial action of the program.
+The run-time system executes this action; this may
+lead to creation of more objects, scheduling of future actions etc.
+<p>
+After this initial computation the program comes to rest and
+reacts to events, such as scheduled timer events or IO events on files with installed listeners.
+<p>
+</body> </html>

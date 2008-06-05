@@ -31,8 +31,8 @@ Names are <em>simple</em> or <em>qualified</em>; the latter are used to disambig
 <p>
 Simple names come in two lexically distinct forms, <em>identifiers</em> and <em>operators</em>.
 <p>
-An identifier consists of a letter followed first by zero or more letters, digits and underscores and, finally,
-zero or more single quotes. The initial letter must be upper case for constructors, type constructors and
+An identifier consists of a letter followed first by zero or more letters, digits, single quotes and underscores.
+The initial letter must be upper case for constructors, type constructors and
 module names, and must be lower case for variables, selectors and type variables. The following lexically correct
 identifiers are keywords of the language and may not be used as names:
 <pre>
@@ -65,7 +65,6 @@ Conversely, an operator may be used as an identifier by enclosing it in parenthe
 <TR><TD><tt>x, env, myTable, a', x_1</tt></TD><TD>variables, selectors, type variables</TD></TR>
 <TR><TD><tt>+, #=#, @@</tt></TD><TD>variables</TD></TR>
 <TR><TD><tt>:, :++:</tt></TD><TD>constructors</TD></TR>
-<TR><TD><tt>x'3</tt></TD><TD>ILLEGAL; only trailing ':s allowed</TD></TR>
 <TR><TD><tt>#3</tt></TD><TD>ILLEGAL; mixture of operator and identifier symbols.</TD></TR>
 </table>
 <h4>Precedence and associativity</h4>
@@ -126,16 +125,17 @@ Thus, semantically speaking, these are not operators at all but special expressi
 <h4>Qualified names</h4>
 <p>
 Timber modules are used to manage namespaces. In this mechanism, simple names are extended to qualified forms, where the
-simple name is suffixed by the name of the module where it is defined.
-<p> A qualified module name is a sequence of simple module names interspersed with single quotes, such as
-<tt>Data'Functional'List</tt>. This structure on module names is simply intended to indicate a suitable storage
-structure of modules in a hierarchical file system; this example module would be defined in file <tt>List.t</tt>
-in folder <tt>Data/Functional</tt> relative to some installation dependent search path.
+simple name is prefixed by the name of the module where it is defined. To allow several modules with the same name in a system,
+module names themselves may be qualified.
+<p> A <em>qualified module name</em> is a sequence of simple module names interspersed with periods, such as
+<tt>Data.Functional.List</tt>. The module name (given in the module header) is here just <tt>List</tt>, but the full name must be used by
+importing clients and is also used by the Timber installation to store and retrieve modules in the file system. Exactly how this is done is
+installation-dependent.
 <p>
 Imagine a module <tt>Dictionary</tt>, which defines among others the names <tt>insert</tt> and <tt>|-></tt>. An importing module may
-refer to these names using the qualified forms <tt>insert'Dictionary</tt> and <tt>|->'Dictionary</tt> in order to avoid possible name conflicts. See the modules page for more information on import and use of other modules.The simple name that is the prefix of a qualified name decides if the
+refer to these names using the qualified forms <tt>Dictionary.insert</tt> and <tt>Dictionary.|-></tt> in order to avoid possible name conflicts. See the modules page for more information on import and use of other modules.The simple name that is the suffix of a qualified name decides if the
 name is an operator or an identifier and if it is a constructor or not.
 <p>
-A qualified name may not be used at a defining occurrence, only when a name is used. (The module suffix is uniquely determined by
+A qualified name may not be used at a defining occurrence, only when a name is used. (The module prefix is uniquely determined by
 the module name, hence superfluous in the definition.)
 </body> </html>
