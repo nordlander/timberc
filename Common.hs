@@ -93,10 +93,11 @@ dropDigits xs                   = drop 0 xs
 errorIds mess ns                = error (unlines ((mess++":") : map pos ns))
   where pos n                   = case loc n of
                                     Just (r,c) -> rJust 15 (show n) ++ "  at line " ++ show r ++ ", column " ++ show c
-                                    Nothing ->    rJust 15 (show n) ++ "  (internally generated)"
+                                    Nothing ->    rJust 15 (show n) ++ modInfo n
         loc n                   = location (annot n)
         rJust w str             = replicate (w-length str) ' ' ++ str
-
+        modInfo (Name _ _ (Just m) a) = " defined in " ++ m
+        modInfo _               = " (unknown position)"
 errorTree mess t                = error (mess ++ pos ++ (if length (lines str) > 1 then "\n"++str++"\n" else str) )
   where str                     = render (pr t)
         pos                     = " ("++ show (posInfo t) ++"): "
