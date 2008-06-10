@@ -72,12 +72,9 @@ pExp' = parseP pExp "a*(b+c)"
              
 root env =
     class
-       start = action
+       result action
                  env.stdout.write (show pExp' ++ "\n")
                  env.exit 0
-       io = action
-               result ()
-       result Prog {..}
 
 {-
 returnLet = return Let :: m (B -> E -> Int)
