@@ -13,6 +13,24 @@ import qualified Kindle
 import Termred
 import qualified Config
 import System
+{-
+If you have Codec.Compression.BZip installed, you may replace definitions of decodeCFile and encodeCFile with the ones in this 
+comment.
+
+This will compress interface files, giving a 90% reduction in size with negligible runtime penalty.
+
+import Codec.Compression.BZip 
+import qualified Data.ByteString.Lazy
+
+decodeCFile ti_file     = do str <- Data.ByteString.Lazy.readFile ti_file
+                             return(decode(decompress str)) 
+
+encodeCFile ti_file ifc =  Data.ByteString.Lazy.writeFile ti_file (compress(encode ifc))
+-}
+decodeCFile ti_file     = decodeFile ti_file
+
+encodeCFile ti_file ifc = encodeFile ti_file ifc
+
 
 -- Data type of interface file -----------------------------------------------
 
@@ -200,9 +218,9 @@ toHTML n (IFace ns xs rs ss ds ws bs _) = text "<html><body>\n" $$
          where (bs1,bs2)                = partition (flip elem ws . fst ) te
                                                   
         
-decodeModule f                       = (do ifc <- decodeFile f
+decodeModule f                       = (do ifc <- decodeCFile f
                                            putStrLn ("[reading " ++ show f ++ "]")
-                                           return (ifc,f)) `catch`  (\e -> do ifc <- decodeFile libf
+                                           return (ifc,f)) `catch`  (\e -> do ifc <- decodeCFile libf
                                                                               putStrLn ("[reading " ++ show libf ++ "]")
                                                                               return (ifc,libf))
            where libf                = Config.libDir ++ "/" ++ f
