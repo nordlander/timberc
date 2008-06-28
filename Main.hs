@@ -253,8 +253,14 @@ checkUpToDate clo t_file ti_file c_file h_file imps
   | otherwise           = return False
   where tiOK ti_time1 n = do let ti_file = modToPath (str n) ++ ".ti"
                              ti_exists <- Directory.doesFileExist ti_file
-                             if (not ti_exists) then
-                                return True  -- library module
+                             if (not ti_exists) then do
+                                let lti_file = Config.libDir ++ "/" ++ modToPath (str n) ++ ".ti"
+                                lti_exists <- Directory.doesFileExist lti_file
+                                if (not lti_exists) then
+                                   internalError0 ("Cannot find interface file " ++ ti_file)
+                                 else do lti_time <- Directory.getModificationTime lti_file
+                                         return (lti_time <= ti_time1)
+                               -- return True  -- library module
                                else do ti_time <- Directory.getModificationTime ti_file
                                        return (ti_time <= ti_time1)
 ------------------------------------------------------------------------------
