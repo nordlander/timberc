@@ -225,9 +225,9 @@ primTerms                       =  map primKeyValue [MIN____CONS .. MAX____VAR]
                                   
 primKeyValue p                  = (name0 (strRep p), prim p)
 
-rigidNames			    		= map rigidKeyValue [IndexArray, LazyAnd, LazyOr]
+rigidNames			= map rigidKeyValue [IndexArray, LazyAnd, LazyOr]
 
-rigidKeyValue p					= (strRep p, prim p)
+rigidKeyValue p			= (strRep p, prim p)
 
 lowPrims                        = [New,Sec,Millisec,Microsec,Nanosec,Raise,Catch,Baseline,Deadline,Next,OwnedBy,WantedBy,Infinity]
 

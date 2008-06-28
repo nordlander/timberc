@@ -332,8 +332,6 @@ stateSym                        = "S"
 skolemSym                       = "sk"
 selfSym                         = "self"
 thisSym                         = "this"
-codeSym                         = "code"
-tagSym                          = "tag"
 instanceSym                     = "inst"
 closureSym                      = "CLOS"
 
@@ -341,7 +339,6 @@ isCoercion n                    = isGenerated n && str n == coercionSym
 isPatTemp n                     = isGenerated n && str n == patSym
 isClosure n                     = isGenerated n && str n == closureSym
 isDummy n                       = isGenerated n && str n == dummySym
--- isTag n                         = isGenerated n && str n == tagSym
 isWitness n                     = isGenerated n && str n == witnessSym
 
 explicitSyms                    = [coercionSym, assumptionSym, witnessSym]
