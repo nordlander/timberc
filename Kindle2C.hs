@@ -219,10 +219,14 @@ strict (ECall f es)             = evars es
 strict (ENew _ bs)              = strictBs bs
 strict _                        = []
 
+strictRhs (EVar x)              = [x]
+strictRhs (ECast _ e)           = strictRhs e
+strictRhs e                     = strict e
+
 updates prev []                 = []
 updates prev ((x,Val _ e):bs)   = mustUpdate : updates ((x,fwrefs):prev') bs
   where computed                = dom prev
-        bwrefs                  = filter (not . isPatTemp) (strict e `intersect` computed)
+        bwrefs                  = filter (not . isPatTemp) (strictRhs e `intersect` computed)
         fragile                 = concat [ fws | (y,fws) <- prev, y `elem` bwrefs ]
         mustUpdate              = not (null (fragile `intersect` computed))
         fwrefs                  = evars e `intersect` (x:dom bs)
