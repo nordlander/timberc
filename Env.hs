@@ -714,13 +714,8 @@ primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
                             (prim After,        scheme0 [tTime,tAction] tAction),
                             (prim Before,       scheme0 [tTime,tAction] tAction),
 
-                            (prim New,          scheme1 [tClass a] a),
+                            (prim New,          scheme1 [tClass a] a)
                             
-                            (prim ASYNC,        scheme0 [tMsg, tTime, tTime] tUnit),
-                            (prim LOCK,         scheme0 [tPID] tUnit),
-                            (prim UNLOCK,       scheme0 [tPID] tUnit),
-                            (prim Inherit,      scheme0 [] tTime) 
-
                           ]
 
 
