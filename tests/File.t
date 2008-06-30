@@ -4,7 +4,7 @@ import POSIX
 
 root env = class
    result action
-        fname = head (tail env.argv)
+        fname = env.argv!1
         h1 <- env.openR fname
         case h1 of
            Just f -> 

@@ -192,7 +192,7 @@ void dispatch( Thread next ) {
 void idle(void) {
         ENABLE(&enabled_mask);
         while (1) {
-                gc();
+	  // gc();
                 SLEEP();
         }
 }
@@ -411,7 +411,6 @@ LIST getStr(char *p) {
         n->b = (LIST)_NIL;
         return (LIST)n0;
 }
-
 
 // Arrays ---------------------------------------------------------------------------------------------
 

@@ -4,7 +4,7 @@ import POSIX
 
 root env = class
    limit :: Int
-   limit = parse (head (tail env.argv))
+   limit = parse (env.argv!1)
    primesBound = limit `div` log3 limit
 
    primes := uniarray primesBound 0

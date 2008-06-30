@@ -64,7 +64,7 @@ data State = Idle | JustGuessed | GameOver | GetSecret
            
 root env = class
   
-  gen = new baseGen (parse (head (tail env.argv)))
+  gen = new baseGen (parse (env.argv!1))
 
   board := []
   cs := [] 
@@ -97,8 +97,7 @@ root env = class
      env.stdout.write "Do you want to play again? (y/n) "
      state := GameOver
 
-  inpHandler = action
-    inp <- env.stdin.read
+  inpHandler inp = action
     case state of
       Idle ->           cs := allCodes 4
                         mkGuess

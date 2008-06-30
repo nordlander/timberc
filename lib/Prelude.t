@@ -191,7 +191,6 @@ parseInt = struct
     where r (c:cs) = ord c - ord '0' + 10*r cs
           r [] = 0
 
-
 implicit struct Enum a where
   fromEnum :: a -> Int
   toEnum :: Int -> a

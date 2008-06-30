@@ -12,8 +12,7 @@ root env = class
              start = action
                 env.stdout.write "Hej\n"
 
-             io = action
-                d <- env.stdin.read
+             io d = action
                 if head d == 'q' then
                    rs <- h.getResult
                    showResults rs

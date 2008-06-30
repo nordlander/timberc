@@ -4,8 +4,21 @@ type RootType = Env -> Class Prog
 
 type Prog = Action
 
-struct File where
-    close :: Request ()
+struct Env where
+    exit     :: Int -> Request ()
+    argv     :: Array String
+    stdin    :: RFile
+    stdout   :: WFile
+    openR    :: String -> Request (Maybe RFile)
+    openW    :: String -> Request (Maybe WFile)
+    installR :: RFile -> (String -> Action) -> Request ()
+    installW :: WFile -> Action -> Request ()
+    inet     :: Internet
+
+struct Closable where
+    close :: Action
+
+struct File < Closable where
     seek  :: Int -> Request Int
     
 struct RFile < File where
@@ -13,29 +26,28 @@ struct RFile < File where
     
 struct WFile < File where
     write :: String -> Request Int
-   
-struct Env where
-    exit     :: Int -> Request ()
-    argv     :: [String]
-    stdin    :: RFile
-    stdout   :: WFile
-    openR    :: String -> Request (Maybe RFile)
-    openW    :: String -> Request (Maybe WFile)
-    installR :: RFile -> Action -> Request ()
-    installW :: WFile -> Action -> Request ()
 
-{-
-root env = 
-    class
-        s := "!"
-        bla = action
-                  x <- env.stdin.read
-                  env.stdout.write (x ++ s)
-                  s := '!':s
-        result action
-                 env.installR env.stdin bla
+data Host = Host String
+data Port = Port Int
 
+struct Internet where
+   tcp :: Sockets
 
-root env = class result action
-             env.stdout.write "Hello world!"
--}
+struct Destination < Closable where
+   deliver   :: String -> Action    
+
+struct Connection < Destination where
+   established :: Action 
+   neterror :: String -> Action             
+
+struct Peer < Destination where
+   host :: Host
+   port :: Port
+
+struct Sockets where
+   connect :: Host -> Port -> (Peer -> Class Connection) -> Request ()
+   listen  :: Port -> (Peer -> Class Connection) -> Request Closable
+
+implicit showHost :: Show Host
+showHost = struct
+   show (Host nm) = nm

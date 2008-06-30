@@ -15,8 +15,7 @@ s3 = f 2
 root env =
     class
        s := s1
-       io = action
-               env.stdin.read
+       io _ = action
                s := s.r
                env.stdout.write (show s.v)
        result action

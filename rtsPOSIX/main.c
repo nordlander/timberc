@@ -1,6 +1,7 @@
 #include "rts.h"
 #include "timber.h"
 #include "POSIX.h"
+#include "env.h"
 
 void ROOTINIT(void);
 ACTION ROOT(Env_POSIX, POLY);
