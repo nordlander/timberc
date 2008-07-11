@@ -16,8 +16,8 @@
 
 
 #define SLEEP()         sigsuspend(&enabled_mask)
-#define DISABLE(prev)   sigprocmask(SIG_SETMASK, &disabled_mask, prev)
-#define ENABLE(mask)    sigprocmask(SIG_SETMASK, mask, NULL)
+#define DISABLE(prev)   pthread_sigmask(SIG_SETMASK, &disabled_mask, prev)
+#define ENABLE(mask)    pthread_sigmask(SIG_SETMASK, mask, NULL)
 
 #if defined(__APPLE__)
 #  if defined(__i386__)

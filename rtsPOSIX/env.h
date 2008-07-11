@@ -1,0 +1,14 @@
+#ifndef ENV_H_
+#define ENV_H_
+
+#define SOCKHANDLER   CLOS_329_POSIX
+#define HANDLER       CLOS_335_POSIX
+#define ACTION        CLOS_336_POSIX
+#define FILE2CLOSABLE l_166_POSIX
+#define RFILE2FILE    l_169_POSIX
+#define WFILE2FILE    l_172_POSIX
+#define DEST2CLOSABLE l_175_POSIX
+#define PEER2DEST     l_178_POSIX
+#define CONN2DEST     l_181_POSIX
+#define __GC__HANDLER __GC__CLOS_335_POSIX
+#endif
