@@ -105,8 +105,8 @@ llExp env (ECall x es)                  = do es <- mapM (llExp env) es
                                                 Nothing -> return (ECall x es)
 llExp env (ENew n bs)
   | null fte                            = liftM (ENew n) (mapM (llBind env) bs)
-  | otherwise                           = do n' <- newName typeSym
-                                             addToStore (Left (n', Kindle.Struct (te ++ mapSnd ValT fte) []))
+  | otherwise                           = do 
+                                             n' <- getName (te ++ mapSnd ValT fte) 
                                              vals' <- mapM (llBind env) vals
                                              funs' <- mapM (llBind (setThisVars (dom fte) env)) funs
                                              return (ECast (TId n) (ENew n' (vals' ++ funs' ++ map close fte)))
@@ -116,6 +116,7 @@ llExp env (ENew n bs)
         fte                             = locals env `restrict` free1
         Kindle.Struct te _              = lookup' (decls env) n
         close (x,t)                     = (x, Val t (mkEVar env x))
+
 llExp env (EVar x)                      = return (mkEVar env x)
 llExp env (EThis)                       = return (EThis)
 llExp env (ELit l)                      = return (ELit l)
@@ -126,3 +127,14 @@ llExp env (ECast t e)                   = liftM (ECast t) (llExp env e)
 
 
 mkEVar env x                            = if x `elem` thisVars env then ESel EThis x else EVar x
+
+getName te                              = do ds <- currentStore
+                                             case find ds of
+                                               Just n -> return n
+                                               Nothing -> do n <- newName typeSym
+                                                             addToStore (Left (n, Kindle.Struct te []))
+                                                             return n
+  where find []                         = Nothing
+        find (Left(n,Kindle.Struct te' []) : ds)
+            |te' == te                  = Just n
+        find (_ : ds)                   = find ds
