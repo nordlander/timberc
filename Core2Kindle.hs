@@ -467,7 +467,8 @@ cFun env (ETempl x tx te c)             = do tx <- cValType tx     -- Type-check
                                              y <- newName dummySym
                                              u <- newTVar Star
                                              let e = Kindle.ENew n Kindle.objInit
-                                             return ([(y,u)], t, Kindle.cBind [(x,Kindle.Val tx' e)] c)
+                                                 bf = Kindle.CRun (Kindle.lock' x) . Kindle.unlock x
+                                             return ([(y,u)], t, Kindle.cBind [(x,Kindle.Val tx' e)] (bf c))
 cFun env (EDo x tx c)                   = do tx <- cValType tx
                                              (t,c) <- cCmd (pushAddSelf x tx env) c
                                              return ([(x,stripQuant tx)], t, c)
