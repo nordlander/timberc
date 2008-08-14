@@ -415,22 +415,6 @@ prId3 (Name s n m a)            = text (id ++ tag ++ mod++suff)
     noClash cs m                = True
 prId3 n                         = prId2 n
 
-{-
-The above is WRONG; function noClash should return True when there is no risk to omit the tag when
-generating a C identifier (for a qualified name that is not internally generated). The above code
-claims that this is always OK. However, the example
-
-module M_2 where
-
-f f_M = f 1
-
-shows this to be false; after renaming one will get (illegal) C code equivalent to
-
-f_M_2 f_M_2 = f_M_2 1
-
-where the variable in the RHS refers to the parameter of the LHS rather than the function. 
--}
-
 name2str n                      = render (prId3 n)
 
 modToPath m                     = m -- concat (List.intersperse "/" (splitString m))
