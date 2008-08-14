@@ -688,8 +688,6 @@ cCmd env (CExp e)                       = cCmdExp env e
 -- Convert a Core.Exp in the monadic execution path into a Kindle.Cmd, inferring a Type
 cCmdExp env (EAp (EVar (Prim ReqToCmd _)) [e])  
                                         = cCmdExp env e
-cCmdExp env (EAp (EVar (Prim TemplToCmd _)) [e])
-                                        = cCmdExp env e
 cCmdExp env e@(EAp (EVar (Prim Raise _)) _)
                                         = do (bf,te,e) <- freezeState env e
                                              (bf',t,Kindle.ECall _ [e']) <- cValExp (addTEnv te env) e
@@ -796,7 +794,6 @@ cExp env (EAp (EVar (Prim ActToCmd _)) [e])    = do (bf,t,e) <- cValExp env (EAp
                                                     t' <- newTVar Star
                                                     return (bf, t, FunR (\_ -> e) [] [t'])
 cExp env (EAp (EVar (Prim ReqToCmd _)) [e])    = cExp env e
-cExp env (EAp (EVar (Prim TemplToCmd _)) [e])  = cExp env e
 cExp env (EAp (EVar (Prim RefToPID _)) [e])    = cExp env e
 cExp env (EAp (EVar (Prim After _)) [e,e'])    = do (bf,_,e1) <- cValExpT env tTime e
                                                     (bf',t,f,_,ts) <- cFunExp env e'

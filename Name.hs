@@ -79,7 +79,6 @@ data Prim                       =
 
                                 | ActToCmd
                                 | ReqToCmd
-                                | TemplToCmd
                                 | RefToPID
 
                                 | MIN____KINDLE_INFIX
