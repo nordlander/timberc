@@ -635,7 +635,6 @@ primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
 
                             (prim ActToCmd,     scheme1 [tAction] (tCmd a tMsg)),
                             (prim ReqToCmd,     scheme2 [tRequest a] (tCmd b a)),
-                            (prim TemplToCmd,   scheme2 [tClass a] (tCmd b a)),
                             (prim RefToPID,     scheme1 [tRef a] tPID),
 
                             (prim IntPlus,      scheme0 [tInt,tInt] tInt),
@@ -749,7 +748,6 @@ mkRho ts t              = F (map scheme ts) (R t)
 
 primAboveEnv    = [ (prim Action,   unitWG subActCmd),
                     (prim Request,  unitWG subReqCmd),
-                    (prim Class,    unitWG subTemplCmd),
                     (prim Cmd,      nullWG),
                     (prim Ref,      unitWG subRefPID),
                     (prim PID,      nullWG)
@@ -758,7 +756,7 @@ primAboveEnv    = [ (prim Action,   unitWG subActCmd),
 primBelowEnv    = [ (prim Action,   nullWG),
                     (prim Request,  nullWG),
                     (prim Class,    nullWG),
-                    (prim Cmd,      WG [subActCmd,subReqCmd,subTemplCmd] []),
+                    (prim Cmd,      WG [subActCmd,subReqCmd] []),
                     (prim Ref,      nullWG),
                     (prim PID,      unitWG subRefPID)
                   ]
@@ -770,12 +768,10 @@ subActCmd       = (prim ActToCmd,   scheme1 [] (tAction `sub` tCmd a tMsg))
 
 subReqCmd       = (prim ReqToCmd,   scheme2 [] (tRequest a `sub` tCmd b a))
 
-subTemplCmd     = (prim TemplToCmd, scheme2 [] (tClass a `sub` tCmd b a))
-
 subRefPID       = (prim RefToPID,   scheme1 [] (tRef a `sub` tPID))
 
 
-primPredEnv     = [reflAll, subActCmd, subReqCmd, subTemplCmd, subRefPID]
+primPredEnv     = [reflAll, subActCmd, subReqCmd, subRefPID]
 
 
 primClassEnv    = []
