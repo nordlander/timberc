@@ -717,6 +717,7 @@ primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
                             
                           ]
 
+primTypeEnv1            =   (prim Inherit,      scheme0 [] tTime) : primTypeEnv
 
 tAction                 = TId (prim Action)
 tRequest a              = TAp (TId (prim Request)) a

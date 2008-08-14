@@ -117,7 +117,7 @@ cModule e2 e3 (Module m ns xs ds ws bss)
 
 
 -- Compute the imported type environment
-tenv0 (_,ds,ws,bs)                  = cTEnv (tsigsOf bs ++ Decls.tenvSelsCons ds ++ Env.primTypeEnv)
+tenv0 (_,ds,ws,bs)                  = cTEnv (tsigsOf bs ++ Decls.tenvSelsCons ds ++ Env.primTypeEnv1)
 
 -- =========================================================================================
 -- Translating Core type declarations into Kindle.Decls
