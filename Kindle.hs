@@ -171,6 +171,7 @@ tUNIT                                   = TId (prim UNITTYPE)
 tThread                                 = TId (prim Thread)
 tInt                                    = TId (prim Int)
 tArray                                  = TId (prim Array)
+tBITSET                                 = TId (prim BITSET)
 
 eNull                                   = ECast tThread (ELit (LInt Nothing 0))
 
@@ -180,8 +181,12 @@ primTEnv0                               = (prim ASYNC,      FunT [tMsg,tTime,tTi
                                           (prim LOCK,       FunT [tPID] tUNIT) :
                                           (prim UNLOCK,     FunT [tPID] tUNIT) :
                                           (prim Inherit,    ValT tTime) :
-                                          (prim EmptyArray, FunT[tInt] tArray) :
-                                          (prim CloneArray, FunT[tArray,tInt] tArray) :
+                                          (prim EmptyArray, FunT [tInt] tArray) :
+                                          (prim CloneArray, FunT [tArray,tInt] tArray) :
+                                          (prim ZEROBITS,   ValT tBITSET) :
+                                          (prim ORBITS,     FunT [tBITSET,tBITSET] tBITSET) :
+                                          (prim SETBIT,     FunT [tInt] tBITSET) :
+                                          (prim COPYBIT,    FunT [tBITSET,tInt,tInt] tBITSET) :
                                           []
 
 ptrPrims                                = [Msg, Ref, PID, Array, LIST, EITHER]

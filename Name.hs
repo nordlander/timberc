@@ -198,6 +198,13 @@ data Prim                       =
                                 
                                 | Thread                -- type of selectors OwnedBy and WantedBy
                                 
+                                | BITSET                -- Type representing primitive/ptr instantiations of type variables
+                                
+                                | ZEROBITS              -- Constructors of type Bitset
+                                | ORBITS
+                                | SETBIT
+                                | COPYBIT
+                                
                                 | CharBox               -- The Kindle structs for boxed values
                                 | FloatBox                
                                 | IntBox                 

@@ -15,6 +15,12 @@ typedef WORD *ADDR;
 #define UNITTYPE char
 #define POLY void*
 #define Time int
+#define BITSET unsigned int
+
+#define ZEROBITS        0
+#define ORBITS(a,b)     (a) | (b)
+#define SETBIT(n)       (1 << n)
+#define COPYBIT(x,m,n)  (((x >> m) & 1) << n)
 
 #define SEC(x)          ((x)*1000000)
 #define MILLISEC(x)     ((x)*1000)
