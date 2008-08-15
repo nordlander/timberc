@@ -701,7 +701,7 @@ primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
                             (prim Catch,        scheme0 [] tUnit),          -- temporary
                             
                             (prim TIMERTERM,    scheme0 [] (tClass tTimer)),
-                            (prim Reset,        Scheme (R tAction) [Scheme (R tTimer) [] []] []),
+                            (prim Reset,        Scheme (R tRequest tUnit) [Scheme (R tTimer) [] []] []),
                             (prim Sample,       Scheme (R (tRequest tTime)) [Scheme (R tTimer) [] []] []),
                             (prim Sec,          scheme0 [tInt] tTime),
                             (prim Millisec,     scheme0 [tInt] tTime),

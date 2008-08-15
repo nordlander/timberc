@@ -15,24 +15,11 @@ typedef struct T_Timer *T_Timer;
 
 struct T_Timer {
   WORD *gcinfo;
-  Msg (*reset) (T_Timer, Time, Time);
+  UNITTYPE (*reset) (T_Timer, POLY);
   Time (*sample) (T_Timer, POLY);
   S_Timer self;
 };
 
-struct Msg_S_Timer;
-typedef struct Msg_S_Timer *Msg_S_Timer;
-
-struct Msg_S_Timer {
-    WORD *gcinfo;
-    UNITTYPE (*Code) (Msg_S_Timer);
-    AbsTime baseline;
-    AbsTime deadline;
-    Msg next;
-    S_Timer self;
-};
-
-static WORD __GC__Msg_S_Timer[] = {WORDS(sizeof(struct Msg_S_Timer)), WORDS(offsetof(struct Msg_S_Timer, self)), 0};
 
 static WORD __GC__T_Timer[] = {WORDS(sizeof(struct T_Timer)), WORDS(offsetof(struct T_Timer,self)), 0};
    
@@ -242,22 +229,11 @@ Bool primTimeGE(Time t1, Time t2) {
   return primTimeLE(t2,t1);
 }
 
-static UNITTYPE reset_f(Msg_S_Timer this) {
-  S_Timer self;
-  self = (S_Timer)LOCK((PID)this->self);
+static UNITTYPE reset_fun(S_Timer self, POLY x) {
+  self = (S_Timer)LOCK((PID)self);
   self->start = current->msg->baseline;
   UNLOCK((PID)self);
   return _UNITTERM;
-}
-
-static Msg reset_fun(S_Timer self, Time bl, Time dl) {
-  Msg_S_Timer res;
-  NEW(Msg_S_Timer,res,WORDS(sizeof(struct Msg_S_Timer)));
-  SETGCINFO(res,__GC__Msg_S_Timer);
-  res->Code = reset_f;
-  res->self = self;
-  ASYNC((Msg)res,bl,dl);
-  return (Msg)res;
 }
 
 static Time sample_fun(S_Timer self, POLY x) {
@@ -274,8 +250,8 @@ static Time sample_fun(S_Timer self, POLY x) {
   return res;
 }
 
-static Msg reset_sel(T_Timer this, Time bl, Time dl) {
-  return reset_fun(this->self,bl,dl);
+static UNITTYPE reset_sel(T_Timer this,POLY x) {
+  return reset_fun(this->self,x);
 }
 
 static Time sample_sel(T_Timer this, POLY x) {
