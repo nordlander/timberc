@@ -370,28 +370,27 @@ k2cPrim MsgNE                   = text "!="
 
 k2cPrim PidEQ                   = text "=="
 k2cPrim PidNE                   = text "!="
-                                
+{-*                               
 k2cPrim Sec                     = text "SEC"
 k2cPrim Millisec                = text "MILLISEC"
 k2cPrim Microsec                = text "MICROSEC"
 k2cPrim Nanosec                 = text "NANOSEC"
 k2cPrim Infinity                = text "INFINITY"
-
+-}
 k2cPrim Raise                   = text "RAISE"
 k2cPrim Catch                   = text "CATCH"
-                                
+{-                           
 k2cPrim TimePlus                = text "TPLUS"
 k2cPrim TimeMinus               = text "TMINUS"
 k2cPrim TimeMin                 = text "TMIN"
-                                
+                           
 k2cPrim TimeEQ                  = text "=="
 k2cPrim TimeNE                  = text "!="
 k2cPrim TimeLT                  = text "<"
 k2cPrim TimeLE                  = text "<="
 k2cPrim TimeGE                  = text ">="
 k2cPrim TimeGT                  = text ">"
-
+-}
 k2cPrim Abort                   = text "ABORT"
 
 k2cPrim p                       = text (strRep2 p)
-

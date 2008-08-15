@@ -115,13 +115,6 @@ data Prim                       =
                                 | FloatGE
                                 | FloatGT
 
-                                | TimeEQ
-                                | TimeNE
-                                | TimeLT
-                                | TimeLE
-                                | TimeGE
-                                | TimeGT
-
                                 | MsgEQ
                                 | MsgNE
 
@@ -156,6 +149,13 @@ data Prim                       =
                                 | TimeMinus
                                 | TimeMin
                                 
+                                | TimeEQ
+                                | TimeNE
+                                | TimeLT
+                                | TimeLE
+                                | TimeGE
+                                | TimeGT
+
                                  | TIMERTERM
 
                                 | Raise
@@ -424,12 +424,12 @@ prId2 n                         = prId n
 prId3 (Name s 0 m a)            = text s
 prId3 (Name s n m a)            = text (id ++ tag ++ mod++suff)
   where 
-    id                          = if okForC s && noClash s m then s else "_S"
+    id                          = if okForC s then s else "_S"
     tag                         = if forceTag a || mod=="" || generated a || id=="_S"  then '_':show n else ""
     suff                        = if take 2 id == "_S" then "/* "++s++" */" else ""
     mod                         = maybe "" (('_' :) . modToundSc) m
     okForC cs                   = all (\c -> isAlphaNum c || c=='_') cs
-    noClash cs m                = True
+
 prId3 n                         = prId2 n
 
 name2str n                      = render (prId3 n)

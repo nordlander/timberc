@@ -423,7 +423,7 @@ void netError (Int sock, char *message) {
   Connection_POSIX conn = handler->Code(handler,new_Peer(sock),NULL);
   ADD_RDTABLE(sock,mkHandler(conn));
   INTERRUPT_PROLOGUE();
-  conn->neterror_POSIX(conn,getStr(message),-1,-1);
+  conn->neterror_POSIX(conn,getStr(message),Inherit,Inherit);
   INTERRUPT_EPILOGUE();
 }
 
@@ -432,7 +432,7 @@ void setupConnection (Int sock) {
   Connection_POSIX conn = handler->Code(handler,new_Peer(sock),NULL);
   ADD_RDTABLE(sock,mkHandler(conn));
   INTERRUPT_PROLOGUE();
-  conn->established_POSIX(conn,-1,-1);
+  conn->established_POSIX(conn,Inherit,Inherit);
   INTERRUPT_EPILOGUE();
 }
 
@@ -561,14 +561,14 @@ void *event_loop (void *arg) {
 	    LIST inp = read_descr(i);
 	    if (inp) {
 	      INTERRUPT_PROLOGUE();
-	      rdTable[i]->Code(rdTable[i],inp,-1,-1);
+	      rdTable[i]->Code(rdTable[i],inp,Inherit,Inherit);
 	      INTERRUPT_EPILOGUE();
 	    }
 	    else if (sockTable[i]) { //we got a close message from peer on connected socket
 	      SOCKHANDLER handler = sockTable[i]->handler;
 	      Connection_POSIX conn = handler->Code(handler,new_Peer(i),NULL);
 	      INTERRUPT_PROLOGUE();
-	      conn->CONN2DEST->DEST2CLOSABLE->close_POSIX(conn->CONN2DEST->DEST2CLOSABLE,-1,-1);
+	      conn->CONN2DEST->DEST2CLOSABLE->close_POSIX(conn->CONN2DEST->DEST2CLOSABLE,Inherit,Inherit);
 	      INTERRUPT_EPILOGUE();
 	      close(i);
 	      CLR_RDTABLE(i);
@@ -590,7 +590,7 @@ void *event_loop (void *arg) {
 	if (FD_ISSET(i, &writeFds)) {
 	  if (wrTable[i]) {
 	    INTERRUPT_PROLOGUE();
-	    wrTable[i]->Code(wrTable[i],-1,-1);
+	    wrTable[i]->Code(wrTable[i],Inherit,Inherit);
 	    INTERRUPT_EPILOGUE();
 	  }
 	  else if (sockTable[i]) { //delayed connection has been accepted or has failed

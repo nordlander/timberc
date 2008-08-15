@@ -14,6 +14,6 @@ int main(int argc, char **argv) {
     ROOTINIT();
     pruneStaticHeap();
     prog = ROOT(env, (POLY)0);
-    prog->Code(prog,-1,-1);
+    prog->Code(prog,Inherit,Inherit);
     run();
 }

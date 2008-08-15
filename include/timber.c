@@ -19,7 +19,7 @@ WORD __GC__RIGHT[] = {WORDS(sizeof(struct RIGHT)), WORDS(offsetof(struct RIGHT, 
 
 WORD __GC__FloatBox[] = {WORDS(sizeof(struct FloatBox)), 0};
 
-WORD __GC__TimeBox[] = {WORDS(sizeof(struct TimeBox)), 0};
+// WORD __GC__TimeBox[] = {WORDS(sizeof(struct TimeBox)), 0};
 
 WORD __GC__IntBox[] = {WORDS(sizeof(struct IntBox)), 0};
 

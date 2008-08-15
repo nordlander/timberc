@@ -58,12 +58,12 @@
 
 #define LESS(a,b)       ( ((a).tv_sec < (b).tv_sec) || (((a).tv_sec == (b).tv_sec) && ((a).tv_usec <  (b).tv_usec)) )
 #define LESSEQ(a,b)     ( ((a).tv_sec < (b).tv_sec) || (((a).tv_sec == (b).tv_sec) && ((a).tv_usec <= (b).tv_usec)) )
-#define ADD(a,t)        { (a).tv_usec += (t) % 1000000; \
+#define ADD(a,t)        { (a).tv_usec += (t->usec); \
                           if ((a).tv_usec >= 1000000) { \
                                   (a).tv_usec -= 1000000; \
                                   (a).tv_sec += 1; \
                           } \
-                          (a).tv_sec += (t) / 1000000; \
+                          (a).tv_sec += (t->sec); \
                         }
 #define SUB(a,b)        { (a).tv_usec -= (b).tv_usec; \
                           if ((a).tv_usec < 0) { \
@@ -269,20 +269,30 @@ UNITTYPE ASYNC( Msg m, Time bl, Time dl ) {
         TIMERGET(now);
 
         m->baseline = current->msg->baseline;
-        if (bl >= 0) {
+        switch ((Int)bl) {
+	case INHERIT: break;
+        case INFINITY:
+	  m->baseline.tv_sec = INF;
+	  m->baseline.tv_usec = 0;
+	  break;
+        default:
                 ADD(m->baseline, bl);
                 if (LESS(m->baseline, now))
                         m->baseline = now;
         }
-        if (dl >= 0) {
-                m->deadline = m->baseline;
-                if (dl == 0) {
-                        m->deadline.tv_sec = INF;
-                        m->deadline.tv_usec = 0;
-                } else
-                        ADD(m->deadline, dl);
-        } else
-                m->deadline = current->msg->deadline;
+
+        switch((Int)dl) {
+	case INHERIT: 
+	  m->deadline = current->msg->deadline;
+          break;
+	case INFINITY:
+	  m->deadline.tv_sec = INF;
+	  m->deadline.tv_usec = 0;
+	  break;
+	default:
+	  m->deadline = m->baseline;
+          ADD(m->deadline, dl);
+	}
         
         sigset_t previous_mask;
         DISABLE(&previous_mask);

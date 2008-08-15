@@ -29,6 +29,13 @@ numFloat = struct
   (*) = primFloatTimes
   negate = primFloatNeg
 
+implicit numTime :: Num Time
+numTime = struct
+  (+) = primTimePlus
+  (-) = primTimeMinus
+  _ * _ = raise 1
+  negate _ = sec 0
+
 default intInt < intFloat
 
 implicit struct Eq a where

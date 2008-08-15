@@ -1,10 +1,6 @@
 #ifndef TIMBER_H_
 #define TIMBER_H_
 
-
-#define INFINITY 0
-#define Inherit -1
-
 struct TUP2;
 typedef struct TUP2 *TUP2;
 struct TUP3;
@@ -27,8 +23,10 @@ struct FloatBox;
 typedef struct FloatBox *FloatBox;
 struct IntBox;
 typedef struct IntBox *IntBox;
+/*
 struct TimeBox;
 typedef struct TimeBox *TimeBox;
+*/
 struct Msg;
 typedef struct Msg *Msg;
 
@@ -98,13 +96,13 @@ struct FloatBox {
   Float Value;
 };
 extern WORD __GC__FloatBox[];
-
+/*
 struct TimeBox {
   WORD *gcinfo;
   Time Value;
 };
 extern WORD __GC__TimeBox[];
-
+*/
 struct IntBox {
   WORD *gcinfo;
   Int Value;

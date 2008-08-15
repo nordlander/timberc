@@ -15,7 +15,7 @@ root env = class
 
       case state of
         Idle ->     env.stdout.write "Wait...\n"
-                    msg <- after (sec 2) action
+                    msg <- after (sec 2 + millisec 3000) action
                        env.stdout.write "Go!\n"
                        tmr.reset
                        state  := Counting 

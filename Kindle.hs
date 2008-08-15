@@ -191,9 +191,9 @@ primTEnv0                               = (prim ASYNC,      FunT [tMsg,tTime,tTi
                                           (prim COPYBIT,    FunT [tBITSET,tInt,tInt] tBITSET) :
                                           []
 
-ptrPrims                                = [Msg, Ref, PID, Array, LIST, EITHER]
+ptrPrims                                = [Msg, Ref, PID, Array, LIST, EITHER, EITHER, Time]
 
-boxedPrims                              = [Int, Float, Time]
+boxedPrims                              = [Int, Float]
 
 smallPrims                              = [Char, Bool, UNITTYPE]
 

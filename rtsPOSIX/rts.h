@@ -14,7 +14,6 @@ typedef WORD *ADDR;
 #define Bool char
 #define UNITTYPE char
 #define POLY void*
-#define Time int
 #define BITSET unsigned int
 
 #define ZEROBITS        0
@@ -22,9 +21,11 @@ typedef WORD *ADDR;
 #define SETBIT(n)       (1 << n)
 #define COPYBIT(x,m,n)  (((x >> m) & 1) << n)
 
+/*
 #define SEC(x)          ((x)*1000000)
 #define MILLISEC(x)     ((x)*1000)
 #define MICROSEC(x)     (x)
+*/
 
 struct Thread;
 typedef struct Thread *Thread;
@@ -44,8 +45,17 @@ struct Thread {
         jmp_buf context;        // machine state
 };
 
-
 typedef struct timeval AbsTime;
+
+struct Time {
+  WORD *gcinfo;
+  Int sec;
+  Int usec;
+};
+
+typedef struct Time *Time;
+
+extern WORD __GG__Time[] ;
 
 struct Object {
         WORD *gcinfo;
@@ -74,9 +84,11 @@ extern Thread current;
 
 #define SETGCINFO(n,info)       { (n)->gcinfo = (ADDR)((WORD)(info) | current->visit_flag); }
 
+/*
 #define TMIN(a,b)               ((a) < (b) ? (a) : (b) )
 #define TPLUS(a,b)              ((a) + (b))
 #define TMINUS(a,b)             ( (a) > (b) ? (a) - (b) : 0 )
+*/
 
 extern ADDR hp, lim;
 
@@ -85,4 +97,27 @@ void pruneStaticHeap();
 
 void init_rts(int, char**);
 
+Time sec(Int c);
+Time millisec(Int x);
+Time microsec(Int x);
+Int secOf(Time t);
+Int microsecOf (Time t);
+
+#define Inherit ((Time)0)
+#define infinity ((Time)1)
+
+#define INHERIT 0
+#define INFINITY 1
+
+
+Time primTimeMin(Time t1, Time t2);
+Time primTimePlus(Time t1, Time t2);
+//Time primTimeMinus(Time t1, Time t2);
+
+Bool primTimeEQ(Time t1, Time t2);
+Bool primTimeNE(Time t1, Time t2);
+Bool primTimeLT(Time t1, Time t2);
+Bool primTimeLE(Time t1, Time t2);
+Bool primTimeGT(Time t1, Time t2);
+Bool primTimeGE(Time t1, Time t2);
 #endif
