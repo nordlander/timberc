@@ -391,5 +391,7 @@ k2cPrim TimeLE                  = text "<="
 k2cPrim TimeGE                  = text ">="
 k2cPrim TimeGT                  = text ">"
 
+k2cPrim Abort                   = text "ABORT"
+
 k2cPrim p                       = text (strRep2 p)
 

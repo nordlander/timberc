@@ -129,6 +129,17 @@ extern WORD __GC__Array[];
 
 typedef struct Array *Array;
 
+struct Timer;
+typedef struct Timer *TIMERTYPE;
+
+
+struct Timer {
+  WORD *gcinfo;
+  Msg (*reset) (TIMERTYPE, Time, Time);
+  Time (*sample) (TIMERTYPE, POLY);
+};
+
+extern WORD __GC__Timer[];
 
 UNITTYPE ASYNC(Msg, Time, Time);
 PID      LOCK(PID);
@@ -146,5 +157,8 @@ void  CYCLIC_UPDATE(Array, Int);
 void  CYCLIC_END(Array);
 
 POLY primRefl(POLY in);
+
+TIMERTYPE primTIMERTERM(POLY x);
+UNITTYPE ABORT(Msg msg,POLY x);
 
 #endif

@@ -619,7 +619,8 @@ primKindEnv             = [ (prim Action,       Star),
 
                             (prim LIST,         KFun Star Star),
                             (prim EITHER,       KFun Star (KFun Star Star)),
-                            (prim UNITTYPE,     Star) ]
+                            (prim UNITTYPE,     Star),
+                            (prim TIMERTYPE,    Star) ]
 
 
 primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
@@ -699,11 +700,22 @@ primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
                             (prim Raise,        scheme1 [tInt] a),          -- temporary
                             (prim Catch,        scheme0 [] tUnit),          -- temporary
                             
+                            (prim TIMERTERM,    scheme0 [] (tClass tTimer)),
+                            (prim Reset,        Scheme (R tAction) [Scheme (R tTimer) [] []] []),
+                            (prim Sample,       Scheme (R (tRequest tTime)) [Scheme (R tTimer) [] []] []),
+                            (prim Sec,          scheme0 [tInt] tTime),
+                            (prim Millisec,     scheme0 [tInt] tTime),
+                            (prim Microsec,     scheme0 [tInt] tTime),
+                            (prim Nanosec,      scheme0 [tInt] tTime),
+                            (prim SecOf,        scheme0 [tTime] tInt),
+                            (prim MicrosecOf,   scheme0 [tTime] tInt),
                             (prim ListArray,    scheme1 [tList a] (tArray a)),
                             (prim UniArray,     scheme1 [tInt, a] (tArray a)),
                             (prim SizeArray,    scheme1 [tArray a] tInt),
                             (prim IndexArray,   scheme1 [tArray a, tInt] a),
                             (prim UpdateArray,  scheme2 [tArray a, tInt, a] (tArray a)),
+
+                            (prim Abort,        scheme1 [tMsg] (tCmd a tUnit)),
 
                             (prim Fail,         scheme1 [] (tPMC a)),
                             (prim Commit,       scheme1 [a] (tPMC a)),
@@ -736,6 +748,7 @@ tArray a                = TAp (TId (prim Array)) a
 tList a                 = TAp (TId (prim LIST)) a
 tUnit                   = TId (prim UNITTYPE)
 tEither a b             = TAp (TAp (TId (prim EITHER)) a) b
+tTimer                  = TId (prim TIMERTYPE)
         
 a                       = TId (name0 "a")
 b                       = TId (name0 "b")

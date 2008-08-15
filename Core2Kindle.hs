@@ -491,13 +491,15 @@ cAct env fa fb (EAp (EVar (Prim After _)) [e,e'])
                                              -- ignore resulting type equalities, no unification variables passed in via tTime
                                              (te,t,c) <- cAct env (sum e1 . fa) fb e'
                                              return (te, t, bf c)
-  where sum e1 a                        = Kindle.ECall (prim TimePlus) [e1,a]
+  where sum (Kindle.EVar (Prim Inherit _)) a   = a
+        sum e1 a                        = Kindle.ECall (prim TimePlus) [e1,a]
 cAct env fa fb (EAp (EVar (Prim Before _)) [e,e'])
                                         = do (bf,_,e1) <- cValExpT env tTime e
                                              -- ignore resulting type equalities, no unification variables passed in via tTime
                                              (te,t,c) <- cAct env fa (min e1 . fb) e'
                                              return (te, t, bf c)
-  where min e1 b                        = Kindle.ECall (prim TimeMin) [e1,b]
+  where min (Kindle.EVar (Prim Inherit _)) a   = a
+        min e1 b                        = Kindle.ECall (prim TimeMin) [e1,b]
 cAct env fa fb (EAct e e')              = do (_,_,c) <- cFun env (EReq e e')
                                              -- Ignore returned te (must be unused) and result type (will be replaced below)
                                              a  <- newName paramSym

@@ -23,6 +23,8 @@ WORD __GC__TimeBox[] = {WORDS(sizeof(struct TimeBox)), 0};
 
 WORD __GC__IntBox[] = {WORDS(sizeof(struct IntBox)), 0};
 
+WORD __GC__Timer[] = {WORDS(sizeof(struct Timer)), 0};
+
 /*
 struct Msg {
   Int (*Code)(Msg);

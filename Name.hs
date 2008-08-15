@@ -53,6 +53,7 @@ data Prim                       =
 
                                 | LIST                  -- Type
                                 | UNITTYPE              -- Type
+                                | TIMERTYPE             
 
                                 | MAX____TYPE
                                 
@@ -62,7 +63,7 @@ data Prim                       =
                                 | NIL                   -- Term
                                 | CONS                  -- Term
 
-                                -- Constructor identifiers (special syntax)
+                                -- Constructor identifiers
 
                                 | FALSE                 -- Terms
                                 | TRUE
@@ -70,6 +71,12 @@ data Prim                       =
                                 | RIGHT
 
                                 | MAX____CONS
+                                | MIN____SELS
+
+                                | Reset
+                                | Sample
+ 
+                                | MAX____SELS
                                 
                                 -- Variable identifiers
 
@@ -122,10 +129,12 @@ data Prim                       =
                                 | PidNE
                                 
                                 | LazyOr
-                                | LazyAnd               
-                                
+                                | LazyAnd
+
                                 | MAX____KINDLE_INFIX
 
+                                | Abort
+                                
                                 | IntNeg
                                 | FloatNeg
 
@@ -140,11 +149,15 @@ data Prim                       =
                                 | Microsec
                                 | Nanosec
                                 | Infinity
+                                | SecOf
+                                | MicrosecOf
                                 
                                 | TimePlus
                                 | TimeMinus
                                 | TimeMin
                                 
+                                 | TIMERTERM
+
                                 | Raise
                                 | Catch
                                 
@@ -227,7 +240,9 @@ primSyms                        = [LIST, NIL, CONS, LazyAnd, LazyOr, IndexArray]
 
 primTypes                       =  map primKeyValue [MIN____TYPE .. MAX____TYPE]
 
-primTerms                       =  map primKeyValue [MIN____CONS .. MAX____VAR]
+primTerms                       =  map primKeyValue ([MIN____CONS .. MAX____CONS] ++ [MIN____VAR .. MAX____VAR])
+
+primSels                        = map primKeyValue [MIN____SELS .. MAX____SELS]
                                   
 primKeyValue p                  = (name0 (strRep p), prim p)
 
@@ -235,7 +250,7 @@ rigidNames			= map rigidKeyValue [IndexArray, LazyAnd, LazyOr]
 
 rigidKeyValue p			= (strRep p, prim p)
 
-lowPrims                        = [New,Sec,Millisec,Microsec,Nanosec,Raise,Catch,Baseline,Deadline,Next,OwnedBy,WantedBy,Infinity]
+lowPrims                        = [New,Sec,Millisec,Microsec,Nanosec,Raise,Catch,Baseline,Deadline,Next,OwnedBy,WantedBy,Infinity,Reset,Sample,SecOf,MicrosecOf,Abort]
 
 strRep LIST                     = "[]"
 strRep EITHER                   = "Either"
@@ -253,6 +268,8 @@ strRep IndexArray               = "!"
 strRep ListArray                = "array"
 strRep UniArray                 = "uniarray"
 strRep SizeArray                = "size"
+strRep TIMERTYPE                = "Timer"
+strRep TIMERTERM                = "timer"
 strRep p                        = strRep2 p
                                 
 strRep2 p

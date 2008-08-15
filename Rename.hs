@@ -33,7 +33,7 @@ data Env                           = Env { rE :: Map Name Name,
                                            void :: [Name]
                                          } deriving Show
 
-initEnv (rL',rT',rE')              = Env { rE = primTerms ++ rE', rT = primTypes ++ rT', rS = [], rL = rL', self = [], void = [] }
+initEnv (rL',rT',rE')              = Env { rE = primTerms ++ rE', rT = primTypes ++ rT', rS = [], rL = primSels ++ rL', self = [], void = [] }
 
 stateVars env                      = dom (rS env)
 

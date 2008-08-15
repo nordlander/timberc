@@ -135,6 +135,8 @@ primDecls                               = (prim Bool,       Struct [tagSig] [pri
                                           (prim EITHER,     Struct [tagSig] [prim LEFT, prim RIGHT]) :
                                           (prim LEFT,       Struct [tagSig, (name0 "a",ValT TWild)] []) :
                                           (prim RIGHT,      Struct [tagSig, (name0 "a",ValT TWild)] []) :
+                                          (prim TIMERTYPE,  Struct [(prim Reset, ValT (TId (prim Action))),
+                                                                    (prim Sample, ValT (TId (prim Action)))] []) : 
                                           []
                                           
 objTEnv                                 = [(prim OwnedBy, ValT tThread),

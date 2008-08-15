@@ -179,6 +179,26 @@ Thread pop(Thread *stack) {
         return t;
 }
 
+Int rmove(Msg m, Msg *queue) {
+    Msg prev = NULL, q = *queue;
+    while (q && (q != m)) {
+        prev = q;
+        q = q->next;
+    }
+    if (q) {
+        if (prev)
+            prev->next = q->next;
+        else
+            *queue = q->next;
+        return 1;
+    }
+    return 0;
+}
+
+UNITTYPE ABORT(Msg m,POLY x){
+  (rmove(m,&msgQ) ||rmove(m,&timerQ));
+  return _UNITTERM;
+}
 
 // Context switching ----------------------------------------------------------------------------
 
@@ -201,6 +221,7 @@ void INTERRUPT_PROLOGUE() {
         savedMsg = current->msg;
         current->msg = &msg0;
         TIMERGET(msg0.baseline);
+        ENABLE(&enabled_mask);
 }
 
 void INTERRUPT_EPILOGUE() {
@@ -210,6 +231,7 @@ void INTERRUPT_EPILOGUE() {
                 push(pop(&threadPool), &activeStack);
                 dispatch(activeStack);
         }
+        DISABLE(NULL);
 }
 
 void timer_handler(int signo) {
@@ -416,6 +438,9 @@ LIST getStr(char *p) {
 
 #include "arrays.c"
 
+// Timer ----------------------------------------------------------------------------------------------
+
+#include "timer.c"
 
 // Environment object ---------------------------------------------------------------------------------
 

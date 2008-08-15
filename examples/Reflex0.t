@@ -9,18 +9,19 @@ format n = show secs ++ '.' : fracs
         fracs = if n100<10 then '0':show n100 else show n100 
 
 root env = class
-  t = new timer'Timer
-  start = action
-     env.stdout.write "Wait...\n"
-     after (sec 2) action
-        env.stdout.write "Go!\n"
-        t.start'Timer
-  io = action
-     env.stdin.read
-     t.stop'Timer
-     n <- t.read'Timer
-     t.reset'Timer
+  t = new Timer.timer
+  press _ = action
+     t.Timer.stop
+     n <- t.Timer.read
+     t.Timer.reset
      env.stdout.write ("Time is "++format n++" secs\n")
      start
 
-  result Prog{..}
+
+  start = action
+     env.stdout.write "Wait...\n"
+     msg <- after (sec 2) action
+        env.stdout.write "Go!\n"
+        t.Timer.start
+
+  result start

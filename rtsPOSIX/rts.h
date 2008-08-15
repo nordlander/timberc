@@ -74,8 +74,8 @@ extern Thread current;
 
 #define SETGCINFO(n,info)       { (n)->gcinfo = (ADDR)((WORD)(info) | current->visit_flag); }
 
-#define TMIN(a,b)               ( (a) > 0 && (a) < (b) ? (a) : (b) )
-#define TPLUS(a,b)              ( (a) > 0 ? (a) + (b) : (b) )
+#define TMIN(a,b)               ((a) < (b) ? (a) : (b) )
+#define TPLUS(a,b)              ((a) + (b))
 #define TMINUS(a,b)             ( (a) > (b) ? (a) - (b) : 0 )
 
 extern ADDR hp, lim;
