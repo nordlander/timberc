@@ -106,7 +106,7 @@ llExp env (ECall x es)                  = do es <- mapM (llExp env) es
 llExp env (ENew n bs)
   | null fte                            = liftM (ENew n) (mapM (llBind env) bs)
   | otherwise                           = do 
-                                             n' <- getName (te ++ mapSnd ValT fte) 
+                                             n' <- getName n (te ++ mapSnd ValT fte) 
                                              vals' <- mapM (llBind env) vals
                                              funs' <- mapM (llBind (setThisVars (dom fte) env)) funs
                                              return (ECast (TId n) (ENew n' (vals' ++ funs' ++ map close fte)))
@@ -128,13 +128,15 @@ llExp env (ECast t e)                   = liftM (ECast t) (llExp env e)
 
 mkEVar env x                            = if x `elem` thisVars env then ESel EThis x else EVar x
 
-getName te                              = do ds <- currentStore
+getName n0 te                           = do ds <- currentStore
                                              case find ds of
                                                Just n -> return n
-                                               Nothing -> do n <- newName typeSym
+                                               Nothing -> do n <- newName (bodyOf n0)
                                                              addToStore (Left (n, Kindle.Struct te []))
                                                              return n
   where find []                         = Nothing
         find (Left(n,Kindle.Struct te' []) : ds)
             |te' == te                  = Just n
         find (_ : ds)                   = find ds
+        bodyOf (Name {str = s})         = s
+        bodyOf _                        = typeSym

@@ -234,8 +234,6 @@ simpleExp _                             = False
 
 lock t e                                = ECast t (ECall (prim LOCK) [ECast (TId (prim PID)) e])
 
-lock' x                                 = ECall (prim LOCK) [ECast (TId (prim PID)) (EVar x)]
-
 unlock x c                              = cMap (CRun (ECall (prim UNLOCK) [e0]) . CRet) c
   where e0                              = ECast (TId (prim PID)) (EVar x)
 
