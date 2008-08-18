@@ -64,17 +64,21 @@ t2Binds env (Binds r te eqs)    = do (s,eqs') <- t2Eqs eqs
 -- instantiate, and then match an inferred type against a skolemized version of the expected type scheme 
 -- (together with checking for escaping skolem variables).  Instead, all we need to ensure is that any 
 -- type equalities implied by the match are captured in the resulting substitution, treating all-quantified 
--- variables as scoped constants when we are inside the scope of a type signature (t2ExpTscoped), or 
--- replacing them with fresh unification variables in all other cases (t2ExpT).
+-- variables as scoped constants once we are inside the scope of a type signature (t2ExpTscoped). Moreover, 
+-- in order to ensure that all true polymorphic terms are properly marked, t2ExpT wraps them inside a 
+-- let-binding with an explicit signature whenever appropriate.
 
 t2ExpTscoped env sc e           = do (s1,rh,e) <- t2Exp env e
                                      s2 <- mgi rh (quickSkolem sc)
                                      return (mergeSubsts [s1,s2], e)
                                      
-t2ExpT env sc e                 = do (s1,rh,e) <- t2Exp env e
-                                     rh' <- t2Inst sc
-                                     s2 <- mgi rh rh'
-                                     return (mergeSubsts [s1,s2], e)
+
+t2ExpT env (Scheme t qs []) e   = t2ExpTscoped env (Scheme t qs []) e
+t2ExpT env sc (EVar x)          = t2ExpTscoped env sc (EVar x)
+t2ExpT env sc e                 = do sc' <- ac nullSubst sc
+                                     (s,e') <- t2ExpTscoped env sc' e
+                                     x <- newName tempSym
+                                     return (s, ELet (Binds False [(x,sc)] [(x,e)]) (EVar x))
 
 
 t2ExpTs env [] []               = return (nullSubst, [])
