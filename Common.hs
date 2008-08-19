@@ -334,12 +334,14 @@ selfSym                         = "self"
 thisSym                         = "this"
 instanceSym                     = "inst"
 closureSym                      = "CLOS"
+tappSym                         = "tApp"
 
 isCoercion n                    = isGenerated n && str n == coercionSym
 isPatTemp n                     = isGenerated n && str n == patSym
 isClosure n                     = isGenerated n && str n == closureSym
 isDummy n                       = isGenerated n && str n == dummySym
 isWitness n                     = isGenerated n && str n == witnessSym
+isTApp n                        = isGenerated n && str n == tappSym
 
 explicitSyms                    = [coercionSym, assumptionSym, witnessSym]
 

@@ -635,7 +635,7 @@ instance AlphaConv Kind where
 extSubst s xs                   = do s' <- mapM ext xs
                                      return (s'++s)
   where ext x                   = do n <- newNum
-                                     return (x, x { tag = n })
+                                     return (x, {-annotGenerated-} x { tag = n })
                                      
 
 -- Bound variables --------------------------------------------------------------

@@ -73,10 +73,12 @@ t2ExpTscoped env sc e           = do (s1,rh,e) <- t2Exp env e
                                      return (mergeSubsts [s1,s2], e)
                                      
 
-t2ExpT env (Scheme t qs []) e   = t2ExpTscoped env (Scheme t qs []) e
-t2ExpT env sc (EVar x)          = t2ExpTscoped env sc (EVar x)
-t2ExpT env sc e                 = do sc' <- ac nullSubst sc
-                                     (s,e') <- t2ExpTscoped env sc' e
+t2ExpT env (Scheme t qs []) e   = t2ExpTscoped env (Scheme t qs []) e   -- Monomorphic
+t2ExpT env sc (EVar x)          = do (rh,_) <- t2Inst (findType env x)  -- Already named
+                                     s <- mgi rh (quickSkolem sc)
+                                     return (s, EVar x)
+t2ExpT env sc e                 = do sc <- ac nullSubst sc              -- Make polymorphic term named
+                                     (s,e) <- t2ExpTscoped env sc e
                                      x <- newName tempSym
                                      return (s, ELet (Binds False [(x,sc)] [(x,e)]) (EVar x))
 
@@ -95,13 +97,16 @@ t2Exps env (e:es)               = do (s1,t,e) <- t2Exp env e
                                       
 
 t2Exp env (ELit l)              = return (nullSubst, R (litType l), ELit l)
-t2Exp env (EVar x)              = do rh <- t2Inst (findType env x)
-                                     return (nullSubst, rh, EVar x)
-t2Exp env (ECon k)              = do rh <- t2Inst (findType env k)
-                                     return (nullSubst, rh, ECon k)
-t2Exp env (ESel e l)            = do F (sc:scs) rh <- t2Inst (findType env l)
+t2Exp env (EVar x)              = do (rh,ts) <- t2Inst (findType env x)
+                                     e <- t2TApp env ts (EVar x)
+                                     return (nullSubst, rh, e)
+t2Exp env (ECon k)              = do (rh,ts) <- t2Inst (findType env k)
+                                     e <- t2TApp env ts (ECon k)
+                                     return (nullSubst, rh, e)
+t2Exp env (ESel e l)            = do (F (sc:scs) rh,ts) <- t2Inst (findType env l)
                                      (s,e) <- t2ExpT env sc e
-                                     return (s, subst s (tFun scs rh), ESel e l)
+                                     e' <- t2TApp env ts (ESel e l)
+                                     return (s, subst s (tFun scs rh), e')
 t2Exp env (ELam te e)           = do (s,rh,e) <- t2Exp (addTEnv te env) e
                                      return (s, F (subst s (rng te)) rh, ELam te e)
 t2Exp env (EAp e es)            = do (s,rh,e) <- t2Exp env e
@@ -123,7 +128,7 @@ t2Exp env (ECase e alts)        = do alpha <- newTVar Star
                                      return (s, R (subst s t1), ECase e (ps `zip` es))
   where (ps,es)                 = unzip alts
         t2Pat env x (PLit l)    = t2Exp env (EAp (EVar x) [ELit l])
-        t2Pat env x (PCon k)    = do rh <- t2Inst (findType env k)
+        t2Pat env x (PCon k)    = do (rh,_) <- t2Inst (findType env k)
                                      te <- newEnv paramSym (funArgs rh)
                                      t2Exp env (eLam te (EAp (EVar x) [eAp (ECon k) (map EVar (dom te))]))
         t2Pat env x (PWild)     = do y <- newName tempSym
@@ -196,8 +201,16 @@ t2Gen env (Scheme rh ps ke)     = do ids <- newNames tyvarSym (length tvs)
     
 
 t2Inst (Scheme rh ps ke)        = do ts <- mapM newTVar ks
-                                     return (subst (vs `zip` ts) (tFun ps rh))
+                                     return (subst (vs `zip` ts) (tFun ps rh), ts)
   where (vs,ks)                 = unzip ke
+
+
+t2TApp env [] e                 = return e
+t2TApp env [t] e                = do x <- newName tappSym
+                                     return (ELet (Binds True [(x,scheme t)] [(x,EVar x)]) e)
+t2TApp env ts e                 = do x <- newName tappSym
+                                     return (ELet (Binds True [(x,scheme t)] [(x,EVar x)]) e)
+  where t                       = tAp (TId (tuple (length ts))) ts
 
 
 quickSkolem (Scheme rh ps ke)   = tFun ps rh
@@ -221,7 +234,7 @@ mgi (F ts t) (R u)              = do (u':us) <- mapM newTVar (replicate (length 
 
 mgiSc (Scheme rh [] [], Scheme rh' [] [])
                                 = mgi rh rh'
-mgiSc (sc, sc')                 = do rh <- t2Inst sc
+mgiSc (sc, sc')                 = do (rh,_) <- t2Inst sc
                                      mgi rh (quickSkolem sc')
 
 
