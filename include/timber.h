@@ -133,7 +133,7 @@ typedef struct Timer *TIMERTYPE;
 
 struct Timer {
   WORD *gcinfo;
-  Msg (*reset) (TIMERTYPE, Time, Time);
+  UNITTYPE (*reset) (TIMERTYPE, POLY);
   Time (*sample) (TIMERTYPE, POLY);
 };
 
