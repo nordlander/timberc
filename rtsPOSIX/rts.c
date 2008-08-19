@@ -271,7 +271,7 @@ UNITTYPE ASYNC( Msg m, Time bl, Time dl ) {
         m->baseline = current->msg->baseline;
         switch ((Int)bl) {
 	case INHERIT: break;
-        case INFINITY:
+        case TIME_INFINITY:
 	  m->baseline.tv_sec = INF;
 	  m->baseline.tv_usec = 0;
 	  break;
@@ -285,7 +285,7 @@ UNITTYPE ASYNC( Msg m, Time bl, Time dl ) {
 	case INHERIT: 
 	  m->deadline = current->msg->deadline;
           break;
-	case INFINITY:
+	case TIME_INFINITY:
 	  m->deadline.tv_sec = INF;
 	  m->deadline.tv_usec = 0;
 	  break;
@@ -456,6 +456,9 @@ LIST getStr(char *p) {
 
 #include "env.c"
 
+// Show Float -----------------------------------------------------------------------------------------
+
+#include "float.c"
 
 // Initialization -------------------------------------------------------------------------------------
 

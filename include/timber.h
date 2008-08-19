@@ -1,5 +1,6 @@
 #ifndef TIMBER_H_
 #define TIMBER_H_
+#include <math.h>
 
 struct TUP2;
 typedef struct TUP2 *TUP2;
@@ -159,4 +160,5 @@ POLY primRefl(POLY in);
 TIMERTYPE primTIMERTERM(POLY x);
 UNITTYPE ABORT(Msg msg,POLY x);
 
+LIST primShowFloat(Float x);
 #endif

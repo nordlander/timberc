@@ -151,14 +151,7 @@ showInt = struct
  
 implicit showFloat :: Show Float
 showFloat = struct
-   show x 
-    | x < 0                  = '-' : show (0.0-x)
-    | x > 0.1 && x < 1000000 = let is = show (floor x)
-                                   dl = 6 - length is
-                                   ds0 = show(floor ((x - fromInt (floor x)) * 10 ^ dl))
-                                   ds = replicate (dl - length ds0) '0' ++ ds0 
-                               in  is ++ '.' : ds
-    | otherwise               = "Show Float is incomplete"
+   show = primShowFloat
 
 implicit showBool :: Show Bool
 showBool = struct

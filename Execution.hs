@@ -64,7 +64,7 @@ linkO cfg clo r o_files = do let Just rmod  = fromMod r
                                        ++ " -DROOT=" ++ rootId ++ " "
                                        ++ " -DROOTINIT=" ++ initId ++ " "
                                        ++ rtsDir clo ++ "/main.c "
-                                       ++ " -lTimber "
+                                       ++ " -lTimber"
                              putStrLn "[linking]"
                              execCmd clo cmd
 

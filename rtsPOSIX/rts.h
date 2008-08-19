@@ -107,7 +107,7 @@ Int microsecOf (Time t);
 #define infinity ((Time)1)
 
 #define INHERIT 0
-#define INFINITY 1
+#define TIME_INFINITY 1
 
 
 Time primTimeMin(Time t1, Time t2);

@@ -137,6 +137,20 @@ data Prim                       =
                                 | CharToInt
                                 | IntToChar
 
+                                | Sqrt
+                                | Log
+                                | Log10
+                                | Exp
+                                | Sin
+                                | Cos
+                                | Tan
+                                | Asin
+                                | Acos
+                                | Atan
+                                | Sinh
+                                | Cosh
+                                | ShowFloat
+
                                 | Sec
                                 | Millisec
                                 | Microsec
@@ -250,7 +264,7 @@ rigidNames			= map rigidKeyValue [IndexArray, LazyAnd, LazyOr]
 
 rigidKeyValue p			= (strRep p, prim p)
 
-lowPrims                        = [New,Sec,Millisec,Microsec,Nanosec,Raise,Catch,Baseline,Deadline,Next,OwnedBy,WantedBy,Infinity,Reset,Sample,SecOf,MicrosecOf,Abort]
+lowPrims                        = [New,Sec,Millisec,Microsec,Nanosec,Raise,Catch,Baseline,Deadline,Next,OwnedBy,WantedBy,Infinity,Reset,Sample,SecOf,MicrosecOf,Abort,Sqrt,Log,Log10,Exp,Sin,Cos,Tan,Asin,Acos,Atan,Sinh,Cosh]
 
 strRep LIST                     = "[]"
 strRep EITHER                   = "Either"
