@@ -1,14 +1,14 @@
 #ifndef ENV_H_
 #define ENV_H_
 
-#define SOCKHANDLER   CLOS_331_POSIX
-#define HANDLER       CLOS_337_POSIX
-#define ACTION        CLOS_338_POSIX
-#define FILE2CLOSABLE l_166_POSIX
-#define RFILE2FILE    l_169_POSIX
-#define WFILE2FILE    l_172_POSIX
-#define DEST2CLOSABLE l_175_POSIX
-#define PEER2DEST     l_178_POSIX
-#define CONN2DEST     l_181_POSIX
-#define __GC__HANDLER __GC__CLOS_337_POSIX
+#define SOCKHANDLER   CLOS_Peer_POSIX_POLY_Connection_POSIX__POSIX
+#define HANDLER       CLOS_LIST_Time_Time_Msg__POSIX
+#define ACTION        CLOS_Time_Time_Msg__POSIX
+#define FILE2CLOSABLE LAB_File_POSIX_Closable_POSIX_POSIX
+#define RFILE2FILE    LAB_RFile_POSIX_File_POSIX_POSIX
+#define WFILE2FILE    LAB_WFile_POSIX_File_POSIX_POSIX
+#define DEST2CLOSABLE LAB_Destination_POSIX_Closable_POSIX_POSIX
+#define PEER2DEST     LAB_Peer_POSIX_Destination_POSIX_POSIX
+#define CONN2DEST     LAB_Connection_POSIX_Destination_POSIX_POSIX
+#define __GC__HANDLER __GC__CLOS_LIST_Time_Time_Msg__POSIX
 #endif

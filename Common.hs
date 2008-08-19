@@ -177,6 +177,7 @@ instance Pr Lit where
     pr (LChr _ c)                 = litChar c
     pr (LStr _ s)                 = litString s
 
+
 instance HasPos Lit where
     posInfo (LInt (Just (l,c)) i) = Between (l,c) (l,c+length(show i)-1) 
     posInfo (LRat (Just (l,c)) r) = Between (l,c) (l,c) -- check length of rationals) 
@@ -334,14 +335,12 @@ selfSym                         = "self"
 thisSym                         = "this"
 instanceSym                     = "inst"
 closureSym                      = "CLOS"
-tappSym                         = "tApp"
 
 isCoercion n                    = isGenerated n && str n == coercionSym
 isPatTemp n                     = isGenerated n && str n == patSym
 isClosure n                     = isGenerated n && str n == closureSym
 isDummy n                       = isGenerated n && str n == dummySym
 isWitness n                     = isGenerated n && str n == witnessSym
-isTApp n                        = isGenerated n && str n == tappSym
 
 explicitSyms                    = [coercionSym, assumptionSym, witnessSym]
 

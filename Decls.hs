@@ -90,7 +90,7 @@ desub env ds                            = do (ds',pes,eqs) <- fmap unzip3 (mapM 
                                                  c  = (k, Constr [scheme t] [] ke)
                                              return (p, eq, c)
     sel (t0,ke0) (Scheme (R t) [] ke)   = do w <- newNameMod m coercionSym
-                                             l <- newNameMod m labelSym
+                                             l <- newNameMod m (labelSym ++"_" ++  render (prId3 (tId(tHead t0)))++ "_" ++ render (prId3 (tId (tHead t))))
                                              x <- newName paramSym
                                              let p  = (w, Scheme (R (t0 `sub` t)) [] (ke0++ke))
                                                  eq = (w, ELam [(x,scheme t0)] (ESel (EVar x) l))

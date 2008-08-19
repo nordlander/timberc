@@ -283,6 +283,9 @@ enter2                                  = flip enter
 new n t te c                            = ENew n [(prim Code, Fun t te c)]
 
 
+typeStr (TId n)                         = render (prId3 n)
+typeStr (TArray t)                      = "_Arr_"++typeStr t
+typeStr TWild                           = "POLY"
 
 -- Free variables ------------------------------------------------------------------------------------
 

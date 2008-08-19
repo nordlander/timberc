@@ -357,6 +357,35 @@ gensupply chars                         = map (:"") chars ++ map (:"'") chars ++
   where g n                             = map (replicate n) chars
 
 
+-- Internal identifier conventions -----------------------------------------------------
+
+witnessSym                      = "w"
+assumptionSym                   = "v"
+tempSym                         = "x"
+patSym                          = "p"
+functionSym                     = "f"
+dummySym                        = "d"
+paramSym                        = "a"
+tyvarSym                        = "t"
+coercionSym                     = "c"
+labelSym                        = "LAB"
+constrSym                       = "C"
+typeSym                         = "T"
+stateSym                        = "S"
+skolemSym                       = "sk"
+selfSym                         = "self"
+thisSym                         = "this"
+instanceSym                     = "inst"
+closureSym                      = "CLOS"
+
+isCoercion n                    = isGenerated n && str n == coercionSym
+isPatTemp n                     = isGenerated n && str n == patSym
+isClosure n                     = isGenerated n && take 4 (str n) == closureSym
+isDummy n                       = isGenerated n && str n == dummySym
+isWitness n                     = isGenerated n && str n == witnessSym
+isLabel n                       = isGenerated n && take 3 (str n) == labelSym
+explicitSyms                    = [coercionSym, assumptionSym, witnessSym]
+
 -- Testing Names ----------------------------------------------------------------
 
 isId (Name s _ _ _)             = isIdent (head s)
@@ -436,7 +465,10 @@ prId2 (Tuple n _)               = text ("TUP" ++ show n)
 prId2 n                         = prId n
 
 prId3 (Name s 0 m a)            = text s
-prId3 (Name s n m a)            = text (id ++ tag ++ mod++suff)
+prId3 n@(Name s _ m a)
+  | isClosure n || isLabel n
+                                = text (s ++ maybe "" (('_' :) . modToundSc) m)
+prId3 (Name s n m a)            = text (id ++ tag ++ mod ++ suff)
   where 
     id                          = if okForC s then s else "_S"
     tag                         = if forceTag a || mod=="" || generated a || id=="_S"  then '_':show n else ""
