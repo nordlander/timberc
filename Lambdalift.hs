@@ -138,5 +138,5 @@ getName n0 te                           = do ds <- currentStore
         find (Left(n,Kindle.Struct te' []) : ds)
             |te' == te                  = Just n
         find (_ : ds)                   = find ds
-        bodyOf (Name {str = s})         = s
+        --bodyOf (Name {str = s})         = s
         bodyOf _                        = typeSym
