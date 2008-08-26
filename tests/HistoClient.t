@@ -30,7 +30,7 @@ root env = class
                   
 
              result action
-               env.installR env.stdin io
+               env.stdin.installR io
                env.stdout.write "Welcome!\n"
       
 

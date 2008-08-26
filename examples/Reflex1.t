@@ -15,7 +15,7 @@ root env = class
 
       case state of
         Idle ->     env.stdout.write "Wait...\n"
-                    msg <- after (sec 2 + millisec 3000) action
+                    msg <- after (sec 3) action
                        env.stdout.write "Go!\n"
                        tmr.reset
                        state  := Counting 
@@ -34,7 +34,7 @@ root env = class
 
    result 
      action
-       env.installR env.stdin press
+       env.stdin.installR press
        env.stdout.write "Press return to start\n"
 
 format t = show (secOf t) ++ '.' : fracs

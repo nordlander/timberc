@@ -8,7 +8,7 @@ root env = class
    primesBound = limit `div` log3 limit
 
    primes := uniarray primesBound 0
-   count := -1
+   count  := 0
 
    test k = loop 0
       where loop n = do 
@@ -27,7 +27,6 @@ root env = class
      if k < limit then tryFrom (k+1)
 
    result action
-     count := 0
      primes!0 := 2
      tryFrom 3
      env.stdout.write (show (count+1)++"\n")

@@ -126,7 +126,7 @@ root env = class
 
   result 
      action
-         env.installR env.stdin inpHandler
+         env.stdin.installR inpHandler
          env.stdout.write "Welcome to Mastermind!\n"
          startGame
 
