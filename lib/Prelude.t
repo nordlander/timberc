@@ -217,21 +217,42 @@ enumEither = struct
   toEnum 0 = Left ()
   toEnum n = Right (toEnum (n-1))
 
-forallDo f []       = do result ()
-forallDo f (x : xs) = do f x
-                         forallDo f xs
+forallList f []       = do result ()
+forallList f (x : xs) = do f x
+                           forallList f xs
 
+forallSeq :: (a -> Cmd b c) -> a -> a -> Cmd b () \\ Enum a
+forallSeq f a b = fS (fromEnum a) (fromEnum b)
+  where fS ai bi
+         | ai>bi = do result ()
+         | otherwise = do f (toEnum ai)
+                          fS (ai+1) bi
+
+forallSeq1 :: (a -> Cmd b c) -> a -> a -> a -> Cmd b () \\ Enum a
+forallSeq1 f a b c = fE ai (bi-ai) ci
+  where ai = fromEnum a
+        bi = fromEnum b
+        ci = fromEnum c
+        fE ai bi ci 
+          | (if bi > 0 then ai > ci else ai < ci) = do result ()
+          | otherwise = do f (toEnum ai)
+                           fE (ai+bi) bi ci
 
 data Maybe a = Just a | Nothing
 
-isNothing :: Maybe a -> Bool
-isNothing Nothing  = True
-isNothing (Just a) = False
+isNothing          :: Maybe a -> Bool
+isNothing Nothing   = True
+isNothing (Just a)  = False
 
 type String         = [Char]
 
-enumFromTo :: a -> a -> [a] \\ Enum a
-enumFromTo a b = map toEnum (fromToInt (fromEnum a) (fromEnum b))
+enumFromTo          :: a -> a -> [a] \\ Enum a
+enumFromTo a b      = map toEnum (fromToInt (fromEnum a) 1 (fromEnum b))
+
+enumFromThenTo a b c = map toEnum (fromToInt ai (bi-ai) ci)
+  where  ai = fromEnum a
+         bi = fromEnum b
+         ci = fromEnum c
 
 head               :: [a] -> a
 head (x : _)        = x
@@ -275,10 +296,16 @@ foldl f u (x : xs)  = foldl f (f u x) xs
 
 concat              = foldr (++) []
 
-fromToInt :: Int -> Int -> [Int]
-fromToInt m n
-       | m > n      = []
-       | otherwise  = m : fromToInt (m+1) n
+fromToInt :: Int -> Int -> Int -> [Int]
+fromToInt m s n
+       | s > 0     = up m n
+       | otherwise = down m n
+  where up m n
+         | m > n      = []
+         | otherwise  = m : up (m+s) n
+        down m n
+         | m < n      = []
+         | otherwise  = m : down (m+s) n
 
 zip (x:xs) (y:ys)   = (x,y) : zip xs ys
 zip _ _             = []
