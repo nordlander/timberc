@@ -21,9 +21,9 @@ the type <tt>Request</tt> <em>a</em> of methods (in the object-oriented sense) r
 <p>
 Timber types and type constructors are classified by their <em>kind</em>. All types have kind <tt>*</tt>, while
 type constructors that expect one type argument (such as e.g. <tt>Request</tt>) have
-kind <tt>* -> *</tt>. In general, a kind is either <tt>*</tt> or <tt>k1 -> k2</tt> where <tt>k1</tt> and <tt>k2</tt> are
-kinds. A type constructor of kind  <tt>k1 -> k2</tt> expects an argument of kind <tt>k1</tt>; the result is then a type (constructor)
-of kind <tt>k2</tt>.
+kind <tt>* -> *</tt>. In general, a kind is either <tt>*</tt> or <em>k1</em> <tt>-></tt> <em>k2</em> where <em>k1</em> and <em>k2</em> are
+kinds. A type constructor of kind  <em>k1</em> <tt>-></tt> <em>k2</em> expects an argument of kind <em>k1</em>; the result is then a type (constructor)
+of kind <em>k2</em>.
 <p>
 The programmer may declare the kind of a type constructor in a top-level kind declaration:<p>
 <em>con</em> <tt>::</tt> <em>kind</em>
@@ -108,7 +108,11 @@ arguments and wait for the result. Since all methods require exclusive access to
 <li>Commands.<p> For any two types <tt>s</tt> and <tt>a</tt>, <tt>Cmd s a</tt> is the type of procedures that can execute in a
 state <tt>s</tt> and return a value of type <tt>a</tt>.
 <li> Object references.<p>
-For any type <tt>a</tt>, <tt>Ref a</tt> is the type of references to objects with interface of type <tt>a</tt>.
+For any type <tt>a</tt>, <tt>Ref a</tt> is the type of references to
+objects with interface of type <tt>a</tt>.
+<li> The struct type <tt>Timer</tt>, which is used as interface to the
+primitive timers of the language; see the <a href="time.html">Time
+constructs</a> page for details.
 </li>
 </ul>
 <h3>Polymorphic types</h3>

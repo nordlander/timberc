@@ -33,11 +33,11 @@ leftmost column).
 <p>
 A module has a simple name, which is an identifier starting with an
 upper-case letter. Modules are conventionally stored in files of the same name with suffix <tt>.t</tt>, i.e.
-module <tt>Dictionary</tt> is stored in <tt>Dictionary.t</tt>. However, to allow 
-
-Projects and Timber sites may also use hierarchical module names to allow multiple modules with the same name
+module <tt>Dictionary</tt> is stored in <tt>Dictionary.t</tt>.
+<p>
+Projects and Timber sites may use hierarchical module names to allow multiple modules with the same name
 or to indicate structure e.g. in a library. Thus, module <tt>Dictionary</tt> may need to be referred to by
-clients as <tt>Data.Object.Dictionary</tt>; it is up to the implementation whether this module is
+clients as e.g. <tt>Data.Object.Dictionary</tt>; it is up to the implementation whether this module is
 stored in <tt>Data.Object.Dictionary.t</tt> or in <tt>Data/Object/Dictioary.t</tt>
 relative to some installation-dependent notion of search paths. Module hierarchies in Timber have no other significance
 than to support organizing and subsequently finding modules in a file system.

@@ -48,7 +48,7 @@ variables and constructors have operator forms; the other four namespaces contai
 identifiers. The following lexically correct operators are keywords and may not be used
 as names:
 <pre>
-.    ..   ::   :=   =    \    \\   |    <-   ->
+.    ..   ::   :=   =    \    \\   |    <-   ->   --
 </pre>
 <p>
 An identifier may be used as an operator by enclosing it in backquotes; <tt>`elem`</tt> is an operator.
@@ -120,7 +120,8 @@ not evaluated (and, in particular, a runtime error or non-termination that would
 <p>
 Similarly, if the left operand to <tt>||</tt> evaluates to <tt>True</tt>, the result of the complete expression is
 <tt>True</tt> without evaluating the right operand.
-Thus, semantically speaking, these are not operators at all but special expression-forming constructs. </li>
+<p>
+Thus, semantically speaking, <tt>&&</tt> and <tt>||</tt> are not operators at all but special expression-forming constructs. </li>
 </ul>
 <h4>Qualified names</h4>
 <p>
