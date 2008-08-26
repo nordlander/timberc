@@ -272,6 +272,22 @@ Maybe_Prelude open_fun (LIST path, int oflag) {
   return (Maybe_Prelude)res;
 }
 
+UNITTYPE installR_fun (RFile_POSIX this, HANDLER hand, POLY self) {
+  Int desc = ((DescClosable)this->RFILE2FILE->FILE2CLOSABLE)->self->desc;
+  ADD_RDTABLE(desc,hand);
+  maxDesc = desc > maxDesc ? desc : maxDesc;  
+  pthread_kill(evThread,SIGSELECT);
+  return _UNITTERM;
+}
+
+UNITTYPE installW_fun (WFile_POSIX this, ACTION act, POLY self) {
+  Int desc = ((DescClosable)this->WFILE2FILE->FILE2CLOSABLE)->self->desc;
+  ADD_WRTABLE(desc,act);
+  maxDesc = desc > maxDesc ? desc : maxDesc;  
+  pthread_kill(evThread,SIGSELECT);
+  return _UNITTERM;
+}
+
 Maybe_Prelude openR_fun (Env_POSIX this, LIST path, POLY self) {
   Maybe_Prelude f = open_fun(path,O_RDONLY);
   if (f) {
@@ -279,6 +295,7 @@ Maybe_Prelude openR_fun (Env_POSIX this, LIST path, POLY self) {
     SETGCINFO(rf,__GC__RFile_POSIX);
     rf->RFILE2FILE = (File_POSIX)((Just_Prelude)f)->a;
     rf->read_POSIX = read_fun;
+    rf->installR_POSIX = installR_fun;
     ((Just_Prelude)f)->a = (POLY)rf;
   }
   return f;
@@ -291,26 +308,12 @@ Maybe_Prelude openW_fun (Env_POSIX this, LIST path, POLY self) {
     SETGCINFO(wf,__GC__WFile_POSIX);
     wf->WFILE2FILE = (File_POSIX)((Just_Prelude)f)->a;
     wf->write_POSIX = write_fun;
+    wf->installW_POSIX = installW_fun;
     ((Just_Prelude)f)->a = (POLY)wf;
   }
   return f;
 }
 
-UNITTYPE installR_fun (Env_POSIX this, RFile_POSIX rf, HANDLER hand, POLY self) {
-  Int desc = ((DescClosable)rf->RFILE2FILE->FILE2CLOSABLE)->self->desc;
-  ADD_RDTABLE(desc,hand);
-  maxDesc = desc > maxDesc ? desc : maxDesc;  
-  pthread_kill(evThread,SIGSELECT);
-  return _UNITTERM;
-}
-
-UNITTYPE installW_fun (Env_POSIX this, WFile_POSIX wf, ACTION act, POLY self) {
-  Int desc = ((DescClosable)wf->WFILE2FILE->FILE2CLOSABLE)->self->desc;
-  ADD_WRTABLE(desc,act);
-  maxDesc = desc > maxDesc ? desc : maxDesc;  
-  pthread_kill(evThread,SIGSELECT);
-  return _UNITTERM;
-}
 
 //---------- Destination --------------------------------------------------------
 
@@ -517,15 +520,15 @@ struct DescClosable stdout_cl   = { __GC__Closable_POSIX, close_fun, &stdout_st 
 struct File_POSIX stdin_file    = { __GC__File_POSIX, (Closable_POSIX)&stdin_cl, seek_fun };
 struct File_POSIX stdout_file   = { __GC__File_POSIX, (Closable_POSIX)&stdout_cl, seek_fun };
 
-struct RFile_POSIX stdin_rfile  = { __GC__RFile_POSIX, &stdin_file, read_fun };
-struct WFile_POSIX stdout_wfile = { __GC__WFile_POSIX, &stdout_file, write_fun };
+struct RFile_POSIX stdin_rfile  = { __GC__RFile_POSIX, &stdin_file, read_fun, installR_fun };
+struct WFile_POSIX stdout_wfile = { __GC__WFile_POSIX, &stdout_file, write_fun, installW_fun };
 
 struct Sockets_POSIX tcp        = {__GC__Sockets_POSIX, connect_fun, listen_fun };
 
 struct Internet_POSIX inet      = { __GC__Internet_POSIX, &tcp };
 
 struct Env_POSIX env_struct     = { __GC__Env_POSIX, exit_fun,  NULL, &stdin_rfile, &stdout_wfile,
-                                    openR_fun, openW_fun, installR_fun, installW_fun, &inet };
+                                    openR_fun, openW_fun, &inet };
 
 Env_POSIX env                   = &env_struct;
 

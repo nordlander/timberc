@@ -11,8 +11,6 @@ struct Env where
     stdout   :: WFile
     openR    :: String -> Request (Maybe RFile)
     openW    :: String -> Request (Maybe WFile)
-    installR :: RFile -> (String -> Action) -> Request ()
-    installW :: WFile -> Action -> Request ()
     inet     :: Internet
 
 struct Closable where
@@ -22,32 +20,34 @@ struct File < Closable where
     seek  :: Int -> Request Int
     
 struct RFile < File where
-    read  :: Request String
+    read     :: Request String
+    installR :: (String -> Action) -> Request ()
     
 struct WFile < File where
-    write :: String -> Request Int
+    write    :: String -> Request Int
+    installW :: Action -> Request ()
 
 data Host = Host String
 data Port = Port Int
 
 struct Internet where
-   tcp :: Sockets
+    tcp :: Sockets
 
 struct Destination < Closable where
-   deliver   :: String -> Action    
+    deliver   :: String -> Action    
 
 struct Connection < Destination where
-   established :: Action 
-   neterror :: String -> Action             
+    established :: Action 
+    neterror    :: String -> Action             
 
 struct Peer < Destination where
-   host :: Host
-   port :: Port
+    host :: Host
+    port :: Port
 
 struct Sockets where
-   connect :: Host -> Port -> (Peer -> Class Connection) -> Request ()
-   listen  :: Port -> (Peer -> Class Connection) -> Request Closable
+    connect :: Host -> Port -> (Peer -> Class Connection) -> Request ()
+    listen  :: Port -> (Peer -> Class Connection) -> Request Closable
 
 implicit showHost :: Show Host
 showHost = struct
-   show (Host nm) = nm
+    show (Host nm) = nm
