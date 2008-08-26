@@ -186,10 +186,8 @@ sV (n,t@(Scheme rh ps ke))            = case zip (filter isGenerated (idents (Sc
 listIface cfg f                   = do (ifc,f) <- decodeModule f
                                        let modul = rmSuffix ".ti" f
                                            htmlfile = modul++".html"
-                                       if (Config.libDir `isPrefixOf` htmlfile)
-                                        then system (Config.browser cfg ++" " ++ htmlfile)
-                                        else do writeFile htmlfile (render(toHTML modul (ifc :: IFace)))
-                                                system (Config.browser cfg ++" " ++ htmlfile)
+                                       writeFile htmlfile (render(toHTML modul (ifc :: IFace)))
+                                       system (Config.browser cfg ++" " ++ htmlfile)
 
 
 toHTML n (IFace ns xs rs ss ds ws bs _) = text "<html><body>\n" $$
