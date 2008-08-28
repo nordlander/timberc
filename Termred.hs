@@ -140,6 +140,7 @@ redExp env e@(EVar x)           = case lookup x (eqns env) of
                                       _ -> return e
   where inline (EVar _)         = True
         inline (ECon _)         = True
+        inline (ELit _)         = True
         inline _                = isGenerated x
 redExp env (EAp e es)           = do e' <- redExp env e
                                      es' <- mapM (redExp env) es
