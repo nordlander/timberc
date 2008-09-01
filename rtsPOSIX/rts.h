@@ -104,7 +104,7 @@ Int secOf(Time t);
 Int microsecOf (Time t);
 
 #define Inherit ((Time)0)
-#define infinity ((Time)1)
+#define Infinity ((Time)1)
 
 #define INHERIT 0
 #define TIME_INFINITY 1

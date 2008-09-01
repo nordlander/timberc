@@ -377,6 +377,7 @@ k2cPrim Microsec                = text "MICROSEC"
 k2cPrim Nanosec                 = text "NANOSEC"
 k2cPrim Infinity                = text "INFINITY"
 -}
+k2cPrim Infinity                = text "Infinity"
 k2cPrim Raise                   = text "RAISE"
 k2cPrim Catch                   = text "CATCH"
 {-                           
