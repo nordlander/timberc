@@ -19,7 +19,7 @@ private
           env.stdout.write (str ++ "\n")
        established = action 
           env.stdout.write "\n"
-          env.installR env.stdin (peer.deliver @ init)
+          env.stdin.installR (peer.deliver @ init)
        close       = action 
           env.stdout.write "Server closing; Bye!\n"
           env.exit 0

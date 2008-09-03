@@ -17,6 +17,6 @@ root env =
 
       result 
          action
-           env.installR env.stdin io
+           env.stdin.installR io
            start
 
