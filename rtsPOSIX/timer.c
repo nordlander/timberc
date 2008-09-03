@@ -77,11 +77,11 @@ Time primTimePlus(Time t1, Time t2) {
   Time res;
   switch ((Int)t1) {
   case INHERIT: return t2;
-  case TIME_INFINITY: return infinity;
+  case TIME_INFINITY: return Infinity;
   default: 
     switch ((Int)t2) {
     case INHERIT: return t1;
-    case TIME_INFINITY: return infinity;
+    case TIME_INFINITY: return Infinity;
     default:
       NEW(Time,res,sizeof(struct Time));
       SETGCINFO(res,__GC__Time);
@@ -122,7 +122,7 @@ Time primTimeMinus(Time t1, Time t2) {
     switch((Int) t2) {
     case INHERIT: panic("primTimeMinus Inherit");
     case TIME_INFINITY: panic("infinity - infinity");
-    default: return infinity;
+    default: return Infinity;
     }      
   default:
     switch ((Int)t2) {

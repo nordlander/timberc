@@ -302,7 +302,7 @@ Maybe_Prelude openR_fun (Env_POSIX this, LIST path, POLY self) {
 }
 
 Maybe_Prelude openW_fun (Env_POSIX this, LIST path, POLY self) {
-  Maybe_Prelude f =  open_fun(path,O_WRONLY | O_CREAT);
+  Maybe_Prelude f =  open_fun(path,O_WRONLY | O_CREAT | O_TRUNC);
   if (f) {
     WFile_POSIX wf; NEW(WFile_POSIX, wf, sizeof(struct WFile_POSIX));
     SETGCINFO(wf,__GC__WFile_POSIX);
@@ -314,7 +314,19 @@ Maybe_Prelude openW_fun (Env_POSIX this, LIST path, POLY self) {
   return f;
 }
 
+//---------- Time ---------------------------------------------------------------
 
+Time getTime_fun (Env_POSIX this, POLY self) {
+  Time res; NEW(Time,res,sizeof(struct Time));
+  SETGCINFO(res,__GC__Time);
+  struct timeval now;
+  if (gettimeofday(&now,NULL) < 0)
+    perror("gettimeofday failed");
+  res->sec = now.tv_sec;
+  res->usec = now.tv_usec;
+  return res;
+}
+  
 //---------- Destination --------------------------------------------------------
 
 struct DeliverMsg;
@@ -488,17 +500,11 @@ UNITTYPE connect_fun (Sockets_POSIX this, Host_POSIX host, Port_POSIX port, SOCK
 
 }
 
-/*
-Cannot have these as local variables in listen_fun under Mac OS X 10.5.2  !??
-*/
-
-struct sockaddr_in addr;
-struct in_addr iaddr;
 
 Closable_POSIX listen_fun (Sockets_POSIX this, Port_POSIX port, SOCKHANDLER handler, POLY self) {
+  struct sockaddr_in addr;
   int sock = new_socket(handler);
-  iaddr.s_addr = inet_addr("127.0.0.1");
-  addr.sin_addr = iaddr;
+  addr.sin_addr.s_addr = INADDR_ANY;
   addr.sin_port = htons(port->Tag);
   addr.sin_family = AF_INET;
   if (bind(sock,(struct sockaddr *)&addr,sizeof(struct sockaddr)) < 0)
@@ -528,7 +534,7 @@ struct Sockets_POSIX tcp        = {__GC__Sockets_POSIX, connect_fun, listen_fun 
 struct Internet_POSIX inet      = { __GC__Internet_POSIX, &tcp };
 
 struct Env_POSIX env_struct     = { __GC__Env_POSIX, exit_fun,  NULL, &stdin_rfile, &stdout_wfile,
-                                    openR_fun, openW_fun, &inet };
+                                    openR_fun, openW_fun, getTime_fun, &inet };
 
 Env_POSIX env                   = &env_struct;
 

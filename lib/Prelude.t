@@ -260,6 +260,10 @@ head (x : _)        = x
 tail               :: [a] -> [a]
 tail (_ : xs)       = xs
 
+init               :: [a] -> [a]
+init [x]           = []
+init (x : xs)      = x : init xs
+
 length             :: [a] -> Int
 length []           = 0
 length (_ : xs)     = 1 + length xs

@@ -11,6 +11,7 @@ struct Env where
     stdout   :: WFile
     openR    :: String -> Request (Maybe RFile)
     openW    :: String -> Request (Maybe WFile)
+    getTime  :: Request Time
     inet     :: Internet
 
 struct Closable where

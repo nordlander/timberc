@@ -15,7 +15,7 @@ $(OBJS): %.o: ../lib/%.t ../include/timber.h
 $(DEST): $(OBJS) rts.o
 	ar rc $(DEST) $(OBJS) rts.o
 
-rts.o: rts.c cyclic.c gc.c env.c rts.h ../include/timber.h ../include/timber.c
+rts.o: rts.c cyclic.c gc.c env.c timer.c rts.h ../include/timber.h ../include/timber.c ../include/float.c
 	$(CC) $(CFLAGS) -Wall -O2 -fno-strict-aliasing -g -I../include -I../lib -I. -c rts.c
 
 install: $(DEST)
