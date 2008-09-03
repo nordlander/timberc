@@ -298,7 +298,7 @@ k2cNestCmd c                    = text "{" <+> k2cCmd c $$
 
 
 k2cExp (ECall x [e1,e2])
-  | isInfix x                   = k2cExp e1 <+> k2cName x <+> k2cExp1 e2
+  | isInfix x                   = parens (k2cExp e1 <+> k2cName x <+> k2cExp1 e2)
 k2cExp e                        = k2cExp1 e
 
 
