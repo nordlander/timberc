@@ -104,5 +104,5 @@ AC_SUBST(prefix)
 AC_SUBST(HFLAGS)
 AC_SUBST(DEST)
 
-AC_CONFIG_FILES([Makefile CompileConfig.hs rtsTrivial/timberc.cfg rtsPOSIX/timberc.cfg])
+AC_CONFIG_FILES([Makefile CompileConfig.hs rtsPOSIX/timberc.cfg])
 AC_OUTPUT
