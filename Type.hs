@@ -90,7 +90,7 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ showids xs ++ ",
                                      (s,pe,es1)   <- tiRhs0 env' explWits ts es
                                      -- tr ("RESULT:\n" ++ render (nest 8 (vpr pe)))
                                      -- tr ("EXPS:\n" ++ render (nest 8 (vpr es1)))
-                                     (s',qe,f) <- fullreduce (target te env) s pe `handle` (posError "Type" (posInfo es))
+                                     (s',qe,f) <- fullreduce (target te (setErrPos (posInfo es) env)) s pe `handle` (fail . tail)
                                      -- tr ("PREDICATES OBTAINED:\n" ++ render (nest 8 (vpr qe)))
                                      let env1      = subst s' env
                                          (qe1,qe2) = partition (isFixed env1) qe
@@ -131,7 +131,7 @@ tiExpT' env (False, Scheme t0 [] [], e)
 tiExpT' env (False, Scheme t0 ps [], e) 
                                 = do (ss,qe,t,e)  <- tiExp env e
                                      c            <- newNamePos coercionSym e
-                                     pe0          <- newEnv assumptionSym ps
+                                     pe0          <- newEnvPos assumptionSym ps e
                                      let ws        = map EVar (dom pe0)
                                          e1        = eLam pe0 (EAp (eAp (EVar c) ws) [e])
                                      return (ss, (c, Scheme (F [scheme' t] t0) ps []) : qe, e1)
@@ -139,9 +139,9 @@ tiExpT' env (explWit, Scheme t0 ps ke, e)
                                 = do (ss,qe,t,e)  <- tiExp env e
 --                                     tr ("REQUIRED: " ++ render (pr (Scheme t0 ps ke)))
 --                                     tr ("INFERRED: " ++ render (pr t) ++ "\n" ++ render (nest 4 (vpr qe)))
-                                     (s,qe,f)     <- normalize (target t env) ss qe `handle` (posError "Type" (posInfo e))
+                                     (s,qe,f)     <- normalize (target t (setErrPos (posInfo e) env)) ss qe `handle` (fail . tail)
                                      c            <- newNamePos coercionSym e
-                                     pe0          <- newEnv assumptionSym ps >>= wildify ke
+                                     pe0          <- newEnvPos assumptionSym ps e >>= wildify ke
                                      let env1      = subst s env
                                          (qe1,qe2) = partition (isFixed env1) (subst s qe)
                                          (e',t')   = qual qe2 (f e) (scheme' (subst s t))

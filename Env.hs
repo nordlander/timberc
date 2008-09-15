@@ -41,7 +41,7 @@ data Env = Env { kindEnv0      :: KEnv,              -- Kind for each global tyc
                  pols          :: ([TVar],[TVar]),   -- Pair of tvars occurring in (positive,negative) position in reduction target
                  equalities    :: [(Name,Name)],     -- List of witness names that must be equivalent
 
-                 errPos        :: Maybe (Int,Int),
+                 errPos        :: PosInfo, 
                  ticked        :: Bool,              -- Root constraint is an automatically generated coercion (must be removed!)
                  forced        :: Bool,              -- Non-conservative reduction turned on
                  frozen        :: Bool               -- Treat tvars as constants (during env closure)       -- Not yet meaningful
@@ -69,7 +69,7 @@ nullEnv                                 = Env { kindEnv0   = [],
                                                 skolEnv    = [],
                                                 pols       = ([],[]),
                                                 equalities = [],
-                                                errPos     = Nothing,
+                                                errPos     = Unknown,
                                                 ticked     = False,
                                                 forced     = False,
                                                 frozen     = False
@@ -120,6 +120,9 @@ target t env                            = env { pols = polvars env t `pcat` pols
 protect t env                           = env { pols = pdupl (tvars t) `pcat` pols env }
 
 addEqs eqs env                          = env { equalities = eqs ++ equalities env }
+
+setErrPos Unknown env                   = env
+setErrPos p env                         = env {errPos = p}
 
 insertClassPred pre n@(w,p) post env    = env { classEnv = insert c wg' (classEnv env) }
   where c                               = headsym p
@@ -469,7 +472,7 @@ wildify ke pe                   = do ts <- mapM newTVar ks
   where (vs,ks)                 = unzip ke
 
 
-saturate (t,ps) e               = do pe <- newEnv assumptionSym ps
+saturate (t,ps) e               = do pe <- newEnvPos assumptionSym ps e
                                      return (pe, t, eAp e (map EVar (dom pe)))
 
 

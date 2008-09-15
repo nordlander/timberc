@@ -15,7 +15,6 @@ type TSubst                             = Map TVar Type
 
 type TEqs                               = [(Type,Type)]
 
-
 noreduce env eqs pe                     = do s0 <- unify env eqs
                                              return (s0, pe, id)
 
@@ -45,6 +44,28 @@ norm env pe                             = do -- tr ("NORM A\n" ++ render (nest 8
                                              -- tr ("NORM C\n" ++ render (nest 8 (vpr pe2)))
                                              return (s2@@s1, pe2, f2 . f1)
 
+-- Auxiliary function for type error messages -------------------------------------------------
+
+{-
+
+Type error messages are still a hack.
+
+The problem is to find reasonable error messages when the constraint-solver has failed after
+having backtracked and tried several alternatives. he present approach works reasonably well 
+when failing in search for a witness of an implicit type, but gives a confusing message (only
+the last alternative tried) in other cases. 
+
+Also, coding of various types of failure in the first character of the error message is not
+very elegant...
+
+-}
+
+data ErrType                            = Solve | Unify | Other
+
+typeError e env msg                     = char e : "Type error " ++ (show (errPos env)) ++ "\n" ++ msg
+  where char Solve                      = '+'
+        char Unify                      = '-'
+        char Other                      = ' '
 
 -- Conservative reduction ----------------------------------------------------------------------
 
@@ -53,7 +74,7 @@ reduce env pe                           = do -- tr ("###reduce\n" ++ render (nes
                                              -- tr ("###result\n" ++ render (nest 8 (vpr q)))
                                              -- tr ("        " ++ show s)
                                              return (s, q, eLet pe (dom pe `zip` es))
-  where mkGoal (v,p)                    = (tick env{errPos = pos v} (isCoercion v || isDummy v), p)
+  where mkGoal (v,p)                    =  (tick env{errPos = posInfo v} (isCoercion v || isDummy v), p)
 
 -- Simplification ------------------------------------------------------------------------------
 
@@ -65,7 +86,7 @@ simplify env pe                         = do cs <- newNames skolemSym (length tv
                                                  where (pe',bss) = preferLocals env' pe qe eq
                                                        s = cs `zip` map TVar tvs
                                                Left s -> case decodeCircular s of
-                                                 Nothing  -> fail s
+                                                 Nothing  -> fail(typeError Other env s)
 --                                               Just cs' -> return (nullSubst, pe, id)
                                                  Just cs' -> do (t:ts) <- mapM sat tvs'
                                                                 -- tr ("Circular: " ++ show pe)
@@ -249,18 +270,18 @@ redf gs env (F ts t) (F ts' t') ps      = do te1' <- newEnv assumptionSym ts1'
 redf gs env (R (TFun ts t)) b ps        = redf gs env (F (map scheme ts) (R t)) b ps
 redf gs env a (R (TFun ts t)) ps        = redf gs env a (F (map scheme ts) (R t)) ps
 redf gs env (R a@(TVar n)) b@(F ts _) ps
-  | n `elem` tvars b                    = fail "Infinite function type"
+  | n `elem` tvars b                    = fail (typeError Other env "Infinite function type")
   | otherwise                           = do (t:ts') <- mapM newTVar (replicate (length ts + 1) Star)
                                              s <- unify env [(a, TFun ts' t)]
                                              redf2 s gs env (F (map scheme ts') (R t)) b ps 
 redf gs env a@(F ts _) (R b@(TVar n)) ps
-  | n `elem`tvars a                     = fail "Infinite function type"
+  | n `elem`tvars a                     = fail (typeError Other env "Infinite function type")
   | otherwise                           = do (t:ts') <- mapM newTVar (replicate (length ts + 1) Star)
                                              s <- unify env [(TFun ts' t, b)]
                                              redf2 s gs env a (F (map scheme ts') (R t)) ps 
 redf gs env (R a) (R b) ps              = do (s,q,e:es,es') <- red ((tick env True, a `sub` b) : gs) ps
                                              return (s,q,es,e,es')
-redf _ _ t1 t2 _                        = fail ("Cannot solve " ++ render (pr t1) ++ " < " ++ render (pr t2))
+redf _ env t1 t2 _                        = fail (typeError Other env ("Cannot solve " ++ render (pr t1) ++ " < " ++ render (pr t2)))
 
 
 redf1 gs env a b (sc1:ts1) (sc2:ts2) ps = do (s,q,es,e,es1,e2:es2) <- redf1 gs env a b ts1 ts2 ((env,sc):ps)
@@ -304,7 +325,7 @@ solve r g gs
                                              -- tr (render (nest 4 (vpr (rng gs1))) ++ "\n    --\n" ++ render (nest 4 (vpr (rng gs2))))
                                              -- tr ("Witness graph: " ++ show (findWG r g))
                                              try r (Left msg) (findWG r g) (logHistory g) gs
-  where msg                             = "Cannot solve typing constraint "++render(prPred (snd g))
+  where msg                             = typeError Solve (fst g) ("Cannot solve typing constraint "++render(prPred (snd g)))
 
 
 try r accum wg g gs
@@ -316,7 +337,6 @@ try r accum wg g gs
                                              try r accum (wg2 res) g gs
   where (wit,wg1)                       = takeWG wg
         wg2 res                         = if mayPrune res r g then pruneWG (nameOf wit) wg1 else wg1
-
 
 mayPrune (Left _)  _          _         = False
 mayPrune (Right r) (RClass _) (env,c)   = forced env || subst (fst3 r) c == c
@@ -334,8 +354,8 @@ hyp (w,p) (env,c) gs                    = do (R c',ps) <- inst p
 
 
 plus gs (Left a) (Left b)
-  |take 5 (drop 7 a)=="solve" &&
-   take 5 (drop 7 b)=="unify"           = return (Left a)
+  |head a == '+' &&
+   head b == '-'                        = return (Left a)
   |otherwise                            = return (Left b)
 plus gs (Left a) b                      = return b
 plus gs a (Left b)                      = return a
@@ -425,14 +445,14 @@ unify env ((TId c,TId c'):eqs)
   | c == c'                             = unify env eqs
 unify env ((TFun ts t, TFun ts' t'):eqs)
   | length ts == length ts'             = unify env ((t,t') : ts `zip` ts' ++ eqs)
-unify env ((t1,t2):_)                   = fail ("Cannot unify " ++ render(pr t1) ++ " with " ++ render(pr t2))
+unify env ((t1,t2):_)                   = fail (typeError Unify env ("Cannot unify " ++ render(pr t1) ++ " with " ++ render(pr t2)))
 
 tvarBind env n t eqs
   | t == TVar n                         = unify env eqs
-  | tvKind n /= kindOfType env t        = fail ("Kind mismatch in unify: "  ++ show (tvKind n) ++ 
-                                                " and " ++ show (kindOfType env t))
-  | n `elem` tvars t                    = fail "Occurs check failed in unify"
-  | n `elem` skolEnvs env (tyvars t)    = fail "Skolem escape in unify"
+  | tvKind n /= kindOfType env t        = fail (typeError Other env ("Kind mismatch in unify: "  ++ show (tvKind n) ++ 
+                                                " and " ++ show (kindOfType env t)))
+  | n `elem` tvars t                    = fail (typeError Other env "Occurs check failed in unify")
+  | n `elem` skolEnvs env (tyvars t)    = fail (typeError Other env "Skolem escape in unify")
   | otherwise                           = do s' <- unify (subst s env) (subst s eqs)
                                              return (s' @@ s)
   where s                               = n +-> t
@@ -593,6 +613,7 @@ addPreds env (n@(w,p):pe)
                                                 addPreds (insertSubPred n env) pe
   | isClass' p                          = do r <- cmpNode [] [] (nodes (findClass env c))
                                              case r of
+
                                                 Right (pre,post) -> addPreds (insertClassPred pre n post env) pe
                                                 Left w'          -> addPreds (addEqs [(w,w')] env) pe
   where (a,b)                           = subsyms p

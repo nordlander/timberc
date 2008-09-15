@@ -217,16 +217,16 @@ instance Desugar1 Exp where
     ds1 env (EIf e1 e2 e3)         = EIf (ds1 env e1) (ds1 env e2) (ds1 env e3)
     ds1 env (ENeg (ELit (LInt p i))) = ELit (LInt p (-i))
     ds1 env (ENeg (ELit (LRat p r))) = ELit (LRat p (-r))
-    ds1 env (ENeg e)               = EAp (EVar (name' "negate")) (ds1 env e)
-    ds1 env (ESeq e1 Nothing e3)   = EAp (EAp (EVar (name' "enumFromTo")) (ds1 env e1)) (ds1 env e3)
-    ds1 env (ESeq e1 (Just e2) e3) = EAp (EAp (EAp (EVar (name' "enumFromThenTo")) (ds1 env e1)) (ds1 env e2)) (ds1 env e3)
+    ds1 env (ENeg e)               = EAp (EVar (name' "negate" e)) (ds1 env e)
+    ds1 env (ESeq e1 Nothing e3)   = EAp (EAp (EVar (name' "enumFromTo" e1)) (ds1 env e1)) (ds1 env e3)
+    ds1 env (ESeq e1 (Just e2) e3) = EAp (EAp (EAp (EVar (name' "enumFromThenTo" e1)) (ds1 env e1)) (ds1 env e2)) (ds1 env e3)
     ds1 env (EComp e qs)           = EComp (ds1 env e) (ds1 env qs)
     ds1 env (ESectR e op)          = ESectR (ds1 env e) op
     ds1 env (ESectL op e)          = ESectL op (ds1 env e)
     ds1 env (ESelect e s)          = ESelect (ds1 env e) s
     ds1 env e@(ELit (LInt _ n))
       | isPat env                  = e
-      | otherwise                  = EAp (EVar (name' "fromInt")) e 
+      | otherwise                  = EAp (EVar (name' "fromInt" e)) e 
 
     ds1 env (ETempl Nothing t ss)  = ds1 env (ETempl (Just (name0 "self")) (ds1 env t) ss)
     ds1 env (EDo Nothing t ss)
@@ -293,10 +293,10 @@ ds1S env (SWhile e ss' : ss)     = internalError0 "while stmt not yet implemente
 ds1Forall env [] ss              = eDo env ss
 ds1Forall env (QLet bs : qs) ss  = ELet bs (eDo env [SForall qs ss])
 ds1Forall env (QGen p (ESeq e1 Nothing e3) : qs) ss
-                                 = EAp (EAp (EAp (EVar (name' "forallSeq")) (ELam [p] (eDo env [SForall qs ss]))) e1) e3
+                                 = EAp (EAp (EAp (EVar (name' "forallSeq" p)) (ELam [p] (eDo env [SForall qs ss]))) e1) e3
 ds1Forall env (QGen p (ESeq e1 (Just e2) e3) : qs) ss
-                                 = EAp (EAp (EAp (EAp (EVar (name' "forallSeq1")) (ELam [p] (eDo env [SForall qs ss]))) e1) e2) e3
-ds1Forall env (QGen p e : qs) ss = EAp (EAp (EVar (name' "forallList")) (ELam [p] (eDo env [SForall qs ss]))) e
+                                 = EAp (EAp (EAp (EAp (EVar (name' "forallSeq1" p)) (ELam [p] (eDo env [SForall qs ss]))) e1) e2) e3
+ds1Forall env (QGen p e : qs) ss = EAp (EAp (EVar (name' "forallList" p)) (ELam [p] (eDo env [SForall qs ss]))) e
 ds1Forall env (QExp e : qs) ss   = EIf e (eDo env [])  (eDo env [SForall qs ss])
 
 ds1T env [SRet e]                = [SRet (ds1 env e)]
@@ -345,7 +345,9 @@ eDo env ss                       = EDo (self env) Nothing ss
 maybeGen e []                    = [SExp e]
 maybeGen e ss                    = SGen EWild e : ss
 
-name' s                          = Name s 0 Nothing noAnnot
+name' s  e                       = Name s 0 Nothing (noAnnot {location = loc (posInfo e)})
+  where loc Unknown              = Nothing
+        loc (Between p _)        = Just p
 
 -- Printing --------
 

@@ -102,9 +102,6 @@ errorTree mess t                = error (mess ++ pos ++ (if length (lines str) >
   where str                     = render (pr t)
         pos                     = " ("++ show (posInfo t) ++"): "
  
-
-posError info p msg             = fail (info ++ " error "++show p ++ ": " ++ msg)
-
 internalError mess t            = errorTree ("**** Internal compiler error ****\n" ++ mess) t
 
 internalError0 mess             = error ("**** Internal compiler error ****\n" ++ mess)
@@ -123,7 +120,7 @@ instance Show PosInfo where
                                               True -> "close to line "++show l1++", column "++show c1
                                               False -> "close to line "++show l1++", columns "++show c1++" -- "++show c2
                                     False -> "close to lines "++show l1++" -- "++show l2
-   show Unknown                 = "unknown position"
+   show Unknown                 = "at unknown position"
 
 
 
@@ -138,7 +135,6 @@ startPos Unknown                = Nothing
 
 class HasPos a where
   posInfo :: a -> PosInfo
-
 
 instance HasPos a => HasPos [a] where
   posInfo xs = foldr between Unknown (map posInfo xs)
@@ -479,6 +475,9 @@ instance Subst a i e => Subst (Maybe a) i e where
 
 
 newEnv x ts                     = do vs <- mapM (const (newName x)) ts
+                                     return (vs `zip` ts)
+
+newEnvPos x ts e                = do vs <- mapM (const (newNamePos x e)) ts
                                      return (vs `zip` ts)
 
 
