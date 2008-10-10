@@ -303,11 +303,11 @@ ds1T env [SRet e]                = [SRet (ds1 env e)]
 ds1T env [s]                     = errorTree "Last statement in class must be result, not" s
 ds1T env (s@(SRet _) : ss)       = errorTree "Result statement must be last in sequence" s
 ds1T env ss@(SBind _ : _)        = dsBs [] ss
-  where dsBs bs (SBind bs' : ss) = dsBs (bs++bs') ss
+  where dsBs bs [s@(SBind _)]    = errorTree "Last statement in class must be result, not" s
+        dsBs bs (SBind bs' : ss) = dsBs (bs++bs') ss
         dsBs bs ss               = SBind (ds1 env bs) : ds1T env ss
 ds1T env (s@(SAss p e) : ss)     = SAss (ds1 (patEnv env) p) (ds1 env e) : ds1T env ss
 ds1T env (s : _)                 = errorTree "Illegal statement in class: " s
-
 
 retComplete e
   | hasRet e                     = e
