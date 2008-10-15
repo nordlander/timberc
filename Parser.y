@@ -77,7 +77,7 @@ Reserved Ids
         'forall'	{ KW_Forall }
         'if'		{ KW_If }
         'import'        { KW_Import }
-        'implicit'      { KW_Implicit }
+        'instance'      { KW_Instance }
         'in'		{ KW_In }
         'let'		{ KW_Let }
         'module'	{ KW_Module }
@@ -89,6 +89,7 @@ Reserved Ids
         'struct'        { KW_Struct }
         'then'		{ KW_Then }
         'type'		{ KW_Type }
+        'typeclass'	{ KW_Typeclass }
         'use'           { KW_Use }
         'where'		{ KW_Where }
         'while'		{ KW_While }
@@ -136,10 +137,10 @@ topdecl :: { [Decl] }
         | 'type' conid tyvars '=' type	                   { [DType $2 (reverse $3) $5] }
         | 'data' conid tyvars optsubs optcs                { [DData $2 (reverse $3) $4 $5] }
         | 'struct' conid tyvars optsups optsigs            { [DRec False $2 (reverse $3) $4 $5] }
-        | 'implicit' 'struct' conid tyvars optsups optsigs { [DRec True $3 (reverse $4) $5 $6] }
-        | 'implicit' var '::' type                         { [DPSig $2 $4] }  
-        | 'implicit' var '::' type rhs                     { [DBind [BEqn (exp2lhs (EVar $2)) $5], DPSig $2 $4] }
-        | 'implicit' ids                                   { [DImplicit $2] }
+        | 'typeclass' conid tyvars optsups optsigs         { [DRec True $2 (reverse $3) $4 $5] }
+        | 'instance' var '::' type                         { [DPSig $2 $4] }  
+        | 'instance' var '::' type rhs                     { [DBind [BEqn (exp2lhs (EVar $2)) $5], DPSig $2 $4] }
+        | 'instance' ids                                   { [DInstance $2] }
         | 'default' def                                    { [DDefault (reverse $2)] }
         | vars '::' type		                   { [DBind [BSig (reverse $1) $3]] }
         | lhs rhs 					   { [DBind [BEqn $1 $2]] }

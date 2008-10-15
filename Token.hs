@@ -63,8 +63,8 @@ Reserved Ids
     | KW_Elsif
     | KW_Forall
     | KW_If
-    | KW_Implicit 
     | KW_Import   
+    | KW_Instance
     | KW_In       
     | KW_Let
     | KW_Module
@@ -76,6 +76,7 @@ Reserved Ids
     | KW_Struct
     | KW_Then     
     | KW_Type  
+    | KW_Typeclass
     | KW_Use   
     | KW_Where
     | KW_While
@@ -116,7 +117,7 @@ reserved_ids
         ( "forall",    KW_Forall ),
         ( "if",        KW_If ),
         ( "import",    KW_Import ),
-        ( "implicit",  KW_Implicit ),     
+        ( "instance",  KW_Instance ),     
         ( "in",        KW_In ),       
         ( "let",       KW_Let ),      
         ( "module",    KW_Module ),   
@@ -128,6 +129,7 @@ reserved_ids
         ( "struct",    KW_Struct ),
         ( "then",      KW_Then ),     
         ( "type",      KW_Type ),  
+        ( "typeclass", KW_Typeclass ),  
         ( "use",       KW_Use ),   
         ( "where",     KW_Where ),
         ( "while",     KW_While )

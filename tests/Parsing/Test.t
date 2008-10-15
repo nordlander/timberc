@@ -23,7 +23,7 @@ pMany = parseP (many (token 'a')) "aaa"
 {-
 data T = Leaf Token | Node T T
 
-implicit showT :: Show T = struct
+instance showT :: Show T = struct
   show (Leaf t)    = "."
   show (Node t1 t2) = "("++show t1++","++show t2++")"
 
@@ -44,14 +44,14 @@ data Exp = EVar Var
 data Var = Var Token
 data Op = Op Token
 
-implicit showExp :: Show Exp = struct
+instance showExp :: Show Exp = struct
   show (EVar v) = show v
   show (EOp v o e) = "("++show v++show o++show e++")"
 
-implicit showVar :: Show Var = struct
+instance showVar :: Show Var = struct
   show (Var v) = [v]
 
-implicit showOp :: Show Op = struct
+instance showOp :: Show Op = struct
   show (Op o) = [o]
 
 eVar = F$ \x -> EVar x

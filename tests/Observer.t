@@ -12,7 +12,7 @@ struct Object where
 struct Observer a < Object where
   update :: a -> Action
 
-implicit eqObserver :: Eq (Observer a) 
+instance eqObserver :: Eq (Observer a) 
 eqObserver = struct
   o1 == o2 = o1.self == o2.self
   o1 /= o2 = o1.self /= o2.self

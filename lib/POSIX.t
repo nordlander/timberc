@@ -49,6 +49,6 @@ struct Sockets where
     connect :: Host -> Port -> (Peer -> Class Connection) -> Request ()
     listen  :: Port -> (Peer -> Class Connection) -> Request Closable
 
-implicit showHost :: Show Host
+instance showHost :: Show Host
 showHost = struct
     show (Host nm) = nm

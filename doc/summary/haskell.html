@@ -14,18 +14,20 @@ through Timber code will feel at home. This page summarizes instead the most imp
 <ul>
   <li> Timber has strict semantics, not lazy as Haskell. This has a major impact on the
   programming styles of the two languages.
-  <li> Timber has a correspondence to Haskell type classes, but with a different name and
-  different syntax of declarations. A main reason for this change is that the word <tt>class</tt>
-  in Timber is used to denote the well-known concept from object-oriented programming. For overloading,
-  one can define a Timber struct type to be <em>implicit</em>. Instances of such types are
-  just named values of the type, tagged as <tt>implicit</tt>. The following excerpt from
+  <li> Timber has Haskell-like type classes, but with slightly 
+  different syntax for both type class and instance declarations. The reserved word starting a
+  type class declaration is <tt>typeclass</tt>.
+  The main reason for this change is that the word <tt>class</tt>
+  in Timber is used to denote the well-known concept from object-oriented programming.
+ Instances of such types are
+  named values of the type, tagged by <tt>instance</tt>. The following excerpt from
   the Prelude illustrates the concept.
  <pre>
-implicit struct Eq a where  -- this is the "type class"
+typeclass Eq a where 
   (==),(/=) :: a -> a -> Bool
 
 
-implicit eqUnit :: Eq ()    -- here is a named instance
+instance eqUnit :: Eq () 
 eqUnit = struct
   _ == _ = True
   _ /= _ = False

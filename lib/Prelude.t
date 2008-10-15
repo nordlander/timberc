@@ -1,35 +1,35 @@
 module Prelude where
 
-implicit struct IntLiteral a where
+typeclass IntLiteral a where
  fromInt :: Int -> a
 
-implicit intInt :: IntLiteral Int
+instance intInt :: IntLiteral Int
 intInt = struct
   fromInt n = n
   
-implicit intFloat ::IntLiteral Float
+instance intFloat ::IntLiteral Float
 intFloat = struct
   fromInt = primIntToFloat
   
-implicit struct Num a where
+typeclass Num a where
  (+),(-),(*) :: a -> a -> a
  negate :: a -> a
 
-implicit numInt :: Num Int
+instance numInt :: Num Int
 numInt = struct 
   (+) = primIntPlus
   (-) = primIntMinus
   (*) = primIntTimes
   negate = primIntNeg
 
-implicit numFloat :: Num Float 
+instance numFloat :: Num Float 
 numFloat = struct
   (+) = primFloatPlus
   (-) = primFloatMinus
   (*) = primFloatTimes
   negate = primFloatNeg
 
-implicit numTime :: Num Time
+instance numTime :: Num Time
 numTime = struct
   (+) = primTimePlus
   (-) = primTimeMinus
@@ -38,62 +38,62 @@ numTime = struct
 
 default intInt < intFloat
 
-implicit struct Eq a where
+typeclass Eq a where
   (==),(/=) :: a -> a -> Bool
 
-implicit eqInt :: Eq Int
+instance eqInt :: Eq Int
 eqInt = struct
   (==) = primIntEQ
   (/=) = primIntNE
 
-implicit eqFloat :: Eq Float
+instance eqFloat :: Eq Float
 eqFloat = struct
   (==) = primFloatEQ
   (/=) = primFloatNE
 
-implicit eqTime :: Eq Time
+instance eqTime :: Eq Time
 eqTime = struct
   (==) = primTimeEQ
   (/=) = primTimeNE
 
-implicit eqPID :: Eq PID
+instance eqPID :: Eq PID
 eqPID = struct
   (==) = primPidEQ
   (/=) = primPidNE
 
-implicit eqChar :: Eq Char
+instance eqChar :: Eq Char
 eqChar = struct
   a == b = ord a == ord b
   a /= b = ord a /= ord b
 
-implicit eqUnit :: Eq ()
+instance eqUnit :: Eq ()
 eqUnit = struct
   _ == _ = True
   _ /= _ = False
 
-implicit eqList :: Eq [a] \\ Eq a
+instance eqList :: Eq [a] \\ Eq a
 eqList = struct
     [] == []              = True
     a : as == b : bs  = a == b && as == bs
     _ == _               = False
     xs /= ys             = not ( xs == ys)
 
-implicit eqEither :: Eq (Either a b) \\ Eq a, Eq b
+instance eqEither :: Eq (Either a b) \\ Eq a, Eq b
 eqEither = struct
   Left x  == Left y  = x == y
   Right x == Right y = x == y
   _       == _       = False
   x       /= y       = not (x == y)
 
-implicit eqPair :: Eq (a,b) \\ Eq a, Eq b
+instance eqPair :: Eq (a,b) \\ Eq a, Eq b
 eqPair = struct
   (a,b) == (c,d) = a==c && b==d
   x /= y = not (x==y)
 
-implicit struct Ord a < Eq a where
+typeclass Ord a < Eq a where
   (<),(<=),(>),(>=) :: a -> a -> Bool
 
-implicit ordInt :: Ord Int
+instance ordInt :: Ord Int
 ordInt = Ord {..}
   where Eq {..} = eqInt
         (<)  = primIntLT
@@ -101,7 +101,7 @@ ordInt = Ord {..}
         (>)  = primIntGT
         (>=) = primIntGE
 
-implicit ordFloat :: Ord Float
+instance ordFloat :: Ord Float
 ordFloat = Ord {..}
   where Eq {..} = eqFloat
         (<)  = primFloatLT
@@ -109,7 +109,7 @@ ordFloat = Ord {..}
         (>)  = primFloatGT
         (>=) = primFloatGE
 
-implicit ordChar :: Ord Char
+instance ordChar :: Ord Char
 ordChar = struct
             a <  b = ord a <  ord b
             a <= b = ord a <= ord b
@@ -118,7 +118,7 @@ ordChar = struct
             (==) = eqChar.(==)
             (/=) = eqChar.(/=)
 
-implicit ordTime :: Ord Time
+instance ordTime :: Ord Time
 ordTime = Ord {..}
   where Eq {..} = eqTime
         (<)  = primTimeLT
@@ -126,7 +126,7 @@ ordTime = Ord {..}
         (>)  = primTimeGT
         (>=) = primTimeGE
 
-implicit ordUnit :: Ord ()
+instance ordUnit :: Ord ()
 ordUnit = Ord{..}
   where Eq{..} = eqUnit
         _ < _  = False
@@ -135,10 +135,10 @@ ordUnit = Ord{..}
         _ >= _ = True
     
      
-implicit struct Show a where
+typeclass Show a where
   show :: a -> String
 
-implicit showInt :: Show Int
+instance showInt :: Show Int
 showInt = struct
   show 0            = "0"
   show n
@@ -149,68 +149,68 @@ showInt = struct
            | n < 10    = [dig n]
            | otherwise = dig (n `mod` 10) : digs (n `div` 10)
  
-implicit showFloat :: Show Float
+instance showFloat :: Show Float
 showFloat = struct
    show = primShowFloat
 
-implicit showBool :: Show Bool
+instance showBool :: Show Bool
 showBool = struct
   show False = "False"
   show True  = "True"
 
-implicit showChar :: Show Char
+instance showChar :: Show Char
 showChar = struct
   show c = [c]
 
-implicit showMaybe :: Show (Maybe a) \\ Show a
+instance showMaybe :: Show (Maybe a) \\ Show a
 showMaybe = struct
   show Nothing      = "Nothing"
   show (Just x)     = "Just (" ++ show x ++ ")"
 
-implicit showString :: Show String
+instance showString :: Show String
 showString = struct
   show s = '"' : s ++ "\""
 
-implicit showList :: Show [a] \\ Show a
+instance showList :: Show [a] \\ Show a
 showList = struct
   show [] = "[]"
   show (x : xs) = '[' : show x ++ concat (map (\x -> ',' : show x) xs) ++ "]"
 
-implicit showTuple :: Show (a,b) \\ Show a, Show b = struct
+instance showTuple :: Show (a,b) \\ Show a, Show b = struct
   show (a,b) = "("++show a++","++show b++")"
 
-implicit showUnit :: Show () = struct
+instance showUnit :: Show () = struct
   show () = "()"
 
-implicit struct Parse a where
+typeclass Parse a where
   parse :: String -> a
 
-implicit parseInt :: Parse Int
+instance parseInt :: Parse Int
 parseInt = struct
   parse str = r (reverse str)
     where r (c:cs) = ord c - ord '0' + 10*r cs
           r [] = 0
 
-implicit struct Enum a where
+typeclass Enum a where
   fromEnum :: a -> Int
   toEnum :: Int -> a
 
-implicit enumInt :: Enum Int
+instance enumInt :: Enum Int
 enumInt =struct
   fromEnum n = n
   toEnum n = n
 
-implicit enumChar :: Enum Char
+instance enumChar :: Enum Char
 enumChar = struct
    fromEnum = primCharToInt
    toEnum = primIntToChar
 
-implicit enumUnit :: Enum ()
+instance enumUnit :: Enum ()
 enumUnit = struct 
   fromEnum () = 0
   toEnum 0 = ()
 
-implicit enumEither :: Enum (Either () a) \\ Enum a
+instance enumEither :: Enum (Either () a) \\ Enum a
 enumEither = struct
   fromEnum (Left ()) = 0
   fromEnum (Right a) = 1 + fromEnum a
@@ -425,14 +425,14 @@ struct Point where
 
 f @ g               = \x -> f (g x)
 
-implicit struct Functor m where
+typeclass Functor m where
   ($^)   :: (a -> b) -> m a -> m b
 
-implicit struct Applicative m < Functor m where
+typeclass Applicative m < Functor m where
   ($*)   :: m (a -> b) -> m a -> m b
   return :: a -> m a
 
-implicit struct Monad m < Applicative m where
+typeclass Monad m < Applicative m where
   (>>=)  :: m a -> (a -> m b) -> m b
 
 (>>) :: m a -> m b -> m b \\ Monad m
@@ -441,30 +441,30 @@ ma >> mb = ma >>= \_ -> mb
 join :: m (m a) -> m a \\ Monad m
 join m = m >>= id
 
-implicit struct MPlus m where
+typeclass MPlus m where
   mempty :: m a
   mappend :: m a -> m a -> m a
 
 
-implicit functorMaybe :: Functor Maybe = struct
+instance functorMaybe :: Functor Maybe = struct
   f $^ Nothing = Nothing
   f $^ Just a  = Just (f a)
 
-implicit applicativeMaybe :: Applicative Maybe = Applicative {..}
+instance applicativeMaybe :: Applicative Maybe = Applicative {..}
   where Functor {..} = functorMaybe
         Just f $* Just a = Just (f a)
         _      $* _      = Nothing
 
-implicit monadMaybe :: Monad Maybe = Monad {..}
+instance monadMaybe :: Monad Maybe = Monad {..}
   where Applicative {..} = applicativeMaybe
         Just a  >>= f = f a
         Nothing >>= _ = Nothing
 
-implicit mPlusMaybe :: MPlus Maybe = struct
+instance mPlusMaybe :: MPlus Maybe = struct
   mempty = Nothing
   Just a  `mappend` _ = Just a
   Nothing `mappend` a = a
 
-implicit functorArray :: Functor Array = struct
+instance functorArray :: Functor Array = struct
   f $^ a = array [f (a!i) | i <- [0..size a-1]]
 

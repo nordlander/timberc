@@ -19,10 +19,10 @@ inState s m =
   set s' >>
   return a
 
-implicit functorState :: Functor (State s) = struct
+instance functorState :: Functor (State s) = struct
   f $^ SM fa = SM $ \s -> let (s',a) = fa s in (s',f a)
 
-implicit applicativeState :: Applicative (State s) = Applicative {..} 
+instance applicativeState :: Applicative (State s) = Applicative {..} 
   where
   Functor {..} = functorState
   SM fs $* SM as = SM $ \s -> let (s',f) = fs s
@@ -30,7 +30,7 @@ implicit applicativeState :: Applicative (State s) = Applicative {..}
                               in (s'',f a)
   return a = SM $ \s -> (s,a)
 
-implicit monadState :: Monad (State s) = Monad {..} where
+instance monadState :: Monad (State s) = Monad {..} where
   Applicative {..} = applicativeState
   SM m >>= f = SM $ \s -> let (s',a) = m s 
                               SM f' = f a

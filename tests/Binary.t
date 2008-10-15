@@ -2,23 +2,23 @@ module Binary where
 
 data Bin = B0 | B1
 
-implicit struct Binary a where
+typeclass Binary a where
   put :: a -> [Bin]
   get :: [Bin] -> (a,[Bin])
 
-implicit binaryUnit :: Binary ()
+instance binaryUnit :: Binary ()
 binaryUnit = struct
   put _  = []
   get bs = ((),bs)
 
-implicit binaryPair :: Binary (a,b) \\ Binary a, Binary b
+instance binaryPair :: Binary (a,b) \\ Binary a, Binary b
 binaryPair = struct
   put (x,y) = put x ++ put y
   get bs    = ((x,y),bs'')
               where (x,bs')  = get bs
                     (y,bs'') = get bs'
 
-implicit binaryEither :: Binary (Either a b) \\ Binary a, Binary b
+instance binaryEither :: Binary (Either a b) \\ Binary a, Binary b
 binaryEither = struct
   put (Left x)  = B0 : put x
   put (Right y) = B1 : put y

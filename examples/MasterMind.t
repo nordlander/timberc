@@ -20,11 +20,11 @@ type Guess = [Colour]
 
 data Answer = Answer Int Int
 
-implicit showAnswer :: Show Answer
+instance showAnswer :: Show Answer
 showAnswer = struct
    show (Answer e n) = show e ++ " " ++ show n
 
-implicit showGuess :: Show Guess
+instance showGuess :: Show Guess
 showGuess = struct
   show ss = unwords (map show ss)
 

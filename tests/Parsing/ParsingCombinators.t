@@ -34,12 +34,12 @@ accept p = struct
            t1 = 'z'
   emptyParse = Nothing
 
-implicit functorP :: Functor P = struct
+instance functorP :: Functor P = struct
   g $^ a = struct
     arr = (((g $^) $^) $^) $^ a.arr
     emptyParse = g $^ a.emptyParse
 
-implicit applicativeP :: Applicative P = struct
+instance applicativeP :: Applicative P = struct
   ($^) = functorP.($^)
   f $* a = struct
     arr = combineArraySeq f a
@@ -157,7 +157,7 @@ struct TArray t e where
   ar :: Array e
   t0 :: t
 
-implicit functorTArray :: Functor (TArray t) = struct
+instance functorTArray :: Functor (TArray t) = struct
   f $^ a = TArray {..} where t0 = a.t0
                              ar = f $^ a.ar
 

@@ -24,3 +24,4 @@ baseGen seed = class
     result state
 
   result Generator{..}
+

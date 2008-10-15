@@ -1,20 +1,20 @@
 module Pointed where
 
-implicit struct Pointed a where
+typeclass Pointed a where
   p :: a
 
-implicit pointedUnit :: Pointed ()
+instance pointedUnit :: Pointed ()
 pointedUnit = { p = () }
 
-implicit pointedPair :: Pointed (a,b) \\ Pointed a, Pointed b
+instance pointedPair :: Pointed (a,b) \\ Pointed a, Pointed b
 pointedPair = struct
   p = (p,p)
 
-implicit pointedEitherL :: Pointed (Either a b) \\ Pointed a
+instance pointedEitherL :: Pointed (Either a b) \\ Pointed a
 pointedEitherL = struct
   p = Left p
 
-implicit pointedChar :: Pointed Char
+instance pointedChar :: Pointed Char
 pointedChar = { p = '0' }
 
 data D a = D1 a Char Char 

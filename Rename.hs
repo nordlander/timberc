@@ -148,12 +148,12 @@ instance Rename Module where
                                         assert (null tDups) "Duplicate type constructors" tDups
                                         assert (null sDups) "Duplicate selectors" sDups
                                         assert (null cDups) "Duplicate constructors" cDups
-                                        assert (null wDups) "Duplicate implicit declarations" wDups
+                                        assert (null wDups) "Duplicate instance declarations" wDups
                                         assert (null eDups) "Duplicate top-level variable" eDups
                                         assert (null dks)   "Dangling kind signatures" dks
-                                        assert (null dws1)  "Dangling implicit declarations" dws1
-                                        assert (null dws2)  "Dangling implicit declarations" dws2
-                                        assert (null badImpl) "Illegal type signature for implicit identifier" badImpl
+                                        assert (null dws1)  "Dangling instance declarations" dws1
+                                        assert (null dws2)  "Dangling instance declarations" dws2
+                                        assert (null badImpl) "Illegal type signature for instance" badImpl
                                         env1 <- extRenTMod True  c env  (ts1 ++ ks1')
                                         env2 <- extRenEMod True  c env1 (cs1 ++ vs1 ++ vs1' ++ vss++is1)
                                         let env2' = env2 {rE = map (addTag cs11) (rE env2)}
@@ -213,7 +213,7 @@ renameD ks ts ss cs cs1 ws is bss (DData c _ _ cdefs : ds)
   where cons                       = [ c | Constr c _ _ <- cdefs ]
 renameD ks ts ss cs cs1 ws is bss (DType c _ _ : ds)
                                    = renameD ks (c:ts) ss cs cs1 ws is bss ds
-renameD ks ts ss cs cs1 ws is bss (DImplicit vs : ds)
+renameD ks ts ss cs cs1 ws is bss (DInstance vs : ds)
                                    = renameD ks ts ss cs cs1 (ws++vs) is bss ds
 renameD ks ts ss cs cs1 ws is bss (DDefault ps : ds)
                                    = renameD ks ts ss cs cs1 ws (is1 ++ is) bss ds
@@ -232,7 +232,7 @@ instance Rename Decl where
                                         liftM2 (DRec isC (renT env c) (map (renT env') vs)) (renameQTs env' ts) (rename env' ss)
   rename env (DType c vs t)        = do env' <- extRenT env vs
                                         liftM (DType (renT env c) (map (renT env') vs)) (rename env' t)
-  rename env (DImplicit vs)        = return (DImplicit (map (renE env) vs))
+  rename env (DInstance vs)        = return (DInstance (map (renE env) vs))
   rename env (DDefault ts)         = liftM DDefault (rename env ts)
   rename env (DBind bs)            = liftM DBind (rename env bs)
 

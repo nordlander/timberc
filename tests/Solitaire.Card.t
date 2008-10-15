@@ -4,7 +4,7 @@ data Rank = Ace | King | Queen | Jack | Num Int
 
 data Suit = Spades | Hearts | Diamonds | Clubs
 
-implicit showRank :: Show Rank
+instance showRank :: Show Rank
 showRank = struct
   show Ace     = "Ace"
   show King    = "King"
@@ -25,7 +25,7 @@ struct Card where
   setPos :: Pos -> Action
   getPos :: Request Pos
 
-implicit showCard :: Show Card 
+instance showCard :: Show Card 
 showCard = struct
   show c = show c.rank ++ " " ++ show c.suit
 

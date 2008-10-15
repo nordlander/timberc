@@ -28,7 +28,7 @@ addSigs te env                  = env { sigs = te ++ sigs env }
 -- Syntax to Core translation of declarations ========================================================
 
 -- Translate top-level declarations, accumulating signature environment env, kind environment ke, 
--- type declarations ts, implicit names ws, bindings bs as well as default declarations xs
+-- type declarations ts, instance names ws, bindings bs as well as default declarations xs
 s2cDecls env [] ke ts ws bss xs = do bss <- s2cBindsList env (reverse bss)
                                      ke' <- mapM s2cKSig (impl_ke `zip` repeat KWild)
                                      xs' <- mapM s2cDefault xs
@@ -52,7 +52,7 @@ s2cDecls env (DRec isC c vs bts ss : ds) ke ts ws bss xs
 s2cDecls env (DType c vs t : ds) ke ts ws bss xs
                                 = do t <- s2cType t
                                      s2cDecls env ds ke ((c,Core.DType vs t):ts) ws bss xs
-s2cDecls env (DImplicit vs : ds) ke ts ws bss xs
+s2cDecls env (DInstance vs : ds) ke ts ws bss xs
                                 = s2cDecls env ds ke ts (ws++vs) bss xs
 s2cDecls env (DDefault d : ds) ke ts ws bss xs
                                 = s2cDecls env ds ke ts ws bss (d ++ xs)

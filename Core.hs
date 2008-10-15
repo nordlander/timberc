@@ -651,7 +651,7 @@ instance BVars Binds where
 
 instance Pr Module where
     pr (Module i ns xs ds is bss) = text "module" <+> prId i <+> text "where"
-                                    $$ prImports ns $$ prDefaults xs $$ pr ds $$ prImplicit is $$ vpr bss
+                                    $$ prImports ns $$ prDefaults xs $$ pr ds $$ prInstance is $$ vpr bss
 
 prImports []                      = empty
 prImports ns                      = text "import" <+> hpr ',' ns
@@ -659,8 +659,8 @@ prImports ns                      = text "import" <+> hpr ',' ns
 prDefaults []                     = empty
 prDefaults ns                     = text "default" <+> hpr ',' ns
 
-prImplicit []                     = empty
-prImplicit ns                     = text "implicit" <+> hpr ',' ns
+prInstance []                     = empty
+prInstance ns                     = text "instance" <+> hpr ',' ns
 
 instance Pr (Module,a) where
   pr (m,_)                       = pr m
@@ -677,7 +677,7 @@ instance Pr (Name, Decl) where
                                   <+> prSubs ts <+> prConstrs cs
     pr (i, DRec isC vs ts ss)   = text kwd <+> prId i <+> hsep (map prId vs) 
                                   <+> prSups ts <+> prEq ss $$ nest 4 (vpr ss)
-      where kwd                 = (if isC then "implicit " else "")++"struct"
+      where kwd                 = if isC then "instance " else "struct"
 
 prEq []                         = empty
 prEq _                          = text "where"
@@ -687,7 +687,7 @@ prEq _                          = text "where"
 
 prInsts (Binds r te eqs)        = vcat (map prInst te) $$ vpr eqs
 
-prInst (i, p)                   = text "implicit" <+> prId i <+> text "::" <+> prPScheme 0 p
+prInst (i, p)                   = text "instance" <+> prId i <+> text "::" <+> prPScheme 0 p
 
 
 -- Bindings -----------------------------------------------------------------

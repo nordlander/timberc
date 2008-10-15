@@ -18,7 +18,7 @@ data Decl   = DKSig   Name Kind
 --            | DInst   Type [Bind]        --          -"-
             | DPSig   Name Type 
             | DDefault [Default Type]  
-            | DImplicit [Name]
+            | DInstance [Name]
             | DBind   [Bind]
             deriving  (Eq,Show)
 
@@ -371,11 +371,11 @@ instance Pr Decl where
                                   <+> prSubs subs <+> prCons cs
     pr (DRec isC c vs sups ss)  = text kwd <+> prId c <+> hsep (map prId vs) 
                                   <+> prSups sups <+> prEq ss $$ prSigs ss
-      where kwd                 = (if isC then "implicit " else "")++"struct"
+      where kwd                 = if isC then "typeclass " else "struct"
 --    pr (DInst t bs)             = text "instance" <+> pr t <+> text "=" $$ nest 4 (vpr bs)
-    pr (DPSig v t)              = text "implicit struct" <+> prId v <+> text "::" <+> pr t
+    pr (DPSig v t)              = text "typeclass" <+> prId v <+> text "::" <+> pr t
     pr (DDefault ts)            = text "default" <+> hpr ',' ts
-    pr (DImplicit ns)           = text "implicit" <+> hpr ',' ns 
+    pr (DInstance ns)           = text "instance" <+> hpr ',' ns 
     pr (DBind bs)               = vpr bs
 
 prPreds []                      = empty
@@ -807,7 +807,7 @@ instance Binary Decl where
 --  put (DInst a b) = putWord8 4 >> put a >> put b
   put (DPSig a b) = putWord8 4 >> put a >> put b
   put (DDefault a) = putWord8 5 >> put a
-  put (DImplicit a) = putWord8 6 >> put a
+  put (DInstance a) = putWord8 6 >> put a
   put (DBind a) = putWord8 7 >> put a
   get = do
     tag_ <- getWord8
@@ -819,7 +819,7 @@ instance Binary Decl where
 --      4 -> get >>= \a -> get >>= \b -> return (DInst a b)
       4 -> get >>= \a -> get >>= \b -> return (DPSig a b)
       5 -> get >>= \a -> return (DDefault a)
-      6 -> get >>= \a -> return (DImplicit a)
+      6 -> get >>= \a -> return (DInstance a)
       7 -> get >>= \a -> return (DBind a)
       _ -> fail "no parse"
 

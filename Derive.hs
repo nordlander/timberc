@@ -32,13 +32,13 @@ analyze ds sc                         = case tFlat (scheme2Type sc) of
                                            _ -> errorTree "Not an instance of a one-parameter type constructor" sc 
   where findDataType c t'             = case tFlat t' of
                                           (TId d,_) -> case lookup c (tdefsOf ds) of
-                                             Nothing -> errorTree ("Unknown implicit struct type "++show c) sc
+                                             Nothing -> errorTree ("Unknown typeclass "++show c) sc
                                              Just c'@(DRec True [a] _ _) -> case lookup d (tdefsOf ds) of
                                                                               Nothing -> errorTree ("Unknown data type "++show d) sc
                                                                               Just d'@(DData _ _ _) -> ((c,c'),(d,d')) 
                                                                               Just _ -> errorTree (show d++" is not a data type") sc
-                                             Just (DRec True _ _ _) -> errorTree "Default instances only for one-parameter implicit types; not" sc
-                                             Just _ -> errorTree (show c++" is not an implicit struct type") sc         
+                                             Just (DRec True _ _ _) -> errorTree "Default instances only for one-parameter typeclasses; not" sc
+                                             Just _ -> errorTree (show c++" is not a typeclass") sc         
                                                    
 mkInstance n ts (nm,DRec True [a] ps ss) sc (ns,bss)
                                       = do  fs <- mapM (mkField a ts ns) ss

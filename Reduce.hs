@@ -52,7 +52,7 @@ Type error messages are still a hack.
 
 The problem is to find reasonable error messages when the constraint-solver has failed after
 having backtracked and tried several alternatives. he present approach works reasonably well 
-when failing in search for a witness of an implicit type, but gives a confusing message (only
+when failing in search for a witness of a typeclass, but gives a confusing message (only
 the last alternative tried) in other cases. 
 
 Also, coding of various types of failure in the first character of the error message is not
