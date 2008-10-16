@@ -450,7 +450,7 @@ instance Show Name where
   show (Prim p _)               = strRep p
 
 instance Pr Name where
---  pr (Name s n m a)             = prExpl a <> text (s++'_':show n++maybe "" ("'"++) m)
+--  pr (Name s n m a)             = prExpl a <> text (maybe "" (++ ".") m ++ s++'_':show n)
   pr n                          = text (show n)
 
 prExpl a                        = if explicit a then text "~" else empty

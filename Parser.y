@@ -137,7 +137,9 @@ topdecl :: { [Decl] }
         | 'type' conid tyvars '=' type	                   { [DType $2 (reverse $3) $5] }
         | 'data' conid tyvars optsubs optcs                { [DData $2 (reverse $3) $4 $5] }
         | 'struct' conid tyvars optsups optsigs            { [DRec False $2 (reverse $3) $4 $5] }
-        | 'typeclass' conid tyvars optsups optsigs         { [DRec True $2 (reverse $3) $4 $5] }
+        | 'typeclass' conid tyvars sups optsigs            { [DRec True $2 (reverse $3) $4 $5] }
+        | 'typeclass' conid tyvars 'where' siglist         { [DRec True $2 (reverse $3) [] $5] }
+        | 'typeclass' ids                                  { [DTClass $2] }
         | 'instance' var '::' type                         { [DPSig $2 $4] }  
         | 'instance' var '::' type rhs                     { [DBind [BEqn (exp2lhs (EVar $2)) $5], DPSig $2 $4] }
         | 'instance' ids                                   { [DInstance $2] }
@@ -145,9 +147,12 @@ topdecl :: { [Decl] }
         | vars '::' type		                   { [DBind [BSig (reverse $1) $3]] }
         | lhs rhs 					   { [DBind [BEqn $1 $2]] }
 
-optsups :: { [Type] }
+sups :: { [Type] }
         : '<' types				{ reverse $2 }
         | '<' type				{ [$2] }
+
+optsups :: { [Type] }
+        : sups                                  { $1 }
         | {- empty -}				{ [] }
 
 optsubs :: { [Type] }

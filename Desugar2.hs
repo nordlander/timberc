@@ -30,6 +30,7 @@ dsDecls (DRec i c vs bs ss:ds)  = liftM (DRec i c vs (map dsQualBaseType bs) (ma
 dsDecls (DType c vs t : ds)     = liftM (DType c vs (dsType t) :) (dsDecls ds)
 dsDecls (DPSig v t : ds)        = liftM (DPSig v (dsQualPred t) :) (dsDecls ds)
 dsDecls (DInstance vs : ds)     = liftM (DInstance vs :) (dsDecls ds)
+dsDecls (DTClass vs : ds)       = dsDecls ds
 dsDecls (DDefault ts : ds)      = liftM (DDefault (map dsDefault ts) :) (dsDecls ds) 
 dsDecls (DBind bs : ds)         = do bs <- dsBinds bs
                                      liftM (DBind bs :) (dsDecls ds)

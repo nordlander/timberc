@@ -677,7 +677,7 @@ instance Pr (Name, Decl) where
                                   <+> prSubs ts <+> prConstrs cs
     pr (i, DRec isC vs ts ss)   = text kwd <+> prId i <+> hsep (map prId vs) 
                                   <+> prSups ts <+> prEq ss $$ nest 4 (vpr ss)
-      where kwd                 = if isC then "instance " else "struct"
+      where kwd                 = if isC then "typeclass " else "struct"
 
 prEq []                         = empty
 prEq _                          = text "where"

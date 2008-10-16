@@ -19,6 +19,7 @@ data Decl   = DKSig   Name Kind
             | DPSig   Name Type 
             | DDefault [Default Type]  
             | DInstance [Name]
+            | DTClass [Name]
             | DBind   [Bind]
             deriving  (Eq,Show)
 
@@ -376,6 +377,7 @@ instance Pr Decl where
     pr (DPSig v t)              = text "typeclass" <+> prId v <+> text "::" <+> pr t
     pr (DDefault ts)            = text "default" <+> hpr ',' ts
     pr (DInstance ns)           = text "instance" <+> hpr ',' ns 
+    pr (DTClass ns)             = text "typeclass" <+> hpr ',' ns 
     pr (DBind bs)               = vpr bs
 
 prPreds []                      = empty
@@ -808,7 +810,8 @@ instance Binary Decl where
   put (DPSig a b) = putWord8 4 >> put a >> put b
   put (DDefault a) = putWord8 5 >> put a
   put (DInstance a) = putWord8 6 >> put a
-  put (DBind a) = putWord8 7 >> put a
+  put (DTClass a) = putWord8 7 >> put a
+  put (DBind a) = putWord8 8 >> put a
   get = do
     tag_ <- getWord8
     case tag_ of
@@ -820,7 +823,8 @@ instance Binary Decl where
       4 -> get >>= \a -> get >>= \b -> return (DPSig a b)
       5 -> get >>= \a -> return (DDefault a)
       6 -> get >>= \a -> return (DInstance a)
-      7 -> get >>= \a -> return (DBind a)
+      7 -> get >>= \a -> return (DTClass a)
+      8 -> get >>= \a -> return (DBind a)
       _ -> fail "no parse"
 
 

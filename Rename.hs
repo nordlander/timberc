@@ -150,9 +150,12 @@ instance Rename Module where
                                         assert (null cDups) "Duplicate constructors" cDups
                                         assert (null wDups) "Duplicate instance declarations" wDups
                                         assert (null eDups) "Duplicate top-level variable" eDups
+                                        assert (null tcDups) "Duplicate typeclass declaration" tcDups
                                         assert (null dks)   "Dangling kind signatures" dks
                                         assert (null dws1)  "Dangling instance declarations" dws1
                                         assert (null dws2)  "Dangling instance declarations" dws2
+                                        assert (null dtcs1) "Dangling typeclass declarations" dtcs1
+                                        assert (null dtcs2) "Dangling typeclass declarations" dtcs2
                                         assert (null badImpl) "Illegal type signature for instance" badImpl
                                         env1 <- extRenTMod True  c env  (ts1 ++ ks1')
                                         env2 <- extRenEMod True  c env1 (cs1 ++ vs1 ++ vs1' ++ vss++is1)
@@ -161,11 +164,13 @@ instance Rename Module where
                                         env4 <- extRenTMod False c env3 ((ts2 \\ ks1') ++ ks2)
                                         env5 <- extRenEMod False c env4 (cs2 ++ (vs2 \\ vss) ++ vs2'++is2)
                                         env6 <- extRenLMod False c env5 ss2
-                                        ds <- rename env6 (filter (not . isDBind) (ds ++ ps))
+                                        ds <- rename env6 (ds1 ++ ps1)
                                         bs <- rename env6 (bs1' ++ bs2' ++ shuffleB (bs1 ++ bs2))
                                         return (Module c is (ds ++ map DBind (groupBindsS bs)) [])
-   where (ks1,ts1,ss1,cs1,cs11,ws1,is1,bss1) = renameD [] [] [] [] [] [] [] [] ds
-         (ks2,ts2,ss2,cs2, _  ,ws2,is2,bss2) = renameD [] [] [] [] [] [] [] [] ps
+   where (ks1,ts1,ss1,cs1,cs11,ws1,tcs1,is1,bss1) = renameD [] [] [] [] [] [] [] [] [] ds
+         (ks2,ts2,ss2,cs2, _  ,ws2,tcs2,is2,bss2) = renameD [] [] [] [] [] [] [] [] [] ps
+         ds1                       = mergeTClasses tcs1 ds
+         ps1                       = mergeTClasses tcs2 ps
          vs1                       = concat (map bvars bss1)
          vs2                       = concat (map bvars bss2)
          bs1                       = concat (reverse bss1)
@@ -175,14 +180,16 @@ instance Rename Module where
          ks                        = ks1 ++ ks2
          ts                        = ts1 ++ ts2
          ws                        = ws1 ++ ws2
-         bs1'                      = oloadBinds vs ds
-         bs2'                      = oloadBinds vs ps
+         bs1'                      = oloadBinds vs ds1
+         bs2'                      = oloadBinds vs ps1
          vs1'                      = bvars bs1'
          vs2'                      = bvars bs2'
          ks1'                      = ks1 \\ ts1
          dks                       = ks \\ ts
          dws1                      = ws1 \\ concat [ ss | BSig ss _ <- bs1 ]
          dws2                      = ws2 \\ concat [ ss | BSig ss _ <- bs2 ]
+         dtcs1                     = tcs1 \\ [ n | DRec False n _ _ _ <- ds ]
+         dtcs2                     = tcs2 \\ [ n | DRec False n _ _ _ <- ps ]
          badImpl                   = concat [ ws | BSig ss t <- bs1++bs2, let ss' = ss \\ ws, ws /= [], isWild t ]
          kDups                     = duplicates ks
          tDups                     = duplicates ts
@@ -190,6 +197,8 @@ instance Rename Module where
          cDups                     = duplicates (cs1 ++ cs2)
          wDups                     = duplicates ws
          eDups                     = duplicates vs
+         tcDups                    = duplicates (tcs1++tcs2)
+
          addTag cs p@(v,v')
            |v `elem` cs            = (v,v' {annot = (annot v') {forceTag = True}})
            |otherwise              = p 
@@ -202,26 +211,33 @@ instance Rename Module where
          isWild TWild              = True
          isWild _                  = False
          
+mergeTClasses tcs (DRec isC n vs ts ss : ds) = DRec (isC || elem n tcs) n vs ts ss : mergeTClasses tcs ds
+mergeTClasses tcs (DTClass _ : ds) = mergeTClasses tcs ds
+mergeTClasses tcs (DBind _ : ds) = mergeTClasses tcs ds
+mergeTClasses tcs (d : ds) = d : mergeTClasses tcs ds
+mergeTClasses _ [] = []
 
-renameD ks ts ss cs cs1 ws is bss (DKSig c k : ds)
-                                   = renameD (c:ks) ts ss cs cs1 ws is bss ds
-renameD ks ts ss cs cs1 ws is bss (DRec _ c _ _ sigs : ds)
-                                   = renameD ks (c:ts) (sels++ss) cs cs1 ws is bss ds
+renameD ks ts ss cs cs1 ws tcs is bss (DKSig c k : ds)
+                                   = renameD (c:ks) ts ss cs cs1 ws tcs is bss ds
+renameD ks ts ss cs cs1 ws tcs is bss (DRec _ c _ _ sigs : ds)
+                                   = renameD ks (c:ts) (sels++ss) cs cs1 ws tcs is bss ds
   where sels                       = concat [ vs | Sig vs t <- sigs ]
-renameD ks ts ss cs cs1 ws is bss (DData c _ _ cdefs : ds)
-                                   = renameD ks (c:ts) ss (cons++cs) (if c `elem` cons then c:cs1 else cs1) ws is bss ds
+renameD ks ts ss cs cs1 ws tcs is bss (DData c _ _ cdefs : ds)
+                                   = renameD ks (c:ts) ss (cons++cs) (if c `elem` cons then c:cs1 else cs1) ws tcs is bss ds
   where cons                       = [ c | Constr c _ _ <- cdefs ]
-renameD ks ts ss cs cs1 ws is bss (DType c _ _ : ds)
-                                   = renameD ks (c:ts) ss cs cs1 ws is bss ds
-renameD ks ts ss cs cs1 ws is bss (DInstance vs : ds)
-                                   = renameD ks ts ss cs cs1 (ws++vs) is bss ds
-renameD ks ts ss cs cs1 ws is bss (DDefault ps : ds)
-                                   = renameD ks ts ss cs cs1 ws (is1 ++ is) bss ds
+renameD ks ts ss cs cs1 ws tcs is bss (DType c _ _ : ds)
+                                   = renameD ks (c:ts) ss cs cs1 ws tcs is bss ds
+renameD ks ts ss cs cs1 ws tcs is bss (DInstance vs : ds)
+                                   = renameD ks ts ss cs cs1 (ws++vs) tcs is bss ds
+renameD ks ts ss cs cs1 ws tcs is bss (DTClass vs : ds)
+                                   = renameD ks ts ss cs cs1 ws (tcs++vs) is bss ds
+renameD ks ts ss cs cs1 ws tcs is bss (DDefault ps : ds)
+                                   = renameD ks ts ss cs cs1 ws tcs (is1 ++ is) bss ds
   where is1                        = [i | Derive i _ <- ps]
-renameD ks ts ss cs cs1 ws is bss (DBind bs : ds)
-                                   = renameD ks ts ss cs cs1 ws is (bs : bss) ds
-renameD ks ts ss cs cs1 ws is bss []
-                                   = (ks, ts, ss, cs, cs1, ws, is, bss)
+renameD ks ts ss cs cs1 ws tcs is bss (DBind bs : ds)
+                                   = renameD ks ts ss cs cs1 ws tcs is (bs : bss) ds
+renameD ks ts ss cs cs1 ws tcs is bss []
+                                   = (ks, ts, ss, cs, cs1, ws, tcs, is, bss)
 
 
 instance Rename Decl where
