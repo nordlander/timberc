@@ -52,7 +52,7 @@ char emergency = 0;                     // flag signalling heap overflow during 
 
 void scanEnvRoots(void);
 void scanTimerQ(void);
-extern int envDirty;
+extern int envRootsDirty;
 extern int timerQdirty;
 
 void initheap() {
@@ -253,11 +253,11 @@ void gc() {
         scanbase = base2;
         ENABLE(rts);
         
-        envDirty = 1;
+        envRootsDirty = 1;
         timerQdirty = 1;
 
         while (1) {
-                if (envDirty)
+                if (envRootsDirty)
                         scanEnvRoots();
                 if (timerQdirty)
                         scanTimerQ();
@@ -274,8 +274,8 @@ void gc() {
                 }
 
                 DISABLE(rts);
-                if ((scanp == hp2) && (envDirty+timerQdirty+nactive == 0)) // still done and everybody else is asleep?
-                        break;                                             // Continue with exclusive rts access
+                if ((scanp == hp2) && (envRootsDirty+timerQdirty+nactive == 0)) // still done and everybody else is asleep?
+                        break;                                                  // Continue with exclusive rts access
                 ENABLE(rts);
         }
         
