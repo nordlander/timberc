@@ -77,14 +77,14 @@ ACTION prog                     = NULL;                         // Must be set b
 //---------- Utilities ---------------------------------------------------------
 
 Host_POSIX mkHost(struct sockaddr_in addr) {
-  _Host_POSIX host; NEW(_Host_POSIX, host, sizeof(struct _Host_POSIX));
+  _Host_POSIX host; NEW(_Host_POSIX, host, WORDS(sizeof(struct _Host_POSIX)));
   host->GCINFO = __GC___Host_POSIX;
   host->a = getStr(inet_ntoa(addr.sin_addr));
   return (Host_POSIX)host;
 }
 
 Port_POSIX mkPort (struct sockaddr_in addr) {
-  _Port_POSIX port; NEW(_Port_POSIX, port, sizeof(struct _Port_POSIX));
+  _Port_POSIX port; NEW(_Port_POSIX, port, WORDS(sizeof(struct _Port_POSIX)));
   port->GCINFO = __GC___Port_POSIX;
   port->a = ntohs(addr.sin_port); 
   return (Port_POSIX)port;
@@ -136,7 +136,7 @@ UNITTYPE close_fun (Closable_POSIX this, Int dummy) {
 
 Closable_POSIX new_Closable (int desc) {
   DescClosable res;
-  NEW(DescClosable, res, sizeof(struct DescClosable));
+  NEW(DescClosable, res, WORDS(sizeof(struct DescClosable)));
   res->GCINFO = __GC__DescClosable;
   res->close_POSIX = close_fun;
   res->descriptor = desc;
@@ -160,7 +160,7 @@ Int seek_fun (File_POSIX this, Int off, Int dummy) {
 }
 
 File_POSIX new_File (int desc) {
-  File_POSIX res; NEW(File_POSIX, res, sizeof(struct File_POSIX));
+  File_POSIX res; NEW(File_POSIX, res, WORDS(sizeof(struct File_POSIX)));
   res->GCINFO = __GC__File_POSIX;
   res->FILE2CLOSABLE = new_Closable(desc);
   res->seek_POSIX = seek_fun;
@@ -185,7 +185,7 @@ LIST read_descr (int descr) {
       return res;
     }
     while (r) {
-      CONS n; NEW(CONS, n, sizeof(struct CONS));
+      CONS n; NEW(CONS, n, WORDS(sizeof(struct CONS)));
       if (xslast==(LIST)0) xslast = (LIST)n;
       n->GCINFO = __GC__CONS+5;                         // POLY instance is a scalar
       n->a = (POLY)(Int)buf[--r];
@@ -242,7 +242,7 @@ Maybe_Prelude open_fun (LIST path, int oflag) {
   buf[len] = 0;
   int descr = open(buf,oflag,S_IWUSR|S_IRUSR|S_IRGRP|S_IROTH);
   if (descr < 0) return (Maybe_Prelude)0;
-  _Just_Prelude res; NEW(_Just_Prelude, res, sizeof(struct _Just_Prelude));
+  _Just_Prelude res; NEW(_Just_Prelude, res, WORDS(sizeof(struct _Just_Prelude)));
   res->GCINFO = __GC___Just_Prelude+0;           // POLY instance is a pointer
   res->a = (POLY)new_File(descr);
   return (Maybe_Prelude)res;
@@ -273,7 +273,7 @@ Maybe_Prelude openR_fun (Env_POSIX this, LIST path, Int dummy) {
   DISABLE(envmut);
   Maybe_Prelude f = open_fun(path,O_RDONLY);
   if (f) {
-    RFile_POSIX rf; NEW(RFile_POSIX, rf, sizeof(struct RFile_POSIX));
+    RFile_POSIX rf; NEW(RFile_POSIX, rf, WORDS(sizeof(struct RFile_POSIX)));
     rf->GCINFO = __GC__RFile_POSIX;
     rf->RFILE2FILE = (File_POSIX)((_Just_Prelude)f)->a;
     rf->read_POSIX = read_fun;
@@ -288,7 +288,7 @@ Maybe_Prelude openW_fun (Env_POSIX this, LIST path, Int dummy) {
   DISABLE(envmut);
   Maybe_Prelude f =  open_fun(path,O_WRONLY | O_CREAT | O_TRUNC);
   if (f) {
-    WFile_POSIX wf; NEW(WFile_POSIX, wf, sizeof(struct WFile_POSIX));
+    WFile_POSIX wf; NEW(WFile_POSIX, wf, WORDS(sizeof(struct WFile_POSIX)));
     wf->GCINFO = __GC__WFile_POSIX;
     wf->WFILE2FILE = (File_POSIX)((_Just_Prelude)f)->a;
     wf->write_POSIX = write_fun;
@@ -303,7 +303,7 @@ Maybe_Prelude openW_fun (Env_POSIX this, LIST path, Int dummy) {
 
 Time getTime_fun (Env_POSIX this, Int dummy) {
   DISABLE(envmut);
-  Time res; NEW(Time,res,sizeof(struct Time));
+  Time res; NEW(Time,res,WORDS(sizeof(struct Time)));
   res->GCINFO = __GC__Time;
   struct timeval now;
   if (gettimeofday(&now,NULL) < 0)
@@ -416,7 +416,7 @@ Msg handler_fun (HandlerStruct this, LIST str, Time a, Time b) {
 
 HANDLER mkHandler (Connection_POSIX conn) {
   HandlerStruct rdHandler;
-  NEW(HandlerStruct,rdHandler,sizeof(HandlerStruct));
+  NEW(HandlerStruct,rdHandler,WORDS(sizeof(HandlerStruct)));
   rdHandler->GCINFO = __GC__HANDLER;
   rdHandler->Code = handler_fun;
   rdHandler->conn = conn;

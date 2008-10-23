@@ -28,7 +28,7 @@ static WORD __GC__Time[]    = {WORDS(sizeof(struct Time)), GC_STD, 0};
 
 Time sec(Int c) {
   Time res;
-  NEW(Time,res,sizeof(struct Time));
+  NEW(Time,res,WORDS(sizeof(struct Time)));
   res->GCINFO = __GC__Time;
   res->sec = c;
   res->usec = 0;
@@ -37,7 +37,7 @@ Time sec(Int c) {
 
 Time millisec(Int c) {
   Time res;
-  NEW(Time,res,sizeof(struct Time));
+  NEW(Time,res,WORDS(sizeof(struct Time)));
   res->GCINFO = __GC__Time;
   res->sec = c / 1000;
   res->usec = 1000 * (c % 1000);
@@ -46,7 +46,7 @@ Time millisec(Int c) {
 
 Time microsec(Int c) {
   Time res;
-  NEW(Time,res,sizeof(struct Time));
+  NEW(Time,res,WORDS(sizeof(struct Time)));
   res->GCINFO = __GC__Time;
   res->sec = c / 1000000;
   res->usec = c % 1000000;
@@ -81,7 +81,7 @@ Time primTimePlus(Time t1, Time t2) {
     case INHERIT: return t1;
     case TIME_INFINITY: return Infinity;
     default:
-      NEW(Time,res,sizeof(struct Time));
+      NEW(Time,res,WORDS(sizeof(struct Time)));
       res->GCINFO = __GC__Time;
       res->usec = t1->usec + t2->usec;
       res->sec = t1->sec + t2->sec;
@@ -126,13 +126,13 @@ Time primTimeMinus(Time t1, Time t2) {
     switch ((Int)t2) {
     case INHERIT: panic("primTimeMinus Inherit");
     case TIME_INFINITY:
-      NEW(Time,res,sizeof(struct Time));
+      NEW(Time,res,WORDS(sizeof(struct Time)));
       res->GCINFO = __GC__Time;
       res->sec = 0;
       res->usec = 0;
       return res;
     default:
-      NEW(Time,res,sizeof(struct Time));
+      NEW(Time,res,WORDS(sizeof(struct Time)));
       res->GCINFO = __GC__Time;
       res->usec = t1->usec - t2->usec;
       if (res->usec < 0) {
@@ -241,7 +241,7 @@ static Time sample_fun(Ref self, Int x) {
   SUB(now,((S_Timer)STATEOF(self))->start);
   UNLOCK((PID)self);
   Time res;
-  NEW(Time,res,sizeof(struct Time));
+  NEW(Time,res,WORDS(sizeof(struct Time)));
   res->GCINFO = __GC__Time;
   res->sec = now.tv_sec;
   res->usec = now.tv_usec;
@@ -263,7 +263,7 @@ TIMERTYPE primTIMERTERM(Int x) {
   ((S_Timer)STATEOF(self))->GCINFO = __GC__S_Timer;
   ((S_Timer)STATEOF(self))->start = CURRENT()->msg->baseline;
   T_Timer res;
-  NEW(T_Timer,res,sizeof(struct T_Timer));
+  NEW(T_Timer,res,WORDS(sizeof(struct T_Timer)));
   res->GCINFO = __GC__T_Timer;
   res->reset = reset_sel;
   res->sample = sample_sel;
