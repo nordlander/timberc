@@ -15,5 +15,5 @@ int main(int argc, char **argv) {
     pruneStaticHeap();
     prog = ROOT(env, (POLY)0);
     prog->Code(prog,Inherit,Inherit);
-    run();
+    eventLoop();
 }

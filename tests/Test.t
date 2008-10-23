@@ -1,22 +1,37 @@
 module Test where
 
-import POSIX
+-- f x = let (a,b) = x
+--      in a+b
 
-root env =
-    class
-      init := True
-      start = action
-                if init then
-                   env.stdout.write "Hello\n"
-                   after (sec 1) start
-      io s   = action
-                init := False
-                if head s == 'q' then
-                   env.exit 1
-                env.stdout.write ("You said: "++s)
+-- g 'c' = 'd'
+-- g x
+--  | x == 'a'  = 'a'
+--  | otherwise = 'b'
+{-  
+split p [] = ([],[])
+split p (x:xs)
+  | p x = (x:a,b)
+  | otherwise = (a,x:b)
+  where (a,b) = split p xs
 
-      result 
-         action
-           env.stdin.installR io
-           start
 
+main f = a
+  where (a,b) = split f (a++b)
+-}
+{-
+fff xs = (ys,ys)
+  where ys = xs ++ xs
+-}
+{-
+ff :: (a -> a \\ a) -> Int -> Char -> (Int,Char)
+ff g i c = ff g i c
+
+main = ff id 2 'c'
+
+gg :: b -> b \\ b
+gg x = gg x
+
+m2 = gg 'x'
+-}
+
+apa = 9

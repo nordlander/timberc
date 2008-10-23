@@ -15,7 +15,7 @@ struct Env where
     inet     :: Internet
 
 struct Closable where
-    close :: Action
+    close :: Request ()
 
 struct File < Closable where
     seek  :: Int -> Request Int

@@ -1,5 +1,6 @@
 module Name where
 
+import Debug.Trace
 import List
 import PP
 import Token
@@ -18,8 +19,9 @@ data Annot                      = Annot { location :: Maybe (Int,Int),
                                           explicit :: Bool, 
                                           stateVar :: Bool , 
                                           generated :: Bool,
-                                          suppressMod :: Bool, 
-                                          forceTag :: Bool}
+                                          suppressMod :: Bool
+                                        }
+                                deriving Show
 
 
 -- The built-in primitives ----------------------------------------------------------------
@@ -45,6 +47,10 @@ data Prim                       =
                                 | Float
                                 | Char
                                 | Bool
+
+                                | BITS8
+                                | BITS16
+                                | BITS32
 
                                 | Array
                                 | EITHER
@@ -84,10 +90,6 @@ data Prim                       =
                                 
                                 | Refl                  -- Terms
 
-                                | ActToCmd
-                                | ReqToCmd
-                                | RefToPID
-
                                 | MIN____KINDLE_INFIX
                                 
                                 | IntPlus
@@ -115,28 +117,42 @@ data Prim                       =
                                 | FloatGE
                                 | FloatGT
 
-                                | MsgEQ
-                                | MsgNE
-
                                 | PidEQ
                                 | PidNE
                                 
                                 | LazyOr
                                 | LazyAnd
 
+                                | AND8
+                                | OR8
+                                | EXOR8
+                                | SHIFTL8
+                                | SHIFTR8
+                                
+                                | AND16
+                                | OR16
+                                | EXOR16
+                                | SHIFTL16
+                                | SHIFTR16
+                                
+                                | AND32
+                                | OR32
+                                | EXOR32
+                                | SHIFTL32
+                                | SHIFTR32
+
                                 | MAX____KINDLE_INFIX
 
-                                | Abort
-                                
                                 | IntNeg
                                 | FloatNeg
 
                                 | IntToFloat
                                 | FloatToInt
 
-                                | CharToInt
-                                | IntToChar
-
+                                | NOT8
+                                | NOT16
+                                | NOT32
+                                
                                 | Sqrt
                                 | Log
                                 | Log10
@@ -170,8 +186,6 @@ data Prim                       =
                                 | TimeGE
                                 | TimeGT
 
-                                 | TIMERTERM
-
                                 | Raise
                                 | Catch
                                 
@@ -183,15 +197,26 @@ data Prim                       =
                                 
                                 | MAX____KINDLEVAR
 
--- transformed away before Kindle conversion ----------------------------------------------------
+                                | Abort                 -- Preserved in Kindle, but given new translated types
+                                | TIMERTERM             --                       -"-
 
-                                | Fail
-                                | Commit
-                                | Match
-                                | Fatbar
+                                
+-- transformed away during Kindle conversion ----------------------------------------------------
 
-                                | After
-                                | Before
+                                | ActToCmd
+                                | ReqToCmd
+                                | RefToPID
+
+                                | CharToInt
+                                | IntToChar
+
+                                | BITS8ToInt
+                                | BITS16ToInt
+                                | BITS32ToInt
+                                
+                                | IntToBITS8
+                                | IntToBITS16
+                                | IntToBITS32
                                 
                                 | MAX____VAR
 
@@ -201,7 +226,16 @@ data Prim                       =
                                 
                                 | New                   -- Encoding of the class instantiation syntax in terms of an operator
                                 
-                                | ASYNC                 -- RTS entry points
+                                | Fail
+                                | Commit
+                                | Match
+                                | Fatbar
+
+                                | After
+                                | Before
+                                
+                                | NEWREF                -- RTS entry points
+                                | ASYNC
                                 | LOCK
                                 | UNLOCK
                                 
@@ -210,32 +244,24 @@ data Prim                       =
 
                                 | Inherit               -- default Time value
 
-                                | Tag                   -- first selector of every datatype/constructor struct
+                                | Tag                   -- common selector of datatype/constructor structs
                                 
-                                | Code                  -- selectors of struct Msg
+                                | GCINFO                -- first selector of all structs / node constructor in gcinfo tables
+                                
+                                | STATE                 -- selector of primitive struct Ref
+                                | STATEOF               -- shortcut alternative to the above
+                                
+                                | Code                  -- selectors of primitive struct Msg
                                 | Baseline
                                 | Deadline
                                 | Next
                                 
                                 | AbsTime               -- type of selectors Baseline and Deadline
                                 
-                                | OwnedBy               -- selectors of struct Object
-                                | WantedBy
-                                
-                                | Thread                -- type of selectors OwnedBy and WantedBy
-                                
-                                | BITSET                -- Type representing primitive/ptr instantiations of type variables
-                                
-                                | ZEROBITS              -- Constructors of type Bitset
-                                | ORBITS
-                                | SETBIT
-                                | COPYBIT
-                                
-                                | CharBox               -- The Kindle structs for boxed values
-                                | FloatBox                
-                                | IntBox                 
-                                | TimeBox 
-                                | Value                 -- selector of struct Box
+                                | POLY                  -- Type representing polymorhic values
+                                                                
+                                | Float2POLY            -- Conversion macros required to circumvent C casting irreguliarity
+                                | POLY2Float
                                 
                                 | MAX____INVISIBLE
                                 
@@ -247,6 +273,10 @@ maxPrim                         = maxBound :: Prim
 isConPrim p                     = p <= MAX____CONS
 
 invisible p                     = p >= MIN____INVISIBLE
+
+doEtaExpand (Prim p _)          = not (invisible p)
+doEtaExpand (Tuple _ _)         = True
+doEtaExpand _                   = False
 
 isIdPrim p                      = p `notElem` primSyms
 
@@ -260,11 +290,13 @@ primSels                        = map primKeyValue [MIN____SELS .. MAX____SELS]
                                   
 primKeyValue p                  = (name0 (strRep p), prim p)
 
-rigidNames			= map rigidKeyValue [IndexArray, LazyAnd, LazyOr]
+rigidNames			            = map rigidKeyValue [IndexArray, LazyAnd, LazyOr]
 
-rigidKeyValue p			= (strRep p, prim p)
+rigidKeyValue p			        = (strRep p, prim p)
 
-lowPrims                        = [New,Sec,Millisec,Microsec,Nanosec,Raise,Catch,Baseline,Deadline,Next,OwnedBy,WantedBy,Infinity,Reset,Sample,SecOf,MicrosecOf,Abort,Sqrt,Log,Log10,Exp,Sin,Cos,Tan,Asin,Acos,Atan,Sinh,Cosh]
+lowPrims                        = [New,Sec,Millisec,Microsec,Nanosec,Raise,Catch,Baseline,Deadline,Next,
+                                   Infinity,Reset,Sample,SecOf,MicrosecOf,Abort,
+                                   Sqrt,Log,Log10,Exp,Sin,Cos,Tan,Asin,Acos,Atan,Sinh,Cosh]
 
 strRep LIST                     = "[]"
 strRep EITHER                   = "Either"
@@ -297,7 +329,7 @@ strRep2 p
 -------------------------------------------------------
 
 noAnnot                         = Annot { location = Nothing, explicit = False, stateVar = False, 
-                                          generated = False, suppressMod = False, forceTag = False }
+                                          generated = False, suppressMod = False }
 
 -- This function is used (only) by the parser to build Names
 name l (q,s)                    = case lookup s rigidNames of
@@ -349,12 +381,15 @@ name0 s                         = Name s 0 Nothing genAnnot
 
 -- Textual name supply ---------------------------------------------------------------------------
 
-abcSupply                               = map name0 (gensupply "abcdefghijklmnopqrstuvwxyz")
+abcSupply                       = map name0 (gensupply "abcdefghijklmnopqrstuvwxyz")
 
+_abcSupply                      = map (name0 . ('_':)) (gensupply "abcdefghijklmnopqrstuvwxyz")
 
-gensupply                               :: [Char] -> [String]
-gensupply chars                         = map (:"") chars ++ map (:"'") chars ++ concat (map g [1..])
-  where g n                             = map (replicate n) chars
+_ABCSupply                      = map (name0 . ('_':)) (gensupply "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+gensupply                       :: [Char] -> [String]
+gensupply chars                 = map (:"") chars ++ concat (map g [1..])
+  where g n                     = map (replicate n) chars
 
 
 -- Internal identifier conventions -----------------------------------------------------
@@ -368,23 +403,31 @@ dummySym                        = "d"
 paramSym                        = "a"
 tyvarSym                        = "t"
 coercionSym                     = "c"
-labelSym                        = "LAB"
+labelSym                        = "l"
 constrSym                       = "C"
 typeSym                         = "T"
-stateSym                        = "S"
+stateTypeSym                    = "S"
 skolemSym                       = "sk"
 selfSym                         = "self"
 thisSym                         = "this"
 instanceSym                     = "inst"
 closureSym                      = "CLOS"
+tappSym                         = "TApp"
+tabsSym                         = "TAbs"
+gcinfoSym                       = "__GC__"
 
 isCoercion n                    = isGenerated n && str n == coercionSym
 isPatTemp n                     = isGenerated n && str n == patSym
-isClosure n                     = isGenerated n && take 4 (str n) == closureSym
+isClosure n                     = isGenerated n && isPrefixOf closureSym (str n)
 isDummy n                       = isGenerated n && str n == dummySym
 isWitness n                     = isGenerated n && str n == witnessSym
-isLabel n                       = isGenerated n && take 3 (str n) == labelSym
+isLabel n                       = isGenerated n && isPrefixOf labelSym (str n)
+isTApp n                        = isGenerated n && str n == tappSym
+isTAbs n                        = isGenerated n && str n == tabsSym
+isGCInfo n                      = isGenerated n && isPrefixOf gcinfoSym (str n)
+
 explicitSyms                    = [coercionSym, assumptionSym, witnessSym]
+
 
 -- Testing Names ----------------------------------------------------------------
 
@@ -464,18 +507,17 @@ prId2 (Prim p _)                = text (strRep2 p)
 prId2 (Tuple n _)               = text ("TUP" ++ show n)
 prId2 n                         = prId n
 
-prId3 (Name s 0 m a)            = text s
-prId3 n@(Name s _ m a)
-  | isClosure n || isLabel n
+
+prId3 n@(Name s t m a)
+  | t == 0 || isClosure n || isLabel n
                                 = text (s ++ maybe "" (('_' :) . modToundSc) m)
 prId3 (Name s n m a)            = text (id ++ tag ++ mod ++ suff)
   where 
-    id                          = if okForC s then s else "_S"
-    tag                         = if forceTag a || mod=="" || generated a || id=="_S"  then '_':show n else ""
-    suff                        = if take 2 id == "_S" then "/* "++s++" */" else ""
+    id                          = if okForC s then s else "_sym"
+    tag                         = if mod=="" || generated a || id=="_sym"  then '_':show n else ""
+    suff                        = if take 2 id == "_sym" then "/* "++s++" */" else ""
     mod                         = maybe "" (('_' :) . modToundSc) m
     okForC cs                   = all (\c -> isAlphaNum c || c=='_') cs
-
 prId3 n                         = prId2 n
 
 name2str n                      = render (prId3 n)
@@ -507,8 +549,8 @@ instance Binary Name where
 
 
 instance Binary Annot where
-  put (Annot _ b c d e f) = put b >> put c >> put d >> put e >> put f
-  get = get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> get >>= \f -> return (Annot Nothing b c d e f)
+  put (Annot _ b c d e) = put b >> put c >> put d >> put e >> put False
+  get = get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> get >>= \(f::Bool) -> return (Annot Nothing b c d e)
 
 
 maxPrimWord = fromIntegral (fromEnum maxPrim) :: Word8

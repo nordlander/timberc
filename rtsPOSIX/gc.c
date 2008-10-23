@@ -3,40 +3,57 @@
 #include <mach-o/getsect.h>
 #endif
 
-#define NEW2(addr,words)        { ADDR top; do { addr = hp2; top = (ADDR)addr + (words); } while (!CAS(addr,top,&hp2)); \
-                                  if (top >= lim2) addr = force2(words); }
+#define NEW2(addr,words,info)   { ADDR top,stop; \
+                                  do { addr = hp2; stop = lim2; top = ODD((addr)+(words)); \
+                                  } while (ISODD(addr) || !CAS(addr,top,&hp2)); \
+                                  if (top>=stop) addr = force2(words,addr,info); else { addr[0] = (WORD)(info); hp2 = EVEN(top); } }
 
-#define GCINFO(obj)             ((ADDR)obj)[0]
-#define GC_PROLOGUE(obj)        { if (ISFORWARD(GCINFO(obj))) obj = (PID)GCINFO(obj); }                 // read barrier
-#define GC_EPILOGUE(obj)        { if (hp2) { \
-                                      if (!GCINFO(obj)) GCINFO(obj) = 1; \
-                                      if (ISBLACK(obj)) { ADDR a; NEW2(a,1); a[0] = (WORD)obj; } } }    // write barrier
-#define TIMERQ_PROLOGUE()       { if (hp2 && (timerQ==(Msg)1)) timerQ = timerQorig; }                   // reinstall timerQ if marked
-#define TIMERQ_EPILOGUE()                                               
+#define ODD(addr)               (ADDR)((WORD)(addr) | 1)
+#define EVEN(addr)              (ADDR)((WORD)(addr) & ~1)
+#define ISODD(addr)             ((WORD)(addr) & 1)
+
+#define IND0(obj)               (ADDR)((ADDR)obj)[0]
+#define GC_PROLOGUE(obj)        { if (ISFORWARD(IND0(obj))) obj = (PID)IND0(obj); }             // read barrier
+#define GC_EPILOGUE(obj)        { if (ISBLACK((ADDR)obj)) { ADDR a; NEW2(a,1,(ADDR)obj); } }    // write barrier
+
+#define GC_STD                  0
+#define GC_ARRAY                1
+#define GC_TUPLE                2
+#define GC_BIG                  3
+#define GC_MUT                  4
+
+#define POLYTAGS(width)         (((width)+31) % 32)
+
+#define GC_TYPE(info)           (info[1])
+#define STATIC_SIZE(info)       (info[0])
 
 #define allocwords(size)        (ADDR)malloc(BYTES(size))
 #define HEAPSIZE                0x100000  //  0x100000 words = 0x400000 bytes = 4194304 bytes = 4 Mb = 1024 pages = 0x400 pages
-#define STARTGC(hp,lim)         ((hp) >= 3 * ((lim)/8))
-#define NEEDEXTRA(hp,lim)       ((hp) >= 7 * ((lim)/8))
-#define ISWHITE(a)              ((ADDR)(a) >= heapMin && (ADDR)(a) < heapMax)
-#define ISBLACK(a)              ((ADDR)(a) >= base2 && (ADDR)(a) < scanp)
+#define STARTGC()               (WORD)hp >= 7 * (((WORD)lim)/8)
+#define ISWHITE(a)              INSIDE(heapchain,a,hp)
+#define ISBLACK(a)              INSIDE(heapchain2,a,scanp)
 #define ISFORWARD(a)            ((ADDR)(a) > edata)
 
+#define INSIDE(base,a,lim)      (base[0] ? inside(base,a,lim) : (base <= (a) && (a) < lim))
+
+int inside(ADDR base, ADDR a, ADDR lim) {
+        return (base <= a && a < lim && lim <= base+HEAPSIZE) || (base[0] && inside((ADDR)base[0],a,lim));
+}
 
 WORD pagesize;                          // obtained from OS, measured in words
 ADDR base, lim, hp;                     // start, end, and current pos of latest "fromspace" (normal space)
-ADDR base2, lim2, hp2;                  // start, end and current pos of "tospace" (only used during gc)
-ADDR heapchain, heapMin, heapMax;       // chain of fromspaces formed by extension, with accumulated limits
-WORD heapsize, thissize;                // accumulated size of all fromspaces, size of current fromspace
-ADDR edata, scanp;                      // end of static data, scan pointer (only used during gc)
-
+ADDR base2, lim2, hp2;                  // start, end and current pos of latest "tospace" (only used during gc)
+ADDR scanbase, scanp;                   // start and current pos of currently scanned segment (only used during gc)
+ADDR heapchain, heapchain2;             // anchor for the chain of all fromspaces, ditto for the tospaces
+ADDR edata;                             // end of static data
 ADDR staticHeap;                        // heap (chain) containing only statically allocated nodes (no copy)
-
-Msg timerQorig = 0;                     // ptr holding original timerQ while copying
 
 char emergency = 0;                     // flag signalling heap overflow during gc
 
-void copyEnvRoots(void);
+void scanEnvRoots(void);
+void scanTimerQ(void);
+extern int envDirty;
+extern int timerQdirty;
 
 void initheap() {
         base = allocwords(HEAPSIZE);
@@ -44,181 +61,265 @@ void initheap() {
                 panic("Cannot allocate initial heap");
         base[0] = 0;                                    // first word in a heap is the "next" link
         hp = base + 1;
-        lim = base + HEAPSIZE;
+        lim = base + HEAPSIZE - 1;                      // leave room for a one word node at the end
         heapchain = base;
-        heapMin = base;
-        heapMax = lim;
-        heapsize = thissize = HEAPSIZE;
-}
-
-void gcinit() {
-        pagesize = sysconf(_SC_PAGESIZE) / sizeof(WORD);
-        initheap();                                     // Allocate base (= heapchain)
-        base2 = lim2 = hp2 = (ADDR)0;                   // no active tospace
-#if defined(__APPLE__)
-        edata = (ADDR)get_end();
-#endif
-#if defined(__linux__)
-        extern int _end[];
-        edata = (ADDR)_end;
-#endif
 }
 
 void pruneStaticHeap() {
-        ADDR base1 = realloc(base, BYTES(hp - base));   // Let current heap shrink to its current size
-        if (base1 != base)
+        ADDR lim0 = hp;
+        ADDR base0 = realloc(base, BYTES(hp - base));   // Let current heap shrink to its current size
+        if (base0 != base)
                 panic("Cannot shrink static heap to current size");
         staticHeap = heapchain;                         // Remember the static chain (for debugging only)
+
+        base0 = staticHeap;                             // Scan through all nodes allocated so far
+        ADDR obj = base0 + 1;
+        while (obj != lim0) {
+                ADDR info = IND0(obj);
+                if (info) {
+                        obj[0] = 0;                     // Mark as static
+                        WORD size = STATIC_SIZE(info);
+                        switch (GC_TYPE(info)) {
+                                case GC_ARRAY:  size += obj[1]; break;
+                                case GC_TUPLE:  size += obj[1] + POLYTAGS(obj[1]);
+                        }
+                        obj = obj + size;
+                } else {
+                        base0 = (ADDR)base0[0];         // End of one static segment reached, move to next
+                        obj = base0 + 1;
+                }
+        }
+
         initheap();                                     // Create fresh heap for dynamic data
 }
 
-void extend(WORD size) {
-        sigset_t previous_mask;
-        DISABLE(&previous_mask);
-        thissize = (size > HEAPSIZE-1 ? (((size-1)/pagesize)+1)*pagesize : HEAPSIZE);
-        ADDR a = allocwords(thissize);
-        if (!a)
-                panic("Cannot allocate more memory");
-        base[0] = (WORD)a;                              // add link to new heap in first word of previous heap
-        a[0] = 0;                                       // null terminate chain of heaps
-        base = a;
-        lim = a + thissize;
-        hp = a + 1;
-        heapsize += thissize;
-        if (base < heapMin)
-                heapMin = base;
-        if (lim > heapMax)
-                heapMax = lim;
-        ENABLE(&previous_mask);
-}
-
-ADDR force2(WORD size) {                                // Overflow in tospace
-        DISABLE(NULL);
-        emergency = 1;
-        panic("Overlow in tospace");                    // for now...
-        return NULL;
-}
-
-
-ADDR force(WORD size) {                                 // Heap overflow in from-space...
+ADDR force(WORD size, ADDR last) {                      // Overflow in fromspace
         ADDR a;
-        if (!hp2) {                                     // GC not running, simply extend the heap
-                extend(size);
-                NEW(ADDR,a,size);
-        } else {                                        // GC is running, allocate in to-space and hope for the best
-                NEW2(a,size);
+        if (size > HEAPSIZE-3) panic("Excessive heap block requested");
+
+        DISABLE(rts);
+        if (base <= last && last < lim) {               // only extend if we were first to reach critical section
+                a = allocwords(HEAPSIZE);
+                if (!a) panic("Cannot allocate more memory");
+
+                base[0] = (WORD)a;                      // add link to new heap in first word of previous heap
+                a[0] = 0;                               // null terminate chain of heaps
+                base = a;
+                lim = a + HEAPSIZE - 1;                 // leave room for two words at the end
+                hp = a + 1;
+
+                last[0] = 0;                            // mark the end of a heap segment (nulled gcinfo)
+                last[1] = (WORD)hp;
         }
+        ENABLE(rts);
+
+        NEW(ADDR,a,size);
         return a;
+}
+
+ADDR force2(WORD size, ADDR last, ADDR info) {          // Overflow in tospace
+        ADDR a;
+        if (size > HEAPSIZE-3) panic("Excessive heap block requested");
+        
+        DISABLE(rts);
+        if (base2 <= last && last < lim2) {             // only extend if we were first to reach critical section
+                a = allocwords(HEAPSIZE);
+                if (!a) panic("Cannot allocate more memory");
+
+                base2[0] = (WORD)a;                     // add link to new heap in first word of previous heap
+                a[0] = 0;                               // null terminate chain of heaps
+                base2 = a;
+                lim2 = a + HEAPSIZE - 2;                // leave room for two words at the end
+                hp2 = a + 1;
+
+                last[0] = 0;                            // mark the end of a heap segment (nulled gcinfo)
+                last[1] = (WORD)hp2;
+        }
+        ENABLE(rts);
+
+        NEW2(a,size,info);
+        return a;
+}
+
+ADDR copystateful(ADDR obj, ADDR info) {
+        ADDR dataobj = obj + STATIC_SIZE(info);         // actual mutable struct follows right after the Ref struct
+        ADDR dest, datainfo = IND0(dataobj);
+        WORD i, size = STATIC_SIZE(info) + STATIC_SIZE(datainfo);   // dataobj must be a GC_STD or a GC_BIG
+        NEW2(dest,size,info);
+        DISABLE(((Ref)obj)->mut);
+        for (i=0; i < size; i++)
+                dest[i] = obj[i];
+        obj[0] = (WORD)dest;
+        if (info[2]) {
+                // object has mutable arrays...  !!!!!!!!
+        }
+        ENABLE(((Ref)obj)->mut);
+        return dest;
 }
 
 ADDR copy(ADDR obj) {
         if (!ISWHITE(obj))                              // don't copy if obj is a tospace address or a low range constant
                 return obj;
-        ADDR dest, info = (ADDR)GCINFO(obj);
+        ADDR dest, info = IND0(obj);
+        if (!info)                                      // don't copy if obj is in static heap
+                return obj;
         if (ISFORWARD(info))                            // gcinfo should point to static data;
                 return info;                            // if not, we have a forward ptr
-        WORD i, size = info[0];
-        if (!size)                                      // dynamic size (i.e., an array)? 
-                size = obj[1] + 2;                      // if so, find dynamic size in second slot of obj, add static size
-        NEW2(dest,size);
-        GCINFO(dest) = (WORD)info;                      // gcinfo ptr is immutable
-        do {    GCINFO(obj) = 0;                        // flag copying in progress by nulling out gcinfo ptr
-                for (i=1; i<size; i++)
-                        dest[i] = obj[i];                
-        } while (!CAS(0,(WORD)dest,&GCINFO(obj)));      // repeat copying if dirty, else set forward ptr
+        WORD i, size = STATIC_SIZE(info);
+        switch (GC_TYPE(info)) {                              
+                case GC_ARRAY:  size += obj[1]; break;
+                case GC_TUPLE:  size += obj[1] + POLYTAGS(obj[1]); break;
+                case GC_MUT:    return copystateful(obj,info);
+                default:        break;
+        }
+        NEW2(dest,size,info);                           // allocate in tospace and initialize with gcinfo
+        for (i=0; i<size; i++)
+                dest[i] = obj[i];
+        obj[0] = (WORD)dest;                            // mark fromspace object as forwarded
         return dest;
 }
 
 
-ADDR scandyn(ADDR obj) {
-        ADDR info = (ADDR)GCINFO(obj);
-        WORD size = obj[1] + 2;                         // find size of dynamic part in second slot of obj, add static size
-        if (!info[1])
-                return obj + size;                      // return immediately if obj contains no pointers
-        do {    GCINFO(obj) = 0;                        // flag scanning in progress by nulling out gcinfo ptr
-                WORD i = 2;
-                while (i<size && !GCINFO(obj)) {
-                        obj[i] = (WORD)copy((ADDR)obj[i]);
-                        i++;
-                }
-        } while (!CAS(0,(WORD)info,&GCINFO(obj)));      // repeat scanning if dirty, else resinstall gcinfo ptr
-        return obj + size;
-}
-
 ADDR scan(ADDR obj) {
-        ADDR info = (ADDR)GCINFO(obj);
+        ADDR info = IND0(obj);
+        if (!info)                                      // if gcinfo is null we have reached the end of a tospace segment
+                return (ADDR)0;                         
         if (ISFORWARD(info)) {                          // gcinfo should point to static data;
                 scan(info);                             // if not, we have a write barrier (rescan request)
                 return obj + 1;
         }
-        WORD size = info[0];
-        if (!size)                                      // scan dynamic objects separately
-                return scandyn(obj);
-        do {    GCINFO(obj) = 0;                        // flag scanning in progress by nulling out gcinfo ptr
-                WORD i = 1, offset = info[i];
-                while (offset && !GCINFO(obj)) {
-                        obj[offset] = (WORD)copy((ADDR)obj[offset]);
+        switch (GC_TYPE(info)) {
+                case GC_STD: {
+                        WORD size = STATIC_SIZE(info), i = 2, offset = info[i];
+                        while (offset) {
+                                obj[offset] = (WORD)copy((ADDR)obj[offset]);
+                                offset = info[++i];
+                        }
+                        return obj + size;
+                }
+                case GC_ARRAY: {
+                        WORD size = STATIC_SIZE(info) + obj[1], offset = 2;     // find size of dynamic part in second slot of obj, add static size
+                        if (info[2])
+                                return obj + size;                              // return immediately if array contains only scalars
+                        while (offset<size) {
+                                obj[offset] = (WORD)copy((ADDR)obj[offset]);
+                                offset++;
+                        }
+                        return obj + size;
+                }
+                case GC_TUPLE: {
+                        WORD width = obj[1], offset = 1 + POLYTAGS(width), i = 1, j, tags;
+                        while (width > 32) {
+                                for (j = 0, tags = obj[i++]; j < 32; j++, offset++, tags = tags >> 1)
+                                        if (!(tags & 1))
+                                                obj[offset] = (WORD)copy((ADDR)obj[offset]);
+                                width -= 32;
+                        }
+                        for (tags = obj[i]; width > 0; width--, offset++, tags = tags >> 1) 
+                                if (!(tags & 1))
+                                        obj[offset] = (WORD)copy((ADDR)obj[offset]);
+                        return obj + STATIC_SIZE(info) + width + POLYTAGS(width);
+                }
+                case GC_BIG: {
+                        WORD size = STATIC_SIZE(info), i = 2, offset = info[i];
+                        while (offset) {                                        // scan all statically known pointer fields
+                                obj[offset] = (WORD)copy((ADDR)obj[offset]);
+                                offset = info[++i];
+                        }
                         offset = info[++i];
+                        while (offset) {                                        // scan dynamically identified pointers
+                                WORD tagword = info[++i];
+                                WORD bitno = info[++i];
+                                if ((tagword & (1 << bitno)) == 0)
+                                        obj[offset] = (WORD)copy((ADDR)obj[offset]);
+                                offset = info[++i];
+                        }
+                        return obj + size;
                 }
-        } while (!CAS(0,(WORD)info,&GCINFO(obj)));      // repeat scanning if dirty, else reinstall gcinfo ptr
-        return obj + size;
-}
-
-void copyTimerQ() {
-        Msg old, new, new0;
-        do {    do { timerQorig = timerQ;
-                } while (!CAS(timerQorig, 1, &timerQ));  // mark timerQ, put original value in timerQorig
-                old = timerQorig;
-                new0 = new = (Msg)copy((ADDR)old);
-                while (old) {
-                        new->next = (Msg)copy((ADDR)old->next);
-                        new = new->next;
-                        old = old->next;
+                case GC_MUT: {
+                        return scan(obj + STATIC_SIZE(info));
                 }
-        } while (!CAS(1,new0,&timerQ));                 // set timerQ = new0 if still marked, else repeat
-        timerQorig = 0;
+        }
+        return (ADDR)0;                 // Not reached
 }
 
 void gc() {
-        sigset_t previous_mask;
-        DISABLE(&previous_mask);
-
-        WORD level = hp - base + heapsize - thissize;
-        if (!STARTGC(level,heapsize)) {
-                ENABLE(&previous_mask);
-                return;
-        }
-
-        if (NEEDEXTRA(level,heapsize))
-                extend(HEAPSIZE);
-        base2 = (ADDR)allocwords(heapsize);             // allocate tospace, with size equal to sum of all fromspace heaps
-        lim2 = base2 + heapsize;
+        heapchain2 = (ADDR)allocwords(HEAPSIZE);       // allocate tospace (initial segment)
+        base2 = heapchain2;
         base2[0] = 0;
+        lim2 = base2 + HEAPSIZE - 1;                   // leave room for a one wor node at the end
         hp2 = base2 + 1;
         scanp = hp2;
-        ENABLE(&previous_mask);
-
-        copyEnvRoots();
-        copyTimerQ();
+        scanbase = base2;
+        ENABLE(rts);
+        
+        envDirty = 1;
+        timerQdirty = 1;
 
         while (1) {
-                while (scanp != hp2)
-                        scanp = scan(scanp);
+                if (envDirty)
+                        scanEnvRoots();
+                if (timerQdirty)
+                        scanTimerQ();
 
-                DISABLE(&previous_mask);
-                if (scanp == hp2)
-                        break;
-                ENABLE(&previous_mask);
+                while (1) {
+                        while (ISODD(hp2));             // spin while a mutator is allocating a write barrier
+                        if (scanp == hp2)
+                                break;                  // break loop when we seem to be done
+                        scanp = scan(scanp);
+                        if (!scanp) {                   // nulled scanp: end of currently scanned segment
+                                scanbase = (ADDR)scanbase[0];
+                                scanp = scanbase + 1;
+                        }
+                }
+
+                DISABLE(rts);
+                if ((scanp == hp2) && (envDirty+timerQdirty+nactive == 0)) // still done and everybody else is asleep?
+                        break;                                             // Continue with exclusive rts access
+                ENABLE(rts);
         }
         
         do {    base = heapchain;
                 heapchain = (ADDR)base[0];
                 free(base);
         } while (heapchain);
-        heapchain = base2;
+
+        heapchain = heapchain2;
+        base = base2;
         lim = lim2;
         hp = hp2;
-        thissize = heapsize;
+
         base2 = lim2 = hp2 = (ADDR)0;
-        ENABLE(&previous_mask);
+        scanbase = scanp = (ADDR)0;
+        heapchain2 = (ADDR)0;
 }
+
+void *garbageCollector(void *arg) {
+    Thread current = (Thread)arg;
+    DISABLE(rts);
+    while (1) {
+        pthread_cond_wait(&current->trigger, &rts);
+        gc();
+    }
+}
+
+Thread gcThread;
+
+void gcStart(void) {
+    pthread_cond_signal(&gcThread->trigger);
+}
+
+void gcInit() {
+#if defined(__APPLE__)
+    edata = (ADDR)get_end();
+#endif
+#if defined(__linux__)
+    extern int _end[];
+    edata = (ADDR)_end;
+#endif
+    pagesize = sysconf(_SC_PAGESIZE) / sizeof(WORD);
+    base2 = lim2 = hp2 = (ADDR)0;                   // no active tospace
+    initheap();                                     // Allocate base (= heapchain)
+    gcThread = newThread(NULL, prio_min, garbageCollector, pagesize);
+}
+

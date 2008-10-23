@@ -644,7 +644,86 @@ instance BVars Binds where
     bvars (Binds r te eqns)     = dom eqns
 
                  
-                    
+
+-- System F encodings ============================================================
+
+-- Encode a System F type application term
+encodeTApp env [] e             = return e
+encodeTApp env ts e             = do xs <- newNames tappSym (length ts)
+                                     let te = xs `zip` map scheme ts
+                                         eq = xs `zip` map EVar xs
+                                     return (ELet (Binds True te eq) e)
+
+isTAppEncoding (Binds r te _)   = r && isTApp (head (dom te))
+
+tAppTypes (Binds _ te _)        = map body (rng te)
+
+
+-- Encode a System F type abstraction term
+encodeTAbs env [] e             = return e
+encodeTAbs env ke e             = do x <- newName tabsSym
+                                     let te = [(x,Scheme (R (TId (prim UNITTYPE))) [] ke)]
+                                     return (ELet (Binds True te [(x,EVar x)]) e)
+
+isTAbsEncoding (Binds r te _)   = r && isTAbs (head (dom te))
+
+tAbsVars (Binds _ te _)         = dom (quant (head (rng te)))
+
+
+isEncoding bs                   = isTAppEncoding bs || isTAbsEncoding bs
+
+
+class Erase a where
+    erase               ::  a -> a
+
+instance Erase a => Erase [a] where
+    erase xs                    = map erase xs
+
+instance Erase a => Erase (Name,a) where
+    erase (x,e)                 = (x, erase e)
+
+instance Erase Exp where
+    erase (ESel e l)            = ESel (erase e) l
+    erase (ELam te e)           = ELam (erase te) (erase e)
+    erase (EAp e es)            = EAp (erase e) (erase es)
+    erase (ELet bs e)
+      | isEncoding bs           = erase e
+      | otherwise               = ELet (erase bs) (erase e)
+    erase (ECase e alts)        = ECase (erase e) (erase alts)
+    erase (ERec c eqs)          = ERec c (erase eqs)
+    erase (EAct e e')           = EAct (erase e) (erase e')
+    erase (EReq e e')           = EReq (erase e) (erase e')
+    erase (ETempl x t te c)     = ETempl x (erase t) (erase te) (erase c)
+    erase (EDo x t c)           = EDo x (erase t) (erase c)
+    erase e                     = e
+
+instance Erase Alt where
+    erase (p,e)                 = (p, erase e)
+
+instance Erase Binds where
+    erase (Binds r te es)       = Binds r (erase te) (erase es)
+    
+instance Erase Cmd where
+    erase (CLet bs c)           = CLet (erase bs) (erase c)
+    erase (CAss x e c)          = CAss x (erase e) (erase c)
+    erase (CGen x t e c)        = CGen x (erase t) (erase e) (erase c)
+    erase (CRet e)              = CRet (erase e)
+    erase (CExp e)              = CExp (erase e)
+    
+instance Erase Type where
+    erase (TAp t t')            = TAp (erase t) (erase t')
+    erase (TFun ts t)           = TFun (erase ts) (erase t)
+    erase (TId n)               = TId n
+    erase (TVar _)              = TId (prim Int)
+
+instance Erase Rho where
+    erase (F ts t)              = F (erase ts) (erase t)
+    erase (R t)                 = R (erase t)
+
+instance Erase Scheme where
+    erase (Scheme rh ps ke)     = Scheme (erase rh) (erase ps) ke
+
+
 -- Printing ==================================================================
 
 -- Modules -------------------------------------------------------------------
@@ -777,8 +856,8 @@ instance Pr Type where
     prn 1 t                     = prn 2 t
 
     prn 2 (TId c)               = prId c
-    prn 2 (TVar _)              = text "_"
---    prn 2 (TVar n)              = text "_" <> pr n
+--    prn 2 (TVar _)              = text "_"
+    prn 2 (TVar n)              = text "_" <> pr n
 
     prn 2 t                     = parens (prn 0 t)
 
@@ -803,7 +882,12 @@ prParam (x,sc)                  = parens (pr (x,sc))
 instance Pr Exp where
     prn 0 (ELam te e)           = hang (char '\\' <> sep (map prParam te) <+> text "->") 4 (pr e)
 --    prn 0 (ELam te e)           = hang (char '\\' <> sep (map prId (dom te)) <+> text "->") 4 (pr e)
-    prn 0 (ELet bs e)           = text "let" $$ nest 4 (pr bs) $$ text "in" <+> pr e
+    prn 0 (ELet bs e)
+      | isTAppEncoding bs       = pr e <+> braces (sep (map pr (tAppTypes bs)))
+      | isTAbsEncoding bs       = hang (text "/\\" <> sep (map prId (tAbsVars bs)) <+> text "->") 4 (pr e)
+--      | isTAppEncoding bs       = pr e
+--      | isTAbsEncoding bs       = pr e
+      | otherwise               = text "let" $$ nest 4 (pr bs) $$ text "in" <+> pr e
     prn 0 (ECase e alts)        = text "case" <+> pr e <+> text "of" $$ 
                                        nest 2 (vpr alts)
     prn 0 (EAct e e')           = text "action@" <> prn 2 e $$
@@ -813,10 +897,12 @@ instance Pr Exp where
     prn 0 (ETempl x t te c)     = text "class@" <> prId x $$
                                        nest 4 (vpr te) $$
                                        nest 4 (pr c)
-    prn 0 (EDo x t c)           = text "do@" <> prId x $$
+    prn 0 (EDo x t c)           = text "do@" <> prId x <> text "::" <> pr t $$
                                        nest 4 (pr c)
     prn 0 e                     = prn 1 e
 
+    prn 1 (EAp e@(ELet bs _) es)
+      | isEncoding bs           = prn 0 e <+> sep (map (prn 2) es)
     prn 1 (EAp e es)            = prn 1 e <+> sep (map (prn 2) es)
 
     prn 1 e                     = prn 2 e

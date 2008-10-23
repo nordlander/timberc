@@ -34,8 +34,9 @@ t2BindsList env (bs:bss)        = do bs <- t2Binds0 env bs
 -- the efficiency of the Type2 pass!
 -- Another difference between t2Binds0 and t2Binds is that t2Binds0 also applies the computed substitution to
 -- the top-level *term* of a binding, so that nested signatures inside the right-hand side term may be properly 
--- updated.  Note that this is done as early as possible (immediately after a right-hand side has been checked),
--- in order to allow the computed substitution to be restricted before it is applied to any sibling bindings.
+-- updated and named according to System F-like principles.  Note that this is done as early as possible 
+-- (immediately after a right-hand side has been checked), in order to allow the computed substitution to be 
+-- restricted before it is applied to any sibling bindings.
 
 t2Binds0 env (Binds r te eqs)   = do (s,eqs') <- t2Eqs eqs
                                      scs' <- mapM (t2Gen env) (subst s scs)
@@ -64,23 +65,22 @@ t2Binds env (Binds r te eqs)    = do (s,eqs') <- t2Eqs eqs
 -- instantiate, and then match an inferred type against a skolemized version of the expected type scheme 
 -- (together with checking for escaping skolem variables).  Instead, all we need to ensure is that any 
 -- type equalities implied by the match are captured in the resulting substitution, treating all-quantified 
--- variables as scoped constants once we are inside the scope of a type signature (t2ExpTscoped). Moreover, 
--- in order to ensure that all true polymorphic terms are properly marked, t2ExpT wraps them inside a 
--- let-binding with an explicit signature whenever appropriate.
+-- variables as scoped constants once we are inside the scope of a type signature (t2ExpTscoped), or using
+-- a freshly alpha-converted copy when matching against a polymorphic signature whose bound variables are
+-- not in scope (t2ExpT).
+-- 
+-- Moreover, in order to enable subsequent translation into the System F-like type system of Kindle, the
+-- type abstraction and application points are encoded in the resulting terms as uniquely shaped let-bindings.
 
 t2ExpTscoped env sc e           = do (s1,rh,e) <- t2Exp env e
                                      s2 <- mgi rh (quickSkolem sc)
+                                     e <- encodeTAbs env (quant sc) e
                                      return (mergeSubsts [s1,s2], e)
                                      
 
-t2ExpT env (Scheme t qs []) e   = t2ExpTscoped env (Scheme t qs []) e   -- Monomorphic
-t2ExpT env sc (EVar x)          = do (rh,_) <- t2Inst (findType env x)  -- Already named
-                                     s <- mgi rh (quickSkolem sc)
-                                     return (s, EVar x)
-t2ExpT env sc e                 = do sc <- ac nullSubst sc              -- Make polymorphic term named
-                                     (s,e) <- t2ExpTscoped env sc e
-                                     x <- newName tempSym
-                                     return (s, ELet (Binds False [(x,sc)] [(x,e)]) (EVar x))
+t2ExpT env (Scheme t qs []) e   = t2ExpTscoped env (Scheme t qs []) e
+t2ExpT env sc e                 = do sc <- ac nullSubst sc
+                                     t2ExpTscoped env sc e
 
 
 t2ExpTs env [] []               = return (nullSubst, [])
@@ -98,15 +98,15 @@ t2Exps env (e:es)               = do (s1,t,e) <- t2Exp env e
 
 t2Exp env (ELit l)              = return (nullSubst, R (litType l), ELit l)
 t2Exp env (EVar x)              = do (rh,ts) <- t2Inst (findType env x)
-                                     e <- t2TApp env ts (EVar x)
+                                     e <- encodeTApp env ts (EVar x)
                                      return (nullSubst, rh, e)
 t2Exp env (ECon k)              = do (rh,ts) <- t2Inst (findType env k)
-                                     e <- t2TApp env ts (ECon k)
+                                     e <- encodeTApp env ts (ECon k)
                                      return (nullSubst, rh, e)
 t2Exp env (ESel e l)            = do (F (sc:scs) rh,ts) <- t2Inst (findType env l)
                                      (s,e) <- t2ExpT env sc e
-                                     e' <- t2TApp env ts (ESel e l)
-                                     return (s, subst s (tFun scs rh), e')
+                                     e' <- encodeTApp env ts (ESel e l)     -- NOTE: the *full* instantiation of l is remembered here,
+                                     return (s, subst s (tFun scs rh), e')  -- including the actual struct type arguments (C.f.: c2k.cExp)
 t2Exp env (ELam te e)           = do (s,rh,e) <- t2Exp (addTEnv te env) e
                                      return (s, F (subst s (rng te)) rh, ELam te e)
 t2Exp env (EAp e es)            = do (s,rh,e) <- t2Exp env e
@@ -117,7 +117,8 @@ t2Exp env (ELet bs e)           = do (s1,bs) <- t2Binds env bs
 t2Exp env (ERec c eqs)          = do alphas <- mapM newTVar (kArgs (findKind env c))
                                      (t,scs) <- t2Lhs env (foldl TAp (TId c) alphas) t2Sel ls
                                      (s,es) <- t2ExpTs env scs es
-                                     return (s, R (subst s t), ERec c (ls `zip` es))
+                                     e <- encodeTApp env (snd (tFlat t)) (ERec c (ls `zip` es))
+                                     return (s, R (subst s t), e)
   where (ls,es)                 = unzip eqs
         t2Sel env x l           = t2Exp env (ESel (EVar x) l)
 t2Exp env (ECase e alts)        = do alpha <- newTVar Star
@@ -205,14 +206,8 @@ t2Inst (Scheme rh ps ke)        = do ts <- mapM newTVar ks
   where (vs,ks)                 = unzip ke
 
 
-t2TApp env [] e                 = return e
-t2TApp env [t] e                = do x <- newName tappSym
-                                     return (ELet (Binds True [(x,scheme t)] [(x,EVar x)]) e)
-t2TApp env ts e                 = do x <- newName tappSym
-                                     return (ELet (Binds True [(x,scheme t)] [(x,EVar x)]) e)
-  where t                       = tAp (TId (tuple (length ts))) ts
 
-
+-- Skolemize a type scheme, relying on the uniqueness of all bound type variables
 quickSkolem (Scheme rh ps ke)   = tFun ps rh
 
 

@@ -65,7 +65,7 @@ ifaceMod (rs,ss) (Module _ ns xs ds ws bss) kds
         xs'                          = [d | d@(Default True _ _) <- xs]
         ys                           = [d | d@(Default _ i1 i2) <- xs', isPrivate i1 || isPrivate i2 ]
         ds1                          = Types (filter exported ke) (filter exported' te)
-        bs'                          = Binds r2 (filter exported ts2) (filter (\ eqn -> fin eqn &&  exported eqn) es2)
+        bs'                          = Binds r2 (filter exported ts2) (filter (\ eqn -> fin eqn &&  exported eqn) (erase es2))
         vis                          = nub (localTypes [] (rng (tsigsOf bs')))
         exported (n,_)               = isQualified n
         exported' p@(n,_)            = isQualified n && (not(isAbstract p)) --Constructors/selectors are exported

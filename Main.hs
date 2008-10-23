@@ -30,10 +30,10 @@ import Termred
 import Type2
 import Kindle
 import Kindlered
-import Core2Kindle
-import Lambdalift
 import Prepare4C
 import Kindle2C
+import Core2Kindle
+import Lambdalift
 import Data.Binary
 import Interfaces
 import GHC.Exception
@@ -148,12 +148,9 @@ LambdaLift:
 - Moves local function definitions to the top level
 
 Kindle2C:
-- Shotrcuts data representation for nullary constructors
+- Makes construction of cyclic data explicit
 - Pretty-prints abstract syntax as C code
 
-
-Yet unknown:
-- Prepend module name to global names (terms, types, constructors, selectors, generated *witnesses*)
 
 -}
 

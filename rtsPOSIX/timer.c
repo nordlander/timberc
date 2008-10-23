@@ -2,9 +2,7 @@
 #include "timber.h"
 
 struct S_Timer {
-    WORD *gcinfo;
-    Thread ownedBy;
-    Thread wantedBy;
+    WORD *GCINFO;
     AbsTime start;
 };
 
@@ -14,24 +12,24 @@ struct T_Timer;
 typedef struct T_Timer *T_Timer;
 
 struct T_Timer {
-  WORD *gcinfo;
-  UNITTYPE (*reset) (T_Timer, POLY);
-  Time (*sample) (T_Timer, POLY);
-  S_Timer self;
+  WORD *GCINFO;
+  UNITTYPE (*reset) (T_Timer, Int);
+  Time (*sample) (T_Timer, Int);
+  Ref self;
 };
 
 
-static WORD __GC__T_Timer[] = {WORDS(sizeof(struct T_Timer)), WORDS(offsetof(struct T_Timer,self)), 0};
+static WORD __GC__T_Timer[] = {WORDS(sizeof(struct T_Timer)), GC_STD, WORDS(offsetof(struct T_Timer,self)), 0};
    
-static WORD __GC__S_Timer[] = {WORDS(sizeof(struct S_Timer)), 0};
+static WORD __GC__S_Timer[] = {WORDS(sizeof(struct S_Timer)), GC_STD, 0};
 
-static WORD __GC__Time[] = {WORDS(sizeof(struct Time)), 0};
+static WORD __GC__Time[]    = {WORDS(sizeof(struct Time)), GC_STD, 0};
 
 
 Time sec(Int c) {
   Time res;
   NEW(Time,res,sizeof(struct Time));
-  SETGCINFO(res,__GC__Time);
+  res->GCINFO = __GC__Time;
   res->sec = c;
   res->usec = 0;
   return res;
@@ -40,7 +38,7 @@ Time sec(Int c) {
 Time millisec(Int c) {
   Time res;
   NEW(Time,res,sizeof(struct Time));
-  SETGCINFO(res,__GC__Time);
+  res->GCINFO = __GC__Time;
   res->sec = c / 1000;
   res->usec = 1000 * (c % 1000);
   return res;
@@ -49,7 +47,7 @@ Time millisec(Int c) {
 Time microsec(Int c) {
   Time res;
   NEW(Time,res,sizeof(struct Time));
-  SETGCINFO(res,__GC__Time);
+  res->GCINFO = __GC__Time;
   res->sec = c / 1000000;
   res->usec = c % 1000000;
   return res;
@@ -84,7 +82,7 @@ Time primTimePlus(Time t1, Time t2) {
     case TIME_INFINITY: return Infinity;
     default:
       NEW(Time,res,sizeof(struct Time));
-      SETGCINFO(res,__GC__Time);
+      res->GCINFO = __GC__Time;
       res->usec = t1->usec + t2->usec;
       res->sec = t1->sec + t2->sec;
       if (res->usec >= 1000000) {
@@ -129,13 +127,13 @@ Time primTimeMinus(Time t1, Time t2) {
     case INHERIT: panic("primTimeMinus Inherit");
     case TIME_INFINITY:
       NEW(Time,res,sizeof(struct Time));
-      SETGCINFO(res,__GC__Time);
+      res->GCINFO = __GC__Time;
       res->sec = 0;
       res->usec = 0;
       return res;
     default:
       NEW(Time,res,sizeof(struct Time));
-      SETGCINFO(res,__GC__Time);
+      res->GCINFO = __GC__Time;
       res->usec = t1->usec - t2->usec;
       if (res->usec < 0) {
 	res->usec += 1000000;
@@ -229,45 +227,44 @@ Bool primTimeGE(Time t1, Time t2) {
   return primTimeLE(t2,t1);
 }
 
-static UNITTYPE reset_fun(S_Timer self, POLY x) {
-  self = (S_Timer)LOCK((PID)self);
-  self->start = current->msg->baseline;
+static UNITTYPE reset_fun(Ref self, Int x) {
+  self = (Ref)LOCK((PID)self);
+  ((S_Timer)STATEOF(self))->start = CURRENT()->msg->baseline;
   UNLOCK((PID)self);
-  return _UNITTERM;
+  return (UNITTYPE)0;
 }
 
-static Time sample_fun(S_Timer self, POLY x) {
-  S_Timer self1 = (S_Timer)LOCK((PID)self);
+static Time sample_fun(Ref self, Int x) {
+  self = (Ref)LOCK((PID)self);
   AbsTime now;
-  now = current->msg->baseline;
-  SUB(now,self1->start);
-  UNLOCK((PID)self1);
+  now = CURRENT()->msg->baseline;
+  SUB(now,((S_Timer)STATEOF(self))->start);
+  UNLOCK((PID)self);
   Time res;
   NEW(Time,res,sizeof(struct Time));
-  SETGCINFO(res,__GC__Time);
+  res->GCINFO = __GC__Time;
   res->sec = now.tv_sec;
   res->usec = now.tv_usec;
   return res;
 }
 
-static UNITTYPE reset_sel(T_Timer this,POLY x) {
+static UNITTYPE reset_sel(T_Timer this,Int x) {
   return reset_fun(this->self,x);
 }
 
-static Time sample_sel(T_Timer this, POLY x) {
+static Time sample_sel(T_Timer this, Int x) {
   return sample_fun(this->self,x);
 }
 
-TIMERTYPE primTIMERTERM(POLY x) {
-  S_Timer self;
-  NEW(S_Timer,self,WORDS(sizeof(struct S_Timer)));
-  SETGCINFO(self,__GC__S_Timer);
-  self->ownedBy = (Thread)0;
-  self->wantedBy = (Thread)0;
-  self->start = current->msg->baseline;
+TIMERTYPE primTIMERTERM(Int x) {
+  Ref self;
+  NEW(Ref,self,WORDS(sizeof(struct Ref))+WORDS(sizeof(struct S_Timer)));
+  INITREF(self);
+  ((S_Timer)STATEOF(self))->GCINFO = __GC__S_Timer;
+  ((S_Timer)STATEOF(self))->start = CURRENT()->msg->baseline;
   T_Timer res;
   NEW(T_Timer,res,sizeof(struct T_Timer));
-  SETGCINFO(res,__GC__T_Timer);
+  res->GCINFO = __GC__T_Timer;
   res->reset = reset_sel;
   res->sample = sample_sel;
   res->self = self;

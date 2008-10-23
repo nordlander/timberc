@@ -3,7 +3,8 @@
 
 #include <stddef.h>
 #include <sys/time.h>
-#include <setjmp.h>
+//#include <setjmp.h>
+#include <pthread.h>
 
 typedef int WORD;
 typedef WORD *ADDR;
@@ -12,9 +13,23 @@ typedef WORD *ADDR;
 #define Float float
 #define Char char
 #define Bool char
+#define FALSE char          // alias for singleton type
+#define TRUE char           // alias for singleton type
 #define UNITTYPE char
-#define POLY void*
-#define BITSET unsigned int
+#define UNITTERM char       // alias for singleton type
+#define POLY ADDR
+#define PID ADDR
+#define BITS8 unsigned char
+#define BITS16 unsigned short
+#define BITS32 unsigned int
+
+union FloatCast {
+    float f;
+    POLY p;
+};
+
+#define POLY2Float(x)   ((union FloatCast )(x)).f
+#define Float2POLY(x)   ((union FloatCast )(x)).p
 
 #define ZEROBITS        0
 #define ORBITS(a,b)     (a) | (b)
@@ -27,28 +42,25 @@ typedef WORD *ADDR;
 #define MICROSEC(x)     (x)
 */
 
-struct Thread;
-typedef struct Thread *Thread;
-
 struct Msg;
 
-typedef struct Object Object;
-typedef Object *PID;
-
-
-struct Thread {
-        Thread next;            // for use in linked lists
-        struct Msg *msg;        // message under execution
-        PID waitsFor;           // deadlock detection link
-        WORD visit_flag;        // for use during cyclic data construction
-        int placeholders;       // for use during cyclic data construction
-        jmp_buf context;        // machine state
+typedef struct Ref *Ref;
+struct Ref {
+    WORD *GCINFO;
+    pthread_mutex_t mut;
+    POLY STATE;
 };
+
+#define STATEOF(ref)    (((ADDR)(ref))[WORDS(sizeof(struct Ref))])
+
+void INITREF(Ref);
+
+extern WORD __GC__Ref[];
 
 typedef struct timeval AbsTime;
 
 struct Time {
-  WORD *gcinfo;
+  WORD *GCINFO;
   Int sec;
   Int usec;
 };
@@ -57,13 +69,6 @@ typedef struct Time *Time;
 
 extern WORD __GG__Time[] ;
 
-struct Object {
-        WORD *gcinfo;
-        Thread ownedBy;
-        Thread wantedBy;
-};
-
-extern Thread current;
 
 #define WORDS(bytes)            (((bytes)+sizeof(WORD)-1)/sizeof(WORD))
 #define BYTES(words)            ((words)*sizeof(WORD))
@@ -79,10 +84,12 @@ extern Thread current;
 #define CAS(old,new,mem)        AO_compare_and_swap((AO_t*)(mem),(WORD)(old),(WORD)(new))
 #endif
 
-#define NEW(t,addr,words)       { ADDR top; do { addr = (t)hp; top = (ADDR)addr+(words); } while (!CAS(addr,top,&hp)); \
-                                  if (top>=lim) addr = (t)force(words); }
+#define NEW(t,addr,words)       { ADDR top,stop; \
+                                  do { addr = (t)hp; stop = lim; top = (ADDR)addr+(words); } \
+                                  while (!CAS(addr,top,&hp)); \
+                                  if (top>=stop) addr = (t)force((words),(ADDR)addr); }
 
-#define SETGCINFO(n,info)       { (n)->gcinfo = (ADDR)((WORD)(info) | current->visit_flag); }
+#define CURRENT()               ((Thread)pthread_getspecific(current_key))
 
 /*
 #define TMIN(a,b)               ((a) < (b) ? (a) : (b) )
@@ -90,9 +97,11 @@ extern Thread current;
 #define TMINUS(a,b)             ( (a) > (b) ? (a) - (b) : 0 )
 */
 
-extern ADDR hp, lim;
 
-ADDR force(WORD);
+extern ADDR hp, lim;
+extern pthread_key_t current_key;
+
+ADDR force(WORD, ADDR);
 void pruneStaticHeap();
 
 void init_rts(int, char**);
@@ -120,4 +129,5 @@ Bool primTimeLT(Time t1, Time t2);
 Bool primTimeLE(Time t1, Time t2);
 Bool primTimeGT(Time t1, Time t2);
 Bool primTimeGE(Time t1, Time t2);
+
 #endif

@@ -54,13 +54,18 @@ mapFst f xs                     = [ (f a, b) | (a,b) <- xs ]
 
 mapSnd f xs                     = [ (a, f b) | (a,b) <- xs ]
 
+zipFilter (f:fs) (x:xs)
+  | f                           = x : zipFilter fs xs
+  | otherwise                   = zipFilter fs xs
+zipFilter _ _                   = []
+                                    
 noDups mess vs
-  | not (null dups)                = errorIds mess dups
-  | otherwise                      = vs
-  where dups                       = duplicates vs
-
+  | not (null dups)             = errorIds mess dups
+  | otherwise                   = vs
+  where dups                    = duplicates vs
 
 uncurry3 f (x,y,z)              = f x y z
+
 
 -- String manipulation -----------------------------------------------------
 
@@ -180,7 +185,12 @@ instance HasPos Lit where
     posInfo (LChr (Just (l,c)) _) = Between (l,c) (l,c) 
     posInfo (LStr (Just (l,c)) cs) = Between (l,c) (l,c+length cs+1)
     posInfo _                     = Unknown
- 
+
+lInt n                            = LInt Nothing (toInteger n)
+lRat r                            = LRat Nothing r
+lChr c                            = LChr Nothing c
+lStr s                            = LStr Nothing s
+
 -- Underlying monad ----------------------------------------------------------------------
 
 newtype M s a                   = M ((Int,[s]) -> Either String ((Int,[s]), a))
@@ -310,37 +320,6 @@ assert0 e msg
   | otherwise                   = fail msg
 
 
-
--- Internal identifier conventions -----------------------------------------------------
-
-witnessSym                      = "w"
-assumptionSym                   = "v"
-tempSym                         = "x"
-patSym                          = "p"
-functionSym                     = "f"
-dummySym                        = "d"
-paramSym                        = "a"
-tyvarSym                        = "t"
-coercionSym                     = "c"
-labelSym                        = "l"
-constrSym                       = "C"
-typeSym                         = "T"
-stateSym                        = "S"
-skolemSym                       = "sk"
-selfSym                         = "self"
-thisSym                         = "this"
-instanceSym                     = "inst"
-closureSym                      = "CLOS"
-
-isCoercion n                    = isGenerated n && str n == coercionSym
-isPatTemp n                     = isGenerated n && str n == patSym
-isClosure n                     = isGenerated n && str n == closureSym
-isDummy n                       = isGenerated n && str n == dummySym
-isWitness n                     = isGenerated n && str n == witnessSym
-
-explicitSyms                    = [coercionSym, assumptionSym, witnessSym]
-
-
 -- Tracing -----------------------------------------------------------------------------
 
 tr m                            = trace (m++"\n") (return ())
@@ -394,6 +373,10 @@ type Map a b = [(a,b)]
 lookup' assoc x                 = case lookup x assoc of
                                     Just e -> e
                                     Nothing -> internalError "lookup': did not find" x
+
+lookup'' s assoc x              = case lookup x assoc of
+                                    Just e -> e
+                                    Nothing -> internalError ("lookup' (" ++ s ++ "): did not find") x
 
 inv assoc                       = map (\(a,b) -> (b,a)) assoc
 
@@ -585,10 +568,10 @@ instance Binary Lit where
   get = do
     tag_ <- getWord8
     case tag_ of
-      0 -> get >>= \a -> return (LInt Nothing a)
-      1 -> get >>= \a -> return (LRat Nothing a)
-      2 -> get >>= \a -> return (LChr Nothing a)
-      3 -> get >>= \a -> return (LStr Nothing a)
+      0 -> get >>= \(a::Integer) -> return (lInt a)
+      1 -> get >>= \a -> return (lRat a)
+      2 -> get >>= \a -> return (lChr a)
+      3 -> get >>= \a -> return (lStr a)
       _ -> fail "no parse"
 
 instance Binary Kind where

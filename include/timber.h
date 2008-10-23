@@ -20,30 +20,19 @@ struct LEFT;
 typedef struct LEFT *LEFT;
 struct RIGHT;
 typedef struct RIGHT *RIGHT;
-struct FloatBox;
-typedef struct FloatBox *FloatBox;
-struct IntBox;
-typedef struct IntBox *IntBox;
-/*
-struct TimeBox;
-typedef struct TimeBox *TimeBox;
-*/
+
 struct Msg;
 typedef struct Msg *Msg;
 
-enum {_UNITTERM};
-
-enum {_FALSE, _TRUE};
-    
 struct TUP2 {
-  WORD *gcinfo;
+  WORD *GCINFO;
   POLY a;
   POLY b;
 };
 extern WORD __GC__TUP2[];
 
 struct TUP3 {
-  WORD *gcinfo;
+  WORD *GCINFO;
   POLY a;
   POLY b;
   POLY c;
@@ -51,7 +40,7 @@ struct TUP3 {
 extern WORD __GC__TUP3[];
 
 struct TUP4 {
-  WORD *gcinfo;
+  WORD *GCINFO;
   POLY a;
   POLY b;
   POLY c;
@@ -60,58 +49,36 @@ struct TUP4 {
 extern WORD __GC__TUP4[];
 
 struct LIST {};
-enum {_NIL,_CONS};
-
-struct NIL {};
 
 struct CONS {
-  WORD *gcinfo;
+  WORD *GCINFO;
   POLY a;
   LIST b;
 };
 extern WORD __GC__CONS[];
 
 struct EITHER {
-  WORD *gcinfo;
+  WORD *GCINFO;
   Int Tag;
 };
-enum {_LEFT,_RIGHT};
 
 extern WORD __GC__EITHER[];
 struct LEFT {
-  WORD *gcinfo;
+  WORD *GCINFO;
   Int Tag;
   POLY a;
 };
 extern WORD __GC__LEFT[];
 
 struct RIGHT {
-  WORD *gcinfo;
+  WORD *GCINFO;
   Int Tag;
   POLY a;
 };
 extern WORD __GC__RIGHT[];
 
-struct FloatBox {
-  WORD *gcinfo;
-  Float Value;
-};
-extern WORD __GC__FloatBox[];
-/*
-struct TimeBox {
-  WORD *gcinfo;
-  Time Value;
-};
-extern WORD __GC__TimeBox[];
-*/
-struct IntBox {
-  WORD *gcinfo;
-  Int Value;
-};
-extern WORD __GC__IntBox[];
-
 struct Msg {
-  WORD *gcinfo;
+  WORD *GCINFO;
   Int (*Code)(Msg);
   AbsTime baseline;
   AbsTime deadline;
@@ -120,11 +87,13 @@ struct Msg {
 extern WORD __GC__Msg[];
 
 struct Array {
-  WORD *gcinfo;
+  WORD *GCINFO;
   Int size;
   POLY elems[];
 };
-extern WORD __GC__Array[];
+extern WORD __GC__Array0[];
+extern WORD __GC__Array1[];
+
 
 typedef struct Array *Array;
 
@@ -133,32 +102,36 @@ typedef struct Timer *TIMERTYPE;
 
 
 struct Timer {
-  WORD *gcinfo;
-  UNITTYPE (*reset) (TIMERTYPE, POLY);
-  Time (*sample) (TIMERTYPE, POLY);
+  WORD *GCINFO;
+  UNITTYPE (*reset) (TIMERTYPE, Int);
+  Time (*sample) (TIMERTYPE, Int);
 };
 
 extern WORD __GC__Timer[];
 
+
 UNITTYPE ASYNC(Msg, Time, Time);
 PID      LOCK(PID);
 UNITTYPE UNLOCK(PID);
-POLY     RAISE(Int);
+void     RAISE(Int);
 
-Array primListArray(LIST);
-Array primUniArray(Int,POLY);
-Array EmptyArray(Int);
-Array CloneArray(Array,Int);
-Array primUpdateArray(Array,Int,POLY);
+POLY     Raise(BITS32, Int);
+
+Array primListArray(BITS32,LIST);
+Array primUniArray(BITS32,Int,POLY);
+Array EmptyArray(BITS32,Int);
+Array CloneArray(BITS32,Array,Int);
+Array primUpdateArray(BITS32,Array,Int,POLY);
 
 Array CYCLIC_BEGIN(Int, Int);
-void  CYCLIC_UPDATE(Array, Int);
-void  CYCLIC_END(Array);
+void  CYCLIC_UPDATE(Array, Int, ADDR stop);
+void  CYCLIC_END(Array, ADDR stop);
 
-POLY primRefl(POLY in);
+POLY primRefl(BITS32,POLY);
 
-TIMERTYPE primTIMERTERM(POLY x);
-UNITTYPE ABORT(Msg msg,POLY x);
+TIMERTYPE primTIMERTERM(Int x);
+UNITTYPE ABORT(BITS32,Msg msg,POLY x);
 
 LIST primShowFloat(Float x);
+
 #endif

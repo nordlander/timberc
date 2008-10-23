@@ -10,58 +10,88 @@
 #define INDEXOF(obj)            (((-(int)(obj)) >> 1) - current->placeholders)
 #define PLACEHOLDER(index)      (-((((index) + current->placeholders) << 1) | 0x01))
 
-#define CURRENT_CYCLE(obj,roots)    ((ADDR)(roots) <= (obj))
+#define CURRENT_CYCLE(obj,roots)    !INSIDE(heapchain,obj,(ADDR)roots)
 
+#define SUBST(obj,off,roots,lim)      { ADDR obj1 = (ADDR)obj[off]; \
+                                        if (ISPLACEHOLDER(obj1)) { \
+                                                int index = INDEXOF(obj1); \
+                                                if (index >= 0 && index < (lim)) \
+                                                        obj[off] = (WORD)roots->elems[index]; \
+                                        } \
+                                      }
 
-void visit(ADDR obj, Array roots, Int limit) {
-        ADDR info = (ADDR)CLR0(GCINFO(obj));
-        GCINFO(obj) = MARK_VISITED(info);
-        WORD size = info[0];
-        if (size) {
-                WORD i = 1, offset = info[i];
-                while (offset) {
-                        ADDR obj1 = (ADDR)obj[offset];
-                        if (ISPLACEHOLDER(obj1)) {
-                                int index = INDEXOF(obj1);
-                                if (index >= 0 && index < limit)
-                                        obj[offset] = (WORD)roots->elems[index];
+ADDR substObj(ADDR obj, Array roots, int limit, Thread current) {
+        ADDR info = IND0(obj);
+        if (!info)                                      // if gcinfo is null we have reached the end of a heap segment
+                return (ADDR)obj[1];                    // pointer to first object of next segment is found in subsequent slot
+        switch (GC_TYPE(info)) {
+                case GC_STD: {
+                        WORD size = STATIC_SIZE(info), i = 2, offset = info[i];
+                        while (offset) {
+                                SUBST(obj,offset,roots,limit);
+                                offset = info[++i];
                         }
-                        else if (CURRENT_CYCLE(obj1,roots) && !VISITED(obj1))
-                                visit(obj1, roots, limit);
-                        offset = info[++i];
+                        return obj + size;
                 }
-        } else if (info[1]) {
-                size = obj[1] + 2;
-                WORD i = 2;
-                while (i < size) {
-                        ADDR obj1 = (ADDR)obj[i];
-                        if (ISPLACEHOLDER(obj1)) {
-                                int index = INDEXOF(obj1);
-                                if (index >= 0 && index < limit)
-                                        obj[i] = (WORD)roots->elems[index];
+                case GC_ARRAY: {
+                        WORD size = STATIC_SIZE(info) + obj[1], offset = 2;     // find size of dynamic part in second slot of obj, add static size
+                        if (info[2])
+                                return obj + size;                              // return immediately if array contains only scalars
+                        while (offset<size) {
+                                SUBST(obj,offset,roots,limit);
+                                offset++;
                         }
-                        else if (CURRENT_CYCLE(obj1,roots) && !VISITED(obj1))
-                                visit(obj1, roots, limit);
-                        i++;
+                        return obj + size;
+                }
+                case GC_TUPLE: {
+                        WORD width = obj[1], offset = 1 + POLYTAGS(width), i = 1, j, tags;
+                        while (width > 32) {
+                                for (j = 0, tags = obj[i++]; j < 32; j++, offset++, tags = tags >> 1)
+                                        if (!(tags & 1))
+                                                SUBST(obj,offset,roots,limit);
+                                width -= 32;
+                        }
+                        for (tags = obj[i]; width > 0; width--, offset++, tags = tags >> 1) 
+                                if (!(tags & 1))
+                                        SUBST(obj,offset,roots,limit);
+                        return obj + STATIC_SIZE(info) + width + POLYTAGS(width);
+                }
+                case GC_BIG: {
+                        WORD size = STATIC_SIZE(info), i = 2, offset = info[i];
+                        while (offset) {                                        // scan all statically known pointer fields
+                                SUBST(obj,offset,roots,limit);
+                                offset = info[++i];
+                        }
+                        offset = info[++i];
+                        while (offset) {                                        // scan dynamically identified pointers
+                                WORD tagword = info[++i];
+                                WORD bitno = info[++i];
+                                if ((tagword & (1 << bitno)) == 0)
+                                        SUBST(obj,offset,roots,limit);
+                                offset = info[++i];
+                        }
+                        return obj + size;
+                }
+                case GC_MUT: {
+                        return scan(obj + STATIC_SIZE(info));
                 }
         }
+        return (ADDR)0;                 // Not reached
 }
 
-void visitRoots(Array roots, int limit) {
+void subst(Array roots, int limit, ADDR stop, Thread current) {
+        ADDR p = (ADDR)roots + STATIC_SIZE(roots->GCINFO) + roots->size;
         int i;
-        for (i = 0; i < limit; i++) {
-                ADDR obj = (ADDR)roots->elems[i];
-                if (ISPLACEHOLDER(obj)) {
-                        int index = INDEXOF(obj);
-                        if (index >= 0 && index < i)
-                                roots->elems[i] = roots->elems[index];
-                }
-                visit(obj, roots, limit);
-        }        
+        for (i = 0; i < roots->size; i++)
+                if (ISPLACEHOLDER(roots->elems[i])) 
+                        RAISE(2);
+        while (p != stop)
+                p = substObj(p, roots, limit, current);
 }
 
 Array CYCLIC_BEGIN(Int n, Int updates) {
-        Array roots = EmptyArray(n);
+        Thread current = CURRENT();
+        Array roots = EmptyArray(0,n);
         int i;
         for (i = 0; i < n; i++)
                 roots->elems[i] = (POLY)PLACEHOLDER(i);
@@ -71,15 +101,74 @@ Array CYCLIC_BEGIN(Int n, Int updates) {
         return roots;
 }
 
-void CYCLIC_UPDATE(Array roots, Int limit) {
+void CYCLIC_UPDATE(Array roots, Int limit, ADDR stop) {
+        Thread current = CURRENT();
         current->visit_flag = TOGGLE0(current->visit_flag);
         current->placeholders -= roots->size;
-        visitRoots(roots, limit);
+        subst(roots, limit, stop, current);
         current->placeholders += roots->size;
 }
 
-void CYCLIC_END(Array roots) {
+void CYCLIC_END(Array roots, ADDR stop) {
+        Thread current = CURRENT();
         current->visit_flag = TOGGLE0(current->visit_flag);
         current->placeholders -= roots->size;
-        visitRoots(roots, roots->size);
+        subst(roots, roots->size, stop, current);
 }
+
+/*
+
+void visit(ADDR obj, Array roots, Int limit, Thread current) {
+        ADDR info = (ADDR)CLR0(GCINFO(obj));
+        obj[0] = MARK_VISITED(info);
+        WORD size = STATIC_SIZE(info);
+        switch (GC_TYPE(info)) {
+                case GC_STD: {
+                        WORD i = 1, offset = info[i];
+                        while (offset) {
+                                ADDR obj1 = (ADDR)obj[offset];
+                                if (ISPLACEHOLDER(obj1)) {
+                                        int index = INDEXOF(obj1);
+                                        if (index >= 0 && index < limit)
+                                                obj[offset] = (WORD)roots->elems[index];
+                                }
+                                else if (CURRENT_CYCLE(obj1,roots) && !VISITED(obj1))
+                                        visit(obj1, roots, limit, current);
+                                offset = info[++i];
+                        }
+                }
+                case GC_ARRAY: {
+                        if (!info[2]) {
+                                size = obj[1] + 2;
+                                WORD offset = 2;
+                                while (offset < size) {
+                                        ADDR obj1 = (ADDR)obj[offset];
+                                        if (ISPLACEHOLDER(obj1)) {
+                                                int index = INDEXOF(obj1);
+                                                if (index >= 0 && index < limit)
+                                                        obj[offset] = (WORD)roots->elems[index];
+                                        }
+                                        else if (CURRENT_CYCLE(obj1,roots) && !VISITED(obj1))
+                                                visit(obj1, roots, limit, current);
+                                        offset++;
+                                }
+                        }
+                }
+        }
+}
+                
+
+void visitRoots(Array roots, int limit, Thread current) {
+        int i;
+        for (i = 0; i < limit; i++) {
+                ADDR obj = (ADDR)roots->elems[i];
+                if (ISPLACEHOLDER(obj)) {
+                        int index = INDEXOF(obj);
+                        if (index >= 0 && index < i)
+                                roots->elems[i] = roots->elems[index];
+                }
+                visit(obj, roots, limit, current);
+        }        
+}
+
+*/

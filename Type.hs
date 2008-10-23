@@ -176,11 +176,20 @@ tiAp env s pe rho e es          = do t <- newTVar Star
                                      let p = Scheme (F [scheme' rho] (F (map scheme' ts) (R t))) [] []
                                      return (s++concat ss, (c,p):pe++concat pes, R t, EAp (EAp (EVar c) [e]) es)
 
+etaExpand pe (R (TFun ts t)) e  = etaExpand pe (F (map scheme ts) (R t)) e
+etaExpand pe (F scs t) e        = do te <- newEnv paramSym scs
+                                     return ([], pe, F scs t, ELam te (EAp e (map EVar (dom te))))
+etaExpand pe t e                = return ([], pe, t, e)
+
+
 tiExp env (ELit l)              = return ([], [], R (litType l), ELit l)
-tiExp env (EVar x)              = do (pe,t,e) <- instantiate (findExplType env x) (EVar (annotExplicit x))
+tiExp env (EVar x)
+  | doEtaExpand x               = do (pe,t,e) <- instantiate (findExplType env x) (EVar (annotExplicit x))
+                                     etaExpand pe t e
+  | otherwise                   = do (pe,t,e) <- instantiate (findExplType env x) (EVar (annotExplicit x))
                                      return ([], pe, t, e)
 tiExp env (ECon k)              = do (pe,t,e) <- instantiate (findExplType env k) (ECon (annotExplicit k))
-                                     return ([], pe, t, e)
+                                     etaExpand pe t e
 tiExp env (ESel e l)            = do (t, t0:ps) <- inst (findType env l)
                                      (s,pe,e) <- tiExpT env t0 e
                                      let r = if explicit (annot l) then (tFun ps t,[]) else (t,ps)
@@ -234,7 +243,7 @@ tiExp env (EDo x tx c)
                                      return (s'++s, pe, R (tCmd tx t), EDo x tx c)
   | otherwise                   = internalError0 "Explicitly typed do expressions not yet implemented"
 tiExp env (ETempl x tx te c)
-  | isTVar tx                   = do n <- newName stateSym
+  | isTVar tx                   = do n <- newName stateTypeSym
                                      let env' = setSelf x (TId n) (addTEnv te (addKEnv0 [(n,Star)] env))
                                      (s,pe,t,c) <- tiCmd env' c
                                      return ((TId n, tx):s, pe, R (tClass t), ETempl x (TId n) te c)

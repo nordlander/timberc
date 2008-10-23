@@ -165,7 +165,7 @@ redApp env (EVar (Prim p a)) es
                                 = return (redPrim env p a es)
 redApp env e@(EVar x) es        = case lookup x (eqns env) of
                                        Just e' | inline e' -> do e' <- alphaConvert e'; redApp env e' es
-                                       Nothing -> return (EAp e es)
+                                       _ -> return (EAp e es)
   where inline (ELam _ _)       = True
         inline (EVar _)         = True
         inline _                = False
@@ -249,9 +249,14 @@ redCase env e alts              = case eFlat e of
                                     (ECon k, es) -> findCon env k es alts
                                     _            -> liftM (ECase e) (redAlts env alts)
 
-redAlts env alts                = do es <- mapM (redExp env) es
+redAlts env alts                = do es <- mapM ({-redRhs-} redExp env) es
                                      return (ps `zip` es)
   where (ps,es)                 = unzip alts
+  
+redRhs env (ELam te e)          = do e <- redRhs (addArgs env (dom te)) e
+                                     return (ELam te e)
+redRhs env e                    = redExp env e
+
 
 findCon env k es ((PWild,e):_)  = redExp env e
 findCon env k es ((PCon k',e):_)
@@ -271,12 +276,12 @@ redPrim env Fatbar a [e,e']                 = redFat a e e'
 redPrim env UniArray a es                   = EAp (EVar (Prim UniArray a)) es
 redPrim env p _ [ELit (LInt _ x), ELit (LInt _ y)]  = redInt p x y
 redPrim env p a [ELit (LRat _ x), ELit (LRat _ y)]  = redRat p x y
-redPrim env IntNeg _ [ELit (LInt _ x)]      = ELit (LInt Nothing (-x))
-redPrim env IntToFloat _ [ELit (LInt _ x)]  = ELit (LRat Nothing (fromInteger x))
-redPrim env IntToChar _ [ELit (LInt _ x)]   = ELit (LChr Nothing (chr (fromInteger x)))
-redPrim env FloatNeg _ [ELit (LRat _ x)]    = ELit (LRat Nothing (-x))
-redPrim env FloatToInt _ [ELit (LRat _ x)]  = ELit (LInt Nothing (truncate x))
-redPrim env CharToInt _ [ELit (LChr _ x)]   = ELit (LInt Nothing (toInteger (ord x)))
+redPrim env IntNeg _ [ELit (LInt _ x)]      = ELit (lInt (-x))
+redPrim env IntToFloat _ [ELit (LInt _ x)]  = ELit (lRat (fromInteger x))
+redPrim env IntToChar _ [ELit (LInt _ x)]   = ELit (lChr (chr (fromInteger x)))
+redPrim env FloatNeg _ [ELit (LRat _ x)]    = ELit (lRat (-x))
+redPrim env FloatToInt _ [ELit (LRat _ x)]  = ELit (lInt (truncate x))
+redPrim env CharToInt _ [ELit (LChr _ x)]   = ELit (lInt (ord x))
 redPrim env p a es                          = eAp (EVar (Prim p a)) es
 
 
@@ -287,7 +292,7 @@ redMatch env a (ECase e alts)
   | complete (cons env) cs                  = ECase e (map PCon cs `zip` map (redMatch env a) es)
   where (cs,es)                             = unzip [ (c,e) | (PCon c, e) <- alts ]
 redMatch env a (ECase e alts)               = ECase e (mapSnd (redMatch env a) alts)
-redMatch env _ (EVar (Prim Fail a))         = EAp (EVar (Prim Raise a)) [ELit (LInt Nothing 1)]
+redMatch env _ (EVar (Prim Fail a))         = EAp (EVar (Prim Raise a)) [ELit (lInt 1)]
 redMatch env _ e@(ELit _)                   = e
 redMatch env a e                            = EAp (EVar (Prim Match a)) [e]
 
@@ -298,11 +303,11 @@ redFat a e@(EAp (EVar (Prim Commit _)) _) _ = e
 redFat a e e'                               = EAp (EVar (Prim Fatbar a)) [e,e']
 
 
-redInt IntPlus a b              = ELit (LInt Nothing (a + b))
-redInt IntMinus a b             = ELit (LInt Nothing (a - b))
-redInt IntTimes a b             = ELit (LInt Nothing (a * b))
-redInt IntDiv a b               = ELit (LInt Nothing (a `div` b))
-redInt IntMod a b               = ELit (LInt Nothing (a `mod` b))
+redInt IntPlus a b              = ELit (lInt (a + b))
+redInt IntMinus a b             = ELit (lInt (a - b))
+redInt IntTimes a b             = ELit (lInt (a * b))
+redInt IntDiv a b               = ELit (lInt (a `div` b))
+redInt IntMod a b               = ELit (lInt (a `mod` b))
 redInt IntEQ a b                = eBool (a == b)
 redInt IntNE a b                = eBool (a /= b)
 redInt IntLT a b                = eBool (a < b)
@@ -312,10 +317,10 @@ redInt IntGT a b                = eBool (a > b)
 redInt p _ _                    = internalError0 ("redInt: unknown primitive " ++ show p)
 
 
-redRat FloatPlus a b            = ELit (LRat Nothing (a + b))
-redRat FloatMinus a b           = ELit (LRat Nothing (a - b))
-redRat FloatTimes a b           = ELit (LRat Nothing (a * b))
-redRat FloatDiv a b             = ELit (LRat Nothing (a / b))
+redRat FloatPlus a b            = ELit (lRat (a + b))
+redRat FloatMinus a b           = ELit (lRat (a - b))
+redRat FloatTimes a b           = ELit (lRat (a * b))
+redRat FloatDiv a b             = ELit (lRat (a / b))
 redRat FloatEQ a b              = eBool (a == b)
 redRat FloatNE a b              = eBool (a /= b)
 redRat FloatLT a b              = eBool (a < b)

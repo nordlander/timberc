@@ -674,11 +674,16 @@ primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
                             (prim CharToInt,    scheme0 [tChar] tInt),
                             (prim IntToChar,    scheme0 [tInt] tChar),
 
+                            (prim BITS8ToInt,   scheme0 [tBITS8] tInt),
+                            (prim BITS16ToInt,  scheme0 [tBITS16] tInt),
+                            (prim BITS32ToInt,  scheme0 [tBITS32] tInt),
+                            
+                            (prim IntToBITS8,   scheme0 [tInt] tBITS8),
+                            (prim IntToBITS16,  scheme0 [tInt] tBITS16),
+                            (prim IntToBITS32,  scheme0 [tInt] tBITS32),
+                            
                             (prim LazyOr,       scheme0 [tBool,tBool] tBool),
                             (prim LazyAnd,      scheme0 [tBool,tBool] tBool),
-
-                            (prim MsgEQ,        scheme0 [tMsg,tMsg] tBool),
-                            (prim MsgNE,        scheme0 [tMsg,tMsg] tBool),
 
                             (prim PidEQ,        scheme0 [tPID,tPID] tBool),
                             (prim PidNE,        scheme0 [tPID,tPID] tBool),
@@ -726,6 +731,28 @@ primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
                             (prim Nanosec,      scheme0 [tInt] tTime),
                             (prim SecOf,        scheme0 [tTime] tInt),
                             (prim MicrosecOf,   scheme0 [tTime] tInt),
+                            
+                            (prim NOT8,         scheme0 [tBITS8] tBITS8),
+                            (prim AND8,         scheme0 [tBITS8,tBITS8] tBITS8),
+                            (prim OR8,          scheme0 [tBITS8,tBITS8] tBITS8),
+                            (prim EXOR8,        scheme0 [tBITS8,tBITS8] tBITS8),
+                            (prim SHIFTL8,      scheme0 [tBITS8,tInt] tBITS8),
+                            (prim SHIFTR8,      scheme0 [tBITS8,tInt] tBITS8),
+                            
+                            (prim NOT16,        scheme0 [tBITS16] tBITS16),
+                            (prim AND16,        scheme0 [tBITS16,tBITS16] tBITS16),
+                            (prim OR16,         scheme0 [tBITS16,tBITS16] tBITS16),
+                            (prim EXOR16,       scheme0 [tBITS16,tBITS16] tBITS16),
+                            (prim SHIFTL16,     scheme0 [tBITS16,tInt] tBITS16),
+                            (prim SHIFTR16,     scheme0 [tBITS16,tInt] tBITS16),
+                            
+                            (prim NOT32,        scheme0 [tBITS32] tBITS32),
+                            (prim AND32,        scheme0 [tBITS32,tBITS32] tBITS32),
+                            (prim OR32,         scheme0 [tBITS32,tBITS32] tBITS32),
+                            (prim EXOR32,       scheme0 [tBITS32,tBITS32] tBITS32),
+                            (prim SHIFTL32,     scheme0 [tBITS32,tInt] tBITS32),
+                            (prim SHIFTR32,     scheme0 [tBITS32,tInt] tBITS32),
+                            
                             (prim ListArray,    scheme1 [tList a] (tArray a)),
                             (prim UniArray,     scheme1 [tInt, a] (tArray a)),
                             (prim SizeArray,    scheme1 [tArray a] tInt),
@@ -766,6 +793,9 @@ tList a                 = TAp (TId (prim LIST)) a
 tUnit                   = TId (prim UNITTYPE)
 tEither a b             = TAp (TAp (TId (prim EITHER)) a) b
 tTimer                  = TId (prim TIMERTYPE)
+tBITS8                  = TId (prim BITS8)
+tBITS16                 = TId (prim BITS16)
+tBITS32                 = TId (prim BITS32)
         
 a                       = TId (name0 "a")
 b                       = TId (name0 "b")

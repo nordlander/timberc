@@ -140,7 +140,7 @@ mkShowInstance n sc s (nm, DData vs [] cs)
         mkShowAlt (nm,_)              = errorIds "Sorry, as yet only default Show for enumeration types, without constructors as" [nm]
         cons                          = ECon (prim CONS)
         nil                           = ECon (prim NIL)
-        chr c                         = ELit (LChr Nothing c)
+        chr c                         = ELit (lChr c)
 mkShowInstance n sc s (nm, DData vs _ cs) 
                                       = errorIds "Not yet implemented: default Show instance for data type with subtypes" [nm]
 
@@ -153,13 +153,13 @@ mkParseInstance n eq sc s (nm, DData vs [] cs)
         mkParse                       = do x <- newName paramSym
                                            as <- mapM (mkParseAlt x) cs
                                            eLam' [x] (EAp (EVar (prim Match)) [foldr (\x y -> EAp (EVar (prim Fatbar)) [x,y]) 
-                                                                              (EAp (EVar (prim Commit)) [EAp (EVar (prim Raise)) [ELit (LInt Nothing 1)]]) 
+                                                                              (EAp (EVar (prim Commit)) [EAp (EVar (prim Raise)) [ELit (lInt 1)]]) 
                                                                               as]) 
         mkParseAlt x (nm,Constr [] _ _) = return (ECase (EAp eq [EVar x, foldr (\x y -> EAp cons [chr x,y]) nil (str nm)])
                                                   [(PCon (prim TRUE),EAp (EVar (prim Commit)) [ECon nm]),(PWild,EVar (prim Fail))])
         mkParseAlt x (nm,_)           = errorIds "Sorry, as yet only default Parse for enumeration types, without constructors as" [nm]
         cons                          = ECon (prim CONS)
         nil                           = ECon (prim NIL)
-        chr c                         = ELit (LChr Nothing c)
+        chr c                         = ELit (lChr c)
 mkParseInstance n eq sc s (nm, DData vs _ cs) 
                                       = errorIds "Not yet implemented: default Parse instance for data type with subtypes" [nm]

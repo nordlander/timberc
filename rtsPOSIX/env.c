@@ -20,12 +20,12 @@
 // --------- Socket data stored in global array sockTable, indexed by descriptor -------------------------------------------------
 
 struct SockData {
-  WORD *gcinfo;
+  WORD *GCINFO;
   struct sockaddr_in addr;              // address of remote peer
   SOCKHANDLER handler;      
 };
 
-WORD __GC__SockData[] = { WORDS(sizeof(struct SockData)), WORDS(offsetof(struct SockData,handler)), 0 };
+WORD __GC__SockData[] = { WORDS(sizeof(struct SockData)), GC_STD, WORDS(offsetof(struct SockData,handler)), 0 };
 
 typedef struct SockData *SockData;
 
@@ -47,8 +47,8 @@ typedef struct SockData *SockData;
 
   In all other cases, bits are cleared and array entries are NULL.
 
-  evThread runs the selectloop; each change to the above data strucures is reported to the eventloop thread through a
-  SIGSELECT signal, so that select parameters can be adapted accordingly.
+  eventLoop runs the indefinite loop that repetitively blocks on select; each change to the above data strucures is 
+  reported to the calling thread through a SIGSELECT signal, so that select parameters can be adapted accordingly.
 
   maxDesc is an upper bound on the highest descriptor in use; updated when opening, but currently not decreased on closing.
 
@@ -61,65 +61,48 @@ HANDLER rdTable[FD_SETSIZE] ;
 ACTION  wrTable[FD_SETSIZE] ;
 SockData sockTable[FD_SETSIZE];
 
-pthread_t evThread;
+int envRootsDirty;
+
+struct Msg msg0 = { NULL, 0, { 0, 0 }, { INF, 0 }, NULL };
+
+struct Thread thread0 = { NULL, &msg0, 0,  };
+
+pthread_mutex_t envmut;
 
 int maxDesc = 2;
 
 ACTION prog                     = NULL;                         // Must be set by main()
 
+
 //---------- Utilities ---------------------------------------------------------
 
 Host_POSIX mkHost(struct sockaddr_in addr) {
-  Host_POSIX host; NEW(Host_POSIX, host, sizeof(struct Host_POSIX));
-  SETGCINFO(host,__GC__Host_POSIX);
-  host->Tag = (Int)getStr(inet_ntoa(addr.sin_addr));
-  return host;
+  _Host_POSIX host; NEW(_Host_POSIX, host, sizeof(struct _Host_POSIX));
+  host->GCINFO = __GC___Host_POSIX;
+  host->a = getStr(inet_ntoa(addr.sin_addr));
+  return (Host_POSIX)host;
 }
 
 Port_POSIX mkPort (struct sockaddr_in addr) {
-  Port_POSIX port; NEW(Port_POSIX, port, sizeof(struct Port_POSIX));
-  SETGCINFO(port,__GC__Port_POSIX);
-  port->Tag = ntohs(addr.sin_port); 
-  return port;
+  _Port_POSIX port; NEW(_Port_POSIX, port, sizeof(struct _Port_POSIX));
+  port->GCINFO = __GC___Port_POSIX;
+  port->a = ntohs(addr.sin_port); 
+  return (Port_POSIX)port;
 }
 
 void netError(Int sock,char *message);
 
-// --------- State object storing file desciptor ------------------------------- 
-
-struct DescState {
-  WORD *gcinfo;
-  Thread ownedBy;
-  Thread wantedBy;
-  Int desc;
-};
-
-WORD __GC__DescState[] = { WORDS(sizeof(struct DescState)),0 };
-
-typedef struct DescState *DescState;
-
-
-DescState new_DescState (int desc) {
-  DescState res;
-  NEW (DescState, res, WORDS(sizeof(struct DescState)));
-  SETGCINFO(res, __GC__DescState);
-  res->ownedBy = (Thread)0;
-  res->wantedBy = (Thread)0;
-  res->desc = desc;
-  return res;
-}
-
-
-
 // -------- Closable -----------------------------------------------------------
 
 struct DescClosable {
-  WORD *gcinfo;
-  Msg (*close_POSIX) (Closable_POSIX, Time, Time);
-  DescState self;
+  WORD *GCINFO;
+  UNITTYPE (*close_POSIX) (Closable_POSIX, Int);
+//  Msg (*close_POSIX) (Closable_POSIX, Time, Time);
+  int descriptor;
+//  DescState self;
 };
  
-WORD __GC__DescClosable[] = { WORDS(sizeof(struct DescClosable)), WORDS(offsetof(struct DescClosable,self)),0 };
+WORD __GC__DescClosable[] = { WORDS(sizeof(struct DescClosable)), GC_STD, 0 };
 
 typedef struct DescClosable *DescClosable;
 
@@ -127,52 +110,43 @@ struct CloseMsg;
 typedef struct CloseMsg *CloseMsg;
 
 struct CloseMsg {
-  WORD *gcinfo;
+  WORD *GCINFO;
   UNITTYPE (*Code)(CloseMsg);
   AbsTime baseline;
   AbsTime deadline;
   Msg next;
-  DescState self;
+  int descriptor;
+//  DescState self;
 };
 
-WORD __GC__CloseMsg[] = { WORDS(sizeof(struct CloseMsg)), WORDS(offsetof(struct CloseMsg,next)),
-			  WORDS(offsetof(struct CloseMsg,self)), 0 };
+WORD __GC__CloseMsg[] = { WORDS(sizeof(struct CloseMsg)), GC_STD, 0 };   // Field "next" is custom handled by the GC
 
 
-UNITTYPE cl_fun (CloseMsg this) {
-  DescState self = (DescState)LOCK((PID)this->self);
-  Int desc = self->desc;
-  UNLOCK((PID)self);
+UNITTYPE close_fun (Closable_POSIX this, Int dummy) {
+  DISABLE(envmut);
+  int desc = ((DescClosable)this)->descriptor;
   close(desc);
   CLR_RDTABLE(desc);
   CLR_WRTABLE(desc);
   sockTable[desc] = NULL;
-  pthread_kill(evThread,SIGSELECT);
-  return _UNITTERM;
-}
-
-Msg close_fun (Closable_POSIX this, Time a, Time b) {
-  CloseMsg res;
-  NEW(CloseMsg,res,WORDS(sizeof(struct CloseMsg)));
-  SETGCINFO(res,__GC__CloseMsg);
-  res->Code  = cl_fun;
-  res->self = ((DescClosable)this)->self;
-  ASYNC((Msg)res,a,b);
-  return (Msg)res;
+  pthread_kill(thread0.id, SIGSELECT);
+  ENABLE(envmut);
+  return (UNITTYPE)0;
 }
 
 Closable_POSIX new_Closable (int desc) {
   DescClosable res;
   NEW(DescClosable, res, sizeof(struct DescClosable));
-  SETGCINFO(res,__GC__DescClosable);
+  res->GCINFO = __GC__DescClosable;
   res->close_POSIX = close_fun;
-  res->self = new_DescState(desc);
+  res->descriptor = desc;
   return (Closable_POSIX)res;
 }
 
 // -------- File ---------------------------------------------------------------
 
-Int seek_fun (File_POSIX this, Int off, POLY self) {
+Int seek_fun (File_POSIX this, Int off, Int dummy) {
+  DISABLE(envmut);
   Int res, mode;
   if (off >= 0) 
     mode = SEEK_SET;
@@ -180,13 +154,14 @@ Int seek_fun (File_POSIX this, Int off, POLY self) {
     mode = SEEK_END;
     off++;
   }
-  res = lseek(((DescClosable)this->FILE2CLOSABLE)->self->desc,off,mode);
+  res = lseek(((DescClosable)this->FILE2CLOSABLE)->descriptor,off,mode);
+  ENABLE(envmut);
   return res;
 }
 
 File_POSIX new_File (int desc) {
   File_POSIX res; NEW(File_POSIX, res, sizeof(struct File_POSIX));
-  SETGCINFO(res,__GC__File_POSIX);
+  res->GCINFO = __GC__File_POSIX;
   res->FILE2CLOSABLE = new_Closable(desc);
   res->seek_POSIX = seek_fun;
   return res;
@@ -196,28 +171,28 @@ File_POSIX new_File (int desc) {
 
 LIST read_descr (int descr) {
   char buf[1024];
-  LIST xs = (LIST)_NIL;
-  LIST xslast = (LIST)_NIL;
-  LIST res = (LIST)_NIL;
-  LIST reslast = (LIST)_NIL;
+  LIST xs = (LIST)0;
+  LIST xslast = (LIST)0;
+  LIST res = (LIST)0;
+  LIST reslast = (LIST)0;
   int r;
   while (1) {
-    xs = (LIST)_NIL;
-    xslast = (LIST)_NIL;
+    xs = (LIST)0;
+    xslast = (LIST)0;
     r = read(descr, buf, 1023);
     if (r <= 0) {
-      if (reslast != (LIST)_NIL) ((CONS)reslast)->b = (LIST)_NIL;
+      if (reslast != (LIST)0) ((CONS)reslast)->b = (LIST)0;
       return res;
     }
     while (r) {
       CONS n; NEW(CONS, n, sizeof(struct CONS));
-      if (xslast==(LIST)_NIL) xslast = (LIST)n;
-      SETGCINFO(n, __GC__CONS);
+      if (xslast==(LIST)0) xslast = (LIST)n;
+      n->GCINFO = __GC__CONS+5;                         // POLY instance is a scalar
       n->a = (POLY)(Int)buf[--r];
       n->b = xs;
       xs = (LIST)n;
     }
-    if (res==(LIST)_NIL) 
+    if (res==(LIST)0) 
       res = xs; 
     else 
       ((CONS)reslast)->b = xs;
@@ -226,13 +201,13 @@ LIST read_descr (int descr) {
 }
 
 
-LIST read_fun (RFile_POSIX this, POLY self) {
-  return read_descr(((DescClosable)this->RFILE2FILE->FILE2CLOSABLE)->self->desc);
+LIST read_fun (RFile_POSIX this, Int dummy) {
+  return read_descr(((DescClosable)this->RFILE2FILE->FILE2CLOSABLE)->descriptor);
 }
 
 // ----------- WFile -----------------------------------------------------------
 
-int write_fun (WFile_POSIX this, LIST xs, POLY self) {
+int write_fun (WFile_POSIX this, LIST xs, Int dummy) {
   char buf[1024];
   int res = 0;
   while (xs) {
@@ -242,7 +217,7 @@ int write_fun (WFile_POSIX this, LIST xs, POLY self) {
       xs = ((CONS)xs)->b;
     }
     if (len<1024) buf[len] = 0;
-    int r = write(((DescClosable)this->WFILE2FILE->FILE2CLOSABLE)->self->desc, buf, len);
+    int r = write(((DescClosable)this->WFILE2FILE->FILE2CLOSABLE)->descriptor, buf, len);
     if (r < 0) return res;
     res += r;
   }
@@ -251,8 +226,9 @@ int write_fun (WFile_POSIX this, LIST xs, POLY self) {
 
 // ------------ Env ------------------------------------------------------------
 
-UNITTYPE exit_fun (Env_POSIX this, Int n, POLY self) {
-  DISABLE(NULL);
+UNITTYPE exit_fun (Env_POSIX this, Int n, Int dummy) {
+  DISABLE(envmut);
+  DISABLE(rts);
   exit(n);
 }
 
@@ -265,65 +241,76 @@ Maybe_Prelude open_fun (LIST path, int oflag) {
   }
   buf[len] = 0;
   int descr = open(buf,oflag,S_IWUSR|S_IRUSR|S_IRGRP|S_IROTH);
-  if (descr < 0) return NULL;
-  Just_Prelude res; NEW(Just_Prelude, res, sizeof(struct Just_Prelude));
-  SETGCINFO(res,__GC__Just_Prelude);
+  if (descr < 0) return (Maybe_Prelude)0;
+  _Just_Prelude res; NEW(_Just_Prelude, res, sizeof(struct _Just_Prelude));
+  res->GCINFO = __GC___Just_Prelude+0;           // POLY instance is a pointer
   res->a = (POLY)new_File(descr);
   return (Maybe_Prelude)res;
 }
 
-UNITTYPE installR_fun (RFile_POSIX this, HANDLER hand, POLY self) {
-  Int desc = ((DescClosable)this->RFILE2FILE->FILE2CLOSABLE)->self->desc;
+UNITTYPE installR_fun (RFile_POSIX this, HANDLER hand, Int dummy) {
+  DISABLE(envmut);
+  Int desc = ((DescClosable)this->RFILE2FILE->FILE2CLOSABLE)->descriptor;
   ADD_RDTABLE(desc,hand);
   maxDesc = desc > maxDesc ? desc : maxDesc;  
-  pthread_kill(evThread,SIGSELECT);
-  return _UNITTERM;
+  pthread_kill(thread0.id, SIGSELECT);
+  ENABLE(envmut);
+  return (UNITTYPE)0;
 }
 
-UNITTYPE installW_fun (WFile_POSIX this, ACTION act, POLY self) {
-  Int desc = ((DescClosable)this->WFILE2FILE->FILE2CLOSABLE)->self->desc;
+UNITTYPE installW_fun (WFile_POSIX this, ACTION act, Int dummy) {
+  DISABLE(envmut);
+  Int desc = ((DescClosable)this->WFILE2FILE->FILE2CLOSABLE)->descriptor;
   ADD_WRTABLE(desc,act);
+  envRootsDirty = 1;
   maxDesc = desc > maxDesc ? desc : maxDesc;  
-  pthread_kill(evThread,SIGSELECT);
-  return _UNITTERM;
+  pthread_kill(thread0.id, SIGSELECT);
+  ENABLE(envmut);
+  return (UNITTYPE)0;
 }
 
-Maybe_Prelude openR_fun (Env_POSIX this, LIST path, POLY self) {
+Maybe_Prelude openR_fun (Env_POSIX this, LIST path, Int dummy) {
+  DISABLE(envmut);
   Maybe_Prelude f = open_fun(path,O_RDONLY);
   if (f) {
     RFile_POSIX rf; NEW(RFile_POSIX, rf, sizeof(struct RFile_POSIX));
-    SETGCINFO(rf,__GC__RFile_POSIX);
-    rf->RFILE2FILE = (File_POSIX)((Just_Prelude)f)->a;
+    rf->GCINFO = __GC__RFile_POSIX;
+    rf->RFILE2FILE = (File_POSIX)((_Just_Prelude)f)->a;
     rf->read_POSIX = read_fun;
     rf->installR_POSIX = installR_fun;
-    ((Just_Prelude)f)->a = (POLY)rf;
+    ((_Just_Prelude)f)->a = (POLY)rf;
   }
+  ENABLE(envmut);
   return f;
 }
 
-Maybe_Prelude openW_fun (Env_POSIX this, LIST path, POLY self) {
+Maybe_Prelude openW_fun (Env_POSIX this, LIST path, Int dummy) {
+  DISABLE(envmut);
   Maybe_Prelude f =  open_fun(path,O_WRONLY | O_CREAT | O_TRUNC);
   if (f) {
     WFile_POSIX wf; NEW(WFile_POSIX, wf, sizeof(struct WFile_POSIX));
-    SETGCINFO(wf,__GC__WFile_POSIX);
-    wf->WFILE2FILE = (File_POSIX)((Just_Prelude)f)->a;
+    wf->GCINFO = __GC__WFile_POSIX;
+    wf->WFILE2FILE = (File_POSIX)((_Just_Prelude)f)->a;
     wf->write_POSIX = write_fun;
     wf->installW_POSIX = installW_fun;
-    ((Just_Prelude)f)->a = (POLY)wf;
+    ((_Just_Prelude)f)->a = (POLY)wf;
   }
+  ENABLE(envmut);
   return f;
 }
 
 //---------- Time ---------------------------------------------------------------
 
-Time getTime_fun (Env_POSIX this, POLY self) {
+Time getTime_fun (Env_POSIX this, Int dummy) {
+  DISABLE(envmut);
   Time res; NEW(Time,res,sizeof(struct Time));
-  SETGCINFO(res,__GC__Time);
+  res->GCINFO = __GC__Time;
   struct timeval now;
   if (gettimeofday(&now,NULL) < 0)
     perror("gettimeofday failed");
   res->sec = now.tv_sec;
   res->usec = now.tv_usec;
+  ENABLE(envmut);
   return res;
 }
   
@@ -333,23 +320,25 @@ struct DeliverMsg;
 typedef struct DeliverMsg *DeliverMsg;
 
 struct DeliverMsg {
-  WORD *gcinfo;
+  WORD *GCINFO;
   UNITTYPE (*Code)(DeliverMsg);
   AbsTime baseline;
   AbsTime deadline;
   Msg next;
   LIST str;
-  DescState self;
+  int descriptor;
+//  DescState self;
 };
 
-WORD __GC__DeliverMsg[] = { WORDS(sizeof(struct DeliverMsg)), WORDS(offsetof(struct DeliverMsg,next)),
-		            WORDS(offsetof(struct DeliverMsg,str)), WORDS(offsetof(struct DeliverMsg,self)),0 };
+WORD __GC__DeliverMsg[] = { WORDS(sizeof(struct DeliverMsg)), GC_STD, WORDS(offsetof(struct DeliverMsg,str)), 0 };
+                                                                      // Filed "next" is custom handled by the GC
 
 
 UNITTYPE del_f (DeliverMsg this) {
-  DescState self = (DescState)LOCK((PID)this->self);
-  Int sock = self->desc;
-  UNLOCK((PID)self);
+//  DescState self = (DescState)LOCK((PID)this->self);
+//  Int sock = self->desc;
+//  UNLOCK((PID)self);
+  int sock = this->descriptor;
   LIST str = this->str;
   char buf[1024];
   int len = 0;
@@ -363,16 +352,16 @@ UNITTYPE del_f (DeliverMsg this) {
     sprintf(errbuf,"Write failed: %s",strerror(errno));
     netError (sock,errbuf);
   }
-  return _UNITTERM;
+  return (UNITTYPE)0;
 }
 
 Msg deliver_fun (Destination_POSIX this, LIST str, Time a, Time b) {
   DeliverMsg res;
   NEW(DeliverMsg,res,WORDS(sizeof(struct DeliverMsg)));
-  SETGCINFO(res,__GC__DeliverMsg);
+  res->GCINFO = __GC__DeliverMsg;
   res->Code = del_f;
   res->str = str;
-  res->self = ((DescClosable)this->DEST2CLOSABLE)->self;
+  res->descriptor = ((DescClosable)this->DEST2CLOSABLE)->descriptor;
   ASYNC((Msg)res,a,b);
   return (Msg)res;
 }
@@ -383,11 +372,11 @@ Peer_POSIX new_Peer (Int sock) {
   Peer_POSIX res;
   Destination_POSIX dest;
   NEW (Destination_POSIX, dest, WORDS(sizeof(struct Destination_POSIX)));
-  SETGCINFO(dest, __GC__Destination_POSIX);
+  dest->GCINFO = __GC__Destination_POSIX;
   dest->DEST2CLOSABLE = new_Closable(sock);
   dest->deliver_POSIX = deliver_fun;
   NEW (Peer_POSIX, res, WORDS(sizeof(struct Peer_POSIX)));
-  SETGCINFO(res, __GC__Peer_POSIX);
+  res->GCINFO = __GC__Peer_POSIX;
   res->PEER2DEST = dest;
   struct sockaddr_in addr = sockTable[sock]->addr;
   res->host_POSIX = mkHost(addr);
@@ -401,9 +390,10 @@ Int new_socket (SOCKHANDLER handler) {
   fcntl(sock,F_SETFL,O_NONBLOCK);
   maxDesc = sock > maxDesc ? sock : maxDesc;  
   NEW(SockData,d,WORDS(sizeof(struct SockData)));
-  SETGCINFO(d,__GC__SockData);
+  d->GCINFO =__GC__SockData;
   d->handler = handler;
   sockTable[sock] = d;
+  envRootsDirty = 1;
   return sock;
 }  
 
@@ -412,12 +402,12 @@ struct HandlerStruct;
 typedef struct HandlerStruct *HandlerStruct;
  
 struct HandlerStruct {
-  WORD *gcinfo;
+  WORD *GCINFO;
   Msg (*Code) (HandlerStruct, LIST, Time, Time);
   Connection_POSIX conn;
 };
 
-WORD __GC__HandlerStruct[] = { WORDS(sizeof(struct HandlerStruct)), WORDS(offsetof(struct HandlerStruct, conn)), 0};
+WORD __GC__HandlerStruct[] = { WORDS(sizeof(struct HandlerStruct)), GC_STD, WORDS(offsetof(struct HandlerStruct, conn)), 0};
 
 Msg handler_fun (HandlerStruct this, LIST str, Time a, Time b) {
   Destination_POSIX dest = this->conn->CONN2DEST;
@@ -427,7 +417,7 @@ Msg handler_fun (HandlerStruct this, LIST str, Time a, Time b) {
 HANDLER mkHandler (Connection_POSIX conn) {
   HandlerStruct rdHandler;
   NEW(HandlerStruct,rdHandler,sizeof(HandlerStruct));
-  SETGCINFO(rdHandler,__GC__HANDLER);
+  rdHandler->GCINFO = __GC__HANDLER;
   rdHandler->Code = handler_fun;
   rdHandler->conn = conn;
   return (HANDLER)rdHandler;
@@ -435,25 +425,24 @@ HANDLER mkHandler (Connection_POSIX conn) {
 
 void netError (Int sock, char *message) {
   SOCKHANDLER handler = sockTable[sock]->handler;
-  Connection_POSIX conn = handler->Code(handler,new_Peer(sock),NULL);
+  Connection_POSIX conn = (Connection_POSIX)handler->Code(handler,(POLY)new_Peer(sock),(POLY)0);
   ADD_RDTABLE(sock,mkHandler(conn));
-  INTERRUPT_PROLOGUE();
+  envRootsDirty = 1;
+//  INTERRUPT_PROLOGUE();
   conn->neterror_POSIX(conn,getStr(message),Inherit,Inherit);
-  INTERRUPT_EPILOGUE();
+//  INTERRUPT_EPILOGUE();
 }
 
 void setupConnection (Int sock) {
   SOCKHANDLER handler = sockTable[sock]->handler;
-  Connection_POSIX conn = handler->Code(handler,new_Peer(sock),NULL);
+  Connection_POSIX conn = (Connection_POSIX)handler->Code(handler,(POLY)new_Peer(sock),(POLY)0);
   ADD_RDTABLE(sock,mkHandler(conn));
-  INTERRUPT_PROLOGUE();
+  envRootsDirty = 1;
   conn->established_POSIX(conn,Inherit,Inherit);
-  INTERRUPT_EPILOGUE();
 }
 
 int mkAddr (Int sock, Host_POSIX host, struct in_addr *addr) {
-  LIST h = (LIST)host->Tag;
-  // Hack: we use Tag to avoid needing to know name generated in POSIX.h of the struct with the LIST
+  LIST h = ((_Host_POSIX)host)->a;
   char buf[1024];
   int len = 0;
   Int hostid;
@@ -476,13 +465,14 @@ int mkAddr (Int sock, Host_POSIX host, struct in_addr *addr) {
   }
 }
 
-UNITTYPE connect_fun (Sockets_POSIX this, Host_POSIX host, Port_POSIX port, SOCKHANDLER handler, POLY self) {
+UNITTYPE connect_fun (Sockets_POSIX this, Host_POSIX host, Port_POSIX port, SOCKHANDLER handler, Int dummy) {
+  DISABLE(envmut);
   struct sockaddr_in addr;
   struct in_addr iaddr;
   int sock = new_socket(handler);
   if (mkAddr(sock, host, &iaddr) == 0) {
     addr.sin_addr = iaddr;
-    addr.sin_port = htons(port->Tag);
+    addr.sin_port = htons(((_Port_POSIX)port)->a);
     addr.sin_family = AF_INET;
     sockTable[sock]->addr = addr;
     if (connect(sock,(struct sockaddr *)&addr,sizeof(struct sockaddr)) < 0) {// couldn't connect immediately, 
@@ -494,91 +484,101 @@ UNITTYPE connect_fun (Sockets_POSIX this, Host_POSIX host, Port_POSIX port, SOCK
     else {
       setupConnection(sock);
     }
-    pthread_kill(evThread,SIGSELECT);
+    pthread_kill(thread0.id, SIGSELECT);
   }
-  return _UNITTERM;
-
+  ENABLE(envmut);
+  return (UNITTYPE)0;
 }
 
 
-Closable_POSIX listen_fun (Sockets_POSIX this, Port_POSIX port, SOCKHANDLER handler, POLY self) {
+Closable_POSIX listen_fun (Sockets_POSIX this, Port_POSIX port, SOCKHANDLER handler, Int dummy) {
+  DISABLE(envmut);
   struct sockaddr_in addr;
   int sock = new_socket(handler);
   addr.sin_addr.s_addr = INADDR_ANY;
-  addr.sin_port = htons(port->Tag);
+  addr.sin_port = htons(((_Port_POSIX)port)->a);
   addr.sin_family = AF_INET;
   if (bind(sock,(struct sockaddr *)&addr,sizeof(struct sockaddr)) < 0)
     perror("bind failed");
   listen(sock,5);
   FD_SET(sock,&readUsed);
-  pthread_kill(evThread,SIGSELECT);
+  pthread_kill(thread0.id, SIGSELECT);
+  ENABLE(envmut);
   return new_Closable(sock);
 }
 
 // ---------- Global env object ------------------------------------------------
 
-struct DescState stdin_st       = { __GC__DescState, (Thread)0, (Thread)0, 0 };
-struct DescState stdout_st      = { __GC__DescState, (Thread)0, (Thread)0, 1 };
+// Note: all the following structs lie outside the garbage collected heap, and are therefore marked with a gcinfo = 0.
 
-struct DescClosable stdin_cl    = { __GC__Closable_POSIX, close_fun, &stdin_st };
-struct DescClosable stdout_cl   = { __GC__Closable_POSIX, close_fun, &stdout_st };
+struct DescClosable stdin_cl    = { 0, close_fun, 0 };
+struct DescClosable stdout_cl   = { 0, close_fun, 1 };
 
-struct File_POSIX stdin_file    = { __GC__File_POSIX, (Closable_POSIX)&stdin_cl, seek_fun };
-struct File_POSIX stdout_file   = { __GC__File_POSIX, (Closable_POSIX)&stdout_cl, seek_fun };
+struct File_POSIX stdin_file    = { 0, (Closable_POSIX)&stdin_cl, seek_fun };
+struct File_POSIX stdout_file   = { 0, (Closable_POSIX)&stdout_cl, seek_fun };
 
-struct RFile_POSIX stdin_rfile  = { __GC__RFile_POSIX, &stdin_file, read_fun, installR_fun };
-struct WFile_POSIX stdout_wfile = { __GC__WFile_POSIX, &stdout_file, write_fun, installW_fun };
+struct RFile_POSIX stdin_rfile  = { 0, &stdin_file, read_fun, installR_fun };
+struct WFile_POSIX stdout_wfile = { 0, &stdout_file, write_fun, installW_fun };
 
-struct Sockets_POSIX tcp        = {__GC__Sockets_POSIX, connect_fun, listen_fun };
+struct Sockets_POSIX tcp        = { 0, connect_fun, listen_fun };
 
-struct Internet_POSIX inet      = { __GC__Internet_POSIX, &tcp };
+struct Internet_POSIX inet      = { 0, &tcp };
 
-struct Env_POSIX env_struct     = { __GC__Env_POSIX, exit_fun,  NULL, &stdin_rfile, &stdout_wfile,
+struct Env_POSIX env_struct     = { 0, exit_fun,  NULL, &stdin_rfile, &stdout_wfile,
                                     openR_fun, openW_fun, getTime_fun, &inet };
 
 Env_POSIX env                   = &env_struct;
 
+
 // ------- Copying for gc -----------------------------------------------
 
-void copyEnvRoots (void) {
-  int i;
-  prog = (ACTION)copy((ADDR)prog);
-  for(i = 0; i<maxDesc+1; i++) {
-    if (rdTable[i]) rdTable[i] = (HANDLER)copy((ADDR)rdTable[i]);
-    if (wrTable[i]) wrTable[i] = (ACTION)copy((ADDR)wrTable[i]);
-    if (sockTable[i]) sockTable[i] = (SockData)copy((ADDR)sockTable[i]);
-  }
-	
+void scanEnvRoots (void) {
+        envRootsDirty = 0;
+        int i;
+        prog = (ACTION)copy((ADDR)prog);
+        i = 0;
+        DISABLE(envmut);
+        while (i<maxDesc+1) {
+                if (rdTable[i]) rdTable[i] = (HANDLER)copy((ADDR)rdTable[i]);
+                if (wrTable[i]) wrTable[i] = (ACTION)copy((ADDR)wrTable[i]);
+                if (sockTable[i]) sockTable[i] = (SockData)copy((ADDR)sockTable[i]);
+                i++;
+                ENABLE(envmut);
+                DISABLE(envmut);
+        }
+        ENABLE(envmut);
 }
 
 // --------- Event loop ----------------------------------------------
 
-void ev_handler () {
+void kill_handler () {
   return;
 }
 
-void *event_loop (void *arg) {
+void eventLoop (void) {
+  DISABLE(envmut);
   fd_set readFds, writeFds;
   int i;
   while(1) {
     FD_COPY(&readUsed, &readFds);
     FD_COPY(&writeUsed, &writeFds);
-    if (select(maxDesc+1, &readFds, &writeFds, NULL, NULL) >= 0) {
+    ENABLE(envmut);
+    int r = select(maxDesc+1, &readFds, &writeFds, NULL, NULL);
+    DISABLE(envmut);
+    if (r >= 0) {
+      TIMERGET(msg0.baseline);
       for(i=0; i<maxDesc+1; i++) {
 	if (FD_ISSET(i, &readFds)) {
 	  if (rdTable[i]) {
 	    LIST inp = read_descr(i);
 	    if (inp) {
-	      INTERRUPT_PROLOGUE();
-	      rdTable[i]->Code(rdTable[i],inp,Inherit,Inherit);
-	      INTERRUPT_EPILOGUE();
+	      rdTable[i]->Code(rdTable[i],(POLY)inp,(POLY)Inherit,(POLY)Inherit);
 	    }
 	    else if (sockTable[i]) { //we got a close message from peer on connected socket
 	      SOCKHANDLER handler = sockTable[i]->handler;
-	      Connection_POSIX conn = handler->Code(handler,new_Peer(i),NULL);
-	      INTERRUPT_PROLOGUE();
-	      conn->CONN2DEST->DEST2CLOSABLE->close_POSIX(conn->CONN2DEST->DEST2CLOSABLE,Inherit,Inherit);
-	      INTERRUPT_EPILOGUE();
+	      Connection_POSIX conn = (Connection_POSIX)handler->Code(handler,(POLY)new_Peer(i),(POLY)0);
+              Closable_POSIX cl = conn->CONN2DEST->DEST2CLOSABLE;
+	      cl->close_POSIX(cl,0);
 	      close(i);
 	      CLR_RDTABLE(i);
 	      sockTable[i] = NULL;
@@ -598,9 +598,7 @@ void *event_loop (void *arg) {
 	}
 	if (FD_ISSET(i, &writeFds)) {
 	  if (wrTable[i]) {
-	    INTERRUPT_PROLOGUE();
-	    wrTable[i]->Code(wrTable[i],Inherit,Inherit);
-	    INTERRUPT_EPILOGUE();
+	    wrTable[i]->Code(wrTable[i],(POLY)Inherit,(POLY)Inherit);
 	  }
 	  else if (sockTable[i]) { //delayed connection has been accepted or has failed
 	    int opt;
@@ -623,23 +621,34 @@ void *event_loop (void *arg) {
 
 // --------- Initialization ----------------------------------------------------
 
-void init_env (int argc, char **argv) {
+void envInit (int argc, char **argv) {
   Int i;
+  
+  pthread_mutex_init(&envmut, &glob_mutexattr);
+  
   FD_ZERO(&readUsed);
   FD_ZERO(&writeUsed);
-  pthread_create(&evThread, NULL, event_loop, NULL); 
   
   struct sigaction act;
   act.sa_flags = 0;
   sigemptyset( &act.sa_mask );
-  act.sa_handler = ev_handler;
+  act.sa_handler = kill_handler;
   sigaction( SIGSELECT, &act, NULL );
+  
   Array arr; NEW(Array,arr,WORDS(sizeof(struct Array))+argc);
-  SETGCINFO(arr,__GC__Array);
+  arr->GCINFO = __GC__Array0;
   arr->size = argc;
   for (i=0; i<argc; i++)
-    arr->elems[i] = getStr(argv[i]);
+    arr->elems[i] = (POLY)getStr(argv[i]);
   env->argv_POSIX = arr;
+  
   fcntl(0, F_SETFL, O_NONBLOCK);
   fcntl(1, F_SETFL, O_NONBLOCK);
+
+  TIMERGET(msg0.baseline);
+
+  thread0.msg = &msg0;
+  thread0.id = pthread_self();
+  
+  pthread_setspecific(current_key, &thread0);
 }
