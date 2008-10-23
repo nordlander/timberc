@@ -51,7 +51,7 @@ struct Ref {
     POLY STATE;
 };
 
-#define STATEOF(ref)    (((ADDR)(ref))[WORDS(sizeof(struct Ref))])
+#define STATEOF(ref)    (((ADDR)(ref))+WORDS(sizeof(struct Ref)))
 
 void INITREF(Ref);
 
