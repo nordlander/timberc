@@ -31,15 +31,16 @@ Names are <em>simple</em> or <em>qualified</em>; the latter are used to disambig
 <p>
 Simple names come in two lexically distinct forms, <em>identifiers</em> and <em>operators</em>.
 <p>
-An identifier consists of a letter followed first by zero or more letters, digits, single quotes and underscores.
+An identifier consists of a letter followed by zero or more letters, digits, single quotes and underscores.
 The initial letter must be upper case for constructors, type constructors and
 module names, and must be lower case for variables, selectors and type variables. The following lexically correct
 identifiers are keywords of the language and may not be used as names:
 <pre>
-action    after     before    case      class     data      do
-default   else      elsif     forall    if        import    implicit  
-in        let       module    new       of        private   request   
-result    struct    then      type      use       where     while  
+action    after     before    case      class     data
+do        default   else      elsif     forall    if
+import    in        instance  let       module    new
+of        private   request   result    struct    then
+type      typeclass use       where     while  
 </pre> 
 <p> An operator is a sequence of one or more <em>symbol characters</em>.
 The symbol characters are defined by enumeration: <tt>:!#$%&*+\<=>?@\^|-~</tt>.

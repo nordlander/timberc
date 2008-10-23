@@ -242,7 +242,7 @@ The list of bindings in this form of expression differs from all other occurrenc
 lists of bindings in that they are <em>not recursive</em>. We are defining the selectors in a struct
 but allow pattern matching equations in layout-sensitive form; occurrence of the same name as a
 variable in the right hand side must refer to some other definition in scope. This is particularly
-common for implicit struct types, as here. See <a href="implicit.html">implicit types</a> for
+common for structs defined to be type classes, as here. See the section on <a href="tclass.html">type classes</a> for
 more explanatation.
 </ul>
 </li>
@@ -270,7 +270,8 @@ we may create several objects. An object encapsulates its own copy of the state 
 state of objects.
 <p>
 Procedures are subroutines that may be called by actions and requests; they are typically not exposed
-in interfaces.
+in interfaces. In contrast to actions and requests, a procedure always reads and writes the local state 
+of its caller, irrespective of the scope in which it was defined.
 <p>
 The syntax of these constructs are similar; they are all built from sequences of statements:
 <ul>

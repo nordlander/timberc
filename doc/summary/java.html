@@ -54,13 +54,13 @@ counter initVal = class
                     read = request
                              result val
 
-                    result Prog {..}
+                    result Counter {..}
 </pre>
  <p>
   The class itself starts with the keyword <tt>class</tt>. We see
   the initialization of the state variable <tt>val</tt> to <tt>initVal</tt>,
   the three method declaration and finally the result specification;
-  here <tt>Prog {..}</tt> means: assemble a value of type <tt>Prog</tt>
+  here <tt>Counter {..}</tt> means: assemble a value of type <tt>Counter</tt>
   from definitions in scope.
   <p>
   Note that there is no constructor method within the class. Within

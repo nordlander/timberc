@@ -56,7 +56,7 @@ We can now use <tt>add</tt> for lists of any type of objects for which we can de
 argument to the function.
 <p>
 The final step that gives an acceptable solution is to <em>let the compiler</em> handle the <tt>Num</tt> objects. We do this by declaring
-<tt>Num</tt> to be a  <em>type class</em>, following the terminology introduced in Haskell:
+<tt>Num</tt> to be a  <em>type class</em>, loosely following the terminology introduced in Haskell:
 <pre>
 typeclass Num
 </pre>
@@ -69,7 +69,7 @@ does the following:
 <li> adds an extra parameter of the type class to the function;</li>
 <li> changes the selector occurrences in the function body to a selection from that parameter.</li>
 <li> wherever the function is used, adds an object of the proper type as an extra argument.
-<li> changes the type of the function to be a <em>qualified type</tt>; the type class occurs as a constraint after <tt>\\</tt>.
+<li> changes the type of the function to be a <em>qualified type</em>; the type class occurs as a constraint after <tt>\\</tt>.
 </ul>
 <p>
 Our running example now becomes
@@ -88,7 +88,8 @@ typeclass Num a where
 To use function <tt>add</tt> to sum a list of integers, we could write e.g. <tt>add 0 [1, 7, 4]</tt>. The compiler must now insert
 the extra argument <tt>numInt</tt>, a struct value with selectors for the three arithmetic operators at type <tt>Int</tt>.
 However, since there might be several objects of type <tt>Num Int</tt> defined, we must indicate in  <tt>instance</tt> declarations
-the objects that are to be used at different types. The definition of the struct value and its instance declaration can be combined into one declaration. As an example, here is an instance of Num for rational numbers:
+the objects that are to be used at different types. The definition of the struct value and its instance declaration can be combined 
+into one declaration. As an example, here is an instance of Num for rational numbers:
 <pre>
 data Rational = Rat Int Int
 
