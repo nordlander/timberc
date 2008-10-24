@@ -34,20 +34,19 @@ data Port = Port Int
 struct Internet where
     tcp :: Sockets
 
-struct Destination < Closable where
-    deliver   :: String -> Action    
+struct Socket < Closable where
+    remoteHost :: Host
+    remotePort :: Port
+    inFile     :: RFile
+    outFile    :: WFile
 
-struct Connection < Destination where
-    established :: Action 
-    neterror    :: String -> Action             
-
-struct Peer < Destination where
-    host :: Host
-    port :: Port
+struct Connection < Closable where 
+    established :: Action
+    neterror    :: String -> Action
 
 struct Sockets where
-    connect :: Host -> Port -> (Peer -> Class Connection) -> Request ()
-    listen  :: Port -> (Peer -> Class Connection) -> Request Closable
+    connect :: Host -> Port -> (Socket -> Class Connection) -> Request ()
+    listen  :: Port -> (Socket -> Class Connection) -> Request Closable
 
 instance showHost :: Show Host
 showHost = struct

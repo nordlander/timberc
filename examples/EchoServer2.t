@@ -1,6 +1,6 @@
 module EchoServer2 where
 
-import NEWPOSIX
+import POSIX
 import Counter
 
 port = Port 12345

@@ -7,8 +7,7 @@
 #define FILE2CLOSABLE l_File_POSIX_Closable_POSIX_POSIX
 #define RFILE2FILE    l_RFile_POSIX_File_POSIX_POSIX
 #define WFILE2FILE    l_WFile_POSIX_File_POSIX_POSIX
-#define DEST2CLOSABLE l_Destination_POSIX_Closable_POSIX_POSIX
-#define PEER2DEST     l_Peer_POSIX_Destination_POSIX_POSIX
-#define CONN2DEST     l_Connection_POSIX_Destination_POSIX_POSIX
+#define CONN2CLOSABLE l_Connection_POSIX_Closable_POSIX_POSIX
+#define SOCK2CLOSABLE l_Socket_POSIX_Closable_POSIX_POSIX
 #define __GC__HANDLER __GC__CLOS3_POSIX    // __GC__CLOS_LIST_Time_Time_Msg__POSIX
 #endif

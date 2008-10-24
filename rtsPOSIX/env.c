@@ -205,6 +205,25 @@ LIST read_fun (RFile_POSIX this, Int dummy) {
   return read_descr(((DescClosable)this->RFILE2FILE->FILE2CLOSABLE)->descriptor);
 }
 
+UNITTYPE installR_fun (RFile_POSIX this, HANDLER hand, Int dummy) {
+  DISABLE(envmut);
+  Int desc = ((DescClosable)this->RFILE2FILE->FILE2CLOSABLE)->descriptor;
+  ADD_RDTABLE(desc,hand);
+  maxDesc = desc > maxDesc ? desc : maxDesc;  
+  pthread_kill(thread0.id, SIGSELECT);
+  ENABLE(envmut);
+  return (UNITTYPE)0;
+}
+
+RFile_POSIX new_RFile(int desc) {
+    RFile_POSIX rf; NEW(RFile_POSIX, rf, sizeof(struct RFile_POSIX));
+    rf->GCINFO = __GC__RFile_POSIX;
+    rf->RFILE2FILE = new_File(desc);
+    rf->read_POSIX = read_fun;
+    rf->installR_POSIX = installR_fun;
+    return rf;
+}
+
 // ----------- WFile -----------------------------------------------------------
 
 int write_fun (WFile_POSIX this, LIST xs, Int dummy) {
@@ -222,6 +241,26 @@ int write_fun (WFile_POSIX this, LIST xs, Int dummy) {
     res += r;
   }
   return res;
+}
+
+UNITTYPE installW_fun (WFile_POSIX this, ACTION act, Int dummy) {
+  DISABLE(envmut);
+  Int desc = ((DescClosable)this->WFILE2FILE->FILE2CLOSABLE)->descriptor;
+  ADD_WRTABLE(desc,act);
+  envRootsDirty = 1;
+  maxDesc = desc > maxDesc ? desc : maxDesc;  
+  pthread_kill(thread0.id, SIGSELECT);
+  ENABLE(envmut);
+  return (UNITTYPE)0;
+}
+
+WFile_POSIX new_WFile(int desc) {
+    WFile_POSIX wf; NEW(WFile_POSIX, wf, sizeof(struct WFile_POSIX));
+    wf->GCINFO = __GC__WFile_POSIX;
+    wf->WFILE2FILE = new_File(desc);
+    wf->write_POSIX = write_fun;
+    wf->installW_POSIX = installW_fun;
+    return wf;
 }
 
 // ------------ Env ------------------------------------------------------------
@@ -248,26 +287,6 @@ Maybe_Prelude open_fun (LIST path, int oflag) {
   return (Maybe_Prelude)res;
 }
 
-UNITTYPE installR_fun (RFile_POSIX this, HANDLER hand, Int dummy) {
-  DISABLE(envmut);
-  Int desc = ((DescClosable)this->RFILE2FILE->FILE2CLOSABLE)->descriptor;
-  ADD_RDTABLE(desc,hand);
-  maxDesc = desc > maxDesc ? desc : maxDesc;  
-  pthread_kill(thread0.id, SIGSELECT);
-  ENABLE(envmut);
-  return (UNITTYPE)0;
-}
-
-UNITTYPE installW_fun (WFile_POSIX this, ACTION act, Int dummy) {
-  DISABLE(envmut);
-  Int desc = ((DescClosable)this->WFILE2FILE->FILE2CLOSABLE)->descriptor;
-  ADD_WRTABLE(desc,act);
-  envRootsDirty = 1;
-  maxDesc = desc > maxDesc ? desc : maxDesc;  
-  pthread_kill(thread0.id, SIGSELECT);
-  ENABLE(envmut);
-  return (UNITTYPE)0;
-}
 
 Maybe_Prelude openR_fun (Env_POSIX this, LIST path, Int dummy) {
   DISABLE(envmut);
@@ -314,8 +333,8 @@ Time getTime_fun (Env_POSIX this, Int dummy) {
   return res;
 }
   
-//---------- Destination --------------------------------------------------------
-
+//
+/*
 struct DeliverMsg;
 typedef struct DeliverMsg *DeliverMsg;
 
@@ -365,24 +384,22 @@ Msg deliver_fun (Destination_POSIX this, LIST str, Time a, Time b) {
   ASYNC((Msg)res,a,b);
   return (Msg)res;
 }
-
+*/
 // ---------- Sockets ----------------------------------------------------------
 
-Peer_POSIX new_Peer (Int sock) {
-  Peer_POSIX res;
-  Destination_POSIX dest;
-  NEW (Destination_POSIX, dest, WORDS(sizeof(struct Destination_POSIX)));
-  dest->GCINFO = __GC__Destination_POSIX;
-  dest->DEST2CLOSABLE = new_Closable(sock);
-  dest->deliver_POSIX = deliver_fun;
-  NEW (Peer_POSIX, res, WORDS(sizeof(struct Peer_POSIX)));
-  res->GCINFO = __GC__Peer_POSIX;
-  res->PEER2DEST = dest;
+Socket_POSIX new_Socket (Int sock) {
+  Socket_POSIX res;
+  NEW (Socket_POSIX, res, WORDS(sizeof(struct Socket_POSIX)));
+  res->GCINFO = __GC__Socket_POSIX;
+  res->SOCK2CLOSABLE = new_Closable(sock);
+  res->inFile_POSIX = new_RFile(sock);
+  res->outFile_POSIX = new_WFile(sock);  
   struct sockaddr_in addr = sockTable[sock]->addr;
-  res->host_POSIX = mkHost(addr);
-  res->port_POSIX = mkPort(addr);
+  res->remoteHost_POSIX = mkHost(addr);
+  res->remotePort_POSIX = mkPort(addr);
   return res;
 }
+
 
 Int new_socket (SOCKHANDLER handler) {
   SockData d; 
@@ -397,7 +414,7 @@ Int new_socket (SOCKHANDLER handler) {
   return sock;
 }  
 
-
+/*
 struct HandlerStruct;
 typedef struct HandlerStruct *HandlerStruct;
  
@@ -422,11 +439,11 @@ HANDLER mkHandler (Connection_POSIX conn) {
   rdHandler->conn = conn;
   return (HANDLER)rdHandler;
 }
-
+*/
 void netError (Int sock, char *message) {
   SOCKHANDLER handler = sockTable[sock]->handler;
-  Connection_POSIX conn = (Connection_POSIX)handler->Code(handler,(POLY)new_Peer(sock),(POLY)0);
-  ADD_RDTABLE(sock,mkHandler(conn));
+  Connection_POSIX conn = (Connection_POSIX)handler->Code(handler,(POLY)new_Socket(sock),(POLY)0);
+  //ADD_RDTABLE(sock,mkHandler(conn));
   envRootsDirty = 1;
 //  INTERRUPT_PROLOGUE();
   conn->neterror_POSIX(conn,getStr(message),Inherit,Inherit);
@@ -435,8 +452,8 @@ void netError (Int sock, char *message) {
 
 void setupConnection (Int sock) {
   SOCKHANDLER handler = sockTable[sock]->handler;
-  Connection_POSIX conn = (Connection_POSIX)handler->Code(handler,(POLY)new_Peer(sock),(POLY)0);
-  ADD_RDTABLE(sock,mkHandler(conn));
+  Connection_POSIX conn = (Connection_POSIX)handler->Code(handler,(POLY)new_Socket(sock),(POLY)0);
+  //ADD_RDTABLE(sock,mkHandler(conn));
   envRootsDirty = 1;
   conn->established_POSIX(conn,Inherit,Inherit);
 }
@@ -581,8 +598,8 @@ void eventLoop (void) {
 	                    }
 	                    else if (sockTable[i]) { //we got a close message from peer on connected socket
 	                        SOCKHANDLER handler = sockTable[i]->handler;
-	                        Connection_POSIX conn = (Connection_POSIX)handler->Code(handler,(POLY)new_Peer(i),(POLY)0);
-                            Closable_POSIX cl = conn->CONN2DEST->DEST2CLOSABLE;
+	                        Connection_POSIX conn = (Connection_POSIX)handler->Code(handler,(POLY)new_Socket(i),(POLY)0);
+                            Closable_POSIX cl = conn->CONN2CLOSABLE;
 	                        cl->close_POSIX(cl,0);
 	                        close(i);
 	                        CLR_RDTABLE(i);
