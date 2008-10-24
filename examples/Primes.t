@@ -1,4 +1,4 @@
-module Primes2 where
+module Primes where
 
 import POSIX 
 
