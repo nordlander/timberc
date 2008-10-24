@@ -1,0 +1,43 @@
+<html> <head>
+<link href="simplestyle.css" rel="stylesheet" type="text/css">
+</head>
+
+<body>
+<h3>MasterMind</h3>
+<a href="">MasterMind</a> is a board game with two players; in this
+case the user choses the secret and the program does the guessing.
+Here is a sample interaction:
+<pre>
+examples> ./MasterMind
+Welcome to Mastermind!
+Choose your secret. Press return when ready.
+
+My guess: Red Blue Blue Red
+Answer (two integers): 1 1
+My guess: Blue Black Yellow Red
+Answer (two integers): 2 0
+My guess: Green Black Red Red
+Answer (two integers): 0 0
+My guess: Blue Blue Yellow White
+Answer (two integers): 3 0
+My guess: Blue Blue Yellow Blue
+Answer (two integers): 3 0
+My guess: Blue Blue Yellow Yellow
+Answer (two integers): 4 0
+Yippee!
+Do you want to play again? (y/n) n
+examples> 
+</pre>
+The program is too long to display here. We only note a few things:
+<ul>
+  <li> The program makes use of two auxiliary modules
+  <tt>Data.Functional.List</tt> and <tt>RandomGenerator</tt>. The
+  former is a library module, while the latter is provided in the
+  <tt>examples</tt> directory.
+  <li> The program complains if the user gives contradictory answers,
+  asks for the secret and explains the user's mistake.
+  <li> There is no error handling: if an answer cannot be parsed as
+  two integers, the program crashes.
+  </ul>
+  
+</body> </html>

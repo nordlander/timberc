@@ -26,7 +26,7 @@ root env = class
                         state := Idle
 
         Counting ->     t <- tmr.sample
-                        print (format t++" secs")
+                        print (format t)
                         state := Idle
 
    result 
@@ -34,6 +34,6 @@ root env = class
        env.stdin.installR enter
        print "Press return to start"
 
-format t = show (secOf t) ++ '.' : fracs
+format t = show (secOf t) ++ '.' : fracs ++ " secs"
   where t100  = microsecOf t `div` 10000
         fracs = if t100<10 then '0':show t100 else show t100 

@@ -10,7 +10,7 @@ root env = class
    primes := uniarray primesBound 0
    count  := 0
 
-   test k = loop 0
+   isPrime k = loop 0
       where loop n = do 
               p = primes!n
               if p*p > k then
@@ -20,7 +20,7 @@ root env = class
               else loop (n+1)
 
    tryFrom k = do
-     p <- test k
+     p <- isPrime k
      if p then 
         count := count + 1
         primes!count := k
