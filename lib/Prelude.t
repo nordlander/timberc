@@ -3,34 +3,29 @@ module Prelude where
 typeclass IntLiteral a where
  fromInt :: Int -> a
 
-instance intInt :: IntLiteral Int
-intInt = struct
+instance intInt :: IntLiteral Int where
   fromInt n = n
   
-instance intFloat ::IntLiteral Float
-intFloat = struct
+instance intFloat ::IntLiteral Float where
   fromInt = primIntToFloat
   
 typeclass Num a where
  (+),(-),(*) :: a -> a -> a
  negate :: a -> a
 
-instance numInt :: Num Int
-numInt = struct 
+instance numInt :: Num Int where
   (+) = primIntPlus
   (-) = primIntMinus
   (*) = primIntTimes
   negate = primIntNeg
 
-instance numFloat :: Num Float 
-numFloat = struct
+instance numFloat :: Num Float where
   (+) = primFloatPlus
   (-) = primFloatMinus
   (*) = primFloatTimes
   negate = primFloatNeg
 
-instance numTime :: Num Time
-numTime = struct
+instance numTime :: Num Time where
   (+) = primTimePlus
   (-) = primTimeMinus
   _ * _ = raise 1
@@ -41,93 +36,79 @@ default intInt < intFloat
 typeclass Eq a where
   (==),(/=) :: a -> a -> Bool
 
-instance eqInt :: Eq Int
-eqInt = struct
+instance eqInt :: Eq Int where
   (==) = primIntEQ
   (/=) = primIntNE
 
-instance eqFloat :: Eq Float
-eqFloat = struct
+instance eqFloat :: Eq Float where
   (==) = primFloatEQ
   (/=) = primFloatNE
 
-instance eqTime :: Eq Time
-eqTime = struct
+instance eqTime :: Eq Time where
   (==) = primTimeEQ
   (/=) = primTimeNE
 
-instance eqPID :: Eq PID
-eqPID = struct
+instance eqPID :: Eq PID where
   (==) = primPidEQ
   (/=) = primPidNE
 
-instance eqChar :: Eq Char
-eqChar = struct
+instance eqChar :: Eq Char where
   a == b = ord a == ord b
   a /= b = ord a /= ord b
 
-instance eqUnit :: Eq ()
-eqUnit = struct
+instance eqUnit :: Eq () where
   _ == _ = True
   _ /= _ = False
 
-instance eqList :: Eq [a] \\ Eq a
-eqList = struct
+instance eqList :: Eq [a] \\ Eq a where
     [] == []              = True
     a : as == b : bs  = a == b && as == bs
     _ == _               = False
     xs /= ys             = not ( xs == ys)
 
-instance eqEither :: Eq (Either a b) \\ Eq a, Eq b
-eqEither = struct
+instance eqEither :: Eq (Either a b) \\ Eq a, Eq b where
   Left x  == Left y  = x == y
   Right x == Right y = x == y
   _       == _       = False
   x       /= y       = not (x == y)
 
-instance eqPair :: Eq (a,b) \\ Eq a, Eq b
-eqPair = struct
+instance eqPair :: Eq (a,b) \\ Eq a, Eq b where
   (a,b) == (c,d) = a==c && b==d
   x /= y = not (x==y)
 
 typeclass Ord a < Eq a where
   (<),(<=),(>),(>=) :: a -> a -> Bool
 
-instance ordInt :: Ord Int
-ordInt = Ord {..}
+instance ordInt :: Ord Int = Ord {..}
   where Eq {..} = eqInt
         (<)  = primIntLT
         (<=) = primIntLE
         (>)  = primIntGT
         (>=) = primIntGE
 
-instance ordFloat :: Ord Float
-ordFloat = Ord {..}
+instance ordFloat :: Ord Float = Ord {..}
   where Eq {..} = eqFloat
         (<)  = primFloatLT
         (<=) = primFloatLE
         (>)  = primFloatGT
         (>=) = primFloatGE
 
-instance ordChar :: Ord Char
-ordChar = struct
-            a <  b = ord a <  ord b
-            a <= b = ord a <= ord b
-            a >  b = ord a >  ord b
-            a >= b = ord a >= ord b
-            (==) = eqChar.(==)
-            (/=) = eqChar.(/=)
+instance ordChar :: Ord Char = struct
+        a <  b = ord a <  ord b
+        a <= b = ord a <= ord b
+        a >  b = ord a >  ord b
+        a >= b = ord a >= ord b
+        (==) = eqChar.(==)
+        (/=) = eqChar.(/=)
 
-instance ordTime :: Ord Time
-ordTime = Ord {..}
+instance ordTime :: Ord Time = Ord {..}
   where Eq {..} = eqTime
         (<)  = primTimeLT
         (<=) = primTimeLE
         (>)  = primTimeGT
         (>=) = primTimeGE
 
-instance ordUnit :: Ord ()
-ordUnit = Ord{..}
+instance ordUnit :: Ord () = Ord{..}
   where Eq{..} = eqUnit
         _ < _  = False
         _ <= _ = True
@@ -138,8 +119,7 @@ ordUnit = Ord{..}
 typeclass Show a where
   show :: a -> String
 
-instance showInt :: Show Int
-showInt = struct
+instance showInt :: Show Int where
   show 0            = "0"
   show n
     |n < 0          = '-' : show (negate n)
@@ -149,44 +129,37 @@ showInt = struct
            | n < 10    = [dig n]
            | otherwise = dig (n `mod` 10) : digs (n `div` 10)
  
-instance showFloat :: Show Float
-showFloat = struct
+instance showFloat :: Show Float where
    show = primShowFloat
 
-instance showBool :: Show Bool
-showBool = struct
+instance showBool :: Show Bool where
   show False = "False"
   show True  = "True"
 
-instance showChar :: Show Char
-showChar = struct
+instance showChar :: Show Char where
   show c = [c]
 
-instance showMaybe :: Show (Maybe a) \\ Show a
-showMaybe = struct
+instance showMaybe :: Show (Maybe a) \\ Show a where
   show Nothing      = "Nothing"
   show (Just x)     = "Just (" ++ show x ++ ")"
 
-instance showString :: Show String
-showString = struct
+instance showString :: Show String where
   show s = '"' : s ++ "\""
 
-instance showList :: Show [a] \\ Show a
-showList = struct
+instance showList :: Show [a] \\ Show a where
   show [] = "[]"
   show (x : xs) = '[' : show x ++ concat (map (\x -> ',' : show x) xs) ++ "]"
 
-instance showTuple :: Show (a,b) \\ Show a, Show b = struct
+instance showTuple :: Show (a,b) \\ Show a, Show b where
   show (a,b) = "("++show a++","++show b++")"
 
-instance showUnit :: Show () = struct
+instance showUnit :: Show () where
   show () = "()"
 
 typeclass Parse a where
   parse :: String -> a
 
-instance parseInt :: Parse Int
-parseInt = struct
+instance parseInt :: Parse Int where
   parse str = r (reverse str)
     where r (c:cs) = ord c - ord '0' + 10*r cs
           r [] = 0
@@ -195,23 +168,19 @@ typeclass Enum a where
   fromEnum :: a -> Int
   toEnum :: Int -> a
 
-instance enumInt :: Enum Int
-enumInt =struct
+instance enumInt :: Enum Int where
   fromEnum n = n
   toEnum n = n
 
-instance enumChar :: Enum Char
-enumChar = struct
+instance enumChar :: Enum Char where
    fromEnum = primCharToInt
    toEnum = primIntToChar
 
-instance enumUnit :: Enum ()
-enumUnit = struct 
+instance enumUnit :: Enum () where
   fromEnum () = 0
   toEnum 0 = ()
 
-instance enumEither :: Enum (Either () a) \\ Enum a
-enumEither = struct
+instance enumEither :: Enum (Either () a) \\ Enum a where
   fromEnum (Left ()) = 0
   fromEnum (Right a) = 1 + fromEnum a
   toEnum 0 = Left ()
@@ -446,7 +415,7 @@ typeclass MPlus m where
   mappend :: m a -> m a -> m a
 
 
-instance functorMaybe :: Functor Maybe = struct
+instance functorMaybe :: Functor Maybe where
   f $^ Nothing = Nothing
   f $^ Just a  = Just (f a)
 
@@ -460,11 +429,11 @@ instance monadMaybe :: Monad Maybe = Monad {..}
         Just a  >>= f = f a
         Nothing >>= _ = Nothing
 
-instance mPlusMaybe :: MPlus Maybe = struct
+instance mPlusMaybe :: MPlus Maybe where
   mempty = Nothing
   Just a  `mappend` _ = Just a
   Nothing `mappend` a = a
 
-instance functorArray :: Functor Array = struct
+instance functorArray :: Functor Array where
   f $^ a = array [f (a!i) | i <- [0..size a-1]]
 

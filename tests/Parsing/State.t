@@ -1,7 +1,7 @@
 module State where
 
 data State s a = SM (s -> (s,a))
-
+{-
 runState :: State s a -> s -> (s,a)
 runState (SM f) s = f s
 
@@ -18,7 +18,7 @@ inState s m =
   m >>= \a ->
   set s' >>
   return a
-
+-}
 instance functorState :: Functor (State s) = struct
   f $^ SM fa = SM $ \s -> let (s',a) = fa s in (s',f a)
 

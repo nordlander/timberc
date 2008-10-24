@@ -141,6 +141,7 @@ topdecl :: { [Decl] }
         | 'typeclass' conid tyvars 'where' siglist         { [DRec True $2 (reverse $3) [] $5] }
         | 'typeclass' ids                                  { [DTClass $2] }
         | 'instance' var '::' type                         { [DPSig $2 $4] }  
+        | 'instance' var '::' type 'where' bindlist        { [DBind [BEqn (exp2lhs (EVar $2)) (RExp (EBStruct Nothing [] $6))], DPSig $2 $4] }
         | 'instance' var '::' type rhs                     { [DBind [BEqn (exp2lhs (EVar $2)) $5], DPSig $2 $4] }
         | 'instance' ids                                   { [DInstance $2] }
         | 'default' def                                    { [DDefault (reverse $2)] }
