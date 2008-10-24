@@ -552,103 +552,105 @@ void scanEnvRoots (void) {
 // --------- Event loop ----------------------------------------------
 
 void kill_handler () {
-  return;
+    return;
 }
 
 void eventLoop (void) {
-  DISABLE(envmut);
-  fd_set readFds, writeFds;
-  int i;
-  while(1) {
-    FD_COPY(&readUsed, &readFds);
-    FD_COPY(&writeUsed, &writeFds);
-    ENABLE(envmut);
-    int r = select(maxDesc+1, &readFds, &writeFds, NULL, NULL);
+    sigset_t one_sig;
+    sigemptyset(&one_sig);
+    sigaddset(&one_sig, SIGSELECT);
+    pthread_sigmask(SIG_UNBLOCK, &one_sig, NULL);
+
     DISABLE(envmut);
-    if (r >= 0) {
-      TIMERGET(msg0.baseline);
-      for(i=0; i<maxDesc+1; i++) {
-	if (FD_ISSET(i, &readFds)) {
-	  if (rdTable[i]) {
-	    LIST inp = read_descr(i);
-	    if (inp) {
-	      rdTable[i]->Code(rdTable[i],(POLY)inp,(POLY)Inherit,(POLY)Inherit);
-	    }
-	    else if (sockTable[i]) { //we got a close message from peer on connected socket
-	      SOCKHANDLER handler = sockTable[i]->handler;
-	      Connection_POSIX conn = (Connection_POSIX)handler->Code(handler,(POLY)new_Peer(i),(POLY)0);
-              Closable_POSIX cl = conn->CONN2DEST->DEST2CLOSABLE;
-	      cl->close_POSIX(cl,0);
-	      close(i);
-	      CLR_RDTABLE(i);
-	      sockTable[i] = NULL;
-	    }
-	  }
-	  else if (sockTable[i]) { //listening socket received a connect request; we will accept
-	    socklen_t len = sizeof(struct sockaddr);
-	    struct sockaddr_in addr;
-	    Int sock = accept(i,(struct sockaddr *)&addr,&len);
-	    fcntl(sock,F_SETFL,O_NONBLOCK);
-	    NEW(SockData,sockTable[sock],WORDS(sizeof(struct SockData)));
-	    sockTable[sock]->handler = sockTable[i]->handler;
-	    sockTable[sock]->addr = addr;
-	    maxDesc = sock > maxDesc ? sock : maxDesc;
-	    setupConnection(sock);
-	  }
-	}
-	if (FD_ISSET(i, &writeFds)) {
-	  if (wrTable[i]) {
-	    wrTable[i]->Code(wrTable[i],(POLY)Inherit,(POLY)Inherit);
-	  }
-	  else if (sockTable[i]) { //delayed connection has been accepted or has failed
-	    int opt;
-	    socklen_t len = sizeof(int);
-	    FD_CLR(i,&writeUsed);
-	    if (getsockopt(i,SOL_SOCKET,SO_ERROR, (void *)&opt, &len) < 0)
-	      perror("getsockopt failed");
-	    if (opt) {
-	      netError(i,"Connection failed");
-	    }
-	    else {
-	      setupConnection(i);
-	    }
-	  }
-	}
-      }
+    fd_set readFds, writeFds;
+    int i;
+    while(1) {
+        FD_COPY(&readUsed, &readFds);
+        FD_COPY(&writeUsed, &writeFds);
+        ENABLE(envmut);
+        int r = select(maxDesc+1, &readFds, &writeFds, NULL, NULL);
+        DISABLE(envmut);
+        if (r >= 0) {
+            TIMERGET(msg0.baseline);
+            for(i=0; i<maxDesc+1; i++) {
+	            if (FD_ISSET(i, &readFds)) {
+	                if (rdTable[i]) {
+	                    LIST inp = read_descr(i);
+	                    if (inp) {
+	                        rdTable[i]->Code(rdTable[i],(POLY)inp,(POLY)Inherit,(POLY)Inherit);
+	                    }
+	                    else if (sockTable[i]) { //we got a close message from peer on connected socket
+	                        SOCKHANDLER handler = sockTable[i]->handler;
+	                        Connection_POSIX conn = (Connection_POSIX)handler->Code(handler,(POLY)new_Peer(i),(POLY)0);
+                            Closable_POSIX cl = conn->CONN2DEST->DEST2CLOSABLE;
+	                        cl->close_POSIX(cl,0);
+	                        close(i);
+	                        CLR_RDTABLE(i);
+	                        sockTable[i] = NULL;
+	                    }
+	                } else if (sockTable[i]) { //listening socket received a connect request; we will accept
+	                    socklen_t len = sizeof(struct sockaddr);
+	                    struct sockaddr_in addr;
+	                    Int sock = accept(i,(struct sockaddr *)&addr,&len);
+	                    fcntl(sock,F_SETFL,O_NONBLOCK);
+	                    NEW(SockData,sockTable[sock],WORDS(sizeof(struct SockData)));
+	                    sockTable[sock]->handler = sockTable[i]->handler;
+	                    sockTable[sock]->addr = addr;
+	                    maxDesc = sock > maxDesc ? sock : maxDesc;
+	                    setupConnection(sock);
+	                }
+	            }
+	            if (FD_ISSET(i, &writeFds)) {
+	                if (wrTable[i]) {
+	                    wrTable[i]->Code(wrTable[i],(POLY)Inherit,(POLY)Inherit);
+	                } else if (sockTable[i]) { //delayed connection has been accepted or has failed
+	                    int opt;
+	                    socklen_t len = sizeof(int);
+	                    FD_CLR(i,&writeUsed);
+	                    if (getsockopt(i,SOL_SOCKET,SO_ERROR, (void *)&opt, &len) < 0)
+	                        perror("getsockopt failed");
+	                    if (opt) {
+	                        netError(i,"Connection failed");
+	                    } else {
+	                        setupConnection(i);
+	                    }
+	                }
+	            }
+            }
+        }
     }
-  }
 }
 
 // --------- Initialization ----------------------------------------------------
 
 void envInit (int argc, char **argv) {
-  Int i;
+    Int i;
   
-  pthread_mutex_init(&envmut, &glob_mutexattr);
+    pthread_mutex_init(&envmut, &glob_mutexattr);
   
-  FD_ZERO(&readUsed);
-  FD_ZERO(&writeUsed);
+    FD_ZERO(&readUsed);
+    FD_ZERO(&writeUsed);
   
-  struct sigaction act;
-  act.sa_flags = 0;
-  sigemptyset( &act.sa_mask );
-  act.sa_handler = kill_handler;
-  sigaction( SIGSELECT, &act, NULL );
+    struct sigaction act;
+    act.sa_flags = 0;
+    sigemptyset( &act.sa_mask );
+    act.sa_handler = kill_handler;
+    sigaction( SIGSELECT, &act, NULL );
   
-  Array arr; NEW(Array,arr,WORDS(sizeof(struct Array))+argc);
-  arr->GCINFO = __GC__Array0;
-  arr->size = argc;
-  for (i=0; i<argc; i++)
-    arr->elems[i] = (POLY)getStr(argv[i]);
-  env->argv_POSIX = arr;
+    Array arr; NEW(Array,arr,WORDS(sizeof(struct Array))+argc);
+    arr->GCINFO = __GC__Array0;
+    arr->size = argc;
+    for (i=0; i<argc; i++)
+        arr->elems[i] = (POLY)getStr(argv[i]);
+    env->argv_POSIX = arr;
   
-  fcntl(0, F_SETFL, O_NONBLOCK);
-  fcntl(1, F_SETFL, O_NONBLOCK);
+    fcntl(0, F_SETFL, O_NONBLOCK);
+    fcntl(1, F_SETFL, O_NONBLOCK);
 
-  TIMERGET(msg0.baseline);
+    TIMERGET(msg0.baseline);
 
-  thread0.msg = &msg0;
-  thread0.id = pthread_self();
+    thread0.msg = &msg0;
+    thread0.id = pthread_self();
   
-  pthread_setspecific(current_key, &thread0);
+    pthread_setspecific(current_key, &thread0);
 }

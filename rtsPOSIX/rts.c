@@ -250,6 +250,7 @@ int activate(Msg m) {
     else
         prev->next = new;
     nactive++;
+    // fprintf(stderr, "Worker thread %d activated (%d)\n", (int)new, nactive);
     return 1;
 }
 
@@ -267,12 +268,13 @@ void deactivate(Thread t) {
     t->next = sleepQ;
     sleepQ = t;
     nactive--;
+    // fprintf(stderr, "Worker thread %d deactivated (%d)\n", (int)t, nactive);
 }
 
 void *run(void *arg) {
     Thread current = (Thread)arg;
-    pthread_sigmask(SIG_BLOCK, &all_sigs, NULL);
     pthread_setspecific(current_key, current);
+    // fprintf(stderr, "Worker thread %d started\n", (int)current);
     DISABLE(rts);
     while (1) {
         Msg this = current->msg;
@@ -284,7 +286,7 @@ void *run(void *arg) {
         DISABLE(rts);
 
         deactivate(current);
-        while (msgQ && msgQ->Code)
+        while (msgQ && !(msgQ->Code))
             msgQ = msgQ->next;
         if (msgQ) {
             activate(msgQ);
@@ -306,6 +308,7 @@ UNITTYPE ASYNC( Msg m, Time bl, Time dl ) {
     AbsTime now;
     TIMERGET(now);
     Thread current = CURRENT();
+    // fprintf(stderr, "Working thread %d in ASYNC\n", (int)current);
     m->baseline = current->msg->baseline;
     switch ((Int)bl) {
 	    case INHERIT: break;
@@ -402,7 +405,8 @@ POLY Raise(BITS32 polyTag, Int err) {
 int timerQdirty;
 
 void *timerHandler(void *arg) {
-    pthread_sigmask(SIG_BLOCK, &all_sigs, NULL);
+
+//    pthread_sigmask(SIG_BLOCK, &all_sigs, NULL);
     sigset_t accept;
     sigemptyset(&accept);
     sigaddset(&accept, SIGALRM);
@@ -414,8 +418,10 @@ void *timerHandler(void *arg) {
         TIMERGET(now);
         while (timerQ && LESSEQ(timerQ->baseline, now)) {
             Msg m = dequeue(&timerQ);
-            if (m->Code)
-                enqueueByDeadline( m, &msgQ );
+            if (m->Code) {
+                if (!activate(m))
+                    enqueueByDeadline(m, &msgQ);
+            }
         }
         if (timerQ)
             TIMERSET(timerQ->baseline, now);
@@ -458,7 +464,10 @@ void init_rts(int argc, char **argv) {
     prio_min = sched_get_priority_min(SCHED_RR);
     prio_max = sched_get_priority_max(SCHED_RR);
     pthread_key_create(&current_key, NULL);
-    sigfillset(&all_sigs);
+    sigemptyset(&all_sigs);
+    sigaddset(&all_sigs, SIGALRM);
+    sigaddset(&all_sigs, SIGSELECT);
+    pthread_sigmask(SIG_BLOCK, &all_sigs, NULL);
     
     DISABLE(rts);
     

@@ -31,7 +31,7 @@
 #define HEAPSIZE                0x100000  //  0x100000 words = 0x400000 bytes = 4194304 bytes = 4 Mb = 1024 pages = 0x400 pages
 #define STARTGC()               (WORD)hp >= 7 * (((WORD)lim)/8)
 #define ISWHITE(a)              INSIDE(heapchain,a,hp)
-#define ISBLACK(a)              INSIDE(heapchain2,a,scanp)
+#define ISBLACK(a)              hp2 && INSIDE(heapchain2,a,scanp)
 #define ISFORWARD(a)            ((ADDR)(a) > edata)
 
 #define INSIDE(base,a,lim)      (base[0] ? inside(base,a,lim) : (base <= (a) && (a) < lim))
