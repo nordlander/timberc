@@ -333,11 +333,15 @@ pCmd env t0 (CSwitch e alts)
   | any litA alts               = do (bs,e) <- pExpT env tInt e
                                      alts <- mapM (pAlt env e tInt t0) alts
                                      return (cBind bs (CSwitch e alts))
-  | otherwise                   = do (bs,t,e) <- pExp env e
+  | isEVar e || all nullA alts  = do (bs,t,e) <- pExp env e
                                      alts <- mapM (pAlt env e t t0) alts
                                      let (alts0,alts1) = partition nullA [ a | a@(ACon _ _ _ _) <- alts ]
                                          altsW         = [ a | a@(AWild _) <- alts ]
                                      return (cBind bs (mkSwitch env e (alts0++absent0 altsW) (alts1++absent1 altsW)))
+  | otherwise                   = do (bs,t,e) <- pExp env e
+                                     x <- newName tempSym
+                                     c <- pCmd (addVals [(x,t)] env) t0 (CSwitch (EVar x) alts)
+                                     return (cBind bs (cBind [(x,Val t e)] c))
   where nullA (ACon k _ _ _)    = k `elem` nulls env
         nullA _                 = False
         absent                  = allCons env alts \\ [ k | ACon k _ _ _ <- alts ]
@@ -376,11 +380,12 @@ pAlt env _ _ t0 (AWild c)       = liftM AWild (pCmd env t0 c)
 pAlt env _ _ t0 (ALit l c)      = liftM (ALit l) (pCmd env t0 c)
 pAlt env e (TCon _ ts) t0 (ACon k vs te c)
                                 = do te' <- newEnv paramSym (polyTagTypes (length vs))
-                                     c <- pCmd (addPolyEnv vs [0..] (map EVar (dom te')) env) t0 (cBind (bs0 te' ++ bs1) c)
-                                     return (ACon k [] [] c)
-  where bs0 te                  = zipWith mkBind te _abcSupply
-        bs1                     = filter (not . isDummy . fst) (zipWith mkBind te abcSupply)
-        mkBind (x,t) y          = (x, Val t (ESel (ECast (TCon k (ts ++ map tVar vs)) e) y))
+                                     c <- pCmd (addPolyEnv vs [0..] (map EVar (dom te')) (addVals te env)) t0 c
+                                     return (ACon k [] [] (cBind (bs0 te' ++ bs1) c))
+  where bs0 te                  = zipWith mkBind te (_abcSupply `zip` repeat (ValT tBITS32))
+        (_,te0)                 = findStructTEnv "KKK" env (TCon k (ts ++ map tVar vs))
+        bs1                     = filter (not . isDummy . fst) (zipWith mkBind te te0)
+        mkBind (x,t) (y,ValT u) = (x, Val t (cast t u (ESel (ECast (TCon k (ts ++ map tVar vs)) e) y)))
         
         
 
