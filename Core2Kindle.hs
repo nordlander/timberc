@@ -73,7 +73,7 @@ findDecl env k
 
 -- Look up a closure type (a Kindle.Struct) in the current store, extending the store if necessary
 findClosureType env [] ts t         = do ds <- currentStore
-                                         -- tr ("Looking for " ++ render (pr (name0 "closure", Kindle.FunT vs ts t)))
+                                         -- tr ("Looking for (1) " ++ render (pr (name0 "closure", Kindle.FunT [] ts t)))
                                          case Kindle.findStruct s0 ds of
                                             Just n  -> return (Kindle.TCon n (t:ts))
                                             Nothing -> do
@@ -85,7 +85,7 @@ findClosureType env [] ts t         = do ds <- currentStore
         ts0                         = map Kindle.tVar vs0
         a                           = length ts
 findClosureType env vs ts t         = do ds <- currentStore
-                                         -- tr ("Looking for " ++ render (pr (name0 "closure", Kindle.FunT vs ts t)))
+                                         -- tr ("Looking for (2) " ++ render (pr (name0 "closure", Kindle.FunT vs ts t)))
                                          case Kindle.findStruct s0 ds of
                                             Just n  -> return (Kindle.TCon n ts0)
                                             Nothing -> do
@@ -701,7 +701,9 @@ cExp env (EAp e es)
                 (es1,es2)               = splitAt l_ts es
 cExp env (EVar x)                       = case lookup' (tenv env) x of
                                              Kindle.ValT t        -> return (id, t, ValR e)
-                                             Kindle.FunT vs ts' t -> return (id, subst s t, FunR (Kindle.ECall x ts) (subst s ts'))
+                                             Kindle.FunT vs ts' t 
+                                               | null ts'         -> return (id, subst s t, ValR (Kindle.ECall x ts []))
+                                               | otherwise        -> return (id, subst s t, FunR (Kindle.ECall x ts) (subst s ts'))
                                                where s             = vs `zip` ts
   where e                               = if stateVar (annot x) then Kindle.ESel (stateRef env) x else Kindle.EVar x
         ts                              = tArgs env
