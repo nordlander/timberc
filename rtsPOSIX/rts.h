@@ -29,7 +29,7 @@ union FloatCast {
 };
 
 #define POLY2Float(x)   ((union FloatCast )(x)).f
-#define Float2POLY(x)   ((union FloatCast )(x)).p
+#define Float2POLY(x)   ((union FloatCast )((float)x)).p
 
 #define ZEROBITS        0
 #define ORBITS(a,b)     (a) | (b)
