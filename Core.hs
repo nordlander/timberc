@@ -618,7 +618,7 @@ instance AlphaConv Type where
                                       | otherwise -> return (TId n)
     ac s (TFun t ts)            = liftM2 TFun (ac s t) (ac s ts)
     ac s (TAp t u)              = liftM2 TAp (ac s t) (ac s u)
-    ac s (TVar n)               = newTVar (tvKind n)
+    ac s t                      = return t
 
 instance AlphaConv Rho where
     ac s (R t)                  = liftM R (ac s t)
@@ -881,9 +881,8 @@ prParam (x,sc)                  = parens (pr (x,sc))
 
 instance Pr Exp where
     prn 0 (ELam te e)           = hang (char '\\' <> sep (map prParam te) <+> text "->") 4 (pr e)
---    prn 0 (ELam te e)           = hang (char '\\' <> sep (map prId (dom te)) <+> text "->") 4 (pr e)
     prn 0 (ELet bs e)
-      | isTAppEncoding bs       = pr e <+> braces (sep (map pr (tAppTypes bs)))
+      | isTAppEncoding bs       = pr e <+> braces (commasep pr (tAppTypes bs))
       | isTAbsEncoding bs       = hang (text "/\\" <> sep (map prId (tAbsVars bs)) <+> text "->") 4 (pr e)
 --      | isTAppEncoding bs       = pr e
 --      | isTAbsEncoding bs       = pr e

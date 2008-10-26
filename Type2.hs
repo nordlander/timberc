@@ -79,8 +79,8 @@ t2ExpTscoped env sc e           = do (s1,rh,e) <- t2Exp env e
                                      
 
 t2ExpT env (Scheme t qs []) e   = t2ExpTscoped env (Scheme t qs []) e
-t2ExpT env sc e                 = do sc <- ac nullSubst sc
-                                     t2ExpTscoped env sc e
+t2ExpT env sc e                 = do sc' <- ac nullSubst sc
+                                     t2ExpTscoped env sc' e
 
 
 t2ExpTs env [] []               = return (nullSubst, [])
