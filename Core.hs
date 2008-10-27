@@ -274,28 +274,21 @@ equalTs ((TFun ts t,TFun ts' t'):eqs)
 equalTs eqs                             = False
 
 
--- Simple instantiation check ---------------------------------------------
+-- Simple equality check (modulo function type representation) ----------------
 
-simpleInst (Scheme r [] _) t            = case mkT r of Just t' -> instT [(t',t)]; Nothing -> False
-  where instT []                        = True
-        instT ((TFun ts1 t1, TFun ts2 t2):ts)
-          | length ts1 == length ts2    = instT ((t1,t2):(ts1 `zip` ts2)++ts)
-        instT ((TAp t1 u1, TAp t2 u2):ts)
-                                        = instT ((t1,t2):(u1,u2):ts)
-        instT ((TId n1, TId n2):ts)
-          | n1 == n2                    = instT ts
-        instT ((TId n, t):ts)
-          | isVar n                     = instT (subst (n +-> t) ts)
-        instT ts                        = False
-        
-        mkT (R t)                       = Just t
-        mkT (F ss r)                    = do ts <- mapM mkT' ss; t <- mkT r; return (TFun ts t)
-        mkT' (Scheme r [] [])           = mkT r
-        mkT' _                          = Nothing
-simpleInst s t                          = False
-                
-                
-                
+sameType sc t0                          = case schemeToType sc of
+                                            Just t  -> t == t0
+                                            Nothing -> False
+
+schemeToType (Scheme rh [] [])          = rhoToType rh
+schemeToType _                          = Nothing
+
+rhoToType (R t)                         = return t
+rhoToType (F scs rh)                    = do ts <- mapM schemeToType scs
+                                             t <- rhoToType rh
+                                             return (TFun ts t)
+
+
 -- Free variables (Exp) -------------------------------------------------------------
 
 instance Ids Binds where

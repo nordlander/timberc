@@ -340,10 +340,10 @@ checkRoot clo ifs def       = do if1 <- getIFile rootMod
         (r,rootMod)         = splitQual (root clo) def
         rootN               = qName rootMod (name0 r)
         rootT               = qName rtsMod (name0 "RootType")
-        checkRoot' te t0    = case [ (n,t) | (n,t) <- te, n == rootN ] of
-                                [(n,t)]  -> if Core.simpleInst t t0
+        checkRoot' te t0    = case [ (n,sc) | (n,sc) <- te, n == rootN ] of
+                                [(n,sc)]  -> if Core.sameType sc t0
                                             then return n
-                                            else fail ("Incorrect root type: " ++ render (pr t)++"; should be "++render(pr t0))
+                                            else fail ("Incorrect root type: " ++ render (pr sc) ++ "; should be " ++ render(pr t0))
                                 _ -> fail ("Cannot locate root " ++ (root clo) ++ " in module " ++ rootMod)
         getIFile m          = case lookup (name0 m) ifs of
                                 Just ifc -> return ifc

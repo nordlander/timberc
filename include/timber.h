@@ -48,7 +48,9 @@ struct TUP4 {
 };
 extern WORD __GC__TUP4[];
 
-struct LIST {};
+struct LIST {
+    WORD *GCINFO;
+};
 
 struct CONS {
   WORD *GCINFO;

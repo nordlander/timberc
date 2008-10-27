@@ -205,7 +205,7 @@ pModule e2 dsi (Module m ns ds bs)
 
 -- Prepare structs declarations
 pDecls env ds                   = map f ds
-  where f (n,Struct vs te _)    = (n, Struct [] (polyTagEnv0 l_vs ++ polyTagEnv1 (l_vs - a) ++ tagSig ++ mapSnd pType te) Top)
+  where f (n,Struct vs te _)    = (n, Struct [] (polyTagEnv0 l_vs ++ tagSig ++ mapSnd pType te ++ polyTagEnv1 (l_vs - a)) Top)
           where tagSig          = if n `elem` tagged env then [(prim Tag, ValT tInt)] else []
                 l_vs            = length vs
                 a               = visibleArity env n
