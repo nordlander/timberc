@@ -626,6 +626,7 @@ void eventLoop (void) {
 void envInit (int argc, char **argv) {
     Int i;
   
+    pthread_setspecific(current_key, &thread0);
     pthread_mutex_init(&envmut, &glob_mutexattr);
   
     FD_ZERO(&readUsed);
@@ -651,6 +652,4 @@ void envInit (int argc, char **argv) {
 
     thread0.msg = &msg0;
     thread0.id = pthread_self();
-  
-    pthread_setspecific(current_key, &thread0);
-}
+  }

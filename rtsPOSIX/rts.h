@@ -85,7 +85,7 @@ extern WORD __GG__Time[] ;
 #endif
 
 #define NEW(t,addr,words)       { ADDR top,stop; \
-                                  do { addr = (t)hp; stop = lim; top = (ADDR)addr+(words); } \
+                                  do { addr = (t)hp; stop = lim; top = ((ADDR)addr)+(words); } \
                                   while (!CAS(addr,top,&hp)); \
                                   if (top>=stop) addr = (t)force((words),(ADDR)addr); }
 

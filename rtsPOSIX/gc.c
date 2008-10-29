@@ -30,6 +30,7 @@
 #define allocwords(size)        (ADDR)malloc(BYTES(size))
 #define HEAPSIZE                0x100000  //  0x100000 words = 0x400000 bytes = 4194304 bytes = 4 Mb = 1024 pages = 0x400 pages
 #define STARTGC()               (WORD)hp >= 7 * (((WORD)lim)/8)
+
 #define ISWHITE(a)              INSIDE(heapchain,a,hp)
 #define ISBLACK(a)              hp2 && INSIDE(heapchain2,a,scanp)
 #define ISFORWARD(a)            ((ADDR)(a) > edata)
@@ -37,7 +38,10 @@
 #define INSIDE(base,a,lim)      (base[0] ? inside(base,a,lim) : (base <= (a) && (a) < lim))
 
 int inside(ADDR base, ADDR a, ADDR lim) {
-        return (base <= a && a < lim && lim <= base+HEAPSIZE) || (base[0] && inside((ADDR)base[0],a,lim));
+    if (base <= a && a < base+HEAPSIZE)
+        return 1;
+    base = (ADDR)base[0];
+    return INSIDE(base,a,lim);
 }
 
 WORD pagesize;                          // obtained from OS, measured in words
@@ -55,6 +59,7 @@ void scanTimerQ(void);
 extern int envRootsDirty;
 extern int timerQdirty;
 
+
 void initheap() {
         base = allocwords(HEAPSIZE);
         if (!base)
@@ -63,6 +68,7 @@ void initheap() {
         hp = base + 1;
         lim = base + HEAPSIZE - 1;                      // leave room for a one word node at the end
         heapchain = base;
+        // printf("# Fresh heap: base=%x lim=%x (hp=%x)\n", (int)base, (int)lim, (int)hp);
 }
 
 void pruneStaticHeap() {
@@ -98,6 +104,7 @@ ADDR force(WORD size, ADDR last) {                      // Overflow in fromspace
         if (size > HEAPSIZE-3) panic("Excessive heap block requested");
 
         DISABLE(rts);
+        // printf("# force: base=%x lim=%x (hp=%x)\n", (int)base, (int)lim, (int)hp);
         if (base <= last && last < lim) {               // only extend if we were first to reach critical section
                 a = allocwords(HEAPSIZE);
                 if (!a) panic("Cannot allocate more memory");
@@ -110,6 +117,7 @@ ADDR force(WORD size, ADDR last) {                      // Overflow in fromspace
 
                 last[0] = 0;                            // mark the end of a heap segment (nulled gcinfo)
                 last[1] = (WORD)hp;
+                // printf("# new:   base=%x lim=%x (hp=%x)\n", (int)base, (int)lim, (int)hp);
         }
         ENABLE(rts);
 
@@ -142,13 +150,14 @@ ADDR force2(WORD size, ADDR last, ADDR info) {          // Overflow in tospace
 }
 
 ADDR copystateful(ADDR obj, ADDR info) {
-        ADDR dataobj = obj + STATIC_SIZE(info);         // actual mutable struct follows right after the Ref struct
-        ADDR dest, datainfo = IND0(dataobj);
-        WORD i, size = STATIC_SIZE(info) + STATIC_SIZE(datainfo);   // dataobj must be a GC_STD or a GC_BIG
+        WORD i = STATIC_SIZE(info);
+        ADDR dest, datainfo = IND0(obj+i);              // actual mutable struct follows right after the Ref struct
+        WORD size = i + STATIC_SIZE(datainfo);          // dataobj must be a GC_STD or a GC_BIG
         NEW2(dest,size,info);
         DISABLE(((Ref)obj)->mut);
-        for (i=0; i < size; i++)
+        for ( ; i < size; i++)
                 dest[i] = obj[i];
+        INITREF((Ref)dest);
         obj[0] = (WORD)dest;
         if (info[2]) {
                 // object has mutable arrays...  !!!!!!!!
@@ -288,6 +297,7 @@ void gc() {
         base = base2;
         lim = lim2;
         hp = hp2;
+        // printf("!!!Heap switched:  base=%x lim=%x (hp=%x)\n", (int)base, (int)lim, (int)hp);
 
         base2 = lim2 = hp2 = (ADDR)0;
         scanbase = scanp = (ADDR)0;
@@ -296,9 +306,11 @@ void gc() {
 
 void *garbageCollector(void *arg) {
     Thread current = (Thread)arg;
+    pthread_setspecific(current_key, current);
     DISABLE(rts);
     while (1) {
         pthread_cond_wait(&current->trigger, &rts);
+        // printf("# Starting GC\n");
         gc();
     }
 }
@@ -311,7 +323,7 @@ void gcStart(void) {
 
 void gcInit() {
 #if defined(__APPLE__)
-    edata = (ADDR)get_end();
+    edata = (ADDR)get_edata();
 #endif
 #if defined(__linux__)
     extern int _end[];
