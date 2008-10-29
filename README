@@ -21,8 +21,15 @@ Configuration
 =============
 
 If you want to develop timberc, make sure happy and either ghc or hugs
-is in the path. Run ./configure --prefix=`pwd` and the compiler will be 
-configured for your current directory.
+is in the path. Run 
+
+   autoconf 
+
+followed by 
+
+   ./configure --prefix=`pwd` 
+
+and the compiler will be configured for your current directory.
 
 Making
 ======
@@ -42,13 +49,10 @@ If you're running the compiler interactively under hugs, type
 
    main2 ["--help"]
 
-On Linux, you might have to do "ulimit -s unlimited" in your shell
-before running your program, or you'll get a segmentation fault.
-
 Caveats
 =======
 
-Plenty!  Be aware that the sources are in pre-alpha shape!!
+Plenty!  Be aware that these sources are just an alpha release!!
 
 
 To to
@@ -56,23 +60,19 @@ To to
 
 (Immediate)
 
-   - Implement local let and case for statements (Core2Kindle.hs)
-   - Fix bug that precludes single actions as object interfaces (Core2Kindle.hs)
-   - Add term translation for record and case expressions with proper subtyping (Type.hs)
-   - Implement unique renaming of all non-global names.
-   - Thoroughly test the type-checker!
-   - Integrate the copying inceremental garbage collector.
-   - Construct a more interesting standard environment (rts.c).
-   - Generate special type constructors for polymorphic data types instantiated with
-     primitive types.
-   - (Linux) Fix terminal input.
-   - (Linux) Fix stack size setting.
 
 (Coming up)
 
-   - Preserve template, action and request syntax in Core.
-   - Complete the M16C port.
+   - Add a supercompilation pass for better inlining and less generation of intermediate data
+   - Do common subexpression elimination
+   - Add true flattened multi-dimensional arrays to Kindle and use them in translation of Timber arrays
+     (will fix garbage collection problem for objects with mutable arrays)
+   - Add exceptions
+   - Fix incorrect behavior of the abort primitive
+   - Implement deadlock detection
    - Turn subtyping coercions into casts for first listed parent type in each declaration.
+   - Add an interface to some portable GUI library
+   - Provide cross-compiling support for ARM7 and M16C
 
 (Long term)
 
@@ -85,15 +85,21 @@ Contributors
 Johan Nordlander
 Bjorn von Sydow
 Andy Gill
-Mark P. Jones
+Per Lindgren
 Magnus Carlsson
+Martin Kero
+Peter Jonsson
+Viktor Leijon
+Andrey Kruglyak
+Simon Aittomaa
+Johan Ericsson
 ...
 
 
 Reporting bugs
 ==============
 
-Contact nordland@csee.ltu.se, but please be gentle!
+Contact johan.nordlander@ltu.se, but please be gentle!
 
 
 License
