@@ -11,7 +11,7 @@ lambdalift ds m                 = localStore (llModule ds m)
 
 data Env                        = Env { decls      :: Decls,                    -- global type declarations
                                         thisVars   :: [Name],                   -- variables reachable through "this"
-                                        locals     :: ATEnv,                    -- non-global values in scope
+                                        locals     :: ATEnv,                    -- non-global value names in scope
                                         expansions :: Map Name ([Name],[Name])  -- non-global functions and their added type/term parameters
                                       }
 
@@ -76,7 +76,7 @@ llCmd env (CBind r bs c)                = do vals' <- mapM (llBind env') vals
         free0                           = evars funs
         free1                           = free0 ++ concat [ xs | (f,(_,xs)) <- expansions env, f `elem` free0 ]
         fte                             = locals (if r then env1 else env) `restrict` free1
-        tvs                             = nub (typevars bs)
+        tvs                             = nub (typevars funs ++ typevars fte)
         env1                            = addLocals (mapSnd typeOf' vals) env
         env2                            = addExpansions (dom funs `zip` repeat (tvs, dom fte)) env1
         env'                            = if r then env2 else env
