@@ -565,8 +565,8 @@ void eventLoop (void) {
     fd_set readFds, writeFds;
     int i;
     while(1) {
-        FD_COPY(&readUsed, &readFds);
-        FD_COPY(&writeUsed, &writeFds);
+        readFds = readUsed;
+        writeFds = writeUsed;
         ENABLE(envmut);
         int r = select(maxDesc+1, &readFds, &writeFds, NULL, NULL);
         DISABLE(envmut);
