@@ -260,6 +260,8 @@ k2cCmd (CBind False [(x,Val t (ENew n [] bs))] (CBind False [(y,Val tref (ENew (
   where Val _ st                = lookup' bs' (prim STATE)
 k2cCmd (CBind False [(_,Val (TCon (Prim UNITTYPE _) _) e)] (CRet (ECast (TCon (Prim UNITTYPE _) _) _)))
                                 = k2cExp e <> text ";"
+k2cCmd (CBind False [(_,Val (TCon (Prim UNITTYPE _) _) e)] CBreak)
+                                = text "break;"
 k2cCmd (CBind False bs c)       = k2cValBindStubsC bs $$
                                   k2cValBinds (False,bs) $$
                                   k2cCmd c
