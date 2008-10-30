@@ -141,6 +141,7 @@ redExp env e@(EVar x)           = case lookup x (eqns env) of
   where inline (EVar _)         = True
         inline (ECon _)         = True
         inline (ELit _)         = True
+        inline (ELam _ _)       = True
         inline _                = isGenerated x
 redExp env (EAp e es)           = do e' <- redExp env e
                                      es' <- mapM (redExp env) es
@@ -198,12 +199,14 @@ redBeta env ((x,t):te) b (e:es)
   | inline x e                  = do e' <- redBeta (addEqns env [(x,e)]) te b es
                                      return (bindx e')
   | otherwise                   = liftM (ELet bs) (redBeta env te b es)
-  where inline x e              = isSafe x || (value e && finite env e && isSmall e)
+  where inline x e              = isSafe x || isEVar e || (value e && finite env e && isSmall e)
         isSafe x                = isEtaExp x || isAssumption x || isCoercion x        
         bindx e'
           | x `elem` evars e'   = ELet bs e'
           | otherwise           = e'
         bs                      = Binds False [(x,t)] [(x,e)]
+        isEVar (EVar _)         = True
+        isEVar _                = False
 redBeta env [] b []             = redExp env b
 
 
