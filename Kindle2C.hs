@@ -258,7 +258,7 @@ k2cCmd (CBind False [(x,Val t (ENew n [] bs))] (CBind False [(y,Val tref (ENew (
                                   k2cStructBinds (ECast t (ESel (EVar y) (prim STATE))) bs $$
                                   k2cCmd c
   where Val _ st                = lookup' bs' (prim STATE)
-k2cCmd (CBind False [(_,Val (TCon (Prim UNITTYPE _) _) e)] (CRet (ECast (TCon (Prim UNITTYPE _) _) (EVar (Prim UNITTERM _)))))
+k2cCmd (CBind False [(_,Val (TCon (Prim UNITTYPE _) _) e)] (CRet (ECast (TCon (Prim UNITTYPE _) _) _)))
                                 = k2cExp e <> text ";"
 k2cCmd (CBind False bs c)       = k2cValBindStubsC bs $$
                                   k2cValBinds (False,bs) $$
@@ -398,7 +398,7 @@ k2cPrim Microsec                = text "MICROSEC"
 k2cPrim Nanosec                 = text "NANOSEC"
 -}
 k2cPrim Infinity                = text "Infinity"
---k2cPrim Raise                   = text "Rise"
+--k2cPrim Raise                   = text "Raise"
 --k2cPrim Catch                   = text "Catch"
 {-                           
 k2cPrim TimePlus                = text "TPLUS"
