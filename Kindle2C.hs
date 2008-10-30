@@ -258,9 +258,6 @@ k2cCmd (CBind False [(x,Val t (ENew n [] bs))] (CBind False [(y,Val tref (ENew (
                                   k2cStructBinds (ECast t (ESel (EVar y) (prim STATE))) bs $$
                                   k2cCmd c
   where Val _ st                = lookup' bs' (prim STATE)
-k2cCmd (CBind False [(_,Val _ (ECall (Prim UpdateArray _) [] [e1,e2,e3,_]))] c)
-                                = k2cExp2 (ECall (prim IndexArray) [] [ELit (lInt 0),e1,e2]) <+> text "=" <+> k2cExp e3 <> text ";" $$
-                                  k2cCmd c
 k2cCmd (CBind False [(_,Val (TCon (Prim UNITTYPE _) _) e)] (CRet (ECast (TCon (Prim UNITTYPE _) _) (EVar (Prim UNITTERM _)))))
                                 = k2cExp e <> text ";"
 k2cCmd (CBind False bs c)       = k2cValBindStubsC bs $$
