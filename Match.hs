@@ -37,9 +37,13 @@ fat (m:ms)                      = do e1 <- m
 -- Pattern-matching compiler proper -----------------------------------------------------
 
 match0 (EVar w) alts            = match [w] [ ([p], rh) | Alt p rh <- alts ]
-match0 e alts                   = do w <- newNamePos tempSym e
+match0 e alts
+  | all isTriv alts             = return (ECase e [ Alt p (RExp (eCommit e)) | Alt p (RExp e) <- alts ])
+  | otherwise                   = do w <- newNamePos tempSym e
                                      e' <- match0 (EVar w) alts
                                      return (ELet [BEqn (LFun w []) (RExp e)] e')
+  where isTriv (Alt (ECon _) (RExp _))  = True
+        isTriv _                        = False
 
 
 match ws eqs                    = fat (match1 ws eqs)
