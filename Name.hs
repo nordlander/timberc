@@ -401,6 +401,7 @@ patSym                          = "p"
 functionSym                     = "f"
 dummySym                        = "d"
 paramSym                        = "a"
+etaExpSym                       = "eta"
 tyvarSym                        = "t"
 coercionSym                     = "c"
 labelSym                        = "l"
@@ -416,11 +417,13 @@ tappSym                         = "TApp"
 tabsSym                         = "TAbs"
 gcinfoSym                       = "__GC__"
 
+isWitness n                     = isGenerated n && str n == witnessSym
+isAssumption n                  = isGenerated n && str n == assumptionSym
+isEtaExp n                      = isGenerated n && str n == etaExpSym
 isCoercion n                    = isGenerated n && str n == coercionSym
 isPatTemp n                     = isGenerated n && str n == patSym
 isClosure n                     = isGenerated n && isPrefixOf closureSym (str n)
 isDummy n                       = isGenerated n && str n == dummySym
-isWitness n                     = isGenerated n && str n == witnessSym
 isLabel n                       = isGenerated n && isPrefixOf labelSym (str n)
 isTApp n                        = isGenerated n && str n == tappSym
 isTAbs n                        = isGenerated n && str n == tabsSym

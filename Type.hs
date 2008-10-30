@@ -177,7 +177,7 @@ tiAp env s pe rho e es          = do t <- newTVar Star
                                      return (s++concat ss, (c,p):pe++concat pes, R t, EAp (EAp (EVar c) [e]) es)
 
 etaExpand pe (R (TFun ts t)) e  = etaExpand pe (F (map scheme ts) (R t)) e
-etaExpand pe (F scs t) e        = do te <- newEnv paramSym scs
+etaExpand pe (F scs t) e        = do te <- newEnv etaExpSym scs
                                      return ([], pe, F scs t, ELam te (EAp e (map EVar (dom te))))
 etaExpand pe t e                = return ([], pe, t, e)
 

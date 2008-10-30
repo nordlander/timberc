@@ -189,7 +189,7 @@ skipLambda n (ELam te e) es
   where (te1,te2)               = splitAt n te
 skipLambda n e es               = Nothing
 
-  
+
 
 -- perform beta reduction (if possible)
 redBeta env ((x,t):te) (EVar y) (e:es)
@@ -198,7 +198,8 @@ redBeta env ((x,t):te) b (e:es)
   | inline x e                  = do e' <- redBeta (addEqns env [(x,e)]) te b es
                                      return (bindx e')
   | otherwise                   = liftM (ELet bs) (redBeta env te b es)
-  where inline x e              = value e && (isGenerated x || finite env e)
+  where inline x e              = isSafe x || (value e && finite env e && isSmall e)
+        isSafe x                = isEtaExp x || isAssumption x || isCoercion x        
         bindx e'
           | x `elem` evars e'   = ELet bs e'
           | otherwise           = e'
