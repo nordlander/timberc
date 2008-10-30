@@ -5,23 +5,28 @@ import Data.Functional.List
 
 port = Port 12345 
 
-check env k peer = class
+
+check env k sock = class
     n := 1
     deliver str = action
         env.stdout.write (show k ++ ", mess " ++ show n ++ " >>> " ++ str ++ "\n")
         if n < 50 then
-          after (millisec 100) peer.deliver "Hi!"
+          after (millisec 100) action 
+             sock.outFile.write "Hi!"
         else
           env.stdout.write (show k ++ " done!!")
-          peer.close
+          sock.close
         n := n+1
           
-    established = peer.deliver "Hi!"
+    established = action
+       sock.inFile.installR deliver
+       sock.outFile.write "Hi!"
+       
 
     neterror str = action
           env.stdout.write (show k ++ " error: " ++ str)
 
-    close = action result ()
+    close = request result ()
 
     result Connection {..}
  

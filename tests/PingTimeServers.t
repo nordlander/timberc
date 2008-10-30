@@ -11,11 +11,13 @@ import Data.Functional.List
 
 port = Port 13  -- standard port for time servers
 
-check neterror deliver peer = class
+check neterror report sock = class
 
-    established = peer.deliver "Hi!"
+    established = action
+       sock.outFile.write "Hi!"
+       sock.inFile.installR report
 
-    close = action result ()
+    close = request result ()
 
     result Connection {..}
  
@@ -27,9 +29,9 @@ root env = class
 
     outstanding := args
 
-    report i time = action
+    report i mess = action
        outstanding := delete i outstanding
-       print i time
+       print i mess
        if (null outstanding) then env.exit 0
     
     result action
