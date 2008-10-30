@@ -306,14 +306,18 @@ assert1 e msg ts
 
 -- Poor man's exception datatype ------------------------------------------------------
 
-encodeCircular ids              = circularMsg ++ concat (intersperse " " (map packName ids))
+encodeError msg ids             = msg ++ ": " ++ concat (intersperse " " (map packName ids))
 
-decodeCircular str
-  | ok                          = Just (map unpackName (words rest))
+decodeError str
+  | msg `elem` encodedMsgs      = Just (msg, map unpackName (words rest))
   | otherwise                   = Nothing
-  where (ok, rest)              = dropPrefix circularMsg str
+  where (msg,_:rest)            = span (/=':') str
 
-circularMsg                     = "Circular subtyping: "
+encodedMsgs                     = [circularSubMsg, ambigInstMsg, ambigSubMsg]
+
+circularSubMsg                  = "Circular subtyping"
+ambigInstMsg                    = "Ambiguous instances"
+ambigSubMsg                     = "Ambiguous subtyping"
 
 assert0 e msg
   | e                           = return ()

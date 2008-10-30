@@ -88,10 +88,10 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ showids xs ++ ",
                                      -- tr (render (nest 8 (vpr te)))
                                      -- tr ("tevars: " ++ show (tevars env))
                                      (s,pe,es1)   <- tiRhs0 env' explWits ts es
-                                     -- tr ("RESULT:\n" ++ render (nest 8 (vpr pe)))
+                                     -- tr ("RESULT (" ++ showids xs ++ "):\n" ++ render (nest 8 (vpr pe)))
                                      -- tr ("EXPS:\n" ++ render (nest 8 (vpr es1)))
                                      (s',qe,f) <- fullreduce (target te (setErrPos (posInfo es) env)) s pe `handle` (fail . tail)
-                                     -- tr ("PREDICATES OBTAINED:\n" ++ render (nest 8 (vpr qe)))
+                                     -- tr ("PREDICATES OBTAINED (" ++ showids xs ++ "):\n" ++ render (nest 8 (vpr qe)))
                                      let env1      = subst s' env
                                          (qe1,qe2) = partition (isFixed env1) qe
                                          (vs,qs)   = unzip qe2

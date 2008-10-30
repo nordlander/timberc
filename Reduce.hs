@@ -85,18 +85,26 @@ simplify env pe                         = do cs <- newNames skolemSym (length tv
                                                Right (env',qe,eq) -> return (nullSubst, pe', eLet' (subst s bss))
                                                  where (pe',bss) = preferLocals env' pe qe eq
                                                        s = cs `zip` map TVar tvs
-                                               Left s -> case decodeCircular s of
-                                                 Nothing  -> fail(typeError Other env s)
---                                               Just cs' -> return (nullSubst, pe, id)
-                                                 Just cs' -> do (t:ts) <- mapM sat tvs'
-                                                                -- tr ("Circular: " ++ show pe)
-                                                                s <- unify env (repeat t `zip` ts)
-                                                                -- tr ("New: " ++ show (subst s pe))
-                                                                (s',pe',f) <- norm (subst s env) (subst s pe)
-                                                                return (s'@@s, pe', f)
-                                                   where tvs' = [ tv | (tv,c) <- tvs `zip` cs, c `elem` cs' ]
-                                                         sat tv = do ts <- mapM newTVar (kArgs (tvKind tv))
-                                                                     return (tAp (TVar tv) ts)
+                                               Left s -> case decodeError s of
+                                                 Nothing -> fail (typeError Other env s)
+                                                 Just (m,ids) | m == circularSubMsg -> 
+                                                        do (t:ts) <- mapM sat tvs'
+                                                           -- tr ("Circular: " ++ showids ids)
+                                                           s <- unify env (repeat t `zip` ts)
+                                                           -- tr ("New: " ++ render (nest 8 (vpr (subst s pe))))
+                                                           (s',pe',f) <- norm (subst s env) (subst s pe)
+                                                           return (s'@@s, pe', f)
+                                                     where tvs' = [ tv | (tv,c) <- tvs `zip` cs, c `elem` ids ]
+                                                           sat tv = do ts <- mapM newTVar (kArgs (tvKind tv))
+                                                                       return (tAp (TVar tv) ts)
+                                                 Just (m,ids) | m `elem` [ambigSubMsg, ambigInstMsg] ->
+                                                        do -- tr ("Ambiguous: " ++ showids ids)
+                                                           -- tr (render (nest 8 (vpr (t:ts))))
+                                                           s <- unifyS env (repeat t `zip` ts)
+                                                           -- tr ("New:\n" ++ render (nest 8 (vpr (subst s pe))))
+                                                           (s',pe',f) <- norm (subst s env) (subst s pe)
+                                                           return (s'@@s, pe', f)
+                                                     where (t:ts) = map (lookup' pe) ids
   where tvs                             = tvars pe
         ks                              = map tvKind tvs
 
@@ -460,6 +468,25 @@ tvarBind env n t eqs
 mayBind env n                           = not (frozen env && n `elem` pevars env)
 
 
+-- Unification lifted to type schemes: only used to resolve ambiguities found during simplification --------------------
+
+unifyS env ((Scheme r ps ke,Scheme r' ps' ke'):eqs)
+  | rng ke == rng ke' &&
+    length ps == length ps'             = do s <- unifyR env (subst s0 r, subst s0 r')
+                                             s' <- unifyS env (subst s (subst s0 ((ps `zip` ps') ++ eqs)))
+                                             return (s' @@ s)
+  | otherwise                           = fail (typeError Other env "Quantified predicates not unifiable")
+  where s0                              = dom ke `zip` map TId (dom ke')
+unifyS env []                           = return nullSubst
+
+unifyR env (R t, R t')                  = unify env [(t,t')]
+unifyR env (F scs r, F scs' r')
+  | length scs == length scs'           = do s <- unifyS env (scs `zip` scs')
+                                             s' <- unifyR env (subst s r, subst s r')
+                                             return (s' @@ s)
+unifyR env _                            = fail (typeError Other env "Subtype predicates not unifiable")
+
+                                        
 -- Misc ----------------------------------------------------------------
 
 mayLoop (env,c)                         = any (\c' -> equalTs [(c,c')]) (history env)
@@ -550,7 +577,7 @@ closeTransitive env ((w,p):pe)
                                              (pe1,eq1) <- mapSuccess (mkTrans env) [ (n1,n2) | n1 <- below_a, n2 <- [(w,p)] ]
                                              (pe2,eq2) <- mapSuccess (mkTrans env) [ (n1,n2) | n1 <- (w,p):pe1, n2 <- above_b ]
                                              let cycles = filter (uncurry (==)) (map (subsyms . predOf) (pe1++pe2))
-                                             assert0 (null cycles) (encodeCircular (nub (a:b:map fst cycles)))
+                                             assert0 (null cycles) (encodeError circularSubMsg (nub (a:b:map fst cycles)))
                                              env2 <- addPreds env ((w,p):pe1++pe2)
                                              (env3,pe3,eq3) <- closeTransitive env2 pe
                                              return (env3, pe1++pe2++pe3, eq1++eq2++eq3)
@@ -604,11 +631,11 @@ mkSuper env (w1,p1) (w2,p2)             = do (pe1, R c1, e1) <- instantiate p1 (
 addPreds env []                         = return env
 addPreds env (n@(w,p):pe)
   | isSub' p                            = case findCoercion env a b of
-                                             Just n' -> do 
-                                                r <- implications env (predOf n') p
+                                             Just (w',p') -> do 
+                                                r <- implications env p' p
                                                 case r of
-                                                   Equal -> addPreds (addEqs [(w,nameOf n')] env) pe
-                                                   _     -> errorTree "Ambiguous subtyping:" p
+                                                   Equal -> addPreds (addEqs [(w,w')] env) pe
+                                                   _     -> fail (encodeError ambigSubMsg [w,w'])
                                              Nothing -> do 
                                                 addPreds (insertSubPred n env) pe
   | isClass' p                          = do r <- cmpNode [] [] (nodes (findClass env c))
@@ -624,7 +651,7 @@ addPreds env (n@(w,p):pe)
                                              case r of
                                                 Equal 
                                                   | isGenerated w || isGenerated w' -> return (Left w')
-                                                  | otherwise                   -> errorIds "Ambiguous instances" [w,w']
+                                                  | otherwise                   -> fail (encodeError ambigInstMsg [w,w'])
                                                 ImplyRight -> cmpNode pre (w':post) pe'
                                                 ImplyLeft  -> cmpNode (w':pre) post pe'
                                                 Unrelated  -> cmpNode pre post pe'

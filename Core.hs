@@ -512,6 +512,10 @@ instance Subst (Type,Type) TVar Type where
     subst s (t,t')              = (subst s t, subst s t')
 
 
+instance Subst (Scheme,Scheme) TVar Type where
+    subst s (sc,sc')            = (subst s sc, subst s sc')
+    
+    
 -- Kind variables ----------------------------------------------------------------
 
 instance Subst Decl Int Kind where
