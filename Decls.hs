@@ -75,21 +75,20 @@ mkHead ke0 i vs                         = (tAp' i vs, vs `zip` kArgs (findKind0 
 desub env ds                            = do (ds',pes,eqs) <- fmap unzip3 (mapM desub' ds)
                                              return (ds', concat pes, concat eqs)
   where 
-    desub' (i, DData vs bs cs)          = do (pe,eq,cs') <- fmap unzip3 (mapM (con (mkHead ke0 i vs)) bs)
+    desub' (i, DData vs bs cs)          = do (pe,eq,cs') <- fmap unzip3 (mapM (con (fromMod i) (mkHead ke0 i vs)) bs)
                                              return ((i, DData vs [] (cs'++cs)), pe, eq)
-    desub' (i, DRec isC vs bs ss)       = do (pe,eq,ss') <- fmap unzip3 (mapM (sel (mkHead ke0 i vs)) bs)
+    desub' (i, DRec isC vs bs ss)       = do (pe,eq,ss') <- fmap unzip3 (mapM (sel (fromMod i) (mkHead ke0 i vs)) bs)
                                              return ((i, DRec isC vs [] (ss'++ss)), pe, eq)
     desub' (i, DType vs t)              = return ((i, DType vs t), [], [])
-    m                                   = modName env
     ke0                                 = kindEnv0 env
-    con (t0,ke0) (Scheme (R t) [] ke)   = do w <- newNameMod m coercionSym
+    con m (t0,ke0) (Scheme (R t) [] ke) = do w <- newNameMod m coercionSym
                                              k <- newNameMod m constrSym
                                              x <- newName paramSym
                                              let p  = (w, Scheme (R (t `sub` t0)) [] (ke0++ke))
                                                  eq = (w, ELam [(x,scheme t)] (EAp (ECon k) [EVar x]))
                                                  c  = (k, Constr [scheme t] [] ke)
                                              return (p, eq, c)
-    sel (t0,ke0) (Scheme (R t) [] ke)   = do w <- newNameMod m coercionSym
+    sel m (t0,ke0) (Scheme (R t) [] ke) = do w <- newNameMod m coercionSym
                                              l <- newNameMod m (labelSym ++"_" ++  render (prId3 (tId(tHead t0)))++ "_" ++ render (prId3 (tId (tHead t))))
                                              x <- newName paramSym
                                              let p  = (w, Scheme (R (t0 `sub` t)) [] (ke0++ke))
