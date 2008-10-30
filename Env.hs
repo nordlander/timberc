@@ -757,7 +757,7 @@ primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
                             (prim UniArray,     scheme1 [tInt, a] (tArray a)),
                             (prim SizeArray,    scheme1 [tArray a] tInt),
                             (prim IndexArray,   scheme1 [tArray a, tInt] a),
-                            (prim UpdateArray,  scheme2 [tArray a, tInt, a] (tArray a)),
+                            (prim UpdateArray,  scheme1 [tArray a, tInt, a] (tArray a)),
 
                             (prim Abort,        scheme1 [tMsg] (tCmd a tUnit)),
 
