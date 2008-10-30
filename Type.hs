@@ -322,8 +322,9 @@ mkCase env e t0 alts            = liftM (\a -> ECase e a) (mapM mkAlt ps)
         mkAlt p                 = case [ (ps,e) | (p':ps,e) <- alts, p==p' ] of
                                     ([],e):_ -> return (p, e)
                                     alts_p   -> do x <- newNamePos tempSym p
-                                                   (R (TFun [t1] t2),_) <- inst (findType env (let PCon k = p in k))
-                                                   let s = matchTs [(t0,t2)]
+                                                   r <- inst (findType env (let PCon k = p in k))
+                                                   let (F [Scheme (R t1) [] []] (R t2),_) = r
+                                                       s = matchTs [(t0,t2)]
                                                        tx = subst s t1
                                                    e' <- mkCase env (EVar x) tx alts_p
                                                    tx' <- gen (tvars t0) (scheme tx)
