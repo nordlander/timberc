@@ -134,7 +134,7 @@ insertClassPred pre n@(w,p) post env    = env { classEnv = insert c wg' (classEn
 insertDefault sigs d@(Default _ i1 i2) env
   | c1 /= c2                            = errorTree ("Illegal defaulting; instances of different classes") d
   | i1 `elem` post2                     = errorIds ("Cyclic default declarationsss for") [i1,i2]
-  | otherwise                           = env { classEnv = insert c1 wg' (classEnv env) }
+  | otherwise                           = env { classEnv = (c1,wg') : (delete c1 (classEnv env)) }
   where p1                              = lookup' sigs i1
         c1                              = headsym p1
         c2                              = headsym (lookup' sigs i2)
@@ -332,7 +332,7 @@ findWG (ROrd _ Neg i) (env,_)           = addReflWG (findBelow env i)
 findWG (RUnif)        (env,_)           = reflWG
 findWG (RInv _ Pos i) (env,_)           = concatWG reflWG (findAbove env i)
 findWG (RInv _ Neg i) (env,_)           = concatWG reflWG (findBelow env i)
-findWG (RClass i)     (env,_)           = lookup' (classEnv env) i
+findWG (RClass _ i)   (env,_)           = lookup' (classEnv env) i
 
 
 addReflWG wg                            = WG { nodes = reflAll : nodes wg, 
@@ -369,7 +369,7 @@ data Rank                               = RFun                  -- function type
                                         | ROrd    Int Dir Name  -- con-var, with gravity governed by var's position in target type
                                         | RUnif                 -- var-var, unifiable (either safe or forced)
                                         | RInv    Int Dir Name  -- con-var, requires unordered search 
-                                        | RClass  Name          -- class constraint, rank below all subpreds involving a tycon
+                                        | RClass  Int Name      -- class constraint, rank below all subpreds involving a tycon
                                         | RVar                  -- var-var sub or var-only class, search not meaningful
                                         deriving (Ord,Eq,Show)
 
@@ -379,7 +379,7 @@ unique i (g:gs)                         = case uniqueRank g of
                                             Just r  -> Just (r,i)
                                             Nothing -> unique (i+1) gs
   where uniqueRank (_,TFun [l] u)       = uniqueRank' (tHead l) (tHead u)
-        uniqueRank (_,t)                = if null (tvars t) then Just (RClass (tId (tHead t))) else Nothing
+        uniqueRank (_,t)                = if null (tvars t) then Just (RClass 0 (tId (tHead t))) else Nothing
         uniqueRank' (TFun _ _) (TFun _ _)
                                         = Just RFun
         uniqueRank' (TFun _ _) _        = Just RUnif
@@ -425,9 +425,10 @@ rank info (env,TFun [l] u)              = subrank (tFlat l) (tFlat u)
             b'                          = length (filter (==n') lb') -- # of lower var OR con bounds for n'
             v'                          = polarity pvs n'            -- polarity of n' in target type
 rank info (env,t)
-  | all isTVar ts && not (forced env)   = RVar          -- trivial class predicate, just leave be when not approximating        
-  | otherwise                           = RClass c      -- non-trivial class predicate, perform witness search
+  | all isTVar ts && not (forced env)   = RVar         -- trivial class predicate, just leave be when not approximating        
+  | otherwise                           = RClass i c   -- non-trivial class predicate, perform witness search
   where (TId c,ts)                      = tFlat t
+        i                               = lookup' (dom (classEnv env) `zip` [0..]) c
 
 
 -- m x < n a b

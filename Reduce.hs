@@ -136,7 +136,7 @@ resolve env pe                          = do -- tr ("############### Before reso
                                              -- tr ("tevars: " ++ show env_tvs ++ ",   reachable: " ++ show reachable_tvs)
                                              (s1,q1,[],es) <- red [] (map mkGoal pe)
                                              -- tr ("############### After resolve: ")
-                                             -- tr (render (nest 8 (vpr q)))
+                                             -- tr (render (nest 8 (vpr q1)))
                                              let f1 = eLet pe (dom pe `zip` es)
                                                  badq = filter badDummy q1
                                              assert1 (null badq) "Cannot resolve predicates" (snd (head badq))
@@ -211,7 +211,8 @@ resolve env pe                          = do -- tr ("############### Before reso
 --
 -------------------------------------------------------------------------------------------------
 
-redg r i gs                             = do -- tr ("***All goals:")
+redg r i gs                             = do -- tr ("Chosen goal: " ++ render (pr (snd g)) ++ " at index " ++ show i ++ ",  rank: " ++ show r)
+                                             -- tr ("***All goals:")
                                              -- tr (render (nest 4 (vpr (rng gs))))
                                              (s,q,e:es) <- solve r g (gs1++gs2)
                                              let (es1,es2) = splitAt i es
@@ -220,9 +221,10 @@ redg r i gs                             = do -- tr ("***All goals:")
 
 
 red [] []                               = return (nullSubst, [], [], [])
-red gs []                               = case unique 0 gs of
-                                            Just (r,i) -> redg r i gs   -- goal can be selected without computing costly varInfo
-                                            Nothing    -> redg r i gs   -- goal must be selected on basis of varInfo
+red gs []                               = do -- tr ("Ranks: " ++ show rs)
+                                             case unique 0 gs of
+                                               Just (r,i) -> redg r i gs   -- goal can be selected without computing costly varInfo
+                                               Nothing    -> redg r i gs   -- goal must be selected on basis of varInfo
   where rs                              = map (rank info) gs
         r                               = minimum rs
         i                               = length (takeWhile (/=r) rs)
@@ -330,7 +332,7 @@ solve r g gs
                                              (q',e) <- newHyp (subst s g)
                                              return (s, q'++q, e:es)
   | otherwise                           = do -- tr ("------ Solving " ++ render (pr (snd g)))
-                                             -- tr (render (nest 4 (vpr (rng gs1))) ++ "\n    --\n" ++ render (nest 4 (vpr (rng gs2))))
+                                             -- tr (render (nest 4 (vpr (rng gs))))
                                              -- tr ("Witness graph: " ++ show (findWG r g))
                                              try r (Left msg) (findWG r g) (logHistory g) gs
   where msg                             = typeError Solve (fst g) ("Cannot solve typing constraint "++render(prPred (snd g)))
@@ -338,7 +340,7 @@ solve r g gs
 
 try r accum wg g gs
   | isNullWG wg || isNull accum         = unexpose accum
-  | otherwise                           = do -- tr ("Trying " ++ render (pr (predOf wit)))
+  | otherwise                           = do -- tr ("Trying " ++ render (pr (snd g)) ++ " with " ++ render (pr (predOf wit)))
                                              res <- expose (hyp wit g gs)
                                              accum <- plus (g : gs) accum res
                                              -- tr ("New accum: " ++ show accum)
@@ -347,7 +349,7 @@ try r accum wg g gs
         wg2 res                         = if mayPrune res r g then pruneWG (nameOf wit) wg1 else wg1
 
 mayPrune (Left _)  _          _         = False
-mayPrune (Right r) (RClass _) (env,c)   = forced env || subst (fst3 r) c == c
+mayPrune (Right r) (RClass _ _) (env,c) = forced env || subst (fst3 r) c == c
 mayPrune _         _          _         = True
 
 
