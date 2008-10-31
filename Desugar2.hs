@@ -133,7 +133,7 @@ dsEqns ((LPat p,RExp (EVar v)):eqns)
                                      dsEqns (sels ++ eqns)
   where vs                      = pvars p
         sel e0 v                = do es <- mapM (newEVarPos paramSym) vs
-                                     return (LFun v [], RExp (selectFrom e0 (vs `zip` es) p v))
+                                     return (LFun v [], RExp (selectFrom e0 (vs `zip` es) p (EVar v)))
 dsEqns ((LPat p,rh):eqns)       = do v <- newNamePos patSym p
                                      eqns <- dsEqns ((LPat p, RExp (EVar v)) : eqns)
                                      e <- dsExp (rh2exp rh)
@@ -174,7 +174,7 @@ rh2exp (RExp e)                 = e
 rh2exp (RWhere rh bs)           = ELet bs (rh2exp rh)
 rh2exp rh                       = ECase (ECon (prim UNITTERM)) [Alt (ECon (prim UNITTERM)) rh]
 
-selectFrom e0 s p v             = ECase e0 [Alt (subst s p) (RExp (subst s (EVar v)))]
+selectFrom e0 s p e             = ECase e0 [Alt (subst s p) (RExp (subst s e))]
 
 
 -- Expressions --------------------------------------------------------
@@ -249,17 +249,6 @@ dsStmts (SBind [BEqn (LPat p) rh] : ss)
   where nonRecursive            = not (any (`elem` evars rh) (pvars p))
 dsStmts (SBind bs : ss)         = do bs <- dsBinds bs
                                      liftM (SBind bs :) (dsStmts ss)
-dsStmts (s@(SAss p e) : ss)
-  | p == EWild                  = errorTree "Bad assignment" s
-  | isEVar p                    = do e <- dsExp e
-                                     ss <- dsStmts ss
-                                     return (SAss p e : ss)
-  | otherwise                   = do v0 <- newNamePos tempSym p
-                                     assigns <- mapM (assign (EVar v0)) vs
-                                     dsStmts (SBind [BEqn (LFun v0 []) (RExp e)] : assigns ++ ss)
-  where vs                      = pvars p
-        assign e0 v             = do vs' <- newNamesPos paramSym vs
-                                     return (SAss (EVar v) (selectFrom e0 (vs `zip` map EVar vs') p v))
 dsStmts [SRet e]                = do e <- dsExp e
                                      return [SRet e]
 dsStmts [SExp e]                = do e <- dsExp e
@@ -271,7 +260,33 @@ dsStmts (SGen p e : ss)
                                      return (SGen p e : ss)
   | otherwise                   = do v' <- newEVarPos tempSym p
                                      dsStmts (SGen v' e : SBind [BEqn (LPat p) (RExp v')] : ss)
+dsStmts (s@(SAss p e) : ss)
+  | null vs                     = errorTree "Bad assignment" s
+  | isESigVar p                 = do e <- dsExp e
+                                     ss <- dsStmts ss
+                                     return (SAss p e : ss)
+  | otherwise                   = do v0 <- newNamePos tempSym p
+                                     assigns <- mapM (assign (EVar v0)) ps
+                                     dsStmts (SBind [BEqn (LFun v0 []) (RExp e)] : assigns ++ ss)
+  where assign e0 p             = do vs' <- newNamesPos paramSym vs
+                                     return (SAss p (selectFrom e0 (vs `zip` map EVar vs') p0 (unsig p)))
+        p0                      = unsig p
+        ps                      = sigvars p
+        vs                      = pvars ps
 dsStmts ss                      = internalError ("dsStmts; did not expect") ss
+
+unsig (ESig p _)                = unsig p
+unsig (ETup ps)                 = ETup (map unsig ps)
+unsig (EList ps)                = EList (map unsig ps)
+unsig (ERec m fs)               = ERec m [ Field l (unsig p) | Field l p <- fs ]
+unsig p                         = p
+
+sigvars (ETup ps)               = concatMap sigvars ps
+sigvars (EList ps)              = concatMap sigvars ps
+sigvars (ERec m fs)             = concat [ sigvars p | Field l p <- fs ]
+sigvars p
+  | isESigVar p                 = [p]
+  | otherwise                   = []
 
 
 -- Alternatives -----------------------------------------------------------------------

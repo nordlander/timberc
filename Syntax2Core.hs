@@ -239,17 +239,15 @@ s2cE env (EDo (Just x) Nothing ss)      = do c <- s2cS env ss
                                              return (Core.EDo x t c)
 s2cE env (ETempl (Just x) Nothing ss)   = do c <- s2cS (addSigs te env) (map unsig ss)
                                              t <- s2cType TWild
-                                             te2 <- s2cTE te1
-                                             return (Core.ETempl x t te2 c)
+                                             te' <- s2cTE te
+                                             return (Core.ETempl x t te' c)
   where 
     vs                                  = assignedVars ss
     te                                  = sigs ss
-    te1                                 = prune te vs ++ ((vs \\ dom te) `zip` repeat TWild)
 
     sigs []                             = []
-    sigs (SGen (ESig (EVar v) t) _ :ss) = (v,t) : sigs ss
     sigs (SAss (ESig (EVar v) t) _ :ss) = (v,t) : sigs ss
-    sigs (SBind bs : ss)                = concat [ vs `zip` repeat t | BSig vs t <- bs ] ++ sigs ss
+    sigs (SAss (EVar v) _:ss)           = (v,TWild) : sigs ss
     sigs (_ : ss)                       = sigs ss
 
     unsig (SAss (ESig p t) e)           = SAss p e

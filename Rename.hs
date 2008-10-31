@@ -441,13 +441,20 @@ shuffleS ss                        = shuffle' [] ss
 
 shuffle' [] []                     = []
 shuffle' sigs []                   = errorIds "Dangling type signatures for" (dom sigs)
-shuffle' sigs (SBind bs : ss)      = SBind (shuffle sigs1 bs) : shuffle' sigs2 ss
+shuffle' sigs (SBind bs : ss)      = SBind (shuffle sigs1 bs1) : shuffle' ([ (v,t) | BSig [v] t <- bs2 ] ++ sigs2) ss
   where (sigs1,sigs2)              = partition ((`elem` vs) . fst) sigs
+        (bs1,bs2)                  = partition local (concatMap flat bs)
         vs                         = bvars bs
+        local (BSig [v] _)         = v `elem` vs
+        local _                    = True
+        flat (BSig vs t)           = [ BSig [v] t | v <- vs ]
+        flat b                     = [b]
 shuffle' sigs (SGen p e : ss)      = SGen p' e : shuffle' sigs' ss
   where (sigs',p')                 = attach sigs p
-shuffle' sigs (SAss p e : ss)      = SAss p' e : shuffle' sigs' ss
-  where (sigs',p')                 = attach sigs p
+shuffle' sigs (SAss p e : ss)      = SAss p' e : shuffle' sigs2 ss
+  where (sigs',p')                 = attach sigs1 p
+        (sigs1,sigs2)              = partition ((`elem` vs) . fst) sigs
+        vs                         = evars p
 shuffle' sigs (s : ss)             = s : shuffle' sigs ss
 
 
