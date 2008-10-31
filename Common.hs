@@ -170,8 +170,14 @@ data Lit                        = LInt  (Maybe (Int,Int)) Integer
                                 | LRat  (Maybe (Int,Int)) Rational
                                 | LChr  (Maybe (Int,Int)) Char
                                 | LStr  (Maybe (Int,Int)) String
-                                deriving  (Eq,Show)
+                                deriving  (Eq)
 
+instance Show Lit where
+    show (LInt _ i)             = "LInt " ++ show i
+    show (LRat _ r)             = "LRat " ++ show r
+    show (LChr _ c)             = "LChr " ++ show c
+    show (LStr _ s)             = "LStr " ++ show s
+    
 instance Pr Lit where
     pr (LInt p i)                 = integer i
     pr (LRat _ r)                 = rational r
