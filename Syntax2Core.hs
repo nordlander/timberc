@@ -237,7 +237,7 @@ s2cE env (EReq (Just x) [SExp e])       = do (_,e) <- s2cEi env e
 s2cE env (EDo (Just x) Nothing ss)      = do c <- s2cS env ss
                                              t <- s2cType TWild
                                              return (Core.EDo x t c)
-s2cE env (ETempl (Just x) Nothing ss)   = do c <- s2cS (addSigs te env) (map unsig ss)
+s2cE env (ETempl (Just x) Nothing ss)   = do c <- s2cS (addSigs te env) (normAssign (map unsig ss))
                                              t <- s2cType TWild
                                              te' <- s2cTE te
                                              return (Core.ETempl x t te' c)
@@ -272,7 +272,6 @@ s2cS env (SGen (EVar v) e : ss)         = do (_,e') <- s2cEi env e
                                              t <- s2cType TWild
                                              c <- s2cS env ss
                                              return (Core.CGen v t e' c)
---s2cS env (SAss (ESig (EVar v) t) e :ss) = fail ("Illegal state variable signature: " ++ show v)
 s2cS env (SAss (EVar v) e : ss)         = do e' <- s2cEc env (lookupT v env) e
                                              c <- s2cS env ss
                                              return (Core.CAss v e' c)
@@ -280,6 +279,11 @@ s2cS env (SBind bs : ss)                = do (te',bs') <- s2cBinds env bs
                                              c <- s2cS (addSigs te' env) ss
                                              return (Core.CLet bs' c)
 
+
+normAssign ss                           = f [] ss
+  where f asgn [SRet e]                 = reverse asgn ++ [SRet e]
+        f asgn (s@(SAss _ _) : ss)      = f (s:asgn) ss
+        f asgn (s : ss)                 = s : f asgn ss
 
 -- Expressions, synthesize mode ================================================================
 
