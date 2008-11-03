@@ -3,24 +3,30 @@ module Cyclic where
 import POSIX
 
 struct S where
-    v :: Int
-    r :: S
+    val :: Int
+    str :: String
+    ref :: S
     
-s1 = { v = 3, r = s3 }
-f 0 = { v = 6, r = s1 }
-f n = f (n-1)
-s3 = f 2
+f r 0 = { val = 1, str = "A", ref = r }
+f r n = f r (n-1)
+
+g r 0 = { val = 2, str = r.str ++ "B", ref = r }
+g r n = g r (n-1)
+
+s1 = f s2 3
+s2 = g s1 3
+--s1 = f s2 3
 
 
 root env =
     class
        s := s1
        io _ = action
-               s := s.r
-               env.stdout.write (show s.v)
+               env.stdout.write (show s.val)
+               s := s.ref
        result action
          env.stdin.installR io
-         env.stdout.write (show s1.v)
+         env.stdout.write (s2.str)
 
 ggg n = let apa = 'a':bepa
             bepa = 'b':cepa
