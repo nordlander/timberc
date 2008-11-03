@@ -532,7 +532,10 @@ modToundSc m                    = concat (List.intersperse "_" (splitString m))
 packName n                      = show n
 
 unpackName x                    = case break (=='_') x of
-                                    (s,"") -> name0 s
+                                    (s,"") -> let n0 = name0 s in 
+                                              case lookup n0 primTerms of
+                                                Just p  -> p
+                                                Nothing -> n0
                                     (s,n)  -> (name0 s) { tag = read (tail n) }
 
 
