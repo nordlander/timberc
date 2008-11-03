@@ -143,6 +143,10 @@ dsEqns ((LFun v ps,rh):eqns)    = dsFunBind v [(ps,rh)] eqns
 
 dsFunBind v alts ((LFun v' ps,rh) : eqns)
   | v' == v                     = dsFunBind v ((ps,rh) : alts) eqns
+dsFunBind v [(ps,RExp e)] eqns
+  | not (null ps)               = do e' <- dsExp (ELam ps e)
+                                     eqns <- dsEqns eqns
+                                     return ((LFun v [], RExp e') : eqns)
 dsFunBind v alts eqns
   | length arities /= 1         = errorIds "Different arities for function" [v]
   | otherwise                   = do ws <- newNamesPos paramSym (fst (head alts))

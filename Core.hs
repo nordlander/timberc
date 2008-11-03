@@ -873,7 +873,8 @@ instance Pr Pat where
 
 -- Expressions -------------------------------------------------------------
 
-prParam (x,Scheme t [] [])      = prId x
+prParam (x,Scheme (R (TVar _)) [] [])
+                                = prId x
 prParam (x,sc)                  = parens (pr (x,sc))
 
 instance Pr Exp where
