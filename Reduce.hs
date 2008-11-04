@@ -104,7 +104,7 @@ simplify env pe                         = do cs <- newNames skolemSym (length tv
                                                            -- tr ("New:\n" ++ render (nest 8 (vpr (subst s pe))))
                                                            (s',pe',f) <- norm (subst s env) (subst s pe)
                                                            return (s'@@s, pe', f)
-                                                     where (t:ts) = map (lookup' pe) ids
+                                                     where (t:ts) = map (lookup' (pe ++ predEnv env ++ predEnv0 env)) ids
   where tvs                             = tvars pe
         ks                              = map tvKind tvs
 
@@ -549,22 +549,23 @@ preferParams env pe qe eq               = walk [] [] (equalities env)
 
 {-
                                                         Top-level & local reduction:        Action during simplify:
-In (equalities env):  Meaning:                          (prefer parameters/constants)       (prefer local defs)
+In (equalities env):  Meaning:                          (prefer assumptions (v) in (pe))    (prefer local defs (w) in (qe))
 
-    (v,v')      Two witness parameters equal            Ignore equality info                Remove parameter v
+    (v,v')      Two witness assumptions equal           Ignore equality info                Remove assumption v
                                                         [only v' is in use]                 Add def "let v = v' in ..."
 
-    (v,w')      Witness parameter is equal to a         Remove local def of w' [in use]     Remove parameter v
+    (v,w')      Witness assumption is equal to a        Remove local def of w' [in use]     Remove assumption v
                 local def                               Add "let w' = v in ..."             Add def "let v = w' in ..."
 
-    (w,v')      Witness parameter is equal to a         Remove local def of w               Remove parameter v'
-                local def                               [only parameter v' is in use]       Add def "let v' = w in ..."
+    (w,v')      Witness assumption is equal to a        Remove local def of w               Remove assumption v'
+                local def                               [only assumption v' is in use]      Add def "let v' = w in ..."
 
     (w,w')      Two local witness definitions           Remove local def of w               Remove local def of w'
                 are equal                               [only w' is in use]                 Add def "let w' = w in ..."
 
-    v and v' are witness parameters (elements of (dom pe))
-    w and w' are locally generated witnesses
+    v and v' are witness assumptions (elements of (dom pe))
+    w and w' are locally generated witnesses (elements of (dom qe))
+
 -}
 
 
@@ -601,7 +602,7 @@ mkTrans env ((w1,p1), (w2,p2))          = do (pe1, R c1, e1) <- instantiate p1 (
                                              let e = ELam [(x,scheme (subst s' t))] (f (EAp e2 [EAp e1 [EVar x]]))
                                                  (e',p') = qual qe e (subst s' p)
                                              sc <- gen (tevars env) p'
-                                             w <- newNameMod (modName env) coercionSym
+                                             w <- newNameMod (modName env) witnessSym
                                              e' <- redTerm (coercions env) e'
                                              return ((w,sc), (w, e'))
 
@@ -636,8 +637,10 @@ addPreds env (n@(w,p):pe)
                                              Just (w',p') -> do 
                                                 r <- implications env p' p
                                                 case r of
-                                                   Equal -> addPreds (addEqs [(w,w')] env) pe
-                                                   _     -> fail (encodeError ambigSubMsg [w,w'])
+                                                   Equal      -> addPreds (addEqs [(w,w')] env) pe
+                                                   ImplyRight -> addPreds env pe
+                                                   ImplyLeft  -> addPreds env pe    -- Ignore w for now (should really replace w')
+                                                   Unrelated  -> fail (encodeError ambigSubMsg [w,w'])
                                              Nothing -> do 
                                                 addPreds (insertSubPred n env) pe
   | isClass' p                          = do r <- cmpNode [] [] (nodes (findClass env c))

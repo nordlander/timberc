@@ -165,7 +165,7 @@ insertSubPred n@(w,p) env               = env { aboveEnv = insert a wg_a (aboveE
           where syms                    = mapSnd lowersym (nodes wg)
                 pre                     = [ w | (w,c) <- syms, hasCoercion env a c ]
                 post                    = [ w | (w,c) <- syms, hasCoercion env c a ]
-
+        
 
 instance Subst WGraph TVar Type where
     subst s (WG ns as)                  = WG (subst s ns) as
@@ -283,11 +283,6 @@ hasCoercion env a b                     = findCoercion env a b /= Nothing
 
 Embedding order:
 - T[a] < T[b],  a[x] < T[b], b[x] < T[x], a[x] < b[x]
-
-Principles:
-- Reduce subtype constraints in embedding order, for maximum accuracy in polarity calculations
-- For non-embedded variable bounds, defer invariant variables, to reduce back-tracking
-- 
 
 
    X     Y
