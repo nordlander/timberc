@@ -132,7 +132,7 @@ redExp env (ELet bs e)          = do bs'@(Binds rec te eqs) <- redBinds env bs
                                      if rec then
                                         liftM (ELet bs') (redExp env e)
                                       else
-                                        redBeta env te e (map (lookup' eqs) (dom te))
+                                        redBeta (addArgs env (dom te)) te e (map (lookup' eqs) (dom te))
 redExp env e@(EVar (Prim {}))   = return e
 redExp env e@(EVar (Tuple {}))  = return e
 redExp env e@(EVar x)           = case lookup x (eqns env) of
@@ -343,10 +343,30 @@ redCmd env (CExp e)             = liftM CExp (redExp env e)
 redCmd env (CGen p t (ELet bs e) c)
                                 = redCmd env (CLet bs (CGen p t e c))
 redCmd env (CGen p t e c)       = liftM2 (CGen p t) (redExp env e) (redCmd env c)
-redCmd env (CLet bs c)          = liftM2 CLet (redBinds env bs) (redCmd env c)
+redCmd env (CLet bs c)          = do bs'@(Binds rec te eqs) <- redBinds env bs
+                                     if rec then
+                                        liftM (CLet bs') (redCmd env c)
+                                      else
+                                        redBetaC (addArgs env (dom te)) te c (map (lookup' eqs) (dom te))
 redCmd env (CAss x e c)         = liftM2 (CAss x) (redExp env e) (redCmd env c)
 
 
+-- perform beta reduction (if possible)
+redBetaC env ((x,t):te) (CRet (EVar y)) (e:es)
+  | x == y                      = redBetaC env te (CRet e) es
+redBetaC env ((x,t):te) c (e:es)
+  | inline x e                  = do c' <- redBetaC (addEqns env [(x,e)]) te c es
+                                     return (bindx c')
+  | otherwise                   = liftM (CLet bs) (redBetaC env te c es)
+  where inline x e              = isSafe x || isEVar e || (value e && finite env e && isSmall e)
+        isSafe x                = isEtaExp x || isAssumption x || isCoercion x        
+        bindx c'
+          | x `elem` evars c'   = CLet bs c'
+          | otherwise           = c'
+        bs                      = Binds False [(x,t)] [(x,e)]
+        isEVar (EVar _)         = True
+        isEVar _                = False
+redBetaC env [] c []            = redCmd env c
 
 -- Constructor presence
 
