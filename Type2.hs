@@ -50,7 +50,10 @@ t2Binds0 env (Binds r te eqs)   = do (s,eqs') <- t2Eqs eqs
           where sc              = lookup' te x
 
 
-t2Binds env (Binds r te eqs)    = do (s,eqs') <- t2Eqs eqs
+t2Binds env (Binds r te eqs)
+  | mono                        = do (s,eqs') <- t2Eqs eqs
+                                     return (s, Binds r (subst s te) eqs')
+  | otherwise                   = do (s,eqs') <- t2Eqs eqs
                                      scs' <- mapM (t2Gen (subst s env)) (subst s scs)
                                      return (s, Binds r (xs `zip` scs') eqs')
   where env1                    = addTEnv te env
@@ -60,6 +63,8 @@ t2Binds env (Binds r te eqs)    = do (s,eqs') <- t2Eqs eqs
                                      (s2,eqs) <- t2Eqs eqs
                                      return (mergeSubsts [s1,s2], (x,e):eqs)
           where sc              = lookup' te x
+        mono                    = or (map (noGen . snd) eqs)
+
 
 -- Note: the program is known to be typeable at this point, thus there is no need to generalize, freshly 
 -- instantiate, and then match an inferred type against a skolemized version of the expected type scheme 

@@ -27,6 +27,12 @@ fullreduce env eqs pe                   = do -- tr ("FULLREDUCE\n" ++ render (vp
                                              -- tr ("END FULLREDUCE " ++ show pe2)
                                              return (s2@@s1, pe2, f2 . f1)
 
+topresolve env eqs pe bs                = do (s,[],f) <- fullreduce env eqs pe
+                                             let Binds r te es = collect (f (ELit (lInt 0))) `catBinds` bs
+                                             return (Binds r (subst s te) es)
+  where collect (ELet bs e)             = bs `catBinds` collect e
+        collect e                       = nullBinds
+
 normalize env eqs pe                    = do -- tr ("NORMALIZE: " ++ render (vpr pe))
                                              s0 <- unify env eqs
                                              -- tr ("NORMALZE B: " ++ show s0)

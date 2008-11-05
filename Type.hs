@@ -66,10 +66,11 @@ tiModule (xs',ds',ws',bs') (Module v ns xs ds ws bss)
                                      let env3 = insertDefaults env2 (pe'++pe) (xs'++xs)
                                          env4 = addCoercions (weqs1 ++ weqs) env3
                                          weqs1 = eqnsOf bs1 ++ eqnsOf bs2
-                                     (ss0,pe0,bss') <- tiBindsList env4 bss
-                                     assert0 (null ss0) "Internal: top-level type inference 1"
-                                     assert0 (null pe0) "Internal: top-level type inference 2"
-                                     return (Module v ns xs ds1 (dom weqs1 ++ ws) (groupBinds (concatBinds (bs1:bs2:bss'))))
+                                     (ss0,pe0,bs0) <- tiBindsList env4 bss
+                                     -- tr ("Top-level: \n" ++ render (nest 4 (vpr (tsigsOf bs0) $$ vpr pe0)))
+                                     bs3 <- topresolve env4 ss0 pe0 bs0
+                                     -- tr ("Top-level after resolve: \n" ++ render (nest 4 (vpr (tsigsOf bs3))))
+                                     return (Module v ns xs ds1 (dom weqs1 ++ ws) (groupBinds (concatBinds [bs1,bs2,bs3])))
     where bs                    = concatBinds bss
           weqs                  = restrict (eqnsOf bs') ws' ++ restrict (eqnsOf bs) ws
           pe                    = restrict (tsigsOf bs) ws
@@ -77,10 +78,10 @@ tiModule (xs',ds',ws',bs') (Module v ns xs ds ws bss)
           env0                  = addTEnv0 (tsigsOf bs') (impDecls (initEnv v) ds')
 
 
-tiBindsList env []              = return ([], [], [])
-tiBindsList env (bs:bss)        = do (ss1, pe1, bs') <- tiBinds env bs
-                                     (ss2, pe2, bss') <- tiBindsList (addTEnv (tsigsOf bs') env) bss
-                                     return (ss1++ss2, pe1++pe2, bs' : bss')
+tiBindsList env []              = return ([], [], nullBinds)
+tiBindsList env (bs:bss)        = do (ss1, pe1, bs1) <- tiBinds env bs
+                                     (ss2, pe2, bs2) <- tiBindsList (addTEnv (tsigsOf bs1) env) bss
+                                     return (ss1++ss2, pe1++pe2, bs1 `catBinds` bs2)
 
                                      
 tiBinds env (Binds _ [] [])     = return ([], [], nullBinds)
@@ -93,27 +94,30 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ showids xs ++ ",
                                      (s',qe,f) <- fullreduce (target te (setErrPos (posInfo es) env)) s pe `handle` (fail . tail)
                                      -- tr ("PREDICATES OBTAINED (" ++ showids xs ++ "):\n" ++ render (nest 8 (vpr qe)))
                                      let env1      = subst s' env
-                                         (qe1,qe2) = partition (isFixed env1) qe
+                                         ts1       = subst s' ts
+                                         tvs0      = if mono then tvars qe else []
+                                         (qe1,qe2) = if mono then (qe,[]) else partition (isFixed (tevars env1)) qe
                                          (vs,qs)   = unzip qe2
                                          es2       = map f es1
-                                         es3       = if rec && not (null vs) then map (subst (satSubst vs)) es2 else es2
-                                         (es',ts') = unzip (zipWith (qual qe2) es3 (subst s' ts))
+                                         es3       = if mono || not rec || null vs then es2 else map (subst (satSubst vs)) es2
+                                         (es',ts') = if mono then (es3,ts1) else unzip (zipWith (qual qe2) es3 ts1)
                                      -- tr ("BEFORE GEN:\n" ++ render (nest 8 (vpr (xs `zip` ts') $$ vpr qe2)))
                                      -- Note: using genL below instead of mapM gen allows us to take a simplifying 
                                      -- shortcut later on in Type2
-                                     ts'' <- genL (tevars env1 ++ tvars qe1) ts'
+                                     ts'' <- genL (tevars env1 ++ tvs0) ts'
                                      -- tr ("DONE " ++ render (nest 8 (vpr (xs `zip` ts''))))
                                      -- tr ("EXPS " ++ render (nest 8 (vpr (xs `zip` es'))))
                                      return (mkEqns env s', qe1, Binds rec (xs `zip` ts'') (xs `zip` es'))
   where ts                      = map (lookup' te) xs
         (xs,es)                 = unzip eqs
         explWits                = map (explicit . annot) xs
-        env'                    = if rec then addTEnv te env else env
+        satSubst []             = []
         satSubst vs             = zipWith f xs ts
           where es              = map EVar vs
                 f x t           = (x, eLam te (EAp (EVar x) (es ++ map EVar (dom te))))
                   where te      = abcSupply `zip` ctxt t
-                
+        mono                    = or [ noGen e || arity e == 0 && null (ctxt t) | (e,t) <- es `zip` ts ]
+
 
 tiRhs0 env explWits ts es       = do (ss,pes,es') <- fmap unzip3 (mapM (tiExpT' env) (zip3 explWits ts es))
                                      return (concat ss, concat pes, es')
@@ -124,26 +128,24 @@ tiRhs env ts es                 = tiRhs0 env (repeat False) ts es
 tiExpT env t e                  = tiExpT' env (False, t, e)
 
 
-tiExpT' env (False, Scheme t0 [] [], e)
-                                = do (ss,pe,t,e')  <- tiExp env e
+tiExpT' env (explWit, Scheme t0 ps ke, e)
+  | noGen e                     = do (ss,pe,t,e') <- tiExp env e
                                      c            <- newNamePos coercionSym e'
-                                     return (ss, (c, Scheme (F [scheme' t] t0) [] []) : pe, EAp (EVar c) [e'])
-tiExpT' env (False, Scheme t0 ps [], e) 
-                                = do (ss,qe,t,e)  <- tiExp env e
+                                     return (ss, (c, Scheme (F [scheme' t] t0) ps ke) : pe, EAp (EVar c) [e'])
+  | null ke && not explWit      = do (ss,qe,t,e)  <- tiExp env e
                                      c            <- newNamePos coercionSym e
                                      pe0          <- newEnvPos assumptionSym ps e
                                      let ws        = map EVar (dom pe0)
                                          e1        = eLam pe0 (EAp (eAp (EVar c) ws) [e])
-                                     return (ss, (c, Scheme (F [scheme' t] t0) ps []) : qe, e1)
-tiExpT' env (explWit, Scheme t0 ps ke, e)
-                                = do (ss,qe,t,e)  <- tiExp env e
+                                     return (ss, (c, Scheme (F [scheme' t] t0) ps ke) : qe, e1)
+  | otherwise                   = do (ss,qe,t,e)  <- tiExp env e
 --                                     tr ("REQUIRED: " ++ render (pr (Scheme t0 ps ke)))
 --                                     tr ("INFERRED: " ++ render (pr t) ++ "\n" ++ render (nest 4 (vpr qe)))
                                      (s,qe,f)     <- normalize (target t (setErrPos (posInfo e) env)) ss qe `handle` (fail . tail)
                                      c            <- newNamePos coercionSym e
                                      pe0          <- newEnvPos assumptionSym ps e >>= wildify ke
                                      let env1      = subst s env
-                                         (qe1,qe2) = partition (isFixed env1) (subst s qe)
+                                         (qe1,qe2) = partition (isFixed (tevars env1)) (subst s qe)
                                          (e',t')   = qual qe2 (f e) (scheme' (subst s t))
                                          ws        = map EVar (dom pe0)
                                          (ws',ps') = if explWit then (ws, ps) else ([], [])
@@ -151,11 +153,9 @@ tiExpT' env (explWit, Scheme t0 ps ke, e)
                                      sc           <- gen (tevars env1 ++ tvars qe1) t'
                                      return (mkEqns env1 s, (c, Scheme (F [sc] (tFun ps' t0)) ps ke) : qe1, e1)
 
-
 mkEqns env s                    = mapFst TVar (restrict s (tevars env))
 
-isFixed env (w,p)               = isDummy w || all (`elem` tvs) (tvars p)
-  where tvs                     = tevars env
+isFixed tvs (w,p)               = isDummy w || all (`elem` tvs) (tvars p)
 
 
 tiAp env s pe (F scs rho) e es

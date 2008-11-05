@@ -64,7 +64,7 @@ finiteEqns env eqs              = filter p eqs
 
 
 -- can be safely ignored without changing cbv semantics
-value (EVar _)                  = True
+value (EVar x)                  = x /= prim New
 value (ECon _)                  = True
 value (ELit _)                  = True
 value (ESel e _)                = value e
