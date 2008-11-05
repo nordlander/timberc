@@ -94,7 +94,7 @@ matchRecs ws eqs (eq:eqs')
   | isERecEq eq                 = matchRecs ws (eq:eqs) eqs'
 matchRecs ws eqs eqs'           = matchRec ws (reverse eqs) : match1 ws eqs'
 
-matchRec (w:ws) eqs             = do vs <- newNamesPos tempSym fs 
+matchRec (w:ws) eqs             = do vs <- newNamesPos tempSym fs
                                      e <- match (vs ++ ws) (map matchAlt eqs)
                                      return (foldr ELet e (zipWith mkEqn vs fs))
   where ERec _ fs               = head (fst (head eqs))
@@ -140,57 +140,3 @@ matchQuals (QLet bs : qs) e     = do e' <- matchQuals qs e
                                      return (ELet bs e')
 matchQuals (QExp e' : qs) e     = matchQuals (QGen true e' : qs) e
 
-
-
--- Dependency analysis ------------------------------------
-
-{-
-
-lpatToCase e [BEqn (LPat p) rh] = pmc (rh2exp rh) [Alt p (RExp e)]
-lpatToCase e bs 
-  | null pbs                    = return (ELet bs e)
-  | otherwise                   = errorTree "Recursive pattern binding not allowed" (head pbs)
-  where pbs                     = filter isLPatEqn bs
-
-lpatToCase2 ss [BEqn (LPat p) rh]= do v <- newNamePos selfSym p
-                                      e <- pmc (rh2exp rh) [Alt p (RExp (EDo (Just v) Nothing ss))]
-                                      return [SExp e]
-lpatToCase2 ss bs  
-  | null pbs                    = return (map SBind bs ++ ss)
-  | otherwise                   = errorTree "Recursive pattern binding not allowed" (head pbs)
-  where pbs                     = filter isLPatEqn bs
-
-
-mkLet bs e                       = do let bss = groupBindsS bs
-                                      foldM lpatToCase e (reverse bss)  -- reverse since foldM is monadic foldl
- 
-cLet bs ss                       = do let bss = groupBindsS bs
-                                      foldM lpatToCase2 ss (reverse bss)                                
-        
--}
-{-
-
-case e0 of
-  C p1 p2 -> e1
-  C p3    -> e2
-  D p4    -> e3
-  D       -> e4
-
-case e0 of
-  C p1 p2 -> e1
-  C p3 x1 -> e2 x1
-  D p4    -> e3
-  D x2    -> e4 x2
-
-
-case e0 of
-  C -> \v1 v2 -> case v1 of
-                   p1 -> case v2 of
-                           p2 -> e1
-                   p3 -> case v2 of
-                           x1 -> e2 x1
-  D -> \v3    -> case v3 of
-                   p4 -> e3
-                   x2 -> e4 x2
-
--}
