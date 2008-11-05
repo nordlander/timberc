@@ -39,7 +39,7 @@ t2BindsList env (bs:bss)        = do bs <- t2Binds0 env bs
 -- restricted before it is applied to any sibling bindings.
 
 t2Binds0 env (Binds r te eqs)   = do (s,eqs') <- t2Eqs eqs
-                                     scs' <- mapM (t2Gen env) (subst s scs)
+                                     scs' <- mapM (t2Gen (tevars env)) (subst s scs)
                                      return (Binds r (xs `zip` scs') eqs')
   where env1                    = addTEnv te env
         (xs,scs)                = unzip te
@@ -50,12 +50,11 @@ t2Binds0 env (Binds r te eqs)   = do (s,eqs') <- t2Eqs eqs
           where sc              = lookup' te x
 
 
-t2Binds env (Binds r te eqs)
-  | mono                        = do (s,eqs') <- t2Eqs eqs
-                                     return (s, Binds r (subst s te) eqs')
-  | otherwise                   = do (s,eqs') <- t2Eqs eqs
-                                     scs' <- mapM (t2Gen (subst s env)) (subst s scs)
-                                     return (s, Binds r (xs `zip` scs') eqs')
+t2Binds env (Binds r te eqs)    = do (s,eqs') <- t2Eqs eqs
+                                     let scs1 = subst s scs
+                                         tvs0 = concat [ tvars sc | (sc,eq) <- scs1 `zip` eqs, noGen (snd eq) ]
+                                     scs2 <- mapM (t2Gen (tevars (subst s env) ++ tvs0)) (subst s scs1)
+                                     return (s, Binds r (xs `zip` scs2) eqs')
   where env1                    = addTEnv te env
         (xs,scs)                = unzip te
         t2Eqs []                = return (nullSubst, [])
@@ -63,7 +62,6 @@ t2Binds env (Binds r te eqs)
                                      (s2,eqs) <- t2Eqs eqs
                                      return (mergeSubsts [s1,s2], (x,e):eqs)
           where sc              = lookup' te x
-        mono                    = or (map (noGen . snd) eqs)
 
 
 -- Note: the program is known to be typeable at this point, thus there is no need to generalize, freshly 
@@ -195,15 +193,14 @@ t2Lhs env alpha t2X xs          = do x <- newName tempSym
                                      let env' = addTEnv [(x,scheme alpha)] env
                                      (ss,rhs,_) <- fmap unzip3 (mapM (t2X env' x) xs)
                                      let s = mergeSubsts ss
-                                     scs <- mapM (t2Gen (subst s env') . scheme') (subst s rhs)
+                                     scs <- mapM (t2Gen (tevars (subst s env')) . scheme') (subst s rhs)
                                      return (subst s alpha, scs)
 
 
-t2Gen env (Scheme rh ps ke)     = do ids <- newNames tyvarSym (length tvs)
+t2Gen tvs0 (Scheme rh ps ke)    = do ids <- newNames tyvarSym (length tvs)
                                      let s = tvs `zip` map TId ids
                                      return (Scheme (subst s rh) ps (ke ++ ids `zip` map tvKind tvs))
   where tvs                     = nub (filter (`notElem` tvs0) (tvars rh))
-        tvs0                    = tevars env
     
 
 t2Inst (Scheme rh ps ke)        = do ts <- mapM newTVar ks

@@ -95,7 +95,8 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ showids xs ++ ",
                                      -- tr ("PREDICATES OBTAINED (" ++ showids xs ++ "):\n" ++ render (nest 8 (vpr qe)))
                                      let env1      = subst s' env
                                          ts1       = subst s' ts
-                                         tvs0      = if mono then tvars qe else []
+                                         tvs0      = if mono then tvars qe ++ tvs1 else []
+                                         tvs1      = concat [ tvars t | (t,e) <- ts1 `zip` es, noGen e ]
                                          (qe1,qe2) = if mono then (qe,[]) else partition (isFixed (tevars env1)) qe
                                          (vs,qs)   = unzip qe2
                                          es2       = map f es1
