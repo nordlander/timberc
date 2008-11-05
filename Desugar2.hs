@@ -215,10 +215,10 @@ dsExp (ECon c)                  = return (ECon c)
 dsExp (ELit l)                  = dsLit l
 dsExp (ERec m fs)               = liftM (ERec m) (mapM dsF fs)
   where dsF (Field s e)         = liftM (Field s) (dsExp e)
-dsExp (EDo v t ss)              = liftM (EDo v (fmap dsWildType t)) (dsStmts ss)
-dsExp (ETempl v t ss)           = liftM (ETempl v (fmap dsWildType t)) (dsStmts ss)
-dsExp (EAct v ss)               = liftM (EAct v) (dsStmts ss)
-dsExp (EReq v ss)               = liftM (EReq v) (dsStmts ss)
+dsExp (EDo v t ss)              = liftM (EDo v (fmap dsWildType t)) (dsStmts False ss)
+dsExp (ETempl v t ss)           = liftM (ETempl v (fmap dsWildType t)) (dsStmts True ss)
+dsExp (EAct v ss)               = liftM (EAct v) (dsStmts False ss)
+dsExp (EReq v ss)               = liftM (EReq v) (dsStmts False ss)
 dsExp (EAfter e e')             = dsExp (EAp (EAp (EVar (prim After)) e) e')
 dsExp (EBefore e e')            = dsExp (EAp (EAp (EVar (prim Before)) e) e')
 dsExp (ETup es)                 = dsExp (foldl EAp (ECon (tuple (length es))) es)
@@ -246,38 +246,39 @@ comp2exp e (QGen p e' : qs) r   = do f <- newNamePos functionSym p
 
 -- Statements ------------------------------------------------------------
 
-dsStmts []                      = return []
-dsStmts (SBind [BEqn (LPat p) rh] : ss)
-  | nonRecursive                = do x <- newName tempSym
-                                     dsStmts [SExp (ECase (rh2exp rh) [Alt p (RExp (EDo (Just x) Nothing ss))])]
+dsStmts cl []                   = return []
+dsStmts cl (SBind [BEqn (LPat p) rh] : ss)
+  | not cl && nonRecursive      = do x <- newName tempSym
+                                     dsStmts cl [SExp (ECase (rh2exp rh) [Alt p (RExp (EDo (Just x) Nothing ss))])]
   where nonRecursive            = not (any (`elem` evars rh) (pvars p))
-dsStmts (SBind bs : ss)         = do bs <- dsBinds bs
-                                     liftM (SBind bs :) (dsStmts ss)
-dsStmts [SRet e]                = do e <- dsExp e
+dsStmts cl (SBind bs : ss)      = do bs <- dsBinds bs
+                                     liftM (SBind bs :) (dsStmts cl ss)
+dsStmts cl [SRet e]             = do e <- dsExp e
                                      return [SRet e]
-dsStmts [SExp e]                = do e <- dsExp e
+dsStmts cl [SExp e]             = do e <- dsExp e
                                      return [SExp e]
-dsStmts (SGen p e : ss)
+dsStmts cl (SGen p e : ss)
   | isESigVar p                 = do p <- dsInnerPat p
                                      e <- dsExp e
-                                     ss <- dsStmts ss
+                                     ss <- dsStmts cl ss
                                      return (SGen p e : ss)
   | otherwise                   = do v' <- newEVarPos tempSym p
-                                     dsStmts (SGen v' e : SBind [BEqn (LPat p) (RExp v')] : ss)
-dsStmts (s@(SAss p e) : ss)
+                                     dsStmts cl (SGen v' e : SBind [BEqn (LPat p) (RExp v')] : ss)
+dsStmts cl (s@(SAss p e) : ss)
   | null vs                     = errorTree "Bad assignment" s
+  | not cl && p0 /= p           = errorTree "Illegal signature in assignment" s
   | isESigVar p                 = do e <- dsExp e
-                                     ss <- dsStmts ss
+                                     ss <- dsStmts cl ss
                                      return (SAss p e : ss)
   | otherwise                   = do v0 <- newNamePos tempSym p
                                      assigns <- mapM (assign (EVar v0)) ps
-                                     dsStmts (SBind [BEqn (LFun v0 []) (RExp e)] : assigns ++ ss)
+                                     dsStmts cl (SBind [BEqn (LFun v0 []) (RExp e)] : assigns ++ ss)
   where assign e0 p             = do vs' <- newNamesPos paramSym vs
                                      return (SAss p (selectFrom e0 (vs `zip` map EVar vs') p0 (unsig p)))
         p0                      = unsig p
         ps                      = sigvars p
         vs                      = pvars ps
-dsStmts ss                      = internalError ("dsStmts; did not expect") ss
+dsStmts cl ss                   = internalError ("dsStmts; did not expect") ss
 
 unsig (ESig p _)                = unsig p
 unsig (ETup ps)                 = ETup (map unsig ps)
