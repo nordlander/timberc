@@ -4204,7 +4204,10 @@ fi
 done
 
 
-CFLAGS="$CFLAGS -c"
+CFLAGS="$CFLAGS -c -D_GNU_SOURCE"
+LDFLAGS="$LDFLAGS -lpthread"
+CC="gcc"
+
 
 
 
