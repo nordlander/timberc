@@ -41,7 +41,7 @@ t2BindsList env (bs:bss)        = do bs <- t2Binds0 env bs
 t2Binds0 env (Binds r te eqs)   = do (s,eqs') <- t2Eqs eqs
                                      scs' <- mapM (t2Gen env) (subst s scs)
                                      return (Binds r (xs `zip` scs') eqs')
-  where env1                    = if r then addTEnv te env else env
+  where env1                    = addTEnv te env
         (xs,scs)                = unzip te
         t2Eqs []                = return (nullSubst, [])
         t2Eqs ((x,e):eqs)       = do (s1,e) <- t2ExpTscoped env1 sc e
@@ -53,7 +53,7 @@ t2Binds0 env (Binds r te eqs)   = do (s,eqs') <- t2Eqs eqs
 t2Binds env (Binds r te eqs)    = do (s,eqs') <- t2Eqs eqs
                                      scs' <- mapM (t2Gen (subst s env)) (subst s scs)
                                      return (s, Binds r (xs `zip` scs') eqs')
-  where env1                    = if r then addTEnv te env else env
+  where env1                    = addTEnv te env
         (xs,scs)                = unzip te
         t2Eqs []                = return (nullSubst, [])
         t2Eqs ((x,e):eqs)       = do (s1,e) <- t2ExpTscoped env1 sc e

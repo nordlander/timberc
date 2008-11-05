@@ -270,7 +270,7 @@ flatBinds bf                            = flat (bf Kindle.CBreak)
 -- Translate a list of (mutually recursive) Core bindings into a Kindle.CBind on basis of declared type
 cBinds env (Binds rec te eqs)           = do te <- cTEnv env te
                                              assert (not rec || all Kindle.okRec (rng te)) "Illegal value recursion" (dom te)
-                                             (bf,bs) <- cEqs (if rec then addTEnv te env else env) te eqs
+                                             (bf,bs) <- cEqs (addTEnv te env) te eqs
                                              return (te, comb rec bf bs)
   where comb False bf bs                = bf . Kindle.CBind False bs
         comb True bf bs                 = Kindle.CBind True (flatBinds bf ++ bs)

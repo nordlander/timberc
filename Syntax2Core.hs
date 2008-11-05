@@ -185,11 +185,10 @@ splitBinds bs                           = s2cB [] [] bs
 s2cBinds env bs                         = do (ts,es) <- fmap unzip (mapM s2cEqn eqs)
                                              let te = vs `zip` ts
                                              te' <- s2cTE te
-                                             return (te, Core.Binds (isRec eqs) te' (vs `zip` es))
+                                             return (te, Core.Binds isRec te' (vs `zip` es))
   where (sigs,eqs)                      = splitBinds bs
         vs                              = dom eqs
-        isRec [(v,e)]                   = v `elem` evars e
-        isRec _                         = True
+        isRec                           = not (null (filter (not . isPatTemp) vs `intersect` evars (rng eqs)))
         env'                            = addSigs sigs env
         s2cEqn (v,e)                    = case lookup v sigs of
                                             Nothing -> s2cEi env' e
