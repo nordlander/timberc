@@ -240,7 +240,7 @@ instance Desugar1 Exp where
       | haveSelf env               = ds1 env (EReq (self env) ss)
       | otherwise                  = errorTree "Request outside class" e
 
-    ds1 env (ETempl v t ss)      = ETempl v t (ds1T (env{self=v}) ss)
+    ds1 env (ETempl v t ss)      = ETempl v t (ds1T (env{self=v}) [] ss)
     ds1 env (EDo v t ss)         = EDo v t (ds1S (env{self=v}) ss)
     ds1 env (EAct v ss)          = EAct v [SExp (EDo v Nothing (ds1S env ss))]
     ds1 env (EReq v ss)          = EReq v [SExp (EDo v Nothing (ds1S env ss))]
@@ -300,15 +300,15 @@ ds1Forall env (QGen p (ESeq e1 (Just e2) e3) : qs) ss
 ds1Forall env (QGen p e : qs) ss = EAp (EAp (EVar (name' "forallList" p)) (ELam [p] (eDo env [SForall qs ss]))) e
 ds1Forall env (QExp e : qs) ss   = EIf e (eDo env [])  (eDo env [SForall qs ss])
 
-ds1T env [SRet e]                = [SRet (ds1 env e)]
-ds1T env [s]                     = errorTree "Last statement in class must be result, not" s
-ds1T env (s@(SRet _) : ss)       = errorTree "Result statement must be last in sequence" s
-ds1T env ss@(SBind _ : _)        = dsBs [] ss
+ds1T env asg [SRet e]            = reverse asg ++ [SRet (ds1 env e)]
+ds1T env asg [s]                 = errorTree "Last statement in class must be result, not" s
+ds1T env asg (s@(SRet _) : ss)   = errorTree "Result statement must be last in sequence" s
+ds1T env asg ss@(SBind _ : _)    = dsBs [] ss
   where dsBs bs [s@(SBind _)]    = errorTree "Last statement in class must be result, not" s
         dsBs bs (SBind bs' : ss) = dsBs (bs++bs') ss
-        dsBs bs ss               = SBind (ds1 env bs) : ds1T env ss
-ds1T env (s@(SAss p e) : ss)     = SAss (ds1 (patEnv env) p) (ds1 env e) : ds1T env ss
-ds1T env (s : _)                 = errorTree "Illegal statement in class: " s
+        dsBs bs ss               = SBind (ds1 env bs) : ds1T env asg ss
+ds1T env asg (s@(SAss p e) : ss) = ds1T env (SAss (ds1 (patEnv env) p) (ds1 env e) : asg) ss
+ds1T env asg (s : _)             = errorTree "Illegal statement in class: " s
 
 retComplete e
   | hasRet e                     = e
