@@ -127,7 +127,8 @@ polyTagEnv1 a                   = _abcSupply `zip` map ValT (polyTagTypes a)
 polyTagBinds env n ts           = bs0 ++ bs1
   where mkBind (x,ValT t) e     = (x, Val t e)
         ts0                     = zipFilter vflags ts
-        ts1                     = drop (visibleArity env n) ts
+        ts1                     = zipFilter (drop va vflags) (drop va ts)
+        va                      = visibleArity env n
         l_ts0                   = length ts0
         te0                     = polyTagEnv0 l_ts0
         es0                     = polyTagArgs env ts0
@@ -205,10 +206,12 @@ pModule e2 dsi (Module m ns ds bs)
 
 -- Prepare structs declarations
 pDecls env ds                   = map f ds
-  where f (n,Struct vs te _)    = (n, Struct [] (polyTagEnv0 l_vs ++ tagSig ++ mapSnd pType te ++ polyTagEnv1 (l_vs - a)) Top)
+  where f (n,Struct vs te _)    = (n, Struct [] (polyTagEnv0 l_vs0 ++ tagSig ++ mapSnd pType te ++ polyTagEnv1 l_vs1) Top)
           where tagSig          = if n `elem` tagged env then [(prim Tag, ValT tInt)] else []
-                l_vs            = length vs
-                a               = visibleArity env n
+                l_vs0           = length (zipFilter vflags vs)
+                l_vs1           = length (zipFilter (drop va vflags) (drop va vs))
+                va              = visibleArity env n
+                (_,vflags)      = findStructInfo env n
 
 
 -- gcinfo types: these must match corresponding defines in gc.c
