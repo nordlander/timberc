@@ -127,7 +127,7 @@ polyTagEnv1 a                   = _abcSupply `zip` map ValT (polyTagTypes a)
 polyTagBinds env n ts           = bs0 ++ bs1
   where mkBind (x,ValT t) e     = (x, Val t e)
         ts0                     = zipFilter vflags ts
-        ts1                     = zipFilter (drop va vflags) (drop va ts)
+        ts1                     = drop va ts
         va                      = visibleArity env n
         l_ts0                   = length ts0
         te0                     = polyTagEnv0 l_ts0
@@ -209,7 +209,7 @@ pDecls env ds                   = map f ds
   where f (n,Struct vs te _)    = (n, Struct [] (polyTagEnv0 l_vs0 ++ tagSig ++ mapSnd pType te ++ polyTagEnv1 l_vs1) Top)
           where tagSig          = if n `elem` tagged env then [(prim Tag, ValT tInt)] else []
                 l_vs0           = length (zipFilter vflags vs)
-                l_vs1           = length (zipFilter (drop va vflags) (drop va vs))
+                l_vs1           = length (drop va vs)
                 va              = visibleArity env n
                 (_,vflags)      = findStructInfo env n
 
