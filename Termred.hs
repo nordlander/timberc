@@ -212,14 +212,15 @@ redBeta env [] b []             = redExp env b
 
 redEta env te (EAp e es)        = do es <- mapM (redExp env') es
                                      e <- redExp env' e
-                                     if okEta e && es == map EVar (dom te) then
+                                     if okEta e && es == map EVar xs then
                                         return e
                                       else do
                                         liftM (ELam te) (redApp env' e es)
   where okEta (ECon _)          = False
         okEta (EVar (Prim _ _)) = False
-        okEta _                 = True
-        env'                    = addArgs env (dom te) 
+        okEta e                 = null (evars e `intersect` xs)
+        env'                    = addArgs env (dom te)
+        xs                      = dom te
 redEta env te e                 = liftM (ELam te) (redExp (addArgs env (dom te)) e)
 
 
