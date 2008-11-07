@@ -108,7 +108,7 @@ llExp env (ECall x ts es)               = do es <- mapM (llExp env) es
                                                 Nothing -> return (ECall x ts es)
 llExp env ee@(ENew n ts bs)
   | null fte && null fvs                = liftM (ENew n ts) (mapM (llBind env) bs)
-  | otherwise                           = do n' <- extendStruct n vs fvs te (mapSnd ValT ({-subst s-} fte))
+  | otherwise                           = do n' <- extendStruct n vs fvs te (mapSnd ValT fte)
                                              vals' <- mapM (llBind env) vals
                                              funs' <- mapM (llBind (setThisVars (dom fte) env)) funs
                                              -- tr ("lift ENew: " ++ render (pr (TCon n ts)) ++ "  fvs: " ++ show fvs ++ "   new: " ++ show n')
@@ -117,10 +117,9 @@ llExp env ee@(ENew n ts bs)
         free0                           = evars funs
         free1                           = free0 ++ concat [ xs | (f,(_,xs)) <- expansions env, f `elem` free0 ]
         fte                             = locals env `restrict` free1
-        fvs                             = nub (typevars funs ++ typevars fte) -- \\ dom s
+        fvs                             = nub (typevars funs ++ typevars fte)
         Struct vs te _                  = lookup' (decls env) n   -- NOTE: n can't be a tuple or a cons if fte/fvs are nonempty...
         close (x,t)                     = (x, Val t (mkEVar env x))
-        s                               = [ (v1,TVar v []) | (TVar v1 [],v) <- ts `zip` vs ]
 
 
 llExp env (EVar x)                      = return (mkEVar env x)
