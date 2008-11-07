@@ -70,7 +70,8 @@ struct Msg {
 */
 WORD __GC__Msg[]        = {WORDS(sizeof(struct Msg)), GC_STD, 0};       // sole pointer field "next" is custom handled by the gc
 
-WORD __GC__Ref[]        = {WORDS(sizeof(struct Ref)), GC_MUT, 0};       // sole pointer field "STATE" is custom handled by the gc
+WORD __GC__Ref[]        = {WORDS(sizeof(struct Ref)), GC_MUT, OFF(Ref,STATE), 0,
+                           WORDS(sizeof(struct Ref)), GC_MUT, 0,              0 };
 
 /*
 struct Array {

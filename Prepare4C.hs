@@ -308,7 +308,7 @@ pSBind ty te0 env (x,Fun vs t te c)
 
 rebindPolyEnv (TCon n ts) y env = addPolyEnv vs is (map (ESel (EVar y)) _abcSupply) env
   where ts1                     = drop (visibleArity env n) ts
-        (vs,is)                 = unzip [ (v,i) | (TVar v _, i) <- ts `zip` [0..] ]
+        (vs,is)                 = unzip [ (v,i) | (TVar v _, i) <- ts1 `zip` [0..] ]
 
 
 -- Prepare commands
