@@ -31,6 +31,10 @@ core2kindle e2 e3 m                 = localStore (cModule e2 e3 m)
 data Result a                       = ValR a
                                     | FunR ([Kindle.Exp] -> a) [Kindle.AType]
 
+instance Show a => Show (Result a) where
+    show (ValR a)                   = "ValR (" ++ show a ++ ")"
+    show (FunR f ts)                = "FunR _ " ++ show ts
+
 rcomp f (ValR c)                    = ValR (f c)
 rcomp f (FunR g ts)                 = FunR (f . g) ts
 
@@ -545,10 +549,12 @@ cCmd env (CLet bs c)                    = do (bf,te,bs) <- freezeState env bs
                                              (t,c) <- cCmd (addTEnv te' env) c
                                              return (t, bf (bf' c))
 cCmd env (CGen x tx (ECase e alts) c)
-  | isDummy x                           = do (_,ValR c1) <- cCase cValCmdExp env e (filter useful alts)
+  | isDummy x && null alts'             = cCmd env c
+  | isDummy x                           = do (_,ValR c1) <- cCase cValCmdExp env e alts'
                                              (t,c2) <- cCmd env c
                                              return (t, Kindle.CSeq (Kindle.cMap (\_ -> Kindle.CBreak) c1) c2)
-  where useful (_,EDo _ _ (CRet (ECon (Prim UNITTERM _))))  = False
+  where alts'                           = filter useful alts
+        useful (_,EDo _ _ (CRet (ECon (Prim UNITTERM _))))  = False
         useful _                                            = True
 cCmd env (CGen x tx e c)                = do (bf,te,e) <- freezeState env e
                                              tx <- cAType env tx
