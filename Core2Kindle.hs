@@ -349,10 +349,12 @@ cFun env e@(EAp e0 _)
 cFun env (ETempl x tx te c)             = do tx@(Kindle.TCon n []) <- cAType env tx  -- Type-checker guarantees tx is a struct type name
                                              te <- cValTEnv env te
                                              (t,c) <- cCmd (pushSelf x (addATEnv [(x,Kindle.tRef tx)] (addTEnv te env))) c
-                                             addToStore (n, Kindle.Struct [] te Kindle.Top)
+                                             addToStore (n, Kindle.Struct vs te Kindle.Top)
                                              y <- newName dummySym
-                                             let e = Kindle.ENew (prim Ref) [tx] [(prim STATE, Kindle.Val tx (Kindle.ENew n [] []))]
+                                             let e = Kindle.ENew (prim Ref) [tx] [(prim STATE, Kindle.Val tx (Kindle.ENew n ts []))]
                                              return ([(y,Kindle.tInt)], t, Kindle.cBind [(x,Kindle.Val (Kindle.tRef tx) e)] c)
+  where vs                              = nub (tyvars te)
+        ts                              = map Kindle.tVar vs
 cFun env (EDo x tx c)                   = do tx <- fmap Kindle.tRef (cAType env tx)
                                              (t,c) <- cCmd (pushSelf x (addATEnv [(x,tx)] env)) c
                                              return ([(x,tx)], t, c)
