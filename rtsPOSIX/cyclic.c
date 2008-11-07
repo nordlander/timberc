@@ -55,12 +55,12 @@ ADDR substObj(ADDR obj, Array roots, int limit, Thread current) {
                 }
                 case GC_BIG: {
                         WORD size = STATIC_SIZE(info), i = 2, offset = info[i];
-                        while (offset) {                                        // scan all statically known pointer fields
+                        while (offset) {                                        // subst all statically known pointer fields
                                 SUBST(obj,offset,roots,limit);
                                 offset = info[++i];
                         }
                         offset = info[++i];
-                        while (offset) {                                        // scan dynamically identified pointers
+                        while (offset) {                                        // subst dynamically identified pointers
                                 WORD tagword = info[++i];
                                 WORD bitno = info[++i];
                                 if ((tagword & (1 << bitno)) == 0)
@@ -70,7 +70,7 @@ ADDR substObj(ADDR obj, Array roots, int limit, Thread current) {
                         return obj + size;
                 }
                 case GC_MUT: {
-                        return scan(obj + STATIC_SIZE(info));
+                        return substObj(obj + STATIC_SIZE(info), roots, limit, current);
                 }
         }
         return (ADDR)0;                 // Not reached
