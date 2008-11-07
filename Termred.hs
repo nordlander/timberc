@@ -146,7 +146,15 @@ redExp env e@(EVar x)           = case lookup x (eqns env) of
 redExp env (EAp e es)           = do e' <- redExp env e
                                      es' <- mapM (redExp env) es
                                      redApp env e' es'
+redExp env (ELit l)             = return (ELit (normLit l))
 redExp env e                    = return e
+
+
+normLit (LInt p i)
+  | i >= 0x80000000             = normLit (LInt p (i - 0x100000000))
+  | i < -0x80000000             = normLit (LInt p (i + 0x100000000))
+  | otherwise                   = LInt p i
+normLit l                       = l
 
 
 isRaise (EAp (EVar (Prim Raise _)) [_])
@@ -308,9 +316,9 @@ redFat a e@(EAp (EVar (Prim Commit _)) _) _ = e
 redFat a e e'                               = EAp (EVar (Prim Fatbar a)) [e,e']
 
 
-redInt IntPlus a b              = ELit (lInt (a + b))
-redInt IntMinus a b             = ELit (lInt (a - b))
-redInt IntTimes a b             = ELit (lInt (a * b))
+redInt IntPlus a b              = ELit (normLit (lInt (a + b)))
+redInt IntMinus a b             = ELit (normLit (lInt (a - b)))
+redInt IntTimes a b             = ELit (normLit (lInt (a * b)))
 redInt IntDiv a b               = ELit (lInt (a `div` b))
 redInt IntMod a b               = ELit (lInt (a `mod` b))
 redInt IntEQ a b                = eBool (a == b)
