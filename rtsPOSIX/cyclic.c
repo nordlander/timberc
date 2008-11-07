@@ -3,9 +3,6 @@
 #define CLR0(val)               ((WORD)(val) & (~0x01))
 #define TOGGLE0(val)            ((WORD)(val) ^ 0x01)
 
-#define VISITED(obj)            (BIT0(GCINFO(obj)) == current->visit_flag)
-#define MARK_VISITED(info)      ((WORD)(info) | current->visit_flag)
-
 #define ISPLACEHOLDER(obj)      (BIT0(obj) && ((int)(obj) < 0))
 #define INDEXOF(obj)            (((-(int)(obj)) >> 1) - current->placeholders)
 #define PLACEHOLDER(index)      (-((((index) + current->placeholders) << 1) | 0x01))
@@ -95,15 +92,12 @@ Array CYCLIC_BEGIN(Int n, Int updates) {
         int i;
         for (i = 0; i < n; i++)
                 roots->elems[i] = (POLY)PLACEHOLDER(i);
-        if (updates % 2 == 0)
-                current->visit_flag = TOGGLE0(current->visit_flag);
         current->placeholders += n;
         return roots;
 }
 
 void CYCLIC_UPDATE(Array roots, Int limit, ADDR stop) {
         Thread current = CURRENT();
-        current->visit_flag = TOGGLE0(current->visit_flag);
         current->placeholders -= roots->size;
         subst(roots, limit, stop, current);
         current->placeholders += roots->size;
@@ -111,7 +105,6 @@ void CYCLIC_UPDATE(Array roots, Int limit, ADDR stop) {
 
 void CYCLIC_END(Array roots, ADDR stop) {
         Thread current = CURRENT();
-        current->visit_flag = TOGGLE0(current->visit_flag);
         current->placeholders -= roots->size;
         subst(roots, roots->size, stop, current);
 }

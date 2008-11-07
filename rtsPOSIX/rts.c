@@ -59,7 +59,6 @@ struct Thread {
         pthread_t id;
         int index;
         pthread_cond_t trigger;
-        WORD visit_flag;        // for use during cyclic data construction
         int placeholders;       // for use during cyclic data construction
 };
 
@@ -96,7 +95,6 @@ Thread newThread(Msg m, int prio, void *(*fun)(void *), int stacksize) {
         param.sched_priority = prio;
         t = &threads[nthreads++];
         t->msg = m;
-        t->visit_flag = 0;
         t->placeholders = 0;
         t->index = nthreads;
         pthread_attr_t attr;
