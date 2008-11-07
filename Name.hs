@@ -143,6 +143,21 @@ data Prim                       =
 
                                 | MAX____KINDLE_INFIX
 
+                                | SHIFTRA8
+                                | SET8
+                                | CLR8
+                                | TST8
+
+                                | SHIFTRA16
+                                | SET16
+                                | CLR16
+                                | TST16
+
+                                | SHIFTRA32
+                                | SET32
+                                | CLR32
+                                | TST32
+
                                 | IntNeg
                                 | FloatNeg
 

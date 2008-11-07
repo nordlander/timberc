@@ -23,6 +23,23 @@ typedef WORD *ADDR;
 #define BITS16 unsigned short
 #define BITS32 unsigned int
 
+
+#define primSHIFTRA8(a,b)  ((signed char)(a) >> (b))
+#define primSET8(a,b)      ((a) | (1 << (b)))
+#define primCLR8(a,b)      ((a) & ~(1 << (b)))
+#define primTST8(a,b)      (((a) & (1 << (b))) != 0)
+
+#define primSHIFTRA16(a,b) ((signed short)(a) >> (b))
+#define primSET16(a,b)     ((a) | (1 << (b)))
+#define primCLR16(a,b)     ((a) & ~(1 << (b)))
+#define primTST16(a,b)     (((a) & (1 << (b))) != 0)
+
+#define primSHIFTRA32(a,b) ((signed int)(a) >> (b))
+#define primSET32(a,b)     ((a) | (1 << (b)))
+#define primCLR32(a,b)     ((a) & ~(1 << (b)))
+#define primTST32(a,b)     (((a) & (1 << (b))) != 0)
+
+
 union FloatCast {
     float f;
     POLY p;
