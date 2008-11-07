@@ -149,12 +149,14 @@ gcInfoName (Prim p a)           = Name (gcinfoSym ++ strRep2 p) 0 Nothing a
 -- Create a list of polyTag Exp arguments from a list of type arguments
 polyTagArgs env []              = []
 polyTagArgs env ts 
-  | vars && ordered             = [ head es ]
+  | vars && ordered && total    = [e0]
   where vars                    = l_ts == length vs && length (nub es) == 1
         l_ts                    = length ts
         vs                      = [ n | TVar n _ <- ts ]
         (es,is)                 = unzip (map (findPolyTag "XX" env) vs)
+        e0                      = head es
         ordered                 = is == [0..l_ts-1]
+        total                   = length [ v | (v,(e,_)) <- polyenv env, e == e0 ] == l_ts
 polyTagArgs env ts              = args (length ts) ts
   where 
     args 0 []                   = []
