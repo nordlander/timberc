@@ -19,17 +19,18 @@ root env = class
                  result False
               else loop (n+1)
 
-   tryFrom k = do
+   checkFrom k = do
      p <- isPrime k
      if p then 
-        count := count + 1
         primes!count := k
-     if k < limit then tryFrom (k+1)
+        count := count + 1
+     if k < limit then checkFrom (k+1)
 
    result action
      primes!0 := 2
-     tryFrom 3
-     env.stdout.write (show (count+1)++"\n")
+     count := 1
+     checkFrom 3
+     env.stdout.write (show count++"\n")
      env.exit 0
 
 
