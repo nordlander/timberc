@@ -1,4 +1,8 @@
-TIMBERC=../timberc -c
+TIMBERC=../timberc
 
-tests:
-	$(TIMBERC)  Primes2.t HashTable.t Timer.t Reflex0.t UnionFind.t RandomGenerator.t MasterMind.t
+EXAMPLES = Echo Echo2 Echo3 EchoServer EchoServer2 MasterMind Primes Reflex TCPClient
+
+all: 
+	@for ex in $(EXAMPLES); do \
+		$(TIMBERC) --make  $$ex; \
+	done
