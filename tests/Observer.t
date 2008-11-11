@@ -2,9 +2,9 @@ module Observer where
 
 import Data.Functional.List
 
-sequence :: [Action] -> Cmd a ()
-sequence [] = do result ()
-sequence (s : ss) = do {s; sequence ss}
+updateAll a [] = do result []
+updateAll a (o : os) = do o.update a
+                          updateAll a os
 
 struct Object where
   self :: PID
@@ -12,8 +12,7 @@ struct Object where
 struct Observer a < Object where
   update :: a -> Action
 
-instance eqObserver :: Eq (Observer a) 
-eqObserver = struct
+instance eqObserver :: Eq (Observer a) where
   o1 == o2 = o1.self == o2.self
   o1 /= o2 = o1.self /= o2.self
 
@@ -44,7 +43,7 @@ publisher = class
 
    notify a = action
       if changed then
-         sequence [obs.update a | obs <- olst]
+         updateAll a olst
          changed := False
 
    result Publisher {..}

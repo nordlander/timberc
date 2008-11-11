@@ -1,5 +1,9 @@
 module SizedPoint where
 
+
+  struct Point where
+    x, y :: Int
+
   struct SizedPoint < Point where
     size :: Int
 
