@@ -1,5 +1,7 @@
 module Prelude where
 
+-- IntLiteral ----------------------------------------------
+
 typeclass IntLiteral a where
  fromInt :: Int -> a
 
@@ -8,7 +10,11 @@ instance intInt :: IntLiteral Int where
   
 instance intFloat ::IntLiteral Float where
   fromInt = primIntToFloat
-  
+
+default intInt < intFloat
+
+-- Num ----------------------------------------------------- 
+
 typeclass Num a where
  (+),(-),(*) :: a -> a -> a
  negate :: a -> a
@@ -31,7 +37,7 @@ instance numTime :: Num Time where
   _ * _ = raise 1
   negate _ = sec 0
 
-default intInt < intFloat
+-- Eq ------------------------------------------------------
 
 typeclass Eq a where
   (==),(/=) :: a -> a -> Bool
@@ -76,6 +82,8 @@ instance eqPair :: Eq (a,b) \\ Eq a, Eq b where
   (a,b) == (c,d) = a==c && b==d
   x /= y = not (x==y)
 
+-- Ord -----------------------------------------------------
+
 typeclass Ord a < Eq a where
   (<),(<=),(>),(>=) :: a -> a -> Bool
 
@@ -115,6 +123,7 @@ instance ordUnit :: Ord () = Ord{..}
         _ > _  = False
         _ >= _ = True
     
+-- Show ----------------------------------------------------
      
 typeclass Show a where
   show :: a -> String
@@ -156,6 +165,8 @@ instance showTuple :: Show (a,b) \\ Show a, Show b where
 instance showUnit :: Show () where
   show () = "()"
 
+-- Parse ---------------------------------------------------
+
 typeclass Parse a where
   parse :: String -> a
 
@@ -163,6 +174,8 @@ instance parseInt :: Parse Int where
   parse str = r (reverse str)
     where r (c:cs) = ord c - ord '0' + 10*r cs
           r [] = 0
+
+-- Enum ----------------------------------------------------
 
 typeclass Enum a where
   fromEnum :: a -> Int
@@ -186,6 +199,53 @@ instance enumEither :: Enum (Either () a) \\ Enum a where
   toEnum 0 = Left ()
   toEnum n = Right (toEnum (n-1))
 
+-- Functor, Monad and friends ------------------------------
+
+typeclass Functor m where
+  ($^)   :: (a -> b) -> m a -> m b
+
+typeclass Applicative m < Functor m where
+  ($*)   :: m (a -> b) -> m a -> m b
+  return :: a -> m a
+
+typeclass Monad m < Applicative m where
+  (>>=)  :: m a -> (a -> m b) -> m b
+
+typeclass MPlus m where
+  mempty :: m a
+  mappend :: m a -> m a -> m a
+
+instance functorMaybe :: Functor Maybe where
+  f $^ Nothing = Nothing
+  f $^ Just a  = Just (f a)
+
+instance applicativeMaybe :: Applicative Maybe = Applicative {..}
+  where Functor {..} = functorMaybe
+        Just f $* Just a = Just (f a)
+        _      $* _      = Nothing
+
+instance monadMaybe :: Monad Maybe = Monad {..}
+  where Applicative {..} = applicativeMaybe
+        Just a  >>= f = f a
+        Nothing >>= _ = Nothing
+
+instance mPlusMaybe :: MPlus Maybe where
+  mempty = Nothing
+  Just a  `mappend` _ = Just a
+  Nothing `mappend` a = a
+
+instance functorArray :: Functor Array where
+  f $^ a = array [f (a!i) | i <- [0..size a-1]]
+
+
+(>>) :: m a -> m b -> m b \\ Monad m
+ma >> mb = ma >>= \_ -> mb
+
+join :: m (m a) -> m a \\ Monad m
+join m = m >>= id
+
+-- Prelude support for forall statement --------------------
+
 forallList f []       = do result ()
 forallList f (x : xs) = do f x
                            forallList f xs
@@ -207,13 +267,7 @@ forallSeq1 f a b c = fE ai (bi-ai) ci
           | otherwise = do f (toEnum ai)
                            fE (ai+bi) bi ci
 
-data Maybe a = Just a | Nothing
-
-isNothing          :: Maybe a -> Bool
-isNothing Nothing   = True
-isNothing (Just a)  = False
-
-type String         = [Char]
+-- Prelude support for arithmetic sequences ----------------
 
 enumFromTo          :: a -> a -> [a] \\ Enum a
 enumFromTo a b      = map toEnum (fromToInt (fromEnum a) 1 (fromEnum b))
@@ -222,6 +276,35 @@ enumFromThenTo a b c = map toEnum (fromToInt ai (bi-ai) ci)
   where  ai = fromEnum a
          bi = fromEnum b
          ci = fromEnum c
+
+fromToInt :: Int -> Int -> Int -> [Int]
+fromToInt m s n
+       | s > 0     = up m n
+       | otherwise = down m n
+  where up m n
+         | m > n      = []
+         | otherwise  = m : up (m+s) n
+        down m n
+         | m < n      = []
+         | otherwise  = m : down (m+s) n
+
+-- Maybe ---------------------------------------------------
+
+data Maybe a = Just a | Nothing
+
+isNothing          :: Maybe a -> Bool
+isNothing Nothing   = True
+isNothing (Just _)  = False
+
+isJust              :: Maybe a -> Bool
+isJust Nothing      = False
+isJust (Just _)     = True
+
+-- String --------------------------------------------------
+
+type String         = [Char]
+
+-- List functions ------------------------------------------
 
 head               :: [a] -> a
 head (x : _)        = x
@@ -232,6 +315,14 @@ tail (_ : xs)       = xs
 init               :: [a] -> [a]
 init [x]           = []
 init (x : xs)      = x : init xs
+
+last               :: [a] -> a
+last [x]           = x
+last (x : xs)      = last xs
+
+(++)               :: [a] -> [a] -> [a]
+[] ++ ys            = ys
+(x:xs) ++ ys        = x : xs ++ ys
 
 length             :: [a] -> Int
 length []           = 0
@@ -246,11 +337,6 @@ reverse xs          = rev xs []
 map                :: (a -> b) -> [a] -> [b]
 map f []            = []
 map f (x : xs)      = f x : map f xs
-
-replicate :: Int -> a -> [a]
-replicate n x
-  | n < 0          = []
-  | otherwise       = x : replicate (n-1) x
 
 filter             :: (a -> Bool) -> [a] -> [a]
 filter p []         = []
@@ -269,17 +355,6 @@ foldl f u (x : xs)  = foldl f (f u x) xs
 
 concat              = foldr (++) []
 
-fromToInt :: Int -> Int -> Int -> [Int]
-fromToInt m s n
-       | s > 0     = up m n
-       | otherwise = down m n
-  where up m n
-         | m > n      = []
-         | otherwise  = m : up (m+s) n
-        down m n
-         | m < n      = []
-         | otherwise  = m : down (m+s) n
-
 zip (x:xs) (y:ys)   = (x,y) : zip xs ys
 zip _ _             = []
 
@@ -293,6 +368,11 @@ lookup x ((a,b) : xs)
      | x == a        = Just b
      | otherwise     = lookup x xs
 
+replicate :: Int -> a -> [a]
+replicate n x
+  | n < 0          = []
+  | otherwise       = x : replicate (n-1) x
+
 take, drop          :: Int -> [a] -> [a]
 take 0 xs           = []
 take n []           = []
@@ -304,9 +384,7 @@ drop n []           = []
 drop n (x : xs)
        | n > 0      = drop (n-1) xs
          
-(++)               :: [a] -> [a] -> [a]
-[] ++ ys            = ys
-(x:xs) ++ ys        = x : xs ++ ys
+-- Combinators ---------------------------------------------
 
 ($) :: (a -> b) -> a -> b
 f $ a = f a
@@ -325,6 +403,10 @@ curry f x y         = f (x,y)
 
 uncurry            :: (a -> b -> c) -> (a,b) -> c
 uncurry f (x,y)     = f x y
+
+f @ g               = \x -> f (g x)
+
+-- Boolean and numeric functions ---------------------------
 
 not                :: Bool -> Bool
 not True            = False
@@ -379,6 +461,8 @@ floor               = primFloatToInt
 
 round x             = floor (x + 0.5)
 
+-- Command sequencing --------------------------------------
+
 sequence []         = do result []
 sequence (x : xs)   = do a  <- x
                          as <- sequence xs
@@ -388,52 +472,4 @@ mapM f []           = do result []
 mapM f (x : xs)     = do a <- f x
                          as <- mapM f xs
                          result a : as
-
-struct Point where 
-   x,y :: Int
-
-f @ g               = \x -> f (g x)
-
-typeclass Functor m where
-  ($^)   :: (a -> b) -> m a -> m b
-
-typeclass Applicative m < Functor m where
-  ($*)   :: m (a -> b) -> m a -> m b
-  return :: a -> m a
-
-typeclass Monad m < Applicative m where
-  (>>=)  :: m a -> (a -> m b) -> m b
-
-(>>) :: m a -> m b -> m b \\ Monad m
-ma >> mb = ma >>= \_ -> mb
-
-join :: m (m a) -> m a \\ Monad m
-join m = m >>= id
-
-typeclass MPlus m where
-  mempty :: m a
-  mappend :: m a -> m a -> m a
-
-
-instance functorMaybe :: Functor Maybe where
-  f $^ Nothing = Nothing
-  f $^ Just a  = Just (f a)
-
-instance applicativeMaybe :: Applicative Maybe = Applicative {..}
-  where Functor {..} = functorMaybe
-        Just f $* Just a = Just (f a)
-        _      $* _      = Nothing
-
-instance monadMaybe :: Monad Maybe = Monad {..}
-  where Applicative {..} = applicativeMaybe
-        Just a  >>= f = f a
-        Nothing >>= _ = Nothing
-
-instance mPlusMaybe :: MPlus Maybe where
-  mempty = Nothing
-  Just a  `mappend` _ = Just a
-  Nothing `mappend` a = a
-
-instance functorArray :: Functor Array where
-  f $^ a = array [f (a!i) | i <- [0..size a-1]]
 
