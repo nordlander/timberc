@@ -333,58 +333,7 @@ Time getTime_fun (Env_POSIX this, Int dummy) {
   return res;
 }
   
-//
-/*
-struct DeliverMsg;
-typedef struct DeliverMsg *DeliverMsg;
 
-struct DeliverMsg {
-  WORD *GCINFO;
-  UNITTYPE (*Code)(DeliverMsg);
-  AbsTime baseline;
-  AbsTime deadline;
-  Msg next;
-  LIST str;
-  int descriptor;
-//  DescState self;
-};
-
-WORD __GC__DeliverMsg[] = { WORDS(sizeof(struct DeliverMsg)), GC_STD, WORDS(offsetof(struct DeliverMsg,str)), 0 };
-                                                                      // Filed "next" is custom handled by the GC
-
-
-UNITTYPE del_f (DeliverMsg this) {
-//  DescState self = (DescState)LOCK((PID)this->self);
-//  Int sock = self->desc;
-//  UNLOCK((PID)self);
-  int sock = this->descriptor;
-  LIST str = this->str;
-  char buf[1024];
-  int len = 0;
-  while (str && len < 1024) {
-    buf[len++] = (Char)(Int)((CONS)str)->a;
-    str = ((CONS)str)->b;
-  }
-  if (len < 1024) buf[len] = 0;
-  if (write(sock,buf,len) < 0) {
-    char errbuf[200];
-    sprintf(errbuf,"Write failed: %s",strerror(errno));
-    netError (sock,errbuf);
-  }
-  return (UNITTYPE)0;
-}
-
-Msg deliver_fun (Destination_POSIX this, LIST str, Time a, Time b) {
-  DeliverMsg res;
-  NEW(DeliverMsg,res,WORDS(sizeof(struct DeliverMsg)));
-  res->GCINFO = __GC__DeliverMsg;
-  res->Code = del_f;
-  res->str = str;
-  res->descriptor = ((DescClosable)this->DEST2CLOSABLE)->descriptor;
-  ASYNC((Msg)res,a,b);
-  return (Msg)res;
-}
-*/
 // ---------- Sockets ----------------------------------------------------------
 
 Socket_POSIX new_Socket (Int sock) {
@@ -414,40 +363,12 @@ Int new_socket (SOCKHANDLER handler) {
   return sock;
 }  
 
-/*
-struct HandlerStruct;
-typedef struct HandlerStruct *HandlerStruct;
- 
-struct HandlerStruct {
-  WORD *GCINFO;
-  Msg (*Code) (HandlerStruct, LIST, Time, Time);
-  Connection_POSIX conn;
-};
-
-WORD __GC__HandlerStruct[] = { WORDS(sizeof(struct HandlerStruct)), GC_STD, WORDS(offsetof(struct HandlerStruct, conn)), 0};
-
-Msg handler_fun (HandlerStruct this, LIST str, Time a, Time b) {
-  Destination_POSIX dest = this->conn->CONN2DEST;
-  return dest->deliver_POSIX(dest,str,a,b);
-}
-
-HANDLER mkHandler (Connection_POSIX conn) {
-  HandlerStruct rdHandler;
-  NEW(HandlerStruct,rdHandler,WORDS(sizeof(HandlerStruct)));
-  rdHandler->GCINFO = __GC__HANDLER;
-  rdHandler->Code = handler_fun;
-  rdHandler->conn = conn;
-  return (HANDLER)rdHandler;
-}
-*/
 void netError (Int sock, char *message) {
   SOCKHANDLER handler = sockTable[sock]->handler;
   Connection_POSIX conn = (Connection_POSIX)handler->Code(handler,(POLY)new_Socket(sock),(POLY)0);
   //ADD_RDTABLE(sock,mkHandler(conn));
   envRootsDirty = 1;
-//  INTERRUPT_PROLOGUE();
   conn->neterror_POSIX(conn,getStr(message),Inherit,Inherit);
-//  INTERRUPT_EPILOGUE();
 }
 
 void setupConnection (Int sock) {
