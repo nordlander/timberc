@@ -87,6 +87,7 @@ dropWhile p (x:xs)
 foldr1 f [x]        = x
 foldr1 f (x:xs)     = f x (foldr1 f xs)
 
+sum                 :: [a] -> a \\ IntLiteral a, Num a
 sum                 = foldl (+) 0
 
 null []             = True
