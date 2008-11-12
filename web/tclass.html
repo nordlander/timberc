@@ -31,29 +31,29 @@ A first step is to introduce the following struct type:
   (+), (-), (*) :: a -> a -> a
 </pre>
 <p>
-An object of type <tt>Num Int</tt> has three fields, defining addition,
+A value of type <tt>Num Int</tt> has three fields, defining addition,
 subtraction and multiplication, respectively, on integers. (Of course, we can construct an object of this type using any three functions
-of the prescribed type, but the intention is to supply the standard arithmetic operators.) Similarly, an object of type <tt>Num Float</tt>
+of the prescribed type, but the intention is to supply the standard arithmetic operators.) Similarly, a value of type <tt>Num Float</tt>
 defines the corresponding operators for floating-point numbers.
 <p>
 Assume that we have
-properly defined <tt>numInt :: Num Int</tt>. We can then define 
+properly defined struct value <tt>numInt :: Num Int</tt>. We can then define 
 <pre>
 add :: Int -> [Int] -> Int
 add acc (x : xs) = add (numInt.(+) x acc) xs
 add acc [] = acc
 </pre>
 <p>
-Unfortunately, the first argument in the recursive call now looks horrible. We cannot accept to write integer addition in this way. But there is
-at least something positive; we can generalize the type by giving the <tt>Num</tt> object as an argument:
+Of course, the first argument in the recursive call now looks horrible; it would be silly to write integer addition in this way. 
+But it has now become easy to generalize the code by abstracting out the <tt>Num</tt> object as an argument:
 <pre>
 add :: Num a -> a -> [a] -> a
 add d acc (x : xs) = add d (d.(+) x acc) xs
 add d acc [] = acc
 </pre>
 <p>
-We can now use <tt>add</tt> for lists of any type of objects for which we can define the arithmetic operators, at the expense of passing an extra
-argument to the function.
+This version of <tt>add</tt> can be used for lists of any type of objects for which we can define the arithmetic operators, at 
+the expense of passing an extra argument to the function.
 <p>
 The final step that gives an acceptable solution is to <em>let the compiler</em> handle the <tt>Num</tt> objects. We do this by declaring
 <tt>Num</tt> to be a  <em>type class</em>, loosely following the terminology introduced in Haskell:
@@ -61,10 +61,9 @@ The final step that gives an acceptable solution is to <em>let the compiler</em>
 <b>typeclass</b> Num
 </pre>
 <p>
-For such types, the selectors are used without the
+For any such type, its selectors can be used <em>without</em> the
 dot notation identifying a struct value from which to select. Whenever a selector of a type class occurs in a function
-body, the compiler
-does the following:
+body, the compiler does the following:
 <ul>
 <li> adds an extra parameter of the type class to the function;</li>
 <li> changes the selector occurrences in the function body to a selection from that parameter.</li>
@@ -72,7 +71,7 @@ does the following:
 <li> changes the type of the function to be a <em>qualified type</em>; the type class occurs as a constraint after <tt>\\</tt>.
 </ul>
 <p>
-Our running example now becomes
+With <tt>Num</tt> defined as a type class, our running example becomes
 <pre>
 add :: a -> [a] -> a \\ Num a
 add acc (x : xs) = add (x + acc) xs
@@ -85,11 +84,17 @@ As a convenience, the declaration of the struct type and the type class declarat
   (+), (-), (*) :: a -> a -> a
 </pre>
 <p>
-To use function <tt>add</tt> to sum a list of integers, we could write e.g. <tt>add 0 [1, 7, 4]</tt>. The compiler must now insert
+To use function <tt>add</tt> to sum a list of integers, we would like to write e.g. <tt>add 0 [1, 7, 4]</tt>. The compiler must now insert
 the extra argument <tt>numInt</tt>, a struct value with selectors for the three arithmetic operators at type <tt>Int</tt>.
-However, since there might be several objects of type <tt>Num Int</tt> defined, we must indicate in  <tt>instance</tt> declarations
-the objects that are to be used at different types. The definition of the struct value and its instance declaration can be combined 
-into one declaration. As an example, here is an instance of Num for rational numbers:
+However, since there might be several objects of type <tt>Num Int</tt> defined, we must indicate in  <tt><b>instance</b></tt> declarations
+the objects that are to be used at different types.
+<pre>
+<b>instance</b> numInt :: Num Int
+</pre>
+An instance declaration is essentially just a type signature flagged with the additional information that the corresponding value 
+is available for automatic argument insertion by the compiler.
+For convenience, an instance declaration and its struct value definition can also be combined 
+into one declaration. As an example, here is an instance of <tt>Num</tt> for rational numbers:
 <pre>
 <b>data</b> Rational = Rat Int Int
 

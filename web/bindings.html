@@ -97,7 +97,7 @@ A binding may have attached a <tt><b>where</b></tt>-clause with a list of local 
 </TH>
 </TR>
 <TR><TD><tt>formatLine n xs = concatMap f xs</tt></TD></TR>
-<TR><TD><tt>&nbsp;&nbsp;where f x = rJust n (show x)</tt></TD></TR>
+<TR><TD><tt>&nbsp;&nbsp;<b>where</b> f x = rJust n (show x)</tt></TD></TR>
 </table>
 </li>
 <li>Guarded equations. In addition to patterns, the left hand side may include one or more guards<p>
@@ -136,27 +136,57 @@ A pattern binding may not occur as a top-level declaration, but only as a local 
 </TH>
 </TR>
 <TR><TD><tt>lookup' x ps = y</tt></TD></TR>
-<TR><TD><tt>&nbsp;&nbsp;&nbsp;where Just y = lookup x ps</tt></TD></TR>
+<TR><TD><tt>&nbsp;&nbsp;&nbsp;<b>where</b> Just y = lookup x ps</tt></TD></TR>
 </table>
 <p> The pattern-binding in the <tt>where</tt>-clause will fail (and the function application give a run-time error), if
 the result of calling <tt>lookup</tt> is <tt>Nothing</tt>.
-<li> <a name="impl">Instance bindings for implicit struct types.</a>
+<li> <a name="inst">Instance bindings for struct types declared as type classes.</a>
 <p>
 <pre>
-<b>implicit</b> <em>var</em> <tt>::</tt> <em>type</em>
-  <em>funBind</em><font color=red>*</font>
+<b>instance</b> <em>var</em> <tt>::</tt> <em>type</em> <b>where</b>
+  <em>bind</em><font color=red>*</font>
 </pre>
+This is just a notational short-hand for an instance declaration of some variable and the binding
+of that variable to a struct expression.
 <p>
-The type signature of an instance of an implicit type is prepended by the keyword <tt><b>implicit</b></tt>. For instances,
-a type signature is compulsory; only the function binding defining the instance is not sufficient,
+<pre>
+<b>instance</b> <em>var</em> <tt>::</tt> <em>type</em>
+<em>var</em> = <b>struct</b>
+  <em>bind</em><font color=red>*</font>
+</pre>
 </ul>
 <p>
-The order between bindings in a sequence of bindings is not significant, with the following exceptions:
+
+With the exception of <a href="expr.html#struct">struct expressions</a>, 
+bindings in a sequence are mutually recursive.  This amounts to bound variables of all types and is
+independent of whether the corresponding right-hand sides need further evaluation or not.  
+<p>
+Evaluation 
+of bindings takes place in dependency order, but follows the declared order for bindings that are 
+truly mutually dependent.  This declared order is significant for one specific reason: evaluation 
+of each binding must be able to complete without looking into the actual value of any of its 
+<em>forward references</em>.  Failure to do so will result in a run-time error.
+<p>
+<table align=center>
+<TR><TH>Examples</TH><TH>Comments</TH></TR>
+<TR><TD><tt>f 0 = 1</tt></TD><TD></TD></TR>
+<TR><TD><tt>f n = n * f (n-1)</tt></TD><TD>Ordinary recursive function binding</TD></TR>
+<TR><TD><tt>g h 0 = 1</tt></TD><TD></TD></TR>
+<TR><TD><tt>g h n = n * h (n-1)</tt>&nbsp;</TD><TD>Non-recursive higher-order function binding</TD></TR>
+<TR><TD><tt>f' = g f'</tt></TD><TD>Recursive binding of <tt>f'</tt> (equivalent to <tt>f</tt>)</TD></TR>
+<TR><TD><tt>x = 1 : y</tt></TD><TD>Legal forward reference</TD></TR>
+<TR><TD><tt>y = 2 : x</tt></TD><TD>Ok, both <tt>x</tt> and <tt>y</tt> are cyclic lists</TD></TR>
+<TR><TD><tt>a = 1 : b</tt></TD><TD></TD></TR>
+<TR><TD><tt>b = head a : []</tt></TD><TD>Legal backward reference (ok to look into the value of <tt>a</tt>)</TD></TR>
+<TR><TD><tt>a' = head b' : []</tt></TD><TD>Illegal forward reference (must look into the value of <tt>b'</tt>)</TD></TR>
+<TR><TD><tt>b' = 2 : a'</tt></TD><TD>Not reached (run-time error on previous line)</TD></TR>
+</table>
+<p>
+In addition, binding sequences are subject to the following syntactic restrictions:
 <ul>
-  <li> All the equations that make up a function binding must be adjacent to each other with no other binding intervening.
-  <li> A type signature must precede the binding equations for the variables that are typed by the signature.
+  <li> All the equations that make up a function binding must be adjacent to each other with no
+	 other binding intervening.
+  <li> A type signature must precede the binding equations for the variables that are typed by
+	 the signature.
 </ul>
-<p>
-Function bindings are recursive. For pattern bindings certain limited forms of recursion are possible, in order
-to build finite, cyclic data structures. To be described more...
 </body> </html>
