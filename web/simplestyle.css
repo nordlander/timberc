@@ -1,6 +1,7 @@
 body {
   font-size: 12pt;
-  font-family: helvetica, "lucida grande", sans-serif;
+  font-family: times, "times new roman", georgia, serif;
+//  font-family: helvetica, "lucida grande", sans-serif;
   margin: 0;
   padding: 2em;
 }
