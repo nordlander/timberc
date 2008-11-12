@@ -56,7 +56,7 @@ to off-limit measurements is 5 milliseconds. These specifications look as  follo
 translated into Timber code:
 <pre> 
 sonar port alarm critical = <strong>class</strong>
-    rm = <strong>new</strong> timer
+    tm = <strong>new</strong> timer
     count := 0
     ping = <strong>before</strong> (microsec 50) <strong>action</strong>
         port.write beep_on

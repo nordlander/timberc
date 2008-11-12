@@ -88,14 +88,15 @@ root env = class
     state := Idle
 
   mkGuess = do
-     case cs of
-        [] ->    env.stdout.write "Contradictory answers!\n"
-                 env.stdout.write "Tell me your secret: "
-                 state := GetSecret
-        _  ->    shift
-                 env.stdout.write ("My guess: "++ show (head cs) ++"\n")
-                 env.stdout.write "Answer (two integers): "
-                 state := JustGuessed
+     if null cs then
+        env.stdout.write "Contradictory answers!\n"
+        env.stdout.write "Tell me your secret: "
+        state := GetSecret
+     else
+        shift
+        env.stdout.write ("My guess: "++ show (head cs) ++"\n")
+        env.stdout.write "Answer (two integers): "
+        state := JustGuessed
 
   checkQuit = do
      env.stdout.write "Do you want to play again? (y/n) "

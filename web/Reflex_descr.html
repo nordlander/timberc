@@ -56,8 +56,8 @@ root env = <b>class</b>
        print "Press return to start"
 
 format t = show (secOf t) ++ '.' : fracs ++ " secs"
-  <b>where</b> t100  = microsecOf t `div` 10000
-        fracs = <b>if</b> t100<10 <b>then</b> '0':show t100 <b>else</b> show t100 
+  <b>where</b> n  = microsecOf t `div` 10000
+        fracs = <b>if</b> n<10 <b>then</b> '0':show n <b>else</b> show n 
 </pre>
 <hr>
 <p>

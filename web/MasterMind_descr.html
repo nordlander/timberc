@@ -74,7 +74,8 @@ allColours = [Red, Blue, Green, Yellow, Black, White]
 
 allCodes :: Int -> [Guess]
 allCodes 0 = [[]]
-allCodes n = concat [[c:cs | c <- allColours] | cs <- allCodes (n-1)]
+allCodes n = concat [ [c:cs | c <- allColours] 
+                    | cs <- allCodes (n-1)]
 
 mkAnswer :: String -> Answer
 mkAnswer cs = Answer e n
@@ -85,7 +86,8 @@ answer guess code = Answer e n
    <b>where</b> 
       e = equals guess code
 
-      n  = sum [min (count c guess) (count c code) | c <- allColours] - e
+      n  = sum [ min (count c guess) (count c code) 
+               | c <- allColours] - e
 
       count c xs = length [x | x <- xs, x==c]
 
@@ -96,10 +98,12 @@ answer guess code = Answer e n
 
 
 contradictions :: Board -> Guess -> Board
-contradictions board c = [(g,r) | (g,r) <- board, answer g c /= r]
+contradictions board c = 
+      [ (g,r) | (g,r) <- board, answer g c /= r ]
 
 consistent :: Board -> [Guess] -> [Guess]
-consistent board cs = [ c | c <- cs, null (contradictions board c)]
+consistent board cs = 
+      [ c | c <- cs, null (contradictions board c) ]
 
 <b>data</b> State = Idle | JustGuessed | GameOver | GetSecret
            
@@ -125,18 +129,20 @@ root env = <b>class</b>
     t <- env.getTime
     g = <b>new</b> baseGen (microsecOf t)
     gen := Just g
-    env.stdout.write "Choose your secret. Press return when ready.\n"
+    env.stdout.write 
+          "Choose your secret. Press return when ready.\n"
     state := Idle
 
   mkGuess = <b>do</b>
-     <b>case</b> cs <b>of</b>
-        [] ->    env.stdout.write "Contradictory answers!\n"
-                 env.stdout.write "Tell me your secret: "
-                 state := GetSecret
-        _  ->    shift
-                 env.stdout.write ("My guess: "++ show (head cs) ++"\n")
-                 env.stdout.write "Answer (two integers): "
-                 state := JustGuessed
+     <b>if</b> null cs <b>then</b>
+         env.stdout.write "Contradictory answers!\n"
+         env.stdout.write "Tell me your secret: "
+         state := GetSecret
+     <b>else</b>
+         shift
+         env.stdout.write ("My guess: "++show (head cs)++"\n")
+         env.stdout.write "Answer (two integers): "
+         state := JustGuessed
 
   checkQuit = <b>do</b>
      env.stdout.write "Do you want to play again? (y/n) "
@@ -144,32 +150,36 @@ root env = <b>class</b>
 
   inpHandler inp = <b>action</b>
     <b>case</b> state <b>of</b>
-      Idle ->        cs := allCodes 4
-                     mkGuess
+      Idle ->        
+          cs := allCodes 4
+          mkGuess
 
-      JustGuessed -> ans = mkAnswer inp
-                     Answer e n = ans
-                     <b>if</b> e == 4 <b>then</b>
-                        env.stdout.write "Yippee!\n"
-                        checkQuit
-                     <b>else</b>
-                        c:cs' = cs
-                        board := (c,ans) : board
-                        cs := consistent board cs'
-                        mkGuess
+      JustGuessed -> 
+          ans = mkAnswer inp
+          Answer e n = ans
+          <b>if</b> e == 4 <b>then</b>
+              env.stdout.write "Yippee!\n"
+              checkQuit
+          <b>else</b>
+              c:cs' = cs
+              board := (c,ans) : board
+              cs := consistent board cs'
+              mkGuess
       
-      GameOver ->    <b>if</b> head inp == 'y' <b>then</b>
-                        startGame
-                     <b>else</b>
-                        env.exit 0
+      GameOver ->
+          <b>if</b> head inp == 'y' <b>then</b>
+              startGame
+          <b>else</b>
+              env.exit 0
 
-      GetSecret ->   ss = map parse (words inp)
-                     (g',r'):_ = contradictions board ss
-                     env.stdout.write ("When I guessed "++show g'++ 
-                                       ", you answered "++show r'++".\n")
-                     env.stdout.write ("Correct answer should have been "++
-                                       show (answer g' ss)++".\n")
-                     checkQuit
+      GetSecret ->
+          ss = map parse (words inp)
+          (g',r'):_ = contradictions board ss
+          env.stdout.write ("When I guessed "++show g'++ 
+                            ", you answered "++show r'++".\n")
+          env.stdout.write ("Correct answer should have been "++
+                            show (answer g' ss)++".\n")
+          checkQuit
 
   <b>result</b>
      <b>action</b>

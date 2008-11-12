@@ -30,7 +30,8 @@ root env = <b>class</b>
 
     <b>result</b> <b>action</b>
        maxClients = parse (env.argv ! 1)
-       env.inet.tcp.listen port (server maxClients clients log)
+       env.inet.tcp.listen port 
+                (server maxClients clients log)
 
 server maxClients clients log sock = <b>class</b>
 

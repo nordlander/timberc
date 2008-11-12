@@ -19,7 +19,7 @@ common uses are the following:
   files on which the given modules depend have already been compiled. This is the typical way to compile
   new modules during the development of a Timber system. Can be modified to option <tt>-C</tt> to avoid
   C compilation.
-  <li> <tt>timberc --make Mod</tt>
+  <li> <tt>timberc --make=Mod</tt>
   <p> The compiler expects <tt>Mod.t</tt> to be the root module of a system for the default environment (i.e. POSIX).
   All modules in the system are compiled by <tt>timberc</tt> and <tt>gcc</tt> as needed and in dependency
   order, followed by linking. The executable is called <tt>Mod</tt>. This option obviates the need of a makefile
