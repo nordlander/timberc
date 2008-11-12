@@ -10,58 +10,8 @@ AC_CONFIG_HEADERS([config.h])
 AC_PROG_CC
 AC_PROG_INSTALL
 
-AC_ARG_ENABLE(hugs,
-[AC_HELP_STRING([--enable-hugs],
-[Use Hugs as interpreter [default=no]])],
-[ if test x"$enableval" = x"yes"; then
-        AC_CHECK_PROGS(HCOMPILER, [hugs])
-	if test "x$HCOMPILER" = "x"; then
-		AC_MSG_ERROR([Hugs not found.])
-	fi
-  fi
-],
-[UHCOMPILER=""]
-)
-
-AC_ARG_ENABLE(ghc,
-[AC_HELP_STRING([--enable-ghc],
-[Use GHC as compiler [default=yes]])],
-[ if test x"$enableval" = x"yes"; then
-        AC_CHECK_PROGS(HCOMPILER, [ghc])
-	if test "x$HCOMPILER" = "x"; then
-		AC_MSG_ERROR([GHC not found.])
-	fi
-  fi
-],
-[UHCOMPILER=""]
-)
-
-
-# No --enable-<compiler>
-if test "x$HCOMPILER" = "x"; then
-	# Either compile with ghc or hugs.
-	AC_CHECK_PROGS(HCOMPILER, [ghc hugs])
-fi
-
-if test "x$HCOMPILER" = "x"; then
-	AC_MSG_ERROR([No working Haskell compiler found.])
-fi
-
 # XXX This is ugly
 # For now - hard code the options and it will work.
-case $HCOMPILER in
-ghc*)
-	HFLAGS="-fglasgow-exts --make -o"
-	DEST="timberc"
-	SRC="Main.hs"
-	;;
-hugs*)
-	HFLAGS="-98 -P{Hugs}/libraries -h2500000 Main"
-	DEST=""
-	SRC=""
-	;;
-esac
-
 case $(uname) in
 Darwin)
         LDFLAGS+=" -Wl,-stack_size,0x3000000"
@@ -69,14 +19,6 @@ Darwin)
 *)
         ;;
 esac
-
-# Look for Happy, otherwise touch Parser.hs to give current time stamp.
-AC_CHECK_PROGS(HAPPY, [happy])
-
-if test "x$HAPPY" = "x"; then
-	AC_MSG_WARN([Happy not found, you can not change the grammar.])	
-	touch $srcdir/Parser.hs
-fi
 
 # Make sure TIBROWSER is set
 if test "x$TIBROWSER" = "x"; then
