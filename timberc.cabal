@@ -1,0 +1,21 @@
+Name:                timberc
+Version:             0.5.1
+Synopsis:            The Timber Compiler.
+Description:         This is a compiler for a strict and pure functional 
+		     language
+License:             BSD3
+License-file:        LICENSE
+Author:              Johan Nordlander
+Maintainer:          Johan Nordlander <nordland@csee.ltu.se>
+Homepage:	     http://www.timber-lang.org
+Build-type:	     Simple
+Cabal-Version:       >= 1.2
+
+
+Executable timberc
+  Main-is:           Main.hs
+  other-modules:     Parser
+  Build-Depends:     base, haskell98, pretty >= 1.0.0.0, binary >= 0.4.2, 
+                     mtl >= 1.1, filepath >= 1.1, array >= 0.1
+  build-tools:	     happy >= 1.17
+

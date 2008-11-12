@@ -10,8 +10,6 @@ import Syntax
 import Fixity
 
 
-parser     :: String -> M s Module
-parser str = runPM2 parse str
 
 }
 
@@ -638,5 +636,8 @@ loc     :: { (Int,Int) }
 -- Error -----------------------------------------------------------------------
 
 {
+parser     :: String -> M s Module
+parser str = runPM2 parse str
+
 happyError = parseError "parse error"
 }
