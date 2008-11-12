@@ -1,3 +1,4 @@
+{-# LANGUAGE PatternSignatures #-}
 module Name where
 
 import Debug.Trace

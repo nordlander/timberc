@@ -1,3 +1,5 @@
+{-# LANGUAGE  FlexibleInstances #-}
+
 module PP (module PP, module Text.PrettyPrint) where
 
 import Text.PrettyPrint hiding (TextDetails(..))
@@ -53,3 +55,4 @@ vshow = render . vpr
 
 showlist :: Pr a => [a] -> String
 showlist xs = render (text "(" <> hpr ',' xs <> text ")")
+

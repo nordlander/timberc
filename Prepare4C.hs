@@ -1,3 +1,5 @@
+{-# LANGUAGE ParallelListComp #-}
+
 module Prepare4C(prepare4c) where
 
 import Monad

@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+
 module Desugar1 where
 
 import List(sort, sortBy)

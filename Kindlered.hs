@@ -1,3 +1,5 @@
+{-# LANGUAGE PatternGuards #-}
+
 module Kindlered where
     
 import Monad

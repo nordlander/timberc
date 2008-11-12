@@ -1,3 +1,5 @@
+{-# LANGUAGE PatternSignatures, MultiParamTypeClasses, FlexibleInstances #-}
+
 module Common (module Common, module Name, isDigit) where
 
 import PP

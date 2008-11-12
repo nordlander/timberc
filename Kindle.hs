@@ -1,3 +1,5 @@
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
+
 module Kindle where
 
 import Monad

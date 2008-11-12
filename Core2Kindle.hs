@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances, PatternGuards #-}
+
 module Core2Kindle(core2kindle, c2kTEnv) where
 {- -}
 import Monad

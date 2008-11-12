@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeSynonymInstances #-}
+
 module Termred(termred, redTerm, isFinite, constrs) where
 
 import Monad
