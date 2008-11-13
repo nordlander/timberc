@@ -79,7 +79,7 @@ ADDR substObj(ADDR obj, Array roots, int limit, Thread current) {
 void subst(Array roots, int limit, ADDR stop, Thread current) {
         ADDR p = (ADDR)roots + STATIC_SIZE(roots->GCINFO) + roots->size;
         int i;
-        for (i = 0; i < roots->size; i++)
+        for (i = 0; i < limit; i++)
                 if (ISPLACEHOLDER(roots->elems[i])) 
                         RAISE(2);
         while (p != stop)
