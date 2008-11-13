@@ -307,6 +307,9 @@ void gc() {
 void *garbageCollector(void *arg) {
     Thread current = (Thread)arg;
     pthread_setspecific(current_key, current);
+    struct sched_param param;
+    param.sched_priority = current->prio;
+    pthread_setschedparam(current->id, SCHED_RR, &param);
     DISABLE(rts);
     while (1) {
         pthread_cond_wait(&current->trigger, &rts);

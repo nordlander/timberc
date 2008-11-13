@@ -91,17 +91,14 @@ int prio_min, prio_max;
 Thread newThread(Msg m, int prio, void *(*fun)(void *), int stacksize) {
     Thread t = NULL;
     if (nthreads < MAXTHREADS) {
-        struct sched_param param;
-        param.sched_priority = prio;
         t = &threads[nthreads++];
         t->msg = m;
+        t->prio = prio;
         t->placeholders = 0;
         t->index = nthreads;
         pthread_attr_t attr;
         pthread_attr_init(&attr);
         pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);
-        pthread_attr_setschedpolicy(&attr, SCHED_RR);
-        pthread_attr_setschedparam(&attr, &param);
         if (stacksize > 0)
                 pthread_attr_setstacksize(&attr, BYTES(stacksize));
         pthread_cond_init(&t->trigger, NULL);
@@ -274,6 +271,9 @@ void deactivate(Thread t) {
 void *run(void *arg) {
     Thread current = (Thread)arg;
     pthread_setspecific(current_key, current);
+    struct sched_param param;
+    param.sched_priority = current->prio;
+    pthread_setschedparam(current->id, SCHED_RR, &param);
     // fprintf(stderr, "Worker thread %d started\n", (int)current);
     DISABLE(rts);
     while (1) {
@@ -407,6 +407,10 @@ POLY Raise(BITS32 polyTag, Int err) {
 int timerQdirty;
 
 void *timerHandler(void *arg) {
+    Thread current = (Thread)arg;
+    struct sched_param param;
+    param.sched_priority = current->prio;
+    pthread_setschedparam(current->id, SCHED_RR, &param);
 
 //    pthread_sigmask(SIG_BLOCK, &all_sigs, NULL);
     sigset_t accept;
