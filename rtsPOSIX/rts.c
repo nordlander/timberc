@@ -375,7 +375,9 @@ UNITTYPE UNLOCK( PID to ) {
 // Exception handling ----------------------------------------------------------------------------------
 
 void RAISE(Int err) {
-        panic("Unhandled exception");
+        char buf[100];
+        sprintf(buf, "Unhandled exception (%d)", err);
+        panic(buf);
 }
 
 POLY Raise(BITS32 polyTag, Int err) {

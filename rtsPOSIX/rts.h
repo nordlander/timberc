@@ -135,10 +135,9 @@ Int microsecOf (Time t);
 #define INHERIT 0
 #define TIME_INFINITY 1
 
-
 Time primTimeMin(Time t1, Time t2);
 Time primTimePlus(Time t1, Time t2);
-//Time primTimeMinus(Time t1, Time t2);
+Time primTimeMinus(Time t1, Time t2);
 
 Bool primTimeEQ(Time t1, Time t2);
 Bool primTimeNE(Time t1, Time t2);
