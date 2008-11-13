@@ -252,7 +252,7 @@ where the bindings have layout-sensitive syntax.
 </TH>
 </TR>
 <TR><TD><tt>implicit showList :: Show [a] \\ Show a</tt></TD></TR>
-<TR><TD><tt>showList = struct</tt></TD></TR>
+<TR><TD><tt>showList = <b>struct</b></tt></TD></TR>
 <TR><TD><tt>&nbsp;&nbsp;show [] = "[]"</tt></TD></TR>
 <TR><TD><tt>&nbsp;&nbsp;show (x : xs) = '[':show x ++ preC (map show xs)++"]"</tt></TD></TR>
 </table>
