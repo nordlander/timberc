@@ -5,14 +5,14 @@ type RootType = Env -> Class Prog
 type Prog = Action
 
 struct Env where
-    exit     :: Int -> Request ()
-    argv     :: Array String
-    stdin    :: RFile
-    stdout   :: WFile
-    openR    :: String -> Request (Maybe RFile)
-    openW    :: String -> Request (Maybe WFile)
-    getTime  :: Request Time
-    inet     :: Internet
+    exit      :: Int -> Request ()
+    argv      :: Array String
+    stdin     :: RFile
+    stdout    :: WFile
+    openR     :: String -> Request (Maybe RFile)
+    openW     :: String -> Request (Maybe WFile)
+    startTime :: Time
+    inet      :: Internet
 
 struct Closable where
     close :: Request ()

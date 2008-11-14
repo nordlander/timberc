@@ -316,23 +316,7 @@ Maybe_Prelude openW_fun (Env_POSIX this, LIST path, Int dummy) {
   }
   ENABLE(envmut);
   return f;
-}
-
-//---------- Time ---------------------------------------------------------------
-
-Time getTime_fun (Env_POSIX this, Int dummy) {
-  DISABLE(envmut);
-  Time res; NEW(Time,res,WORDS(sizeof(struct Time)));
-  res->GCINFO = __GC__Time;
-  struct timeval now;
-  if (gettimeofday(&now,NULL) < 0)
-    perror("gettimeofday failed");
-  res->sec = now.tv_sec;
-  res->usec = now.tv_usec;
-  ENABLE(envmut);
-  return res;
-}
-  
+} 
 
 // ---------- Sockets ----------------------------------------------------------
 
@@ -462,8 +446,10 @@ struct Sockets_POSIX tcp        = { 0, connect_fun, listen_fun };
 
 struct Internet_POSIX inet      = { 0, &tcp };
 
+struct Time startTime;
+
 struct Env_POSIX env_struct     = { 0, exit_fun,  NULL, &stdin_rfile, &stdout_wfile,
-                                    openR_fun, openW_fun, getTime_fun, &inet };
+                                    openR_fun, openW_fun, &startTime, &inet };
 
 Env_POSIX env                   = &env_struct;
 
@@ -583,6 +569,12 @@ void envInit (int argc, char **argv) {
         arr->elems[i] = (POLY)getStr(argv[i]);
     env->argv_POSIX = arr;
   
+    struct timeval now;
+    if (gettimeofday(&now,NULL) < 0)
+      perror("gettimeofday failed");
+    startTime.sec = now.tv_sec;
+    startTime.usec = now.tv_usec;
+
     fcntl(0, F_SETFL, O_NONBLOCK);
     fcntl(1, F_SETFL, O_NONBLOCK);
 

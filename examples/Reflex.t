@@ -1,6 +1,7 @@
 module Reflex where
 
 import POSIX
+import RandomGenerator
 
 data State = Idle | Waiting Msg | Counting
 
@@ -9,12 +10,14 @@ root env = class
    print str = env.stdout.write (str ++ "\n")
 
    tmr = new timer
+   gen = new baseGen (microsecOf env.startTime)
 
    state := Idle
   
    enter _ = action
       case state of
-        Idle ->         msg <- after (sec 2) action
+        Idle ->         r <- gen.next
+                        msg <- after (sec 2 + millisec (r `mod` 2000)) action
                            tmr.reset
                            print "Go!"
                            state := Counting 

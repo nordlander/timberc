@@ -64,15 +64,14 @@ data State = Idle | JustGuessed | GameOver | GetSecret
            
 root env = class
   
-  gen := Nothing -- We don't yet have access to  a good seed
+  gen = new baseGen(microsecOf env.startTime)
 
   board := []
   cs := [] 
   state := Idle
 
   shift = do
-     Just g = gen
-     r <- g.next
+     r <- gen.next
      n = r `mod` (length cs)
      ys = take n cs
      zs = drop n cs
@@ -81,9 +80,6 @@ root env = class
   startGame = do
     board := []
     cs := []
-    t <- env.getTime
-    g = new baseGen (microsecOf t)
-    gen := Just g
     env.stdout.write "Choose your secret. Press return when ready.\n"
     state := Idle
 
