@@ -12,7 +12,7 @@ DEST         = libTimber.a
 all: $(DEST)
 
 $(OBJS): %.o: ../lib/%.t ../include/timber.h
-	$(TIMBERC) --target $(TIMBERTARGET) -c $<
+	$(TIMBERC) --api --target $(TIMBERTARGET) -c $<
 
 $(DEST): $(OBJS) rts.o
 	ar rc $(DEST) $(OBJS) rts.o

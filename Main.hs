@@ -170,7 +170,10 @@ compileTimber clo ifs (sm,t_file) ti_file c_file h_file
                              encodeCFile ti_file ifc
                              writeFile c_file mtxt
                              writeFile h_file htxt
-                             return ((n,ifc):ifs')
+                             if api clo then do
+                                                writeAPI (rmSuffix ".ti" ti_file) ifc
+                                                return ((n,ifc):ifs')
+                              else return ((n,ifc):ifs')
   where passes imps par = do (e0,e1,e2,e3) <- initEnvs imps
                              (d1,a0) <- pass (desugar1 e0)                Desugar1  par
                              rn      <- pass (renameM e1)                 Rename    d1

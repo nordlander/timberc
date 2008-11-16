@@ -184,11 +184,13 @@ sV (n,t@(Scheme rh ps ke))            = case zip (filter isGenerated (idents (Sc
                                           s ->  (n,subst s t) 
 
 listIface cfg f                   = do (ifc,f) <- decodeModule f
+                                       writeAPI f ifc
                                        let modul = rmSuffix ".ti" f
                                            htmlfile = modul++".html"
-                                       writeFile htmlfile (render(toHTML modul (ifc :: IFace)))
+                                       writeAPI modul ifc
                                        system (Config.browser cfg ++" " ++ htmlfile)
 
+writeAPI modul ifc             = writeFile (modul ++ ".html") (render(toHTML modul (ifc :: IFace)))
 
 toHTML n (IFace ns xs rs ss ds ws bs _) = text "<html><body>\n" $$
                                           text ("<h2>API for module "++n++"</h2>\n") $$

@@ -63,6 +63,7 @@ data CmdLineOpts     = CmdLineOpts { isVerbose :: Bool,
                                      target    :: String,
                                      root      :: String,
                                      make      :: String,
+                                     api       :: Bool,
                                      shortcut  :: Bool,
                                      stopAtC   :: Bool,
                                      stopAtO   :: Bool,
@@ -89,12 +90,16 @@ options              = [ Option []
                                 "Target platform",
                          Option []
                                 ["root"]
-                                (ReqArg Root "NAME['MODULE]")
+                                (ReqArg Root "[MODULE.]NAME")
                                 "Define root of executable program",
                          Option []
                                 ["make"]
-                                (ReqArg Make "NAME['MODULE]")
+                                (ReqArg Make "[MODULE.]NAME")
                                 "Make program with given root module",
+                         Option []
+                                ["api"]
+                                (NoArg Api)
+                                "Produce html file with API",
                          Option ['s']
                                 ["shortcut"]
                                 (NoArg ShortCut)
@@ -131,6 +136,7 @@ data Flag            = Help
                      | Target String
                      | Root String
                      | Make String
+                     | Api
                      | ShortCut
                      | StopAtC
                      | StopAtO
@@ -186,6 +192,7 @@ mkCmdLineOpts flags  =  do cfg <- System.getEnv "TIMBER_CFG" `catch`
                                                 [ root | (Root root) <- flags ],
                                     make      = first ""
                                                 [ root | Make root <- flags ],
+                                    api       = find Api,
                                     shortcut  = find ShortCut,
                                     stopAtC   = find StopAtC,
                                     stopAtO   = find StopAtO,
