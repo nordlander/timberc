@@ -17,7 +17,8 @@ root env = class
    enter _ = action
       case state of
         Idle ->         r <- gen.next
-                        msg <- after (sec 2 + millisec (r `mod` 2000)) action
+                        waitingTime = sec 2 + millisec (r `mod` 2000)
+                        msg <- after waitingTime action
                            tmr.reset
                            print "Go!"
                            state := Counting 

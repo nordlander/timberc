@@ -33,7 +33,7 @@ is a binding of the variables in the pattern to values. The rules are as follows
   <em>S {sel1 = p1, ... seln = pn}</em>. Matching against a value <em>v</em> succeeds if <em>v = S {sel1 = v1, seln = vn}</em>
   and matching <em>pi</em> against <em>vi</em> succeeds for all i; the resulting
   binding is the union of the bindings resulting from each of these matchings.</li>
-  <li> Mathing (<em>p</em>) against a value is the same as matching <em>p</em> against the same value.
+  <li> Matching (<em>p</em>) against a value is the same as matching <em>p</em> against the same value.
   </ul>
   <p>
 The special "wildcard" variable <tt>_</tt> may be used in patterns; in contrast to other variables, it is not bound
@@ -45,7 +45,7 @@ The special "wildcard" variable <tt>_</tt> may be used in patterns; in contrast 
 <h4>Bindings</h4>
 <p>
 Syntactically, bindings are divided into type signatures and equations. Equations are either function bindings, pattern bindings
-  or instance bindings for implicit struct types.
+  or instance bindings for type classes.
 
 <ul>
 <li><a name="sig"> Type signatures.</a> <p>
@@ -143,22 +143,33 @@ the result of calling <tt>lookup</tt> is <tt>Nothing</tt>.
 <li> <a name="inst">Instance bindings for struct types declared as type classes.</a>
 <p>
 <pre>
-<b>instance</b> <em>var</em> <tt>::</tt> <em>type</em> <b>where</b>
-  <em>bind</em><font color=red>*</font>
-</pre>
-This is just a notational short-hand for an instance declaration of some variable and the binding
-of that variable to a struct expression.
-<p>
-<pre>
 <b>instance</b> <em>var</em> <tt>::</tt> <em>type</em>
-<em>var</em> = <b>struct</b>
-  <em>bind</em><font color=red>*</font>
+<em>var</em> = <em>expr</em>
 </pre>
+The type signature of an instance of a type class is prepended by the keyword <tt><b>instance</b></tt>. For instances,
+a type signature is compulsory; it is not sufficient to give only the binding defining the instance.
+<p>
+This basic form is to emphasise that an instance is just a struct value that is declared to be used as implicit argument,
+inserted by the compliler. Two alternative syntactic forms are also available:
+<ul>
+  <li> An instance declaration combined with a binding of the typed variable:
+<pre>
+<b>instance</b> <em>var</em> <tt>::</tt> <em>type</em> = <em>expr</em>
+</pre>
+  </li>
+  <li> An instance declaration  where the struct value is specified by a list of bindings:
+<pre> 
+<b>instance</b> <em>var</em> <tt>::</tt> <em>type</em> <b>where</b>
+  <em>bind<font color=red>+</font></em>
+</pre>
+  </li>
+</ul>
 </ul>
 <p>
 
-With the exception of <a href="expr.html#struct">struct expressions</a>, 
-bindings in a sequence are mutually recursive.  This amounts to bound variables of all types and is
+With the exception of <a href="expr.html#struct">struct expressions</a> and the second alternative form for instances
+(which is immediately desugared to a form with a struct expression),
+bindings in a sequence are mutually recursive. This amounts to bound variables of all types and is
 independent of whether the corresponding right-hand sides need further evaluation or not.  
 <p>
 Evaluation 

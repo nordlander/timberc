@@ -251,7 +251,7 @@ where the bindings have layout-sensitive syntax.
 <TH> Example
 </TH>
 </TR>
-<TR><TD><tt>implicit showList :: Show [a] \\ Show a</tt></TD></TR>
+<TR><TD><tt>instance showList :: Show [a] \\ Show a</tt></TD></TR>
 <TR><TD><tt>showList = <b>struct</b></tt></TD></TR>
 <TR><TD><tt>&nbsp;&nbsp;show [] = "[]"</tt></TD></TR>
 <TR><TD><tt>&nbsp;&nbsp;show (x : xs) = '[':show x ++ preC (map show xs)++"]"</tt></TD></TR>
@@ -310,5 +310,13 @@ In all cases, statement sequences have layout-sensitive syntax. See the  <a href
 for further descriptions.
 <h4>Further forms of expressions</h4>
 <p>
-To be written.
+Here we just summarize for the Haskell programmer expression forms that are available also in Timber and with the same syntax:
+<ul>
+  <li> Conditional expressions (<tt>if</tt>-expressions).
+  <li> Explicitly typed expressions.
+  <li> Operator sections.
+  <li> Arithmetic sequences.
+  <li> List comprehensions. 
+</ul>
+
 </body> </html>

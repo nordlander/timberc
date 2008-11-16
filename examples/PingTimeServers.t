@@ -11,10 +11,9 @@ import Data.Functional.List
 
 port = Port 13  -- standard port for time servers
 
-check neterror report sock = class
+client neterror report sock = class
 
     established = action
-       sock.outFile.write "Hi!"
        sock.inFile.installR report
 
     close = request result ()
@@ -36,7 +35,7 @@ root env = class
     
     result action
        forall i <- args do
-          env.inet.tcp.connect (Host (env.argv!i)) port (check (report i) (report i))
+          env.inet.tcp.connect (Host (env.argv!i)) port (client (report i) (report i))
        after (sec 2) action
           forall i <- outstanding do 
              print i "no response"
