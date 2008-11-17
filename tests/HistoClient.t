@@ -18,7 +18,7 @@ root env = class
                    showResults rs
                    env.exit 0
                 else
-                   h.addObs(parse d)
+                   h.addObs(fromRight (parse d))
                    result ()
 
              showResults rs = do

@@ -168,12 +168,21 @@ instance showUnit :: Show () where
 -- Parse ---------------------------------------------------
 
 typeclass Parse a where
-  parse :: String -> a
+  parse :: String -> Either String a
 
 instance parseInt :: Parse Int where
-  parse str = r (reverse str)
-    where r (c:cs) = ord c - ord '0' + 10*r cs
+  parse str = p (strip str)
+    where p('-':cs) = case q (strip (reverse cs)) of
+                        Left err -> Left err
+                        Right n -> Right (-n)
+          p cs = q (strip (reverse cs))
+          q cs
+            | all isDigit cs = Right (r cs)
+            | otherwise = Left "parseInt: no Parse"
+          r (c:cs) = ord c - ord '0' + 10*r cs
           r [] = 0
+          strip cs = dropWhile (== ' ') cs
+          isDigit c = c >= '0' && c <= '9'
 
 -- Enum ----------------------------------------------------
 
@@ -300,6 +309,18 @@ isJust              :: Maybe a -> Bool
 isJust Nothing      = False
 isJust (Just _)     = True
 
+-- Either --------------------------------------------------
+
+isLeft (Left _)     = True
+isLeft _            = False
+
+isRight (Right _)   = True
+isRight _           = False
+
+fromRight (Right x) = x
+
+fromLeft (Left x)   = x
+
 -- String --------------------------------------------------
 
 type String         = [Char]
@@ -384,6 +405,22 @@ drop n []           = []
 drop n (x : xs)
        | n > 0      = drop (n-1) xs
          
+takeWhile p []      = []
+takeWhile p (x:xs)
+  | p x             = x : takeWhile p xs
+  | otherwise       = []
+
+dropWhile p []      = []
+dropWhile p (x:xs)
+  | p x             = dropWhile p xs
+  | otherwise       = x:xs
+
+all p []            = True
+all p (x : xs)      = p x && all p xs
+
+any p []            = False
+any p (x : xs)      = p x || any p xs
+
 -- Combinators ---------------------------------------------
 
 ($) :: (a -> b) -> a -> b

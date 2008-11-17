@@ -36,10 +36,6 @@ allCodes :: Int -> [Guess]
 allCodes 0 = [[]]
 allCodes n = concat [[c:cs | c <- allColours] | cs <- allCodes (n-1)]
 
-mkAnswer :: String -> Answer
-mkAnswer cs = Answer e n
-    where [e,n] = map parse (words cs)
-
 answer :: Guess -> Guess -> Answer
 answer guess code = Answer e n
    where e = equals guess code
@@ -103,33 +99,37 @@ root env = class
       Idle ->           cs := allCodes 4
                         mkGuess
 
-      JustGuessed ->    ans = mkAnswer inp
-                        Answer e n = ans
-                        if e == 4 then
-                           env.stdout.write "Yippee!\n"
-                           checkQuit
-                        else
-                           c:cs' = cs
-                           board := (c,ans) : board
-                           cs := consistent board cs'
-                           mkGuess
+      JustGuessed ->    case map parse (words inp)  of
+                          [Right e, Right n] ->
+                             if e == 4 then
+                                env.stdout.write "Yippee!\n"
+                                checkQuit 
+                             else
+                                c:cs' = cs
+                                board := (c,Answer e n) : board
+                                cs := consistent board cs'
+                                mkGuess
+                          _ -> env.stdout.write "Answer must be two integers separated by spaces; try again\n"
       
       GameOver ->       if head inp == 'y' then
                            startGame
                         else
                            env.exit 0
 
-      GetSecret ->     ss = map parse (words inp)
-                       (g',r'):_ = contradictions board ss
-                       env.stdout.write ("When I guessed "++show g'++", you answered "++show r'++".\n")
-                       env.stdout.write ("Correct answer should have been "++show (answer g' ss)++".\n")
-                       checkQuit
+      GetSecret ->     case map parse (words inp) :: [Either String Colour] of
+                         es | length es==4 && all isRight es ->
+                           ss = map fromRight es
+--                         [Right c1, Right c2, Right c3, Right c4] ->
+--                           ss = [c1,c2,c3,c4]
+                           (g',r'):_ = contradictions board ss
+                           env.stdout.write ("When I guessed "++show g'++ ", you answered " ++ show r'++".\n")
+                           env.stdout.write ("Correct answer should have been "++show (answer g' ss)++".\n")
+                           checkQuit
+                         _ -> env.stdout.write "Secret must be four colours separated by spaces; try again\n"
 
   result 
      action
          env.stdin.installR inpHandler
          env.stdout.write "Welcome to Mastermind!\n"
          startGame
-
-
 

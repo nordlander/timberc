@@ -9,7 +9,7 @@ module TCPClient where
            env.stdout.write "Usage: TCPClient host port\n"
            env.exit 0
         host = Host (env.argv!1)
-        port = Port (parse (env.argv!2))
+        port = Port (fromRight (parse (env.argv!2)))
         env.stdout.write "Connecting... "
         env.inet.tcp.connect host port (handler env)
 

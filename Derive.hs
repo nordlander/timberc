@@ -153,13 +153,14 @@ mkParseInstance n eq sc s (nm, DData vs [] cs)
         mkParse                       = do x <- newName paramSym
                                            as <- mapM (mkParseAlt x) cs
                                            eLam' [x] (EAp (EVar (prim Match)) [foldr (\x y -> EAp (EVar (prim Fatbar)) [x,y]) 
-                                                                              (EAp (EVar (prim Commit)) [EAp (EVar (prim Raise)) [ELit (lInt 1)]]) 
+                                                                              (EAp (EVar (prim Commit)) [EAp (ECon (prim LEFT)) [mkList "no Parse"]]) 
                                                                               as]) 
-        mkParseAlt x (nm,Constr [] _ _) = return (ECase (EAp eq [EVar x, foldr (\x y -> EAp cons [chr x,y]) nil (str nm)])
-                                                  [(PCon (prim TRUE),EAp (EVar (prim Commit)) [ECon nm]),(PWild,EVar (prim Fail))])
+        mkParseAlt x (nm,Constr [] _ _) = return (ECase (EAp eq [EVar x, mkList (str nm)])
+                                                  [(PCon (prim TRUE),EAp (EVar (prim Commit)) [EAp (ECon (prim RIGHT)) [ECon nm]]),(PWild,EVar (prim Fail))])
         mkParseAlt x (nm,_)           = errorIds "Sorry, as yet only default Parse for enumeration types, without constructors as" [nm]
         cons                          = ECon (prim CONS)
         nil                           = ECon (prim NIL)
+        mkList str                    = foldr (\x y -> EAp cons [chr x,y]) nil str
         chr c                         = ELit (lChr c)
 mkParseInstance n eq sc s (nm, DData vs _ cs) 
                                       = errorIds "Not yet implemented: default Parse instance for data type with subtypes" [nm]

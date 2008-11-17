@@ -74,16 +74,6 @@ unwords             :: [String] -> String
 unwords []          = []
 unwords ws          = foldr1 (\w s -> w ++ ' ':s) ws
 
-takeWhile p []      = []
-takeWhile p (x:xs)
-  | p x             = x : takeWhile p xs
-  | otherwise       = []
-
-dropWhile p []      = []
-dropWhile p (x:xs)
-  | p x             = dropWhile p xs
-  | otherwise       = x:xs
-
 foldr1 f [x]        = x
 foldr1 f (x:xs)     = f x (foldr1 f xs)
 
