@@ -49,7 +49,7 @@ of the measurements dictate that time-stamps associated with beeps must also be 
 down to the 50 microsecond range. The figure below illustrates the timing windows 
 constraining the involved methods <tt>ping</tt> and stop, and thus, indirectly, the actual 
 beep produced.
-<p><img src="Beep.png" alt="" width="650" height="220" /></p>
+<p><img src="Beep.png" alt="" width="600" height="200" /></p>
 <p>
 Furthermore, the sonar is supposed to sound every 3 seconds, and the deadline for reacting 
 to off-limit measurements is 5 milliseconds. These specifications look as  follows when 
@@ -68,9 +68,9 @@ sonar port alarm critical = <strong>class</strong>
     echo = <strong>before</strong> (millisec 5) <strong>action</strong>
         diff &lt;- tm.sample
         <strong>if</strong> critical diff <strong>then</strong>
-            alarm count
             count := count + 1
-    <strong>result</strong> { interrupt = echo; start = ping }
+            alarm count
+    <strong>result</strong> { interrupt = echo, start = ping }
 
 </pre>
 <p>The header <tt>sonar port alarm critical</tt> here defines function <tt>sonar</tt> to take 
