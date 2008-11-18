@@ -212,7 +212,7 @@ dsExp (ESel s)                  = do x <- newNamePos paramSym s
 dsExp (EWild)                   = errorTree "Non-pattern use of wildcard variable" EWild
 dsExp (EVar v)                  = return (EVar v)
 dsExp (ECon c)                  = return (ECon c)
-dsExp (ELit l)                  = dsLit l
+dsExp (ELit l)                  = return (ELit l)
 dsExp (ERec m fs)               = liftM (ERec m) (mapM dsF fs)
   where dsF (Field s e)         = liftM (Field s) (dsExp e)
 dsExp (EDo v t ss)              = liftM (EDo v (fmap dsWildType t)) (dsStmts False ss)
@@ -328,9 +328,9 @@ dsPat (ESig p qt)
 dsPat (EVar v)                  = return (EVar v)
 dsPat (EWild)                   = do v <- newName dummySym
                                      return (EVar v)
-dsPat (ENeg (ELit (LInt p i)))    = return (ELit (LInt p (-i)))
-dsPat (ENeg (ELit (LRat p r)))    = return (ELit (LRat p (-r)))
-dsPat (ELit l)                  = dsLit l
+dsPat (ENeg (ELit (LInt p i)))  = return (ELit (LInt p (-i)))
+dsPat (ENeg (ELit (LRat p r)))  = return (ELit (LRat p (-r)))
+dsPat (ELit l)                  = return (ELit l)
 dsPat (ETup ps)                 = dsPat (foldl EAp (ECon (tuple (length ps))) ps)
 dsPat (EList ps)                = dsPat (foldr cons nil ps)
 dsPat (ERec m fs)               = liftM (ERec m) (mapM dsField fs)
@@ -351,9 +351,9 @@ dsInnerPat p                    = dsPat p
 
 -- Literals ------------------------------------------------------------------
 
-dsLit (LStr (Just (l,c)) s)     = return (foldr cons nil (map mkLit (zipWith f s [c..])))
-  where f s n                   = (s,Just (l,n))
-        mkLit (c,p)             = (ELit (LChr p c))
-dsLit l                         = return (ELit l)
+--dsLit (LStr (Just (l,c)) s)     = return (foldr cons nil (map mkLit (zipWith f s [c..])))
+--  where f s n                   = (s,Just (l,n))
+--        mkLit (c,p)             = (ELit (LChr p c))
+--dsLit l                         = return (ELit l)
 
 

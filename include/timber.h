@@ -135,5 +135,6 @@ TIMERTYPE primTIMERTERM(Int x);
 UNITTYPE ABORT(BITS32,Msg msg,POLY x);
 
 LIST primShowFloat(Float x);
-
+LIST getStr(char *p) ;
+Int strEq (LIST s1, LIST s2) ;
 #endif

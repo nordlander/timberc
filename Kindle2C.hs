@@ -274,9 +274,14 @@ k2cCmd (CUpdS e x e' c)         = k2cExp (ESel e x) <+> text "=" <+> k2cExp e' <
                                   k2cCmd c
 k2cCmd (CUpdA e i e' c)         = k2cExp (ECall (prim IndexArray) [] [ELit (lInt 0),e,i]) <+> text "=" <+> k2cExp e' <> text ";" $$
                                   k2cCmd c
-k2cCmd (CSwitch e alts)         = text "switch" <+> parens (k2cExp e) <+> text "{" $$
-                                    nest 4 (vcat (map k2cAlt alts)) $$
-                                  text "}"
+k2cCmd (CSwitch e alts)         = case litType (firstLit alts) of
+                                    TCon (Prim LIST _) [TCon (Prim Char _) []] -> -- we know (from Prepare4C) that e is a variable
+                                      k2cStringAlts False e alts
+                                    TCon (Prim Float _) [] -> 
+                                      k2cFloatAlts False e alts
+                                    _ -> text "switch" <+> parens (k2cExp e) <+> text "{" $$
+                                         nest 4 (vcat (map k2cAlt alts)) $$
+                                         text "}"
 k2cCmd (CSeq c c')              = k2cCmd c $$
                                   k2cCmd c'
 k2cCmd (CBreak)                 = text "break;"
@@ -287,7 +292,29 @@ k2cCmd (CWhile e c c')          = text "while" <+> parens (k2cExp e) <+> text "{
                                   k2cCmd c'
 k2cCmd (CCont)                  = text "continue;"
 
+firstLit (ALit l _ : _) = l
+firstLit (_ : as)       = firstLit as
 
+k2cStringAlts b e (ALit l c : as)      
+                                = (if b then text "else " else empty) <> text "if (strEq (" <> k2cExp e <>
+                                    text ", getStr ("<> pr l <> text "))) {" $$
+                                     nest 4 (k2cNestIfCmd c) $$
+                                     text "}" $$
+                                     k2cStringAlts True e as
+k2cStringAlts _ e [AWild c]       = text "else {" $$
+                                     nest 4 (k2cNestIfCmd c) $$
+                                     text "}"
+
+k2cFloatAlts b e (ALit l c : as)      
+                                  = (if b then text "else " else empty) <> text "if (" <> k2cExp e <>
+                                    text "=="<> pr l <> text ") {" $$
+                                     nest 4 (k2cNestIfCmd c) $$
+                                     text "}" $$
+                                     k2cFloatAlts True e as
+k2cFloatAlts _ e [AWild c]       = text "else {" $$
+                                     nest 4 (k2cNestIfCmd c) $$
+                                     text "}"
+         
 k2cAlt (ACon n _ _ c)           = internalError "Constructor tag in Kindle2C" n
 k2cAlt (ALit l c)               = text "case" <+> pr l <> text ":" <+> k2cNestCmd c
 k2cAlt (AWild c)                = text "default:" <+> k2cNestCmd c
@@ -300,6 +327,13 @@ k2cNestCmd (CRaise e)           = text "RAISE" <> parens (k2cExp e) <> text ";"
 k2cNestCmd c                    = text "{" <+> k2cCmd c $$
                                   text "}" $$
                                   text "break;"     -- important in case contains a switch that might break
+
+k2cNestIfCmd (CRet e)             = text "return" <+> k2cExp e <> text ";"
+k2cNestIfCmd (CBreak)             = empty
+k2cNestIfCmd (CCont)              = text "continue;"
+k2cNestIfCmd (CRaise e)           = text "RAISE" <> parens (k2cExp e) <> text ";"
+k2cNestIfCmd c                    = text "{" <+> k2cCmd c $$
+                                    text "}" 
 
 
 k2cExp (ECall x [] [e1,e2])
@@ -315,6 +349,7 @@ k2cExp1 e                       = k2cExp2 e
 
 k2cExp2 (EVar x)                = k2cName x
 k2cExp2 (ELit (LRat _ r))       = text (show (fromRational r :: Double))
+k2cExp2 (ELit (LStr _ str))     = text ("getStr("++show str++")")
 k2cExp2 (ELit l)                = pr l
 k2cExp2 (ESel e (Prim STATE _)) = text "STATEOF" <> parens (k2cExp e)
 k2cExp2 (ESel e l)              = k2cExp2 e <> text "->" <> k2cName l

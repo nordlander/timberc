@@ -49,7 +49,7 @@ span p (x:xs)
 break p              = span (\x -> not (p x))
 
 lines               :: String -> [String]
-lines ""            = []
+lines []            = []
 lines s             = let (l,s') = break ('\n'==) s
                       in l : case s' of 
                                []      -> []
@@ -57,7 +57,7 @@ lines s             = let (l,s') = break ('\n'==) s
 
 words               :: String -> [String]
 words s             = case dropWhile isSpace s of
-                        "" -> []
+                        [] -> []
                         s' -> w : words s''
                            where (w,s'') = acc s' []
                                  acc [] w = (reverse w,[])

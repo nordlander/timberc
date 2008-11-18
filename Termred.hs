@@ -257,6 +257,8 @@ redCase env e@(EVar x) alts     = case lookup x (eqns env) of
         inline (ELit _,_)       = True
         inline (EVar _, [])     = True
         inline _                = False
+redCase env e@(ELit (LStr _ _)) alts       
+                                = liftM (ECase e) (redAlts env alts)
 redCase env (ELit l) alts       = findLit env l alts
 redCase env e alts              = case eFlat e of
                                     (ECon k, es) -> findCon env k es alts

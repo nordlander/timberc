@@ -334,19 +334,18 @@ pCmd env t0 (CUpdA e i e' c)    = do (bs,TCon (Prim Array _) [t],e) <- pExp env 
                                      (bs',i) <- pExpT env tInt i
                                      (bs'',e') <- pExpT env tPOLY e'
                                      liftM (cBind bs . cBind bs' . cBind bs'' . CUpdA e i e') (pCmd env t0 c)
-pCmd env t0 (CSwitch e alts)
-  | any litA alts               = do (bs,e) <- pExpT env tInt e
-                                     alts <- mapM (pAlt env e tInt t0) alts
-                                     return (cBind bs (CSwitch e alts))
+pCmd env t0 (CSwitch e alts)    
+  | any litA alts               = if simple (litType (firstLit alts)) then
+                                     do (bs,e) <- pExpT env tInt e
+                                        alts <- mapM (pAlt env e tInt t0) alts
+                                        return (cBind bs (CSwitch e alts))
+                                    else mkVarSwitch env t0 e alts
   | isEVar e || all nullA alts  = do (bs,t,e) <- pExp env e
                                      alts <- mapM (pAlt env e t t0) alts
                                      let (alts0,alts1) = partition nullA [ a | a@(ACon _ _ _ _) <- alts ]
                                          altsW         = [ a | a@(AWild _) <- alts ]
                                      return (cBind bs (mkSwitch env e (alts0++absent0 altsW) (alts1++absent1 altsW)))
-  | otherwise                   = do (bs,t,e) <- pExp env e
-                                     x <- newName tempSym
-                                     c <- pCmd (addVals [(x,t)] env) t0 (CSwitch (EVar x) alts)
-                                     return (cBind bs (cBind [(x,Val t e)] c))
+  | otherwise                   = mkVarSwitch env t0 e alts
   where nullA (ACon k _ _ _)    = k `elem` nulls env
         nullA _                 = False
         absent                  = allCons env alts \\ [ k | ACon k _ _ _ <- alts ]
@@ -355,6 +354,12 @@ pCmd env t0 (CSwitch e alts)
         absent1 altsW           = [ a | a <- altsW, not (null abs1) ]
         litA (ALit _ _)         = True
         litA _                  = False
+        firstLit (ALit l _ : _) = l
+        firstLit (_ : as)       = firstLit as
+        simple (TCon (Prim Int _) []) = True
+        simple (TCon (Prim Char _) []) = True
+        simple _                = False
+
 pCmd env t0 (CSeq c c')         = liftM2 mkSeq (pCmd env t0 c) (pCmd env t0 c')
 pCmd env t0 (CBreak)            = return CBreak
 pCmd env t0 (CRaise e)          = do (bs,e) <- pExpT env tInt e
@@ -364,6 +369,14 @@ pCmd env t0 (CWhile e c c')     = do (bs,e) <- pExpT env tBool e
                                      liftM (cBind bs . CWhile e c) (pCmd env t0 c')
 pCmd env t0 (CCont)             = return CCont
 
+mkVarSwitch env t0 e alts
+  | isEVar e                    = do  (bs,t,e) <- pExp env e
+                                      alts <- mapM (pAlt env e t t0) alts
+                                      return (cBind bs (CSwitch e alts))
+  | otherwise                   = do (bs,t,e) <- pExp env e
+                                     x <- newName tempSym
+                                     c <- pCmd (addVals [(x,t)] env) t0 (CSwitch (EVar x) alts)
+                                     return (cBind bs (cBind [(x,Val t e)] c))
 
 mkSwitch env e [] [ACon n _ _ c]
   | n `notElem` tagged env      = c

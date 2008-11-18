@@ -87,3 +87,43 @@ WORD __GC__Array1[]     = {WORDS(sizeof(struct Array)), GC_ARRAY, 1};     // fla
 POLY primRefl(BITS32 polytag, POLY in) {
         return in;
 }
+
+// String marshalling ----------------------------------------------------------------------------------
+
+LIST getStr(char *p) {
+        if (!*p)
+                return (LIST)0;
+        CONS n0; NEW(CONS, n0, WORDS(sizeof(struct CONS)));
+        n0->GCINFO = __GC__CONS;
+        CONS n = n0;
+        n->a = (POLY)(Int)*p++;
+        while (*p) {
+	        NEW(LIST, n->b, WORDS(sizeof(struct CONS)));
+                n = (CONS)n->b;
+                n->GCINFO = __GC__CONS;
+                n->a = (POLY)(Int)*p++;
+        }
+        n->b = (LIST)0;
+        return (LIST)n0;
+}
+
+Int strEq (LIST s1, LIST s2) {
+  Char c1, c2;
+  while(1) {
+    switch ((Int)s1) {
+    case 0: 
+      return ((Int)s2==0);
+    default: 
+      switch ((Int)s2) {
+      case 0:
+	return 0;
+      default:
+	c1 = (Int)((CONS)s1)->a;
+	c2 = (Int)((CONS)s2)->a;
+        if (c1!=c2) return 0;
+	s1 = ((CONS)s1)->b;
+	s2 = ((CONS)s2)->b;
+      }
+    }
+  }
+}

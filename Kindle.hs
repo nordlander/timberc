@@ -147,7 +147,7 @@ tArray a                                = TCon (prim Array) [a]
 litType (LInt _ _)                      = tInt
 litType (LRat _ _)                      = tFloat
 litType (LChr _ _)                      = tChar
-litType (LStr _ _)                      = internalError0 "Kindle.litType LStr"
+litType (LStr _ _)                      = tLIST tChar --internalError0 "Kindle.litType LStr"
 
 a                                       = name0 "a"
 b                                       = name0 "b"

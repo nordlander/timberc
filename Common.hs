@@ -170,7 +170,14 @@ data Lit                        = LInt  (Maybe (Int,Int)) Integer
                                 | LRat  (Maybe (Int,Int)) Rational
                                 | LChr  (Maybe (Int,Int)) Char
                                 | LStr  (Maybe (Int,Int)) String
-                                deriving  (Eq)
+--                                deriving  (Eq)
+
+instance Eq Lit where
+  LInt _ m == LInt _ n = m == n
+  LRat _ m == LRat _ n = m == n
+  LChr _ m == LChr _ n = m == n
+  LStr _ m == LStr _ n = m == n
+  _ == _ = False
 
 instance Show Lit where
     show (LInt _ i)             = "LInt " ++ show i

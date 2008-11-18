@@ -108,25 +108,6 @@ Thread newThread(Msg m, int prio, void *(*fun)(void *), int stacksize) {
 }
 
 
-// String marshalling ----------------------------------------------------------------------------------
-
-LIST getStr(char *p) {
-        if (!*p)
-                return (LIST)0;
-        CONS n0; NEW(CONS, n0, WORDS(sizeof(struct CONS)));
-        n0->GCINFO = __GC__CONS;
-        CONS n = n0;
-        n->a = (POLY)(Int)*p++;
-        while (*p) {
-	        NEW(LIST, n->b, WORDS(sizeof(struct CONS)));
-                n = (CONS)n->b;
-                n->GCINFO = __GC__CONS;
-                n->a = (POLY)(Int)*p++;
-        }
-        n->b = (LIST)0;
-        return (LIST)n0;
-}
-
 
 // Last resort -----------------------------------------------------------------------------------
 

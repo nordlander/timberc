@@ -86,7 +86,7 @@ data Cmd        = CGen    Name Type Exp Cmd
 litType (LInt _ i)              = TId (prim Int)
 litType (LRat _ r)              = TId (prim Float)
 litType (LChr _ c)              = TId (prim Char)
-litType (LStr _ s)              = internalError0 "Core.litType LStr"
+litType (LStr _ s)              = TAp (TId (prim LIST)) (TId (prim Char)) --internalError0 "Core.litType LStr"
 
 
 noGen (EAp (EVar (Prim New _)) _)   = True
