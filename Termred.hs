@@ -257,8 +257,8 @@ redCase env e@(EVar x) alts     = case lookup x (eqns env) of
         inline (ELit _,_)       = True
         inline (EVar _, [])     = True
         inline _                = False
-redCase env e@(ELit (LStr _ _)) alts       
-                                = liftM (ECase e) (redAlts env alts)
+redCase env (ELit l@(LStr _ _)) alts       
+                                =  redCaseStrLit env l alts
 redCase env (ELit l) alts       = findLit env l alts
 redCase env e alts              = case eFlat e of
                                     (ECon k, es) -> findCon env k es alts
@@ -284,6 +284,16 @@ findLit env l ((PLit l',e):_)
   | l == l'                     = redExp env e
 findLit env l (_:alts)          = findLit env l alts
 
+redCaseStrLit env l ((PWild,e):_) = redExp env e
+redCaseStrLit env l ((PLit l',e):_)
+ | l == l'                      = redExp env e
+redCaseStrLit env (LStr _ "") ((PCon (Prim NIL _),e):alts) = redExp env e
+redCaseStrLit env l@(LStr _ str) alts@((PCon (Prim CONS _),e):_)
+                                = redCase env (foldr (\x y -> EAp cons [chr x,y]) nil str) alts
+   where chr x = ELit (LChr Nothing x)
+         cons = ECon (prim CONS)
+         nil = ECon (prim NIL)
+redCaseStrLit env l (_:alts)         = redCaseStrLit env l alts
 
 redPrim env Refl _ [e]                      = e
 redPrim env Match a [e]                     = redMatch env a e

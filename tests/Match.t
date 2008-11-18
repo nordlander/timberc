@@ -7,6 +7,7 @@ f cs = case cs of
         "Ab" -> 0
         'b':xs -> 1
         "C" -> 2
+        'C':_ -> 4
         _ -> 3
 
 x = head "abc"
@@ -21,6 +22,7 @@ root env = class
     env.stdout.write ("f \"Ac\"="++show (f "Ac") ++"\n")
     env.stdout.write ("f \"C\"="++show (f "C") ++"\n")
     env.stdout.write ("f \"bxx\"="++show (f "bxx") ++"\n")
+    env.stdout.write ("f \"CC\"="++show (f "CC") ++"\n")
 
     env.stdout.write ("p 3.2 ="++show (p 3.2) ++"\n")
     env.stdout.write ("p 1.5 ="++show (p 1.5) ++"\n")
