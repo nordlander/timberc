@@ -308,6 +308,16 @@ The syntax of these constructs are similar; they are all built from sequences of
 <p>
 In all cases, statement sequences have layout-sensitive syntax. See the  <a href="stmts.html"> statements</a> page
 for further descriptions.
+<a name="after">
+<li> After and before expressions.
+<p>
+<pre>
+<b>after</b> <em>expr</em> <em>expr</em>
+<b>before</b> <em>expr</em> <em>expr</em>
+</pre>
+Here the first <em>expr</em> must be a <a href="time.html"><tt>Time</tt></a> and the second an action;
+the latter is given a new baseline (the <tt>after</tt> case) or deadline (the <tt>before</tt> case).
+
 <h4>Further forms of expressions</h4>
 <p>
 Here we just summarize for the Haskell programmer expression forms that are available also in Timber and with the same syntax:
