@@ -23,7 +23,7 @@ arrays in Timber. Here is the program:
 
 root env = <b>class</b>
    limit :: Int
-   limit = parse (env.argv!1)
+   limit = fromRight (parse (env.argv!1))
    primesBound = limit `div` log3 limit
 
    primes := uniarray primesBound 0

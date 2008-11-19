@@ -5,7 +5,7 @@ TIMBERLIBS   = Prelude.t $(filter-out Prelude.t,$(notdir $(wildcard ../lib/*.t))
 OBJS         = $(TIMBERLIBS:.t=.o)
 
 CFLAGS      += -D_GNU_SOURCE
-CC           = gcc
+CC           = llvm-gcc
 
 DEST         = libTimber.a
 

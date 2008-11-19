@@ -116,11 +116,9 @@ root env = class
                         else
                            env.exit 0
 
-      GetSecret ->     case map parse (words inp) :: [Either String Colour] of
+      GetSecret ->     case map parse (words inp) of
                          es | length es==4 && all isRight es ->
                            ss = map fromRight es
---                         [Right c1, Right c2, Right c3, Right c4] ->
---                           ss = [c1,c2,c3,c4]
                            (g',r'):_ = contradictions board ss
                            env.stdout.write ("When I guessed "++show g'++ ", you answered " ++ show r'++".\n")
                            env.stdout.write ("Correct answer should have been "++show (answer g' ss)++".\n")

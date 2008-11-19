@@ -14,8 +14,7 @@ root env = class
 
     result action
        case parse (env.argv!1) of
-         Right n -> maxClients = n
-                    env.inet.tcp.listen port (server maxClients clients log)
+         Right n -> env.inet.tcp.listen port (server n clients log)
          _ -> env.stdout.write "usage: EchoServer n, where n is number of concurrent clients\n"
               env.exit 1
 server :: Int -> Counter -> (String -> Action) -> Socket -> Class Connection

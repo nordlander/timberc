@@ -34,11 +34,9 @@ We only note a few things:
 <ul>
   <li> The program makes use of two library modules
   <tt>Data.Functional.List</tt> and <tt>RandomGenerator</tt>. These
->   are parts of the (presently very experimental) Timber library.
+   are parts of the (presently very experimental) Timber library.
   <li> The program complains if the user gives contradictory answers,
   asks for the secret and explains the user's mistake.
-  <li> There is no error handling: if an answer cannot be parsed as
-  two integers, the program crashes.
   </ul>
   
 <hr>
@@ -153,18 +151,19 @@ root env = <b>class</b>
           cs := allCodes 4
           mkGuess
 
-      JustGuessed -> 
-          ans = mkAnswer inp
-          Answer e n = ans
-          <b>if</b> e == 4 <b>then</b>
-              env.stdout.write "Yippee!\n"
-              checkQuit
-          <b>else</b>
-              c:cs' = cs
-              board := (c,ans) : board
-              cs := consistent board cs'
-              mkGuess
-      
+      JustGuessed ->
+          <b>case</b> map parse (words inp)  <b>of</b>
+             [Right e, Right n] ->
+                 <b>if</b> e == 4 <b>then</b>
+                     env.stdout.write "Yippee!\n"
+                     checkQuit 
+                <b>else</b>
+                     c:cs' = cs
+                     board := (c,ans) : board
+                     cs := consistent board cs'
+                     mkGuess
+             _ -> env.stdout.write "Answer must be two integers separated by spaces; try again\n"
+       
       GameOver ->
           <b>if</b> head inp == 'y' <b>then</b>
               startGame
@@ -172,13 +171,18 @@ root env = <b>class</b>
               env.exit 0
 
       GetSecret ->
-          ss = map parse (words inp)
-          (g',r'):_ = contradictions board ss
-          env.stdout.write ("When I guessed "++show g'++ 
-                            ", you answered "++show r'++".\n")
-          env.stdout.write ("Correct answer should have been "++
-                            show (answer g' ss)++".\n")
-          checkQuit
+        <b>case</b> map parse (words inp) <b>of</b>
+          es | length es==4
+              && all isRight es ->
+                  ss = map fromRight es
+                  (g',r'):_ = contradictions board ss
+                  env.stdout.write ("When I guessed "++show g'++ 
+                  ", you answered "++show r'++".\n")
+                  env.stdout.write ("Correct answer should have been "++
+                                   show (answer g' ss)++".\n")
+                 checkQuit
+          _ -> env.stdout.write "Secret must be four colours separated by spaces; try again\n"
+
 
   <b>result</b>
      <b>action</b>
