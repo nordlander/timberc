@@ -14,7 +14,7 @@ AC_PROG_INSTALL
 # For now - hard code the options and it will work.
 case $(uname) in
 Darwin)
-        LDFLAGS+=" -Wl,-stack_size,0x3000000"
+        LDFLAGS="$LDFLAGS -Wl,-stack_size,0x3000000"
         ;;
 *)
         ;;
