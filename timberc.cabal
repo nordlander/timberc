@@ -10,12 +10,54 @@ Maintainer:          Johan Nordlander <nordland@csee.ltu.se>
 Homepage:	     http://www.timber-lang.org
 Build-type:	     Simple
 Cabal-Version:       >= 1.2
-
+extra-tmp-files:     config.log config.status 
+data-files:          lib/BitOps.t,
+                     lib/Data.Functional.List.t,
+                     lib/Data.Objects.Dictionary.t,
+                     lib/Data.Objects.Stack.t, 
+                     lib/POSIX.t,
+                     lib/Prelude.t,
+                     lib/RandomGenerator.t
 
 Executable timberc
   Main-is:           Main.hs
-  other-modules:     Parser
   Build-Depends:     base, haskell98, pretty >= 1.0.0.0, binary >= 0.4.2, 
                      mtl >= 1.1, filepath >= 1.1, array >= 0.1
   build-tools:	     happy >= 1.17
+--  include-dirs:      include
+  install-includes:  include/timber.h
+  other-modules:     Common,
+                     CompileConfig,
+                     Config,
+                     Core,
+                     Core2Kindle,
+                     Decls,
+                     Depend,
+                     Derive,
+                     Desugar1,
+                     Desugar2,
+                     Env,
+                     Execution,
+                     Fixity,
+                     Interfaces,
+                     Kind,
+                     Kindle,
+                     Kindle2C,
+                     Kindlered,
+                     Lambdalift,
+                     Lexer,
+                     Match,
+                     Name,
+                     ParseMonad,
+                     Parser,
+                     PP,
+                     Prepare4C,
+                     Reduce,
+                     Rename,
+                     Syntax,
+                     Syntax2Core,
+                     Termred,
+                     Token,
+                     Type,
+                     Type2
 
