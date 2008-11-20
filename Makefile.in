@@ -1,13 +1,9 @@
 prefix=@prefix@
-HCOMPILER=@HCOMPILER@
-HFLAGS=@HFLAGS@
-HAPPY=@HAPPY@
 INSTALL=@INSTALL@
 DESTDIR=
 RTSS=$(wildcard rts*)
 
-export prefix HCOMPILER HFLAGS HAPPY INSTALL DESTDIR RTSS
-
+export prefix INSTALL DESTDIR RTSS
 
 SRC   = @SRC@
 
@@ -18,17 +14,7 @@ LIB_TI = $(LIB_T:.t=.ti)
 LIB_C  = $(LIB_T:.t=.c)
 LIB_H  = $(LIB_T:.t=.h)
 
-SRC_HS = $(wildcard *.hs)
-
-all: compiler rts
-
-compiler: $(DEST)
-
-$(DEST): Parser.hs $(SRC_HS)
-	$(HCOMPILER) $(HFLAGS) $(DEST) $(SRC)
-
-Parser.hs: Parser.y
-	$(HAPPY) Parser.y
+all: rts
 
 rts: $(DEST)
 	@for rts in $(RTSS); do \
