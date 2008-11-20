@@ -108,8 +108,11 @@ newTVar k                       = fmap TVar (newTV k)
 nullCon                         = Constr [] [] []
 
 
-isLitAlt (PLit _, _)            = True
-isLitAlt _                      = False
+isLitPat (PLit _)               = True
+isLitPat _                      = False
+
+isConPat (PCon _)               = True
+isConPat _                      = False
 
 isLambda (ELam _ _)             = True
 isLambda _                      = False
@@ -202,7 +205,9 @@ funArgs (F ts rh)               = ts
 funArgs rh                      = []
 
 
-body (Scheme (R c) _ _)         = c
+body (Scheme rh _ _)            = body' rh
+  where body' (R c)             = c
+        body' (F _ rh)          = body' rh
 
 ctxt (Scheme _ ps _)            = ps
 

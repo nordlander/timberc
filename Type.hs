@@ -204,21 +204,21 @@ tiExp env (ELet bs e)           = do (s,pe,bs) <- tiBinds env bs
                                      (s',pe',t,e) <- tiExp (addTEnv (tsigsOf bs) env) e
                                      return (s++s',pe++pe', t, ELet bs e)
 tiExp env (ERec c eqs)          = do alphas <- mapM newTVar (kArgs (findKind env c))
-                                     (t,ts,sels') <- tiLhs env (foldl TAp (TId c) alphas) tiSel sels
+                                     (t,ts,_) <- tiLhs env (foldl TAp (TId c) alphas) tiSel sels
                                      (s,pe,es') <- tiRhs env ts es
                                      -- tr ("RECORD " ++ render (pr t))
                                      -- tr (render (nest 4 (vpr (sels `zip` ts))))
                                      -- tr ("    pe :\n" ++ render (nest 4 (vpr pe)))
-                                     e <- mkRec env c (map flatSels sels' `zip` es')
+                                     e <- mkRecTerm env c sels es'
                                      return (s, pe, R t, e)
   where (sels,es)               = unzip eqs
         tiSel env x l           = tiExp env (ESel (EVar x) l)
 tiExp env (ECase e alts)        = do alpha <- newTVar Star
-                                     (t,ts,pats') <- tiLhs env alpha tiPat pats
+                                     (t,ts,_) <- tiLhs env alpha tiPat pats
                                      (s,pe,es')   <- tiRhs env ts es
                                      let TFun [t0] t1 = t
                                      (s1,pe1,e')  <- tiExpT env (scheme t0) e
-                                     e <- mkCase env e' t0 (map flatCons pats' `zip` es')
+                                     e <- mkCaseTerm env e' (tId (tHead t0)) pats es'
                                      return (s++s1, pe++pe1, R t1, e)
   where (pats,es)               = unzip alts
         tiPat env x (PLit l)    = tiExp env (EAp (EVar x) [ELit l])
@@ -282,55 +282,46 @@ tiLhs env alpha tiX xs          = do x <- newName tempSym
                                      return (subst s alpha, ts3, es2)
 
 
--- Build record fields -----------------------------------------------------------------------------------------------------------
--- Note: ancestors reachable through different paths not yet handled
-
--- Extract a list of selectors from the lhs term computed by tiLhs
--- x.l   ===>   \ws -> (w x).l ws    ===>   \ws -> ((x.l1)...ln).l ws    ==>    l1, ..., ln, l
-flatSels (ELam _ e)             = flatSels e
-flatSels (EAp e _)              = flatSels e
-flatSels e                      = flat e []
-  where flat (ESel e l) sels    = flat e (l:sels) 
-        flat _ sels             = sels
-
--- Construct record field definitions on basis of the original rhs terms and the flattened list of selectors computed by tiLhs
-mkRec env c eqs                 = liftM (ERec c) (mapM mkEqn ls)
-  where ls                      = nub (map (head . fst) eqs)
-        mkEqn l                 = case [ (ls,e) | (l':ls,e) <- eqs, l==l' ] of
-                                    ([],e):_ -> return (l, e)
-                                    eqs_l    -> do e <- mkRec env (tId (tHead t)) eqs_l
-                                                   return (l, e)
-                                      where Scheme (R t) _ _ = findType env l
+-- Build a record term ---------------------------------------------------------------------------------------------------
+mkRecTerm env c sels es         = return (mkOne c)
+  where cs                      = map ltype sels
+        groups                  = map (\c -> (c, [ (l,e) | (c',l,e) <- zip3 cs sels es, c == c' ])) (nub cs)
+        graph                   = nodesFrom c
+        nodesFrom c             = (c,ns) : concatMap nodesFrom (rng ns)
+          where ns              = [ (sel w, snd (subsyms p)) | (w,p) <- nodes wg, w `notElem` indirect ]
+                indirect        = map snd (arcs wg)
+                sel w           = ff (lookup' (coercions env) w)
+                wg              = findAbove env c
+        ff (ELam _ (ESel _ l))  = l
+        ltype l                 = headsym (head (ctxt (findType env l)))
+        mkOne c                 = ERec c (eqs0 ++ case lookup c groups of Just eqs -> eqs; Nothing -> [])
+          where eqs0            = mapSnd mkOne (lookup' graph c)
 
 
--- Build case alternatives -------------------------------------------------------------------------------------------------------
--- Note: ancestors reachable through different paths not yet handled
+-- Build a case term -------------------------------------------------------------------------------------------------------
+mkCaseTerm env e0 c pats0 es0
+  | any isLitPat pats0          = return (ECase e0 (pats0 `zip` es0))
+  | otherwise                   = mkOne e0 c
+  where (altsK,altsW)           = partition (isConPat . fst) (pats0 `zip` es0)
+        (pats,es)               = unzip altsK
+        cs                      = map ptype pats
+        groups                  = map (\c -> (c, [ (p,e) | (c',p,e) <- zip3 cs pats es, c == c' ])) (nub cs)
+        graph                   = nodesFrom c
+        nodesFrom c             = (c,ns) : concatMap nodesFrom (rng ns)
+          where ns              = [ (con w, fst (subsyms p)) | (w,p) <- nodes wg, w `notElem` indirect ]
+                indirect        = map snd (arcs wg)
+                con w           = ff (lookup' (coercions env) w)
+                wg              = findBelow env c
+        ff (ELam _ (EAp (ECon k) _)) = k
+        ptype (PCon k)          = tId (tHead (body (findType env k)))
+        mkOne e0 c              = do alts0 <- mapM mkAlt0 (lookup' graph c)
+                                     return (ECase e0 (alts0 ++ (case lookup c groups of Just alts -> alts; Nothing -> []) ++ altsW))
+        mkAlt0 (k,c)            = do x <- newName tempSym
+                                     (F [sc] _, _) <- inst (findType env k)
+                                     e <- mkOne (EVar x) c
+                                     return (PCon k, ELam [(x,sc)] e)
 
--- Extract a list of constructors from the lhs term computed by tiLhs
--- \xs -> x (k xs)  ===>  \ws -> \xs -> x (w (k ws xs))   ===>  \ws -> \xs -> x (k1 (... kn (k ws xs)))  ==>  k1, ... , kn, k
-flatCons (EVar x)               = [PWild]
-flatCons (ELam _ e)             = flatCons e
-flatCons (EAp (EVar x) [e])     = flatCons e
-flatCons e                      = flat e
-  where flat (EAp e es)         = flat e ++ flat (head es)      -- if e is a coercion, es will all be variables except for the head
-        flat (ECon k)           = [PCon k]
-        flat (ELit l)           = [PLit l]
-        flat _                  = []
-
--- Construct case alternatives on basis of the original rhs terms and the flattened list of constructors computed by tiLhs
-mkCase env e t0 alts            = liftM (\a -> ECase e a) (mapM mkAlt ps)
-  where ps                      = nub (map (head . fst) alts)
-        mkAlt p                 = case [ (ps,e) | (p':ps,e) <- alts, p==p' ] of
-                                    ([],e):_ -> return (p, e)
-                                    alts_p   -> do x <- newNamePos tempSym p
-                                                   r <- inst (findType env (let PCon k = p in k))
-                                                   let (F [Scheme (R t1) [] []] (R t2),_) = r
-                                                       s = matchTs [(t0,t2)]
-                                                       tx = subst s t1
-                                                   e' <- mkCase env (EVar x) tx alts_p
-                                                   tx' <- gen (tvars t0) (scheme tx)
-                                                   return (p, ELam [(x,tx')] e')
-
+        
 
 -- data Pack m a = Pack (m a) \\ Eq a
 -- data Exists m > Pack m a \\ a

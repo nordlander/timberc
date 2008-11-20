@@ -37,7 +37,9 @@ overlaps xs ys                  = not (disjoint xs ys)
 
 intersperse x xs                = List.intersperse x xs
 
-duplicates xs                   = nub (foldl (flip List.delete) xs (nub xs))
+duplicates xs                   = filter (`elem` dups) xs1
+  where xs1                     = nub xs
+        dups                    = foldl (flip List.delete) xs xs1
 
 rotate n xs                     = let (xs1,xs2) = splitAt n xs in xs2++xs1
 

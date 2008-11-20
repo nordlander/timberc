@@ -419,8 +419,8 @@ paramSym                        = "a"
 etaExpSym                       = "eta"
 tyvarSym                        = "t"
 coercionSym                     = "c"
-labelSym                        = "l"
-constrSym                       = "C"
+coerceLabelSym                  = "l"
+coerceConstrSym                 = "K"
 typeSym                         = "T"
 stateTypeSym                    = "S"
 skolemSym                       = "sk"
@@ -439,7 +439,8 @@ isCoercion n                    = isGenerated n && str n == coercionSym
 isPatTemp n                     = isGenerated n && str n == patSym
 isClosure n                     = isGenerated n && isPrefixOf closureSym (str n)
 isDummy n                       = isGenerated n && str n == dummySym
-isLabel n                       = isGenerated n && isPrefixOf labelSym (str n)
+isCoerceLabel n                 = isGenerated n && isPrefixOf coerceLabelSym (str n)
+isCoerceConstr n                = isGenerated n && isPrefixOf coerceConstrSym (str n)
 isTApp n                        = isGenerated n && str n == tappSym
 isTAbs n                        = isGenerated n && str n == tabsSym
 isGCInfo n                      = isGenerated n && isPrefixOf gcinfoSym (str n)
@@ -527,7 +528,7 @@ prId2 n                         = prId n
 
 
 prId3 n@(Name s t m a)
-  | t == 0 || isClosure n || isLabel n
+  | t == 0 || isClosure n || isCoerceLabel n || isCoerceConstr n
                                 = text (s ++ maybe "" (('_' :) . modToundSc) m)
 prId3 (Name s n m a)            = text (id ++ tag ++ mod ++ suff)
   where 

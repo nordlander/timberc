@@ -82,19 +82,23 @@ desub env ds                            = do (ds',pes,eqs) <- fmap unzip3 (mapM 
     desub' (i, DType vs t)              = return ((i, DType vs t), [], [])
     ke0                                 = kindEnv0 env
     con m (t0,ke0) (Scheme (R t) [] ke) = do w <- newNameMod m coercionSym
-                                             k <- newNameMod m constrSym
+                                             k <- newNameMod m (coerceConstr t t0)
                                              x <- newName paramSym
                                              let p  = (w, Scheme (R (t `sub` t0)) [] (ke0++ke))
                                                  eq = (w, ELam [(x,scheme t)] (EAp (ECon k) [EVar x]))
                                                  c  = (k, Constr [scheme t] [] ke)
                                              return (p, eq, c)
     sel m (t0,ke0) (Scheme (R t) [] ke) = do w <- newNameMod m coercionSym
-                                             l <- newNameMod m (labelSym ++"_" ++  render (prId3 (tId(tHead t0)))++ "_" ++ render (prId3 (tId (tHead t))))
+                                             l <- newNameMod m (coerceLabel t0 t)
                                              x <- newName paramSym
                                              let p  = (w, Scheme (R (t0 `sub` t)) [] (ke0++ke))
                                                  eq = (w, ELam [(x,scheme t0)] (ESel (EVar x) l))
                                                  s  = (l, Scheme (R t) [] ke)
                                              return (p, eq, s)
+
+coerceConstr t t0                       = coerceConstrSym ++ "_" ++ render (prId3 (tId(tHead t))) ++ "_" ++ render (prId3 (tId (tHead t0)))
+
+coerceLabel t0 t                        = coerceLabelSym  ++ "_" ++ render (prId3 (tId(tHead t0))) ++ "_" ++ render (prId3 (tId (tHead t)))
 
 {-
 

@@ -264,9 +264,13 @@ redCase env e alts              = case eFlat e of
                                     (ECon k, es) -> findCon env k es alts
                                     _            -> liftM (ECase e) (redAlts env alts)
 
-redAlts env alts                = do es <- mapM ({-redRhs-} redExp env) es
-                                     return (ps `zip` es)
-  where (ps,es)                 = unzip alts
+redAlts env alts
+  | complete (cons env) cs      = do es <- mapM (redExp env) es
+                                     return (map PCon cs `zip` es)
+  | otherwise                   = do es0 <- mapM (redExp env) es0
+                                     return (ps `zip` es0)
+  where (cs,es)                 = unzip [ (c,e) | (PCon c, e) <- alts ]
+        (ps,es0)                = unzip alts
   
 redRhs env (ELam te e)          = do e <- redRhs (addArgs env (dom te)) e
                                      return (ELam te e)
@@ -313,9 +317,6 @@ redPrim env p a es                          = eAp (EVar (Prim p a)) es
 redMatch env a (ELet bs e)                  = ELet bs (redMatch (addArgs env (bvars bs)) a e)
 redMatch env a (ELam te e)                  = ELam te (redMatch (addArgs env (dom te)) a e)
 redMatch env a (EAp (EVar (Prim Commit _)) [e]) = e
-redMatch env a (ECase e alts)
-  | complete (cons env) cs                  = ECase e (map PCon cs `zip` map (redMatch env a) es)
-  where (cs,es)                             = unzip [ (c,e) | (PCon c, e) <- alts ]
 redMatch env a (ECase e alts)               = ECase e (mapSnd (redMatch env a) alts)
 redMatch env _ (EVar (Prim Fail a))         = EAp (EVar (Prim Raise a)) [ELit (lInt 1)]
 redMatch env _ e@(ELit _)                   = e

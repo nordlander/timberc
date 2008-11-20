@@ -30,8 +30,8 @@ data Env = Env { kindEnv0      :: KEnv,              -- Kind for each global tyc
                  
                  coercions     :: Eqns,              -- Defs of top-level subtype coercions
 
-                 aboveEnv      :: Map Name WGraph,   -- Overlap graph of all S > T for each T (closed under reflexivity & transitivity)
-                 belowEnv      :: Map Name WGraph,   -- Overlap graph of all S < T for each T (closed under reflexivity & transitivity)
+                 aboveEnv      :: Map Name WGraph,   -- Overlap graph of all S > T for each T (closed under transitivity)
+                 belowEnv      :: Map Name WGraph,   -- Overlap graph of all S < T for each T (closed under transitivity)
                  classEnv      :: Map Name WGraph,   -- Overlap graph of all instances for each type class (closed under subclassing)
 
                  modName       :: Maybe String, 
