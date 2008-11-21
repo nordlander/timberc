@@ -1,4 +1,3 @@
-{-# LANGUAGE PatternSignatures #-}
 module Name where
 
 import Debug.Trace
@@ -573,7 +572,7 @@ instance Binary Name where
 
 instance Binary Annot where
   put (Annot _ b c d e) = put b >> put c >> put d >> put e >> put False
-  get = get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> get >>= \(f::Bool) -> return (Annot Nothing b c d e)
+  get = get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> get >>= \False -> return (Annot Nothing b c d e)
 
 
 maxPrimWord = fromIntegral (fromEnum maxPrim) :: Word8

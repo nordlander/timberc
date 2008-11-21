@@ -1,6 +1,6 @@
 CfgOpts
       { cCompiler = "@CC@ -DPOSIX"
-      , compileFlags = " @CFLAGS@ "
+      , compileFlags = " -c @CFLAGS@ "
       , linkFlags = " @LDFLAGS@ "
       , browser = "@TIBROWSER@ "
       }

@@ -7,7 +7,7 @@ export prefix INSTALL DESTDIR RTSS
 
 SRC   = @SRC@
 
-DEST  = @DEST@
+DEST  = timberc
 
 LIB_T  = $(wildcard lib/*.t)
 LIB_TI = $(LIB_T:.t=.ti)

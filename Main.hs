@@ -6,7 +6,7 @@ import System(getArgs)
 import List(isSuffixOf)
 import qualified Monad
 import qualified Char
-import qualified Control.Exception as Exception ( catchDyn, catch )
+import qualified Control.Exception as Exception ( catch, catchJust )
 import System.Console.GetOpt
 import qualified Directory
 
@@ -271,9 +271,9 @@ main                = do args <- getArgs
 -- | We have the second entry point so ghci/hugs users can call
 -- | main2 directly with arguments.
 
-main2 args          = do (clo, files) <- Exception.catchDyn (cmdLineOpts args)
+main2 args          = do (clo, files) <- Exception.catch (cmdLineOpts args)
                                          fatalErrorHandler
-                         cfg          <- Exception.catchDyn (readCfg clo)
+                         cfg          <- Exception.catch (readCfg clo)
                                          fatalErrorHandler
 
                          let t_files  = filter (".t"  `isSuffixOf`) files
@@ -288,7 +288,7 @@ main2 args          = do (clo, files) <- Exception.catchDyn (cmdLineOpts args)
 --                         Monad.when (null t_files) stopCompiler
                          
                          ps <- mapM parse t_files
-                         ifs <- compileAll clo [] ps `catchException` handleError
+                         ifs <- compileAll clo [] ps `Exception.catch` handleError
                          Monad.when (stopAtC clo) stopCompiler
                          
                          let root = make clo
@@ -309,7 +309,7 @@ main2 args          = do (clo, files) <- Exception.catchDyn (cmdLineOpts args)
 handleError (ErrorCall mess) = do
   putStr ("*** Timber compilation error ***\n"++mess++"\n")
   abortCompiler
-handleError e = throw e
+
 {-
 test pass           = compileTimber clo [] "Test.t"
   where clo         = CmdLineOpts { isVerbose = False,

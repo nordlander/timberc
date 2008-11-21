@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternSignatures, MultiParamTypeClasses, FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
 
 module Common (module Common, module Name, isDigit) where
 
@@ -589,7 +589,7 @@ instance Binary Lit where
   get = do
     tag_ <- getWord8
     case tag_ of
-      0 -> get >>= \(a::Integer) -> return (lInt a)
+      0 -> get >>= \a -> return (lInt (a::Integer))
       1 -> get >>= \a -> return (lRat a)
       2 -> get >>= \a -> return (lChr a)
       3 -> get >>= \a -> return (lStr a)

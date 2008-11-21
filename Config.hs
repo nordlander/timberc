@@ -43,7 +43,7 @@ module Config (
 import Char
 import System.Console.GetOpt
 import System                 ( getArgs, getEnv, getProgName )
-import qualified Control.Exception as Exception ( throwDyn, Exception )
+import qualified Control.Exception as Exception ( throwIO, Exception )
 import Data.Dynamic
 
 -- Timber Compiler
@@ -158,16 +158,17 @@ instance Show TimbercException where
   showsPrec _ (Panic s)        = showString $
                                  "Panic! Please file a bug report!\n\n" ++ s
 
+instance Exception.Exception TimbercException
 
 cmdLineOpts          :: [String] -> IO (CmdLineOpts,[String])
 cmdLineOpts args     = case getOpt Permute options args of
                          (flags,n,[]) 
                            | Help `elem` flags -> do msg <- helpMsg
-                                                     Exception.throwDyn (CmdLineError msg)
+                                                     Exception.throwIO (CmdLineError msg)
                            | otherwise         -> do opts <- mkCmdLineOpts flags
                                                      return (opts,n)
                          (_,_,errs)            -> do msg <- helpMsg
-                                                     Exception.throwDyn (CmdLineError (concat errs ++ msg))
+                                                     Exception.throwIO (CmdLineError (concat errs ++ msg))
 
 
 helpMsg              = do pgm <- getProgName
@@ -217,7 +218,7 @@ readCfg clo
 parseCfg file
     = do
       txt <- catch (readFile file)
-             (\e -> Exception.throwDyn $ emsg file)
+             (\e -> Exception.throwIO $ emsg file)
       config <- safeRead file txt
       return config
     where        
