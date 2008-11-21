@@ -265,4 +265,4 @@ libDir               = do
 
 includeDir           = do
                         ret <- getDataDir
-                        return (ret ++ "/lib")
+                        return (ret ++ "/include")
