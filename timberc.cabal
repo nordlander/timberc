@@ -37,6 +37,7 @@ data-files:          examples/Counter.t,
                      lib/POSIX.t,
                      lib/Prelude.t,
                      lib/RandomGenerator.t,
+                     rtsPOSIX/Makefile
                      rtsPOSIX/cyclic.c,
                      rtsPOSIX/env.c,
                      rtsPOSIX/env.h,
