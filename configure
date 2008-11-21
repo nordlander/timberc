@@ -668,6 +668,7 @@ GREP
 EGREP
 LIBOBJS
 SRC
+DEST
 LTLIBOBJS'
 ac_subst_files=''
       ac_precious_vars='build_alias
@@ -2723,16 +2724,6 @@ test -z "$INSTALL_SCRIPT" && INSTALL_SCRIPT='${INSTALL}'
 test -z "$INSTALL_DATA" && INSTALL_DATA='${INSTALL} -m 644'
 
 
-# XXX This is ugly
-# For now - hard code the options and it will work.
-case $(uname) in
-Darwin)
-        LDFLAGS="$LDFLAGS -Wl,-stack_size,0x3000000"
-        ;;
-*)
-        ;;
-esac
-
 # Make sure TIBROWSER is set
 if test "x$TIBROWSER" = "x"; then
 	for ac_prog in more
@@ -3967,6 +3958,7 @@ done
 
 
 
+
 ac_config_files="$ac_config_files Makefile CompileConfig.hs rtsPOSIX/timberc.cfg"
 
 cat >confcache <<\_ACEOF
@@ -4640,10 +4632,11 @@ GREP!$GREP$ac_delim
 EGREP!$EGREP$ac_delim
 LIBOBJS!$LIBOBJS$ac_delim
 SRC!$SRC$ac_delim
+DEST!$DEST$ac_delim
 LTLIBOBJS!$LTLIBOBJS$ac_delim
 _ACEOF
 
-  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 54; then
+  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 55; then
     break
   elif $ac_last_try; then
     { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5

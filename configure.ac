@@ -10,16 +10,6 @@ AC_CONFIG_HEADERS([config.h])
 AC_PROG_CC
 AC_PROG_INSTALL
 
-# XXX This is ugly
-# For now - hard code the options and it will work.
-case $(uname) in
-Darwin)
-        LDFLAGS="$LDFLAGS -Wl,-stack_size,0x3000000"
-        ;;
-*)
-        ;;
-esac
-
 # Make sure TIBROWSER is set
 if test "x$TIBROWSER" = "x"; then
 	AC_CHECK_PROGS(TIBROWSER,[more])
@@ -42,6 +32,7 @@ AC_SUBST(CC)
 AC_SUBST(CFLAGS)
 AC_SUBST(LDFLAGS)
 AC_SUBST(SRC)
+AC_SUBST(DEST)
 AC_SUBST(prefix)
 
 AC_CONFIG_FILES([Makefile CompileConfig.hs rtsPOSIX/timberc.cfg])

@@ -5,8 +5,6 @@ RTSS=$(wildcard rts*)
 
 export prefix INSTALL DESTDIR RTSS
 
-SRC   = @SRC@
-
 DEST  = timberc
 
 LIB_T  = $(wildcard lib/*.t)
@@ -14,8 +12,13 @@ LIB_TI = $(LIB_T:.t=.ti)
 LIB_C  = $(LIB_T:.t=.c)
 LIB_H  = $(LIB_T:.t=.h)
 
-all: rts
+SRC_HS = $(wildcard *.hs)
 
+all: $(DEST) rts
+
+$(DEST): Parser.hs $(SRC_HS)
+	ghc $(HFLAGS) -o $(DEST) --make Main
+	
 rts: $(DEST)
 	@for rts in $(RTSS); do \
 		echo Making $$rts; \
