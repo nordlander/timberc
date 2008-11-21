@@ -267,7 +267,8 @@ dsStmts cl (SGen p e : ss)
 dsStmts cl (s@(SAss p e) : ss)
   | null vs                     = errorTree "Bad assignment" s
   | not cl && p0 /= p           = errorTree "Illegal signature in assignment" s
-  | isESigVar p                 = do e <- dsExp e
+  | isESigVar p                 = do p <- dsPat p
+                                     e <- dsExp e
                                      ss <- dsStmts cl ss
                                      return (SAss p e : ss)
   | otherwise                   = do v0 <- newNamePos tempSym p
