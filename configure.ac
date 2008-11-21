@@ -24,6 +24,13 @@ AC_CHECK_HEADERS([stdlib.h sys/time.h termios.h])
 # Checks for typedefs, structures, and compiler characteristics.
 AC_HEADER_TIME
 
+# Look for Happy, otherwise touch Parser.hs to give current time stamp.
+AC_CHECK_PROGS(HAPPY, [happy])
+if test "x$HAPPY" = "x"; then
+	AC_MSG_WARN([Happy not found, you can not change the grammar.])
+	touch $srcdir/Parser.hs
+fi
+
 # Checks for library functions.
 AC_FUNC_MALLOC
 AC_CHECK_FUNCS([gettimeofday])
@@ -33,6 +40,7 @@ AC_SUBST(CFLAGS)
 AC_SUBST(LDFLAGS)
 AC_SUBST(SRC)
 AC_SUBST(DEST)
+AC_SUBST(HAPPY)
 AC_SUBST(prefix)
 
 AC_CONFIG_FILES([Makefile CompileConfig.hs rtsPOSIX/timberc.cfg])

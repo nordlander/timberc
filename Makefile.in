@@ -3,6 +3,8 @@ INSTALL=@INSTALL@
 DESTDIR=
 RTSS=$(wildcard rts*)
 
+HAPPY=@HAPPY@
+
 export prefix INSTALL DESTDIR RTSS
 
 DEST  = timberc
@@ -24,6 +26,9 @@ rts: $(DEST)
 		echo Making $$rts; \
 		$(MAKE) -C $$rts; \
 	done
+
+Parser.hs: Parser.y
+	$(HAPPY) Parser.y
 
 install: ${DEST}
 	$(INSTALL) -d $(DESTDIR)$(prefix)/bin
