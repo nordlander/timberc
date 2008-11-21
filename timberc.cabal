@@ -9,7 +9,7 @@ Author:              Johan Nordlander
 Maintainer:          Johan Nordlander <nordland@csee.ltu.se>
 Homepage:	     http://www.timber-lang.org
 Build-type:	     Simple
-Cabal-Version:       >= 1.2
+Cabal-Version:       >= 1.4
 extra-tmp-files:     config.log config.status 
 data-files:          lib/BitOps.t,
                      lib/Data.Functional.List.t,
