@@ -46,8 +46,8 @@ import System                 ( getArgs, getEnv, getProgName )
 import qualified Control.Exception as Exception ( throwIO, Exception )
 import Data.Dynamic
 
--- Timber Compiler
-import CompileConfig          ( timberRoot )
+-- Cabal Configuration
+import Paths_timberc
 
 -- | Contains the configuration for the compiler with the current
 -- command line switches.
@@ -210,8 +210,9 @@ mkCmdLineOpts flags  =  do cfg <- System.getEnv "TIMBER_CFG" `catch`
 
 
 -- | Reads a configuration file in the format of CfgOpts.
-readCfg clo
-    = parseCfg $ rtsDir clo ++ "/timberc.cfg"
+readCfg clo = do 
+      dir <- rtsDir clo
+      return $ parseCfg (dir ++ "/timberc.cfg")
 
 
 -- | Internal help routine for readCfg.
@@ -254,8 +255,14 @@ data Pass            = Parser
 allPasses            :: [Pass]
 allPasses            = [Parser .. K2C]
 
-rtsDir clo           = timberRoot ++ "/rts" ++ target clo
+rtsDir clo           = do
+                        ret <- getDataDir 
+                        return (ret ++ "/rts" ++ target clo)
 
-libDir               = timberRoot ++ "/lib"
+libDir               = do
+                        ret <- getDataDir
+                        return (ret ++ "/lib")
 
-includeDir           = timberRoot ++ "/include"
+includeDir           = do
+                        ret <- getDataDir
+                        return (ret ++ "/lib")

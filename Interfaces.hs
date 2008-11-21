@@ -220,8 +220,9 @@ toHTML n (IFace ns xs rs ss ds ws bs _) = text "<html><body>\n" $$
         
 decodeModule f                       = (do ifc <- decodeCFile f
                                            putStrLn ("[reading " ++ show f ++ "]")
-                                           return (ifc,f)) `catch`  (\e -> do ifc <- decodeCFile libf
+                                           return (ifc,f)) `catch`  (\e -> do libd <- Config.libDir
+                                                                              let libf = libd ++ "/" ++ f
+                                                                              ifc <- decodeCFile libf
                                                                               putStrLn ("[reading " ++ show libf ++ "]")
                                                                               return (ifc,libf))
-           where libf                = Config.libDir ++ "/" ++ f
 

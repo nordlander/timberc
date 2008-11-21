@@ -43,5 +43,5 @@ AC_SUBST(DEST)
 AC_SUBST(HAPPY)
 AC_SUBST(prefix)
 
-AC_CONFIG_FILES([Makefile CompileConfig.hs rtsPOSIX/timberc.cfg])
+AC_CONFIG_FILES([Makefile rtsPOSIX/timberc.cfg])
 AC_OUTPUT

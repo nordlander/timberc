@@ -254,7 +254,8 @@ checkUpToDate clo t_file ti_file c_file h_file imps
   where tiOK ti_time1 n = do let ti_file = modToPath (str n) ++ ".ti"
                              ti_exists <- Directory.doesFileExist ti_file
                              if (not ti_exists) then do
-                                let lti_file = Config.libDir ++ "/" ++ modToPath (str n) ++ ".ti"
+                                ldir <- Config.libDir
+                                let lti_file = ldir ++ "/" ++ modToPath (str n) ++ ".ti"
                                 lti_exists <- Directory.doesFileExist lti_file
                                 if (not lti_exists) then
                                    internalError0 ("Cannot find interface file " ++ ti_file)
@@ -273,8 +274,9 @@ main                = do args <- getArgs
 
 main2 args          = do (clo, files) <- Exception.catch (cmdLineOpts args)
                                          fatalErrorHandler
-                         cfg          <- Exception.catch (readCfg clo)
+                         cfg          <- Exception.catchDyn (readCfg clo)
                                          fatalErrorHandler
+                         cfg          <- cfg'
 
                          let t_files  = filter (".t"  `isSuffixOf`) files
                              i_files  = filter (".ti" `isSuffixOf`) files
@@ -399,12 +401,13 @@ impNames (Syntax.Module _ is _ _)    = map impName is
 chaseSyntaxFiles                     = chaseImps readSyntax impNames ".t"
   where readSyntax f                 = (do cont <- readFile f
                                            let sm = runM (parser cont)
-                                           return (sm,f)) `catch` (\ e -> do  t_exists <- Directory.doesFileExist libf
+                                           return (sm,f)) `catch` (\ e -> do  ldir <- Config.libDir
+                                                                              let libf = ldir ++ "/" ++ f
+                                                                              t_exists <- Directory.doesFileExist libf
                                                                               if t_exists 
                                                                                 then return (Syntax.Module (name0 "") [] [] [],libf) 
                                                                                 else fail ("File "++ f ++ " does not exist."))
                                                                               
-           where libf                = Config.libDir ++ "/" ++ f
 
 transImps (_,_,ifc)                  = impsOf ifc
 

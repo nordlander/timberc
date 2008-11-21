@@ -25,11 +25,15 @@ import Name
 
 
 -- | Compile a C-file. 
-compileC cfg clo c_file = do let cmd = cCompiler cfg
+compileC cfg clo c_file = do
+                             ldir <- libDir
+                             idir <- includeDir 
+                             rdir <- rtsDir clo
+                             let cmd = cCompiler cfg
                                      ++ compileFlags cfg
-                                     ++ " -I " ++ libDir ++ " " 
-                                     ++ " -I " ++ includeDir ++ " " 
-                                     ++ " -I " ++ rtsDir clo ++ " " 
+                                     ++ " -I " ++ ldir ++ " " 
+                                     ++ " -I " ++ idir ++ " " 
+                                     ++ " -I " ++ rdir ++ " " 
                                      ++ " -I . "
                                      ++ c_file
                                  o_file = rmSuffix ".c" (rmDirs c_file) ++ ".o"
@@ -53,17 +57,20 @@ linkO cfg clo r o_files = do let Just rmod  = fromMod r
                                  initId     = "_init_" ++ map f rmod
                                  f '\''     = '_'
                                  f c        = c
+                             rdir <- rtsDir clo
+                             idir <- includeDir
+                             ldir <- libDir
                              let cmd = cCompiler cfg
                                        ++ linkFlags cfg
                                        ++ " -o " ++ binTarget clo ++ " "
                                        ++ unwords o_files ++ " "
-                                       ++ " -L" ++ rtsDir clo ++ " " 
-                                       ++ " -I" ++ includeDir ++ " " 
-                                       ++ " -I" ++ libDir ++ " " 
-                                       ++ " -I " ++ rtsDir clo ++ " " 
+                                       ++ " -L" ++ rdir ++ " " 
+                                       ++ " -I" ++ idir ++ " " 
+                                       ++ " -I" ++ ldir ++ " " 
+                                       ++ " -I " ++ rdir ++ " " 
                                        ++ " -DROOT=" ++ rootId ++ " "
                                        ++ " -DROOTINIT=" ++ initId ++ " "
-                                       ++ rtsDir clo ++ "/main.c "
+                                       ++ rdir ++ "/main.c "
                                        ++ " -lTimber"
                              putStrLn "[linking]"
                              execCmd clo cmd

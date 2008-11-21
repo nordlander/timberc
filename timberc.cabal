@@ -11,23 +11,49 @@ Homepage:	     http://www.timber-lang.org
 Build-type:	     Simple
 Cabal-Version:       >= 1.4
 extra-tmp-files:     config.log config.status 
-data-files:          lib/BitOps.t,
+data-files:          examples/Counter.t,
+                     examples/Echo.t,
+                     examples/Echo2.t,
+                     examples/Echo3.t,
+                     examples/EchoServer.t,
+                     examples/EchoServer2.t,
+                     examples/MasterMind.t,
+                     examples/PingTimeServers.t,
+                     examples/Primes.t,
+                     examples/Reflex.t,
+                     examples/TCPClient.t,
+                     examples/UnionFind.t,
+                     examples/intro.html,
+                     examples/logo.gif,
+                     examples/simplestyle.css,
+                     include/arrays.c,
+                     include/float.c,
+                     include/timber.c,
+                     include/timber.h,
+                     lib/BitOps.t,
                      lib/Data.Functional.List.t,
                      lib/Data.Objects.Dictionary.t,
                      lib/Data.Objects.Stack.t, 
                      lib/POSIX.t,
                      lib/Prelude.t,
-                     lib/RandomGenerator.t
+                     lib/RandomGenerator.t,
+                     rtsPOSIX/cyclic.c,
+                     rtsPOSIX/env.c,
+                     rtsPOSIX/env.h,
+                     rtsPOSIX/gc.c,
+                     rtsPOSIX/main.c,
+                     rtsPOSIX/rts.c,
+                     rtsPOSIX/rts.h,
+                     rtsPOSIX/timberc.cfg,
+                     rtsPOSIX/timer.c
+
 
 Executable timberc
   Main-is:           Main.hs
   Build-Depends:     base, haskell98, pretty >= 1.0.0.0, binary >= 0.4.2, 
                      mtl >= 1.1, filepath >= 1.1, array >= 0.1
   build-tools:	     happy >= 1.17
---  include-dirs:      include
-  install-includes:  include/timber.h
   other-modules:     Common,
-                     CompileConfig,
                      Config,
                      Core,
                      Core2Kindle,
@@ -48,6 +74,7 @@ Executable timberc
                      Lexer,
                      Match,
                      Name,
+                     Paths_timberc,
                      ParseMonad,
                      Parser,
                      PP,
