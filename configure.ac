@@ -17,6 +17,19 @@ fi
 
 # Checks for libraries.
 
+# Look for pthreads.
+ACX_PTHREAD
+
+if test "$THREAD_SUPPORT" = "no"; then
+	AC_MSG_ERROR([Cannot enable threads on this platform.])
+fi
+
+CC="$PTHREAD_CC"
+CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
+LIBS="$PTHREAD_LIBS $LIBS"
+
+
+
 # Checks for header files.
 AC_HEADER_STDC
 AC_CHECK_HEADERS([stdlib.h sys/time.h termios.h])
