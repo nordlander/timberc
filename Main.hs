@@ -274,7 +274,7 @@ main                = do args <- getArgs
 
 main2 args          = do (clo, files) <- Exception.catch (cmdLineOpts args)
                                          fatalErrorHandler
-                         cfg          <- Exception.catchDyn (readCfg clo)
+                         cfg'         <- Exception.catch (readCfg clo)
                                          fatalErrorHandler
                          cfg          <- cfg'
 
