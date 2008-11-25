@@ -91,8 +91,11 @@ litType (LChr _ c)              = TId (prim Char)
 litType (LStr _ s)              = TAp (TId (prim LIST)) (TId (prim Char)) --internalError0 "Core.litType LStr"
 
 
-noGen (EAp (EVar (Prim New _)) _)   = True
-noGen _                             = False
+isNewAp (EVar (Prim New _))     = True
+isNewAp (EAp e _)               = isNewAp e
+isNewAp (ELet bs e)
+  | isEncoding bs               = isNewAp e
+isNewAp _                       = False
 
 
 tupleKind n                     = foldr KFun Star (replicate n Star)

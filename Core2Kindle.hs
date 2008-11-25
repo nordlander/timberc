@@ -165,7 +165,7 @@ injectCon n                         = n
 
 
 -- =========================================================================================
--- Translating schemes and types into Kindle-like (but still polymorphic) form
+-- Translating schemes and types into Kindle form
 -- =========================================================================================
 
 -- Translate a Core.Scheme into an Kindle.Type on basis of arity and polymorphism
@@ -274,12 +274,16 @@ flatBinds bf                            = flat (bf Kindle.CBreak)
 
 
 -- Translate a list of (mutually recursive) Core bindings into a Kindle.CBind on basis of declared type
-cBinds env (Binds rec te eqs)           = do te <- cTEnv env te
-                                             assert (not rec || all Kindle.okRec (rng te)) "Illegal value recursion" (dom te)
-                                             (bf,bs) <- cEqs (addTEnv te env) te eqs
-                                             return (te, comb rec bf bs)
+cBinds env (Binds rec te eqs)           = do te1 <- cValTEnv env te1
+                                             te2 <- cTEnv env te2
+                                             let te' = te1 ++ te2
+                                             assert (not rec || all Kindle.okRec (rng te')) "Illegal value recursion" (dom te')
+                                             (bf,bs) <- cEqs (addTEnv te' env) te' eqs
+                                             return (te', comb rec bf bs)
   where comb False bf bs                = bf . Kindle.CBind False bs
         comb True bf bs                 = Kindle.CBind True (flatBinds bf ++ bs)
+        insts                           = dom (filter (isNewAp . snd) eqs)
+        (te1,te2)                       = partition ((`elem` insts) . fst) te
 
 
 -- Translate a list of Core equations into a list of Kindle bindings on basis of declared type
@@ -290,7 +294,7 @@ cEq env te (x,e)                        = case lookup' te x of
                                             Kindle.ValT t0 -> do
                                                 (bf,e) <- cValExpT env t0 e
                                                 return (bf, (x, Kindle.Val t0 e))
-                                            Kindle.FunT _ ts0 _ -> do
+                                            Kindle.FunT _ ts0 t0 -> do
                                                 (vs,te,t,c) <- cFunN env (length ts0) e
                                                 return (id, (x, Kindle.Fun vs t te c))
 

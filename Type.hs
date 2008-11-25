@@ -96,7 +96,7 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ showids xs ++ ",
                                      let env1      = subst s' env
                                          ts1       = subst s' ts
                                          tvs0      = if mono then tvars qe ++ tvs1 else []
-                                         tvs1      = concat [ tvars t | (t,e) <- ts1 `zip` es, noGen e ]
+                                         tvs1      = concat [ tvars t | (t,e) <- ts1 `zip` es, isNewAp e ]
                                          (qe1,qe2) = if mono then (qe,[]) else partition (isFixed (tevars env1)) qe
                                          (vs,qs)   = unzip qe2
                                          es2       = map f es1
@@ -117,7 +117,7 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ showids xs ++ ",
           where es              = map EVar vs
                 f x t           = (x, eLam te (EAp (EVar x) (es ++ map EVar (dom te))))
                   where te      = abcSupply `zip` ctxt t
-        mono                    = or [ noGen e || arity e == 0 && null (ctxt t) | (e,t) <- es `zip` ts ]
+        mono                    = or [ isNewAp e || arity e == 0 && null (ctxt t) | (e,t) <- es `zip` ts ]
 
 
 tiRhs0 env explWits ts es       = do (ss,pes,es') <- fmap unzip3 (mapM (tiExpT' env) (zip3 explWits ts es))
@@ -130,7 +130,7 @@ tiExpT env t e                  = tiExpT' env (False, t, e)
 
 
 tiExpT' env (explWit, Scheme t0 ps ke, e)
-  | noGen e                     = do (ss,pe,t,e') <- tiExp env e
+  | isNewAp e                   = do (ss,pe,t,e') <- tiExp env e
                                      c            <- newNamePos coercionSym e'
                                      return (ss, (c, Scheme (F [scheme' t] t0) ps ke) : pe, EAp (EVar c) [e'])
   | null ke && not explWit      = do (ss,qe,t,e)  <- tiExp env e

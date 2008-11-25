@@ -52,7 +52,7 @@ t2Binds0 env (Binds r te eqs)   = do (s,eqs') <- t2Eqs eqs
 
 t2Binds env (Binds r te eqs)    = do (s,eqs') <- t2Eqs eqs
                                      let scs1 = subst s scs
-                                         tvs0 = concat [ tvars sc | (sc,eq) <- scs1 `zip` eqs, noGen (snd eq) ]
+                                         tvs0 = concat [ tvars sc | (sc,eq) <- scs1 `zip` eqs, isNewAp (snd eq) ]
                                      scs2 <- mapM (t2Gen (tevars (subst s env) ++ tvs0)) (subst s scs1)
                                      return (s, Binds r (xs `zip` scs2) eqs')
   where env1                    = addTEnv te env
