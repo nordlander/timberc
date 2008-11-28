@@ -165,7 +165,7 @@ Kindle2C:
 compileTimber clo ifs (sm,t_file) ti_file c_file h_file
                         = do let Syntax.Module n is _ _ = sm
                              putStrLn ("[compiling "++ t_file++"]")
-                             (imps,ifs') <- chaseIfaceFiles is ifs
+                             (imps,ifs') <- chaseIfaceFiles clo is ifs
                              let ((htxt,mtxt),ifc) = runM (passes imps sm)
                              encodeCFile ti_file ifc
                              writeFile c_file mtxt
@@ -200,7 +200,7 @@ compileTimber clo ifs (sm,t_file) ti_file c_file h_file
 
 makeProg clo cfg root   = do txt <- readFile (root ++ ".t")
                              let ms@(Syntax.Module n is _ _) = runM (parser txt)
-                             (imps,ss) <- chaseSyntaxFiles is [(n,ms)]
+                             (imps,ss) <- chaseSyntaxFiles clo is [(n,ms)]
                              let cs = compile_order imps
                                  is = filter nonDummy cs
                              let ps = map (\(n,ii) -> (thd ii,modToPath (str n)++".t")) is ++ [(ms,root++".t")]
@@ -210,7 +210,7 @@ makeProg clo cfg root   = do txt <- readFile (root ++ ".t")
                                  c_files   = map (++ ".c") basefiles
                                  o_files   = map ((++ ".o") . rmDirs) basefiles
                              mapM (compileC cfg clo) c_files
-                             linkO cfg clo{binTarget = root} r o_files
+                             linkO cfg clo{outfile = root} r o_files
   where nonDummy (_,(_,_,Syntax.Module n _ _ _)) = str n /= ""
 
 
@@ -254,8 +254,7 @@ checkUpToDate clo t_file ti_file c_file h_file imps
   where tiOK ti_time1 n = do let ti_file = modToPath (str n) ++ ".ti"
                              ti_exists <- Directory.doesFileExist ti_file
                              if (not ti_exists) then do
-                                ldir <- Config.libDir
-                                let lti_file = ldir ++ "/" ++ modToPath (str n) ++ ".ti"
+                                let lti_file = Config.libDir clo ++ "/" ++ modToPath (str n) ++ ".ti"
                                 lti_exists <- Directory.doesFileExist lti_file
                                 if (not lti_exists) then
                                    internalError0 ("Cannot find interface file " ++ ti_file)
@@ -274,9 +273,8 @@ main                = do args <- getArgs
 
 main2 args          = do (clo, files) <- Exception.catch (cmdLineOpts args)
                                          fatalErrorHandler
-                         cfg'         <- Exception.catch (readCfg clo)
+                         cfg          <- Exception.catch (readCfg clo)
                                          fatalErrorHandler
-                         cfg          <- cfg'
 
                          let t_files  = filter (".t"  `isSuffixOf`) files
                              i_files  = filter (".ti" `isSuffixOf`) files
@@ -286,7 +284,7 @@ main2 args          = do (clo, files) <- Exception.catch (cmdLineOpts args)
                          Monad.when (not (null badfiles)) $ do
                              fail ("Bad input files: " ++ showids badfiles)
                          
-                         mapM (listIface cfg) i_files
+                         mapM (listIface clo) i_files
 --                         Monad.when (null t_files) stopCompiler
                          
                          ps <- mapM parse t_files
@@ -311,20 +309,6 @@ main2 args          = do (clo, files) <- Exception.catch (cmdLineOpts args)
 handleError (ErrorCall mess) = do
   putStr ("*** Timber compilation error ***\n"++mess++"\n")
   abortCompiler
-
-{-
-test pass           = compileTimber clo [] "Test.t"
-  where clo         = CmdLineOpts { isVerbose = False,
-                                    binTarget = "a.out",
-                                    target    = "Trivial",
-                                    root      = "root",
-                                    make      = "",
-                                    shortcut  = False,
-                                    stopAtC   = False,
-                                    stopAtO   = False,
-                                    dumpAfter = (==pass),
-                                    stopAfter = const False }
--}                                      
 
 
 checkRoot clo ifs def       = do if1 <- getIFile rootMod
@@ -352,7 +336,7 @@ checkRoot clo ifs def       = do if1 <- getIFile rootMod
                                 _ -> fail ("Cannot locate root " ++ (root clo) ++ " in module " ++ rootMod)
         getIFile m          = case lookup (name0 m) ifs of
                                 Just ifc -> return ifc
-                                Nothing -> do (ifc,_) <- decodeModule (modToPath m ++ ".ti")
+                                Nothing -> do (ifc,_) <- decodeModule clo (modToPath m ++ ".ti")
                                               return ifc
 
 ------------------------------------------------------------------------------
@@ -393,16 +377,15 @@ chaseImps readModule iNames suff imps ifs
         
 thd (_,_,x)                         = x
 
-chaseIfaceFiles                      = chaseImps decodeModule impsOf ".ti"
+chaseIfaceFiles clo                 = chaseImps (decodeModule clo) impsOf ".ti"
                                      
 impName (Syntax.Import b c)          = c
 impNames (Syntax.Module _ is _ _)    = map impName is
 
-chaseSyntaxFiles                     = chaseImps readSyntax impNames ".t"
+chaseSyntaxFiles clo                 = chaseImps readSyntax impNames ".t"
   where readSyntax f                 = (do cont <- readFile f
                                            let sm = runM (parser cont)
-                                           return (sm,f)) `catch` (\ e -> do  ldir <- Config.libDir
-                                                                              let libf = ldir ++ "/" ++ f
+                                           return (sm,f)) `catch` (\ e -> do  let libf = Config.libDir clo ++ "/" ++ f
                                                                               t_exists <- Directory.doesFileExist libf
                                                                               if t_exists 
                                                                                 then return (Syntax.Module (name0 "") [] [] [],libf) 

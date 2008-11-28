@@ -19,14 +19,12 @@ module Config (
                -- Query about our options from flags.
                cmdLineOpts,
                           
-               -- Path to target-independent library files.
+               -- Configurable paths
                libDir,
-                      
-               -- Path to target-independent RTS files.
                includeDir,
-                      
-               -- Path to target-dependent RTS files.
                rtsDir,
+               rtsCfg,
+               rtsMain,
                
                -- Print usage info and exit.
                helpMsg,
@@ -53,17 +51,18 @@ import Paths_timberc
 -- command line switches.
 data CfgOpts         = CfgOpts { cCompiler       :: FilePath,
                                  compileFlags    :: String,
-                                 linkFlags       :: String,
-                                 browser         :: FilePath
+                                 linkFlags       :: String
                                } deriving (Show, Eq, Read)
 
 -- | Command line options.
 data CmdLineOpts     = CmdLineOpts { isVerbose :: Bool,
-                                     binTarget :: String,
+                                     datadir   :: FilePath,
                                      target    :: String,
+                                     outfile   :: FilePath,
                                      root      :: String,
                                      make      :: String,
                                      api       :: Bool,
+                                     pager     :: FilePath,
                                      shortcut  :: Bool,
                                      stopAtC   :: Bool,
                                      stopAtO   :: Bool,
@@ -71,23 +70,36 @@ data CmdLineOpts     = CmdLineOpts { isVerbose :: Bool,
                                      stopAfter :: Pass -> Bool
                                    }
 
+
 options              :: [OptDescr Flag]
 options              = [ Option []
                                 ["help"]
                                 (NoArg Help)
                                 "Show this message",
+                         Option [] 
+                                ["version"] 
+                                (NoArg Version)
+                                "Print version information",
+                         Option [] 
+                                ["print-datadir"] 
+                                (NoArg PrintDatadir)
+                                "Print effective datadir path",
                          Option ['v'] 
                                 ["verbose"] 
                                 (NoArg Verbose)
                                 "Be verbose",
-                         Option ['o'] 
-                                ["output"]  
-                                (ReqArg BinTarget "FILE")     
-                                "Name of binary target",
+                         Option []
+                                ["datadir"]
+                                (ReqArg Datadir "DIRECTORY")
+                                "Path to installed libraries and run-time systems",
                          Option []
                                 ["target"]
                                 (ReqArg Target "TARGET")
                                 "Target platform",
+                         Option ['o'] 
+                                ["output"]  
+                                (ReqArg Outfile "FILE")     
+                                "Name of executable output",
                          Option []
                                 ["root"]
                                 (ReqArg Root "[MODULE.]NAME")
@@ -100,6 +112,10 @@ options              = [ Option []
                                 ["api"]
                                 (NoArg Api)
                                 "Produce html file with API",
+                         Option [] 
+                                ["pager"] 
+                                (ReqArg Pager "PATH")
+                                "Use command PATH to display .html files",
                          Option ['s']
                                 ["shortcut"]
                                 (NoArg ShortCut)
@@ -111,7 +127,7 @@ options              = [ Option []
                          Option ['c'] 
                                 ["stop-at-o"] 
                                 (NoArg StopAtO)
-                                "Stop compiler after .o file generation" 
+                                "Stop compiler after .o file generation"
                        ]
                        ++ 
                        [ Option []
@@ -127,16 +143,20 @@ options              = [ Option []
                                 ("Stop compiler after pass " ++ show pass)
                        | pass <- allPasses 
                        ]
+                       
 
 
 data Flag            = Help
                      | Verbose
                      | Version
-                     | BinTarget String
+                     | PrintDatadir
+                     | Datadir String
                      | Target String
+                     | Outfile String
                      | Root String
                      | Make String
                      | Api
+                     | Pager String
                      | ShortCut
                      | StopAtC
                      | StopAtO
@@ -161,14 +181,24 @@ instance Show TimbercException where
 instance Exception.Exception TimbercException
 
 cmdLineOpts          :: [String] -> IO (CmdLineOpts,[String])
-cmdLineOpts args     = case getOpt Permute options args of
-                         (flags,n,[]) 
-                           | Help `elem` flags -> do msg <- helpMsg
-                                                     Exception.throwIO (CmdLineError msg)
-                           | otherwise         -> do opts <- mkCmdLineOpts flags
-                                                     return (opts,n)
-                         (_,_,errs)            -> do msg <- helpMsg
-                                                     Exception.throwIO (CmdLineError (concat errs ++ msg))
+cmdLineOpts args     = do globalCfgFile <- System.getEnv "TIMBER_CFG" `catch` (\_ -> return "/etc/timberc")
+                          globalCfg <- readFile globalCfgFile `catch` (\_ -> return "")
+                          userCfgFile <- System.getEnv "HOME" `catch` (\_ -> return "")
+                          userCfg <- readFile (userCfgFile ++ "/.timberc") `catch` (\_ -> return "")
+                          case getOpt Permute options (args ++ words userCfg ++ words globalCfg) of
+                            (flags,n,[]) 
+                              | Help `elem` flags -> do 
+                                  msg <- helpMsg
+                                  Exception.throwIO (CmdLineError msg)
+                              | Version `elem` flags ->
+                                  Exception.throwIO (CmdLineError "version...?")
+                              | PrintDatadir `elem` flags ->
+                                  Exception.throwIO (CmdLineError (datadir (mkCmdLineOpts flags)))
+                              | otherwise -> 
+                                  return (mkCmdLineOpts flags, n)
+                            (_,_,errs) -> do 
+                                  msg <- helpMsg
+                                  Exception.throwIO (CmdLineError (concat errs ++ msg))
 
 
 helpMsg              = do pgm <- getProgName
@@ -180,26 +210,27 @@ helpMsg              = do pgm <- getProgName
 -- CmdLineOpts is a set of functions that can be queried
 -- about the command line options.
 
-mkCmdLineOpts        :: [Flag] -> IO CmdLineOpts
-mkCmdLineOpts flags  =  do cfg <- System.getEnv "TIMBER_CFG" `catch`
-                                  (\ _ -> return "")
-                           return $ CmdLineOpts 
-                                  { isVerbose = find Verbose,
-                                    binTarget = first "a.out"
-                                                [ target | (BinTarget target) <- flags ],
-                                    target    = first "POSIX"
-                                                [ target | (Target target) <- flags ],
-                                    root      = first "root"
-                                                [ root | (Root root) <- flags ],
-                                    make      = first ""
-                                                [ root | Make root <- flags ],
-                                    api       = find Api,
-                                    shortcut  = find ShortCut,
-                                    stopAtC   = find StopAtC,
-                                    stopAtO   = find StopAtO,
-                                    dumpAfter = find . DumpAfter,
-                                    stopAfter = find . StopAfter
-                                  }
+mkCmdLineOpts        :: [Flag] -> CmdLineOpts
+mkCmdLineOpts flags  =  CmdLineOpts { isVerbose = find Verbose,
+                                      datadir   = first "/usr/local/share/timberc/"
+                                                  [ dir | (Datadir dir) <- flags ],
+                                      target    = first "POSIX"
+                                                  [ target | (Target target) <- flags ],
+                                      outfile   = first "a.out"
+                                                  [ file | (Outfile file) <- flags ],
+                                      root      = first "root"
+                                                  [ root | (Root root) <- flags ],
+                                      make      = first ""
+                                                  [ root | Make root <- flags ],
+                                      api       = find Api,
+                                      pager     = first "less"
+                                                  [ p | (Pager p) <- flags ],
+                                      shortcut  = find ShortCut,
+                                      stopAtC   = find StopAtC,
+                                      stopAtO   = find StopAtO,
+                                      dumpAfter = find . DumpAfter,
+                                      stopAfter = find . StopAfter
+                                    }
   where 
     first def []     = def
     first def (opt:_)= opt
@@ -210,9 +241,7 @@ mkCmdLineOpts flags  =  do cfg <- System.getEnv "TIMBER_CFG" `catch`
 
 
 -- | Reads a configuration file in the format of CfgOpts.
-readCfg clo = do 
-      dir <- rtsDir clo
-      return $ parseCfg (dir ++ "/timberc.cfg")
+readCfg clo = parseCfg (rtsCfg clo)
 
 
 -- | Internal help routine for readCfg.
@@ -255,14 +284,9 @@ data Pass            = Parser
 allPasses            :: [Pass]
 allPasses            = [Parser .. K2C]
 
-rtsDir clo           = do
-                        ret <- getDataDir 
-                        return (ret ++ "/rts" ++ target clo)
 
-libDir               = do
-                        ret <- getDataDir
-                        return (ret ++ "/lib")
-
-includeDir           = do
-                        ret <- getDataDir
-                        return (ret ++ "/include")
+rtsDir clo           = datadir clo ++ "/rts" ++ target clo
+rtsCfg clo           = rtsDir clo ++ "/timberc.cfg"
+rtsMain clo          = rtsDir clo ++ "/main.c"
+libDir clo           = datadir clo ++ "/lib"
+includeDir clo       = datadir clo ++ "/include"

@@ -183,12 +183,12 @@ sV (n,t@(Scheme rh ps ke))            = case zip (filter isGenerated (idents (Sc
                                           [] -> (n,t)
                                           s ->  (n,subst s t) 
 
-listIface cfg f                   = do (ifc,f) <- decodeModule f
+listIface clo f                   = do (ifc,f) <- decodeModule clo f
                                        writeAPI f ifc
                                        let modul = rmSuffix ".ti" f
                                            htmlfile = modul++".html"
                                        writeAPI modul ifc
-                                       system (Config.browser cfg ++" " ++ htmlfile)
+                                       system (Config.pager clo ++" " ++ htmlfile)
 
 writeAPI modul ifc             = writeFile (modul ++ ".html") (render(toHTML modul (ifc :: IFace)))
 
@@ -218,11 +218,10 @@ toHTML n (IFace ns xs rs ss ds ws bs _) = text "<html><body>\n" $$
          where (bs1,bs2)                = partition (flip elem ws . fst ) te
                                                   
         
-decodeModule f                       = (do ifc <- decodeCFile f
-                                           putStrLn ("[reading " ++ show f ++ "]")
-                                           return (ifc,f)) `catch`  (\e -> do libd <- Config.libDir
-                                                                              let libf = libd ++ "/" ++ f
-                                                                              ifc <- decodeCFile libf
-                                                                              putStrLn ("[reading " ++ show libf ++ "]")
-                                                                              return (ifc,libf))
+decodeModule clo f                      = (do ifc <- decodeCFile f
+                                              putStrLn ("[reading " ++ show f ++ "]")
+                                              return (ifc,f)) `catch`  (\e -> do let libf = Config.libDir clo ++ "/" ++ f
+                                                                                 ifc <- decodeCFile libf
+                                                                                 putStrLn ("[reading " ++ show libf ++ "]")
+                                                                                 return (ifc,libf))
 

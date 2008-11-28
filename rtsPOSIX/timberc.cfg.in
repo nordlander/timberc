@@ -2,5 +2,4 @@ CfgOpts
       { cCompiler = "@CC@ -DPOSIX"
       , compileFlags = " -c @CFLAGS@ "
       , linkFlags = " @LDFLAGS@ "
-      , browser = "@TIBROWSER@ "
       }
