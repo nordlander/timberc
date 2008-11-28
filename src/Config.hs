@@ -183,9 +183,11 @@ instance Exception.Exception TimbercException
 cmdLineOpts          :: [String] -> IO (CmdLineOpts,[String])
 cmdLineOpts args     = do globalCfgFile <- System.getEnv "TIMBER_CFG" `catch` (\_ -> return "/etc/timberc")
                           globalCfg <- readFile globalCfgFile `catch` (\_ -> return "")
+                          pager <- System.getEnv "PAGER" `catch` (\_ -> return "")
+                          let pagerCfg = if null pager then "" else "--pager " ++ pager
                           userCfgFile <- System.getEnv "HOME" `catch` (\_ -> return "")
                           userCfg <- readFile (userCfgFile ++ "/.timberc") `catch` (\_ -> return "")
-                          case getOpt Permute options (args ++ words userCfg ++ words globalCfg) of
+                          case getOpt Permute options (args ++ words userCfg ++ words pagerCfg ++ words globalCfg) of
                             (flags,n,[]) 
                               | Help `elem` flags -> do 
                                   msg <- helpMsg
