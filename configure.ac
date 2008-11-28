@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.59)
 AC_INIT([timberc], [0.9.9], [nordland@csee.ltu.se])
-AC_CONFIG_SRCDIR([Main.hs])
+AC_CONFIG_SRCDIR([Setup.lhs])
 AC_CONFIG_HEADERS([config.h])
 
 # Checks for programs.
