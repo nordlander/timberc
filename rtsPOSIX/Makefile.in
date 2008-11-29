@@ -10,10 +10,11 @@ OBJS         = $(TIMBERLIBS:.t=.o)
 DEST         = libTimber.a
 
 all: 
-	echo -n "Run make install to install and build this RTS."
-	echo "Run make $(DEST) to build this RTS in-place."
-	echo "Notice that building in-place requires the RTS to reside in"
-	echo "an installed timberc tree."
+	@printf "Run make install to install and build this RTS.\n\n"
+	@printf "Run make $(DEST) to build this RTS in-place.\n"
+	@printf "Notice that building in-place requires the RTS to reside in\n"
+	@printf "an installed timberc tree.\n\n"
+
 
 $(DEST): $(OBJS) rts.o
 	ar rc $(DEST) $(OBJS) rts.o
