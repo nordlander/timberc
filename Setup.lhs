@@ -1,12 +1,25 @@
 #! /usr/bin/env runhaskell
+
  
 > import System.Cmd
 > import System.FilePath
 
+> import Distribution.Simple.UserHooks
+> import Distribution.Simple.Setup
+> import Distribution.Simple.Command
+> import Distribution.Simple.Utils ( rawSystemExit )
 > import Distribution.Simple -- (defaultMainWithHooks, autoconfUserHooks)
 > import Distribution.Simple.InstallDirs  (CopyDest(..))
 > import Distribution.Simple.LocalBuildInfo (absoluteInstallDirs, InstallDirs(..) )
-> main = defaultMainWithHooks autoconfUserHooks { postInst = myPostInst }
+> main = defaultMainWithHooks autoconfUserHooks { postConf = myPostConf, postInst = myPostInst }
+
+> myPostConf args flags _ _
+>  = do let verbosity = fromFlag (configVerbosity flags)
+>           confExists = True
+>       if confExists
+>           then rawSystemExit verbosity "sh" $ "cd rtsPOSIX && ./configure"
+>                          : configureArgs False flags
+>           else error "configure script not found."
 
 > myPostInst args iflags pkg_descr lbi = do
 >    let dirs = absoluteInstallDirs pkg_descr lbi NoCopyDest
