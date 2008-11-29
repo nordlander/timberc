@@ -39,6 +39,7 @@ module Config (
 
 
 import Char
+import System.IO.Unsafe ( unsafePerformIO )
 import System.Console.GetOpt
 import System                 ( getArgs, getEnv, getProgName )
 import qualified Control.Exception as Exception ( throwIO, Exception )
@@ -214,7 +215,8 @@ helpMsg              = do pgm <- getProgName
 
 mkCmdLineOpts        :: [Flag] -> CmdLineOpts
 mkCmdLineOpts flags  =  CmdLineOpts { isVerbose = find Verbose,
-                                      datadir   = first "/usr/local/share/timberc/"
+-- XXXpj: This will *NOT* work on Windows. We need to enter IO.
+                                      datadir   = first (unsafePerformIO getDataDir)
                                                   [ dir | (Datadir dir) <- flags ],
                                       target    = first "POSIX"
                                                   [ target | (Target target) <- flags ],
