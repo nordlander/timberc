@@ -36,8 +36,9 @@ data-files:          examples/Counter.t,
                      lib/Data.Objects.Stack.t, 
                      lib/POSIX.t,
                      lib/Prelude.t,
-                     lib/RandomGenerator.t,
-                     rtsPOSIX/Makefile
+                     lib/RandomGenerator.t
+
+extra-source-files:  rtsPOSIX/Makefile.in,
                      rtsPOSIX/cyclic.c,
                      rtsPOSIX/env.c,
                      rtsPOSIX/env.h,
@@ -45,7 +46,7 @@ data-files:          examples/Counter.t,
                      rtsPOSIX/main.c,
                      rtsPOSIX/rts.c,
                      rtsPOSIX/rts.h,
-                     rtsPOSIX/timberc.cfg,
+                     rtsPOSIX/timberc.cfg.in,
                      rtsPOSIX/timer.c
 
 
