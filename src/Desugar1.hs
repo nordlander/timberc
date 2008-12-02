@@ -10,7 +10,6 @@ import Depend
 import PP
 
 desugar1 e0 (Module c is ds ps)  = do let (env,expInfo) = mkEnv c (ds ++ ps) e0
---                                      tr show(sels env))
                                       ds' <- dsDecls env ds
                                       ps' <- dsDecls env {isPublic = False} ps
                                       return (Module c is ds' ps',expInfo)
@@ -45,7 +44,7 @@ env0 ss                       = Env { sels = [], self = Nothing, selSubst = [], 
 
 
 mkEnv c ds (rs,rn,ss)           = (env {sels = map transClose recEnv, modName = Just(str c), selSubst = rnSels },
-                                   (closeRecEnvLoc,tsynsLoc))
+                                   (map (\(n,ss) -> (qName (str c) n,ss)) closeRecEnvLoc,tsynsLoc))
   where (env,ssLoc)             = tsynE (env0 ss) [] tsynDecls
         tsynsLoc                = map (\(n,y) -> (n {fromMod = Just (str c)},y)) ssLoc
         recEnvLoc               = [ (c,(map type2head ts, concat (map sels ss))) | DRec _ c _ ts ss <- ds ] 
