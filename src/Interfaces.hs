@@ -15,6 +15,7 @@ import qualified Config
 import System
 import Codec.Compression.BZip 
 import qualified Data.ByteString.Lazy
+import Directory
 
 decodeCFile ti_file     = do str <- Data.ByteString.Lazy.readFile ti_file
                              return(decode(decompress str)) 
@@ -181,11 +182,22 @@ sV (n,t@(Scheme rh ps ke))            = case zip (filter isGenerated (idents (Sc
                                           s ->  (n,subst s t) 
 
 listIface clo f                   = do (ifc,f) <- decodeModule clo f
-                                       writeAPI f ifc
+                                       --writeAPI f ifc
                                        let modul = rmSuffix ".ti" f
                                            htmlfile = modul++".html"
-                                       writeAPI modul ifc
-                                       system (Config.pager clo ++" " ++ htmlfile)
+                                       res <- checkUpToDate f htmlfile
+                                       if not res then do
+                                          writeAPI modul ifc
+                                          system (Config.pager clo ++" " ++ htmlfile)
+                                        else system (Config.pager clo ++" " ++ htmlfile)
+  where checkUpToDate tiFile htmlFile = do html_exists <- Directory.doesFileExist htmlFile
+                                           if not html_exists then
+                                              return False
+                                            else do
+                                              ti_time  <- Directory.getModificationTime tiFile
+                                              html_time  <- Directory.getModificationTime htmlFile
+                                              return (ti_time <= html_time)
+
 
 writeAPI modul ifc             = writeFile (modul ++ ".html") (render(toHTML modul (ifc :: IFace)))
 
