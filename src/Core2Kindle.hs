@@ -106,18 +106,21 @@ findClosureType env vs ts t         = do ds <- currentStore
 openClosureType (Kindle.TCon n ts)
   | isClosure n                     = do ds <- currentStore
                                          let Kindle.Struct vs te _ = lookup' ds n
-                                             Kindle.FunT vs' ts' t' = lookup' te (prim Code)
+                                             Kindle.FunT [] ts' t' = lookup' te (prim Code)
                                              s = vs `zip` ts
-                                         return (vs', subst s ts', subst s t')
+                                         return (subst s ts', subst s t')
 openClosureType t                   = internalError "Core2Kindle.openClosureType" t
 
 
-splitClosureType 0 t0               = return ([], t0)
-splitClosureType n t0               = do ([],ts,t) <- openClosureType t0
-                                         (tss,t1) <- splitClosureType (n - length ts) t
-                                         return (ts:tss, t1)
-
-                                         
+splitClosureType env 0 t0           = return ([], t0)
+splitClosureType env n t0           = do (ts,t) <- openClosureType t0
+                                         let n' = n - length ts
+                                         if n' >= 0 then do
+                                             (tss,t1) <- splitClosureType env n' t
+                                             return (ts:tss, t1)
+                                          else 
+                                             return ([], t0)
+                                             
                                          
 -- =========================================================================================
 -- Translation entry point
@@ -300,9 +303,52 @@ cEq env te (x,e)                        = case lookup' te x of
 
 
 -- Translate a Core.Exp with a known type into a Kindle.Exp
-cValExpT env t e                        = do (bf,t0,e) <- cValExp env e
-                                             -- check that t == t0 here
-                                             return (bf, e)
+cValExpT env t e                        = do (bf,t',e') <- cValExp env e
+                                             e'' <- adaptClos env [] t [] t' e'
+                                             return (bf, e'')
+                                                 
+
+adaptClos env [] t0 [] t1 e
+  | t0 == t1                            = return e                                                                  -- A
+adaptClos env xs t0 [] t1 e             = do (ts,t1) <- openClosureType t1
+                                             adaptClos env xs t0 ts t1 e                                            -- B
+adaptClos env xs t0 ts t1 e
+  | length xs >= length ts              = adaptClos env xs2 t0 [] t1 (Kindle.enter e [] (map Kindle.EVar xs1))      -- C
+  | otherwise                           = do (ts',t') <- openClosureType t0
+                                             te <- newEnv paramSym ts'
+                                             e' <- adaptClos env (xs ++ dom te) t' ts t1 e
+                                             return (Kindle.closure t0 t' te (Kindle.CRet e'))                      -- D
+  where (xs1,xs2)                       = splitAt (length ts) xs
+        (ts1,ts2)                       = splitAt (length xs) ts
+
+
+-- []         (s1 s2 s3 -> s4 -> s5 -> s0)   []         (t1 t2 -> t3 t4 t5 -> t0)      e                             =                          B
+-- []         (s1 s2 s3 -> s4 -> s5 -> s0)   t1 t2      (t3 t4 t5 -> t0)               e                             C (s1 x1, s2 x2, s3 x3) =  D
+-- x1 x2 x3   (s4 -> s5 -> s0)               t1 t2      (t3 t4 t5 -> t0)               e                             =                          C
+-- x3         (s4 -> s5 -> s0)               []         (t3 t4 t5 -> t0)               e->C(x1,x2)                   =                          B
+-- x3         (s4 -> s5 -> s0)               t3 t4 t5   t0                             e->C(x1,x2)                   C (s4 x4) =                D
+-- x3 x4      (s5 -> s0)                     t3 t4 t5   t0                             e->C(x1,x2)                   C (s5 x5) =                D
+-- x3 x4 x5   s0                             t3 t4 t5   t0                             e->C(x1,x2)->C(x3,x4,x5)      =                          C
+-- []         s0                             []         t0                             e->C(x1,x2)->C(x3,x4,x5)      =                          A
+
+-- new Code (s1 x1, s2 x2, s3 x3) { ret new Code (s4 x4) { ret new Code (s5 x5) { ret e->Code(x1,x2)->Code(x3,x4,x5) }}}
+
+
+-- []         (s1 s2 -> s3 s4 s5 -> s0)      []         (t1 t2 t3 -> t4 -> t5 -> t0)   e                             =                          B
+-- []         (s1 s2 -> s3 s4 s5 -> s0)      t1 t2 t3   (t4 -> t5 -> t0)               e                             C (s1 x1, s2 x2) =         D
+-- x1 x2      (s3 s4 s5 -> s0)               t1 t2 t3   (t4 -> t5 -> t0)               e                             C (s3 x3, s4 x4, s5 x5) =  D
+-- x1 .. x5   s0                             t1 t2 t3   (t4 -> t5 -> t0)               e                             =                          C
+-- x4 x5      s0                             []         (t4 -> t5 -> t0)               e->C(x1,x2,x3)                =                          B
+-- x4 x5      s0                             t4         (t5 -> t0)                     e->C(x1,x2,x3)                =                          C
+-- x5         s0                             []         (t5 -> t0)                     e->C(x1,x2,x3)->C(x4)         =                          B
+-- x5         s0                             t5         t0                             e->C(x1,x2,x3)->C(x4)         =                          C
+-- []         s0                             []         t0                             e->C(x1,x2,x3)->C(x4)->C(x5)  =                          A
+
+-- s1 s2 -> s3 s4 s5 -> s0   || t1 t2 t3 -> t4 -> t5 -> t0
+-- new Code (s1 x1, s2 x2) { ret new Code (s3 x3, s4 x4 s5 x5) { ret e->Code(x1, x2, x3)->Code(x4)->Code(x5) }}
+
+
+
                                              
 cValExpTs env [] []                     = return (id, [])
 cValExpTs env (t:ts) (e:es)             = do (bf,e) <- cValExpT env t e
@@ -316,7 +362,7 @@ cFunN env n e                           = do (vs,te,t,c) <- cFun0 env e
                                              return (vs, te, t, c)
   where adapt te t c
           | n == l_te                   = return (te, t, c)
-          | n >  l_te                   = do (tss,t') <- splitClosureType (n - l_te) t
+          | n >  l_te                   = do (tss,t') <- splitClosureType env (n - l_te) t
                                              te' <- newEnv paramSym (concat tss)
                                              return (te++te', t', Kindle.cmap (Kindle.multiEnter tss (map Kindle.EVar (dom te'))) c)
           | n <  l_te                   = do t1 <- findClosureType env [] (rng te2) t
@@ -438,7 +484,7 @@ cRhs cBdy env n te e
                                              t' <- findClosureType env [] (rng te2) t
                                              return (te1, t', rcomp (Kindle.CRet . Kindle.closure t' t te2) r)
   | n > l_te                            = do (t,r) <- cBdy env e
-                                             (tss,t') <- splitClosureType (n - l_te) t
+                                             (tss,t') <- splitClosureType env (n - l_te) t
                                              te' <- newEnv paramSym (concat tss)
                                              let f = Kindle.multiEnter tss (map Kindle.EVar (dom te'))
                                              return (te++te', t', rcomp (Kindle.cmap f) r)
@@ -510,12 +556,12 @@ cCase cE env e alts                     = do (bf,t0,e0) <- cValExp env e
 adaptR env 0 (t0, ValR c)               = return (t0, ValR c)
 adaptR env n (t0, FunR f ts)
   | n == l_ts                           = return (t0, FunR f ts)
-  | n > l_ts                            = do (tss,t) <- splitClosureType (n - l_ts) t0
+  | n > l_ts                            = do (tss,t) <- splitClosureType env (n - l_ts) t0
                                              return (t, FunR (g tss) (ts ++ concat tss))
   where l_ts                            = length ts
         g tss es                        = let (es1,es2) = splitAt l_ts es
                                           in Kindle.cmap (Kindle.multiEnter tss es2) (f es1)
-adaptR env n (t0, ValR c)               = do (tss,t) <- splitClosureType n t0
+adaptR env n (t0, ValR c)               = do (tss,t) <- splitClosureType env n t0
                                              return (t, FunR (g tss) (concat tss))
   where g tss es                        = Kindle.cmap (Kindle.multiEnter tss es) c
 
@@ -680,12 +726,12 @@ cExp env (ERec c eqs)                   = do (bf,bs) <- cEqs (setTArgs env []) t
 cExp env (EAp e0 [e])
   | isPrim ActToCmd e0                  = do (bf,t,e) <- cValExp env (EAp e [EVar (prim Inherit), EVar (prim Inherit)])
                                              [t1] <- cTArgs env e0
-                                             return (bf, t, FunR (\_ -> e) [t1])
+                                             return (bf, t, FunR (\_ -> e) [Kindle.tRef t1])
   | isPrim ReqToCmd e0                  = do (bf,t,e) <- cValExp env (EAp e [ELit (lInt 0)])
                                              [t1,t2] <- cTArgs env e0
-                                             return (bf, t, FunR (\_ -> e) [t2])
-  | Just t <- isCastPrim e0             = do (bf,t,e) <- cExp env e
-                                             return (bf, t, rcomp (Kindle.ECast t) e)
+                                             return (bf, t, FunR (\_ -> e) [Kindle.tRef t2])
+  | Just t <- isCastPrim e0             = do (bf,_,e') <- cExp env e
+                                             return (bf, t, rcomp (Kindle.ECast t) e')
   | isPrim RefToPID e0                  = do (bf,t,e) <- cExp env e
                                              return (bf, Kindle.tPID, rcomp (Kindle.ECast Kindle.tPID) e)
   | isPrim New e0                       = cExp env (EAp e [ELit (lInt 0)])       -- Can't occur but in CBind rhs, syntactic restriction
@@ -703,7 +749,7 @@ cExp env (EAp e es)
                                              appFun env bf t f ts es
   where appFun env bf t f ts es
           | l_ts <  l_es                = do (bf',es1) <- cValExpTs env ts es1
-                                             (vs,ts',t') <- openClosureType t 
+                                             (ts',t') <- openClosureType t 
                                              appFun env (bf . bf') t' (Kindle.enter (f es1) []) ts' es2
           | l_ts == l_es                = do (bf',es) <- cValExpTs env ts es
                                              return (bf . bf', t, ValR (f es))
@@ -765,7 +811,7 @@ cValExp env e                           = do (bf,t,h) <- cExp env e
 cFunExp env e                           = do (bf,t,h) <- cExp env e
                                              case h of
                                                FunR f ts -> return (bf, t, f, ts)
-                                               ValR e' -> do ([],ts,t') <- openClosureType t
+                                               ValR e' -> do (ts,t') <- openClosureType t
                                                              return (bf, t', Kindle.enter e' [], ts)
  
 

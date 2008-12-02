@@ -132,7 +132,7 @@ void  CYCLIC_END(Array, ADDR stop);
 POLY primRefl(BITS32,POLY);
 
 TIMERTYPE primTIMERTERM(Int x);
-UNITTYPE ABORT(BITS32,Msg msg,POLY x);
+UNITTYPE ABORT(BITS32,Msg msg,Ref x);
 
 LIST primShowFloat(Float x);
 LIST getStr(char *p) ;

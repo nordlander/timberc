@@ -204,7 +204,7 @@ primTEnv                                = primTEnv0 ++ map cv (Env.primTypeEnv `
 
 -- Primitive names only visible after translation into Kindle
 primTEnv0                               = (prim TIMERTERM,  FunT []  [tInt] (tId TIMERTYPE)) :
-                                          (prim Abort,      FunT [a] [tMsg,ta] tUNIT) :
+                                          (prim Abort,      FunT [a] [tMsg, tRef ta] tUNIT) :
                                           
                                           (prim NEWREF,     FunT [a] [ta] (tRef ta)) :
                                           (prim STATEOF,    FunT [a] [tRef ta] ta) :

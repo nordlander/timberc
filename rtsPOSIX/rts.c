@@ -170,7 +170,7 @@ Msg dequeue(Msg *queue) {
         return m;
 }
 
-UNITTYPE ABORT(BITS32 polytag, Msg m, POLY dummy){
+UNITTYPE ABORT(BITS32 polytag, Msg m, Ref dummy){
     m->Code = NULL;
     ADDR info;
     do {
