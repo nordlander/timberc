@@ -24,5 +24,9 @@
 >        dataDir = datadir dirs
 >        timberc = bindir dirs </> "timberc"
 >    buildRTS timberc dataDir
+>    system ("echo \"--datadir " ++ dataDir ++ " --target POSIX\" > " ++ dataDir ++ "/examples/timber")
+>    putStr "\n\n\nNOTICE:\n\n"
+>    putStr ("Copy and edit " ++ dataDir ++ "/examples/timberc to")
+>    putStr "/etc/timberc or ~/.timberc in order to configure the timber compiler\n\n"
 >    return ()
 
