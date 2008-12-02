@@ -55,22 +55,23 @@ Furthermore, the sonar is supposed to sound every 3 seconds, and the deadline fo
 to off-limit measurements is 5 milliseconds. These specifications look as  follows when 
 translated into Timber code:
 <pre> 
-sonar port alarm critical = <strong>class</strong>
-    tm = <strong>new</strong> timer
-    count := 0
-    ping = <strong>before</strong> (microsec 50) <strong>action</strong>
-        port.write beep_on
-        tm.reset
-        <strong>after</strong> (millisec 2) stop
-        <strong>after</strong> (sec 3) ping
-    stop = <strong>before</strong> (microsec 50) <strong>action</strong>
-        port.write beep_off
-    echo = <strong>before</strong> (millisec 5) <strong>action</strong>
-        diff &lt;- tm.sample
-        <strong>if</strong> critical diff <strong>then</strong>
-            count := count + 1
-            alarm count
-    <strong>result</strong> { interrupt = echo, start = ping }
+sonar port alarm critical =
+   <strong>class</strong>
+      tm = <strong>new</strong> timer
+      count := 0
+      ping = <strong>before</strong> (microsec 50) <strong>action</strong>
+                port.write beep_on
+                tm.reset
+                <strong>after</strong> (millisec 2) stop
+                <strong>after</strong> (sec 3) ping
+      stop = <strong>before</strong> (microsec 50) <strong>action</strong>
+                port.write beep_off
+      echo = <strong>before</strong> (millisec 5) <strong>action</strong>
+                diff &lt;- tm.sample
+                <strong>if</strong> critical diff <strong>then</strong>
+                    count := count + 1
+                    alarm count
+      <strong>result</strong> { interrupt = echo, start = ping }
 
 </pre>
 <p>The header <tt>sonar port alarm critical</tt> here defines function <tt>sonar</tt> to take 
@@ -87,7 +88,7 @@ the last timer reset to be measured. This is utilized in method <tt>echo</tt>, w
 time since the last invocation of <tt>ping</tt> (bound to differ from the beep emission by 
 at most 50 microseconds) is sampled and analyzed to determine if an alarm should be sent. 
 When this happens, the provided alarm method is given the accumulated alarm count as an 
-argument. Notice how each <tt>ping </tt>causes two future events to be triggered: one call 
+argument. Notice how each <tt>ping</tt> causes two future events to be triggered: one call 
 to <tt>stop</tt> 2 milliseconds from the current baseline, and a recursive invocation of 
 <tt>ping</tt> itself after 3 seconds to keep the periodic sonar activity alive.
 <p>
