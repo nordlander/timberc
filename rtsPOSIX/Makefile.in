@@ -20,7 +20,7 @@ $(DEST): $(OBJS) rts.o
 	ar rc $(DEST) $(OBJS) rts.o
 
 $(OBJS): %.o: ../lib/%.t ../include/timber.h
-	$(TIMBERC) --target POSIX -c $<
+	$(TIMBERC) --target POSIX --api -c $<
 
 rts.o: rts.c cyclic.c gc.c env.c env.h timer.c rts.h ../include/timber.h ../include/timber.c ../include/float.c
 	$(CC) $(CFLAGS) -Wall -O2 -fno-strict-aliasing -g -I../include -I../lib -I. -c rts.c
