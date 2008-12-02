@@ -81,7 +81,6 @@ Executable timberc
                      Lexer,
                      Match,
                      Name,
-                     Paths_timberc,
                      ParseMonad,
                      Parser,
                      PP,
