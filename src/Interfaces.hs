@@ -13,12 +13,6 @@ import qualified Kindle
 import Termred
 import qualified Config
 import System
-{-
-If you have Codec.Compression.BZip installed, you may replace definitions of decodeCFile and encodeCFile with the ones in this 
-comment.
-
-This will compress interface files, giving a 90% reduction in size with negligible runtime penalty.
-
 import Codec.Compression.BZip 
 import qualified Data.ByteString.Lazy
 
@@ -26,11 +20,14 @@ decodeCFile ti_file     = do str <- Data.ByteString.Lazy.readFile ti_file
                              return(decode(decompress str)) 
 
 encodeCFile ti_file ifc =  Data.ByteString.Lazy.writeFile ti_file (compress(encode ifc))
--}
+
+{-
+Reading/writing ti files without compression.
+
 decodeCFile ti_file     = decodeFile ti_file
 
 encodeCFile ti_file ifc = encodeFile ti_file ifc
-
+-}
 
 -- Data type of interface file -----------------------------------------------
 
