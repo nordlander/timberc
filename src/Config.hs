@@ -39,14 +39,13 @@ module Config (
 
 
 import Char
-import System.IO.Unsafe ( unsafePerformIO )
 import System.Console.GetOpt
 import System                 ( getArgs, getEnv, getProgName )
 import qualified Control.Exception as Exception ( throwIO, Exception )
 import Data.Dynamic
 
--- Cabal Configuration
-import Paths_timberc
+
+versionString = "The Timber compiler, version 1.0.1"
 
 -- | Contains the configuration for the compiler with the current
 -- command line switches.
@@ -182,19 +181,18 @@ instance Show TimbercException where
 instance Exception.Exception TimbercException
 
 cmdLineOpts          :: [String] -> IO (CmdLineOpts,[String])
-cmdLineOpts args     = do globalCfgFile <- System.getEnv "TIMBER_CFG" `catch` (\_ -> return "/etc/timberc")
-                          globalCfg <- readFile globalCfgFile `catch` (\_ -> return "")
-                          pager <- System.getEnv "PAGER" `catch` (\_ -> return "")
-                          let pagerCfg = if null pager then "" else "--pager " ++ pager
-                          userCfgFile <- System.getEnv "HOME" `catch` (\_ -> return "")
-                          userCfg <- readFile (userCfgFile ++ "/.timberc") `catch` (\_ -> return "")
-                          case getOpt Permute options (args ++ words userCfg ++ words pagerCfg ++ words globalCfg) of
+cmdLineOpts args     = do pager <- System.getEnv "PAGER" `catch` (\_ -> return "")
+                          let pagerOpt = if null pager then [] else ["--pager", pager]
+                          home <- System.getEnv "HOME" `catch` (\_ -> return "")
+                          cfgFile <- System.getEnv "TIMBERC_CFG" `catch` (\_ -> return (home ++ "/.timberc"))
+                          cfgOpts <- readFile cfgFile `catch` (\_ -> return "")
+                          case getOpt Permute options (args ++ words cfgOpts ++ pagerOpt) of
                             (flags,n,[]) 
                               | Help `elem` flags -> do 
                                   msg <- helpMsg
                                   Exception.throwIO (CmdLineError msg)
                               | Version `elem` flags ->
-                                  Exception.throwIO (CmdLineError "version...?")
+                                  Exception.throwIO (CmdLineError versionString)
                               | PrintDatadir `elem` flags ->
                                   Exception.throwIO (CmdLineError (datadir (mkCmdLineOpts flags)))
                               | otherwise -> 
@@ -215,8 +213,7 @@ helpMsg              = do pgm <- getProgName
 
 mkCmdLineOpts        :: [Flag] -> CmdLineOpts
 mkCmdLineOpts flags  =  CmdLineOpts { isVerbose = find Verbose,
--- XXXpj: This will *NOT* work on Windows. We need to enter IO.
-                                      datadir   = first (unsafePerformIO getDataDir)
+                                      datadir   = first ""
                                                   [ dir | (Datadir dir) <- flags ],
                                       target    = first "POSIX"
                                                   [ target | (Target target) <- flags ],
