@@ -517,13 +517,16 @@ sgdcaserhs :: { GExp [Stmt] }
 -- Statement sequences -----------------------------------------------------------
 
 stmtlist :: { [Stmt] }
-        : '{' layout_off stmts '}'              { reverse $3 }
-        | layout_on stmts close                 { reverse $2 }
+        : '{' layout_off stmts0 '}'             { reverse $3 }
+        | layout_on stmts0 close                { reverse $2 }
+
+stmts0  :: { [Stmt] }
+	: stmts					{ $1 }
+	| {- empty -}				{ [] }
 
 stmts   :: { [Stmt] }
         : stmts ';' stmt                        { $3 : $1 }
         | stmt                                  { [$1] }
-	| {- empty -}				{ [] }
 
 stmt    :: { Stmt }
         : pat '<-' exp                          { SGen $1 $3 }
