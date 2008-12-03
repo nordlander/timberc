@@ -325,6 +325,14 @@ fromLeft (Left x)   = x
 
 type String         = [Char]
 
+-- Tuples --------------------------------------------------
+
+fst                :: (a,b) -> a
+fst (x,_)           = x
+
+snd                :: (a,b) -> b
+snd (_,x)           = x
+
 -- List functions ------------------------------------------
 
 head               :: [a] -> a
