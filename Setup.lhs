@@ -16,6 +16,7 @@
 
 > buildRTS timberc dataDir
 >  = do 
+>       system("cd rtsPOSIX && chmod +x configure")
 >       system("cd rtsPOSIX && ./configure --prefix=" ++ dataDir ++ " --with-timberc=" ++ timberc)
 >       system("cd rtsPOSIX && make install")
 >       return ()
