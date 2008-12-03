@@ -46,7 +46,7 @@ root env = <b>class</b>
                         print "Wait..."
                         state := Waiting msg
                  
-        Holding msg ->  <b>abort</b> msg
+        Waiting msg ->  <b>abort</b> msg
                         print "Cheat!!!"
                         state := Idle
 

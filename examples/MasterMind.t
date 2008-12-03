@@ -20,12 +20,10 @@ type Guess = [Colour]
 
 data Answer = Answer Int Int
 
-instance showAnswer :: Show Answer
-showAnswer = struct
+instance showAnswer :: Show Answer where
    show (Answer e n) = show e ++ " " ++ show n
 
-instance showGuess :: Show Guess
-showGuess = struct
+instance showGuess :: Show Guess where
   show ss = unwords (map show ss)
 
 type Board = [(Guess,Answer)]

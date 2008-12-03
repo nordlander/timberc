@@ -58,12 +58,10 @@ We only note a few things:
 
 <b>data</b> Answer = Answer Int Int
 
-<b>instance</b> showAnswer :: Show Answer
-showAnswer = <b>struct</b>
+<b>instance</b> showAnswer :: Show Answer <b>where</b>
    show (Answer e n) = show e ++ " " ++ show n
 
-<b>instance</b> showGuess :: Show Guess
-showGuess = <b>struct</b>
+<b>instance</b> showGuess :: Show Guess <b>where</b>
   show ss = unwords (map show ss)
 
 <b>type</b> Board = [(Guess,Answer)]
@@ -123,9 +121,6 @@ root env = <b>class</b>
   startGame = <b>do</b>
     board := []
     cs := []
-    t <- env.getTime
-    g = <b>new</b> baseGen (microsecOf t)
-    gen := Just g
     env.stdout.write 
           "Choose your secret. Press return when ready.\n"
     state := Idle
