@@ -1,5 +1,3 @@
-{-# LANGUAGE  FlexibleInstances #-}
-
 -- The Timber compiler <timber-lang.org>
 --
 -- Copyright 2008 Johan Nordlander <nordland@csee.ltu.se>
@@ -33,59 +31,70 @@
 -- ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 -- POSSIBILITY OF SUCH DAMAGE.
 
-module PP (module PP, module Text.PrettyPrint) where
+module ParseMonad where
 
-import Text.PrettyPrint hiding (TextDetails(..))
-import Char(showLitChar)
+import Common
+
+data ParseResult a
+    = Ok ParseState a
+    | Failed String
+      deriving Show
+
+type ParseState = [LexContext]
+
+data LexContext
+    = NoLayout
+    | Layout Int
+    | RecLayout Int
+      deriving (Eq, Ord, Show)
+
+newtype PM a 
+    =  PM (String		-- input string
+          -> (Int,Int)		-- location of last token read (row,col)
+	  -> Int		-- current column
+	  -> ParseState   	-- layout info
+	  -> ParseResult a)
+
+unPM (PM p) = p
+
+instance Monad PM where
+    (>>=)	= thenPM
+    return 	= returnPM
+    fail  	= failPM
+
+m `thenPM` k	= PM $ \i l c s -> 
+                    case (unPM m) i l c s of 
+                        Failed s -> Failed s
+                        Ok s' a  -> case k a of PM k' -> k' i l c s'
+returnPM a	= PM $ \i l c s -> Ok s a
+failPM a 	= PM $ \i l c s -> Failed a
+
+runPM (PM p) i l c s =
+    case p i l c s of
+        Ok _ a -> a
+	Failed err -> error err
+
+runPM2 (PM p) input =
+    case p input (1,1) 0 [] of
+        Ok _ result -> return result
+        Failed msg  -> fail msg
+
+getSrcLoc :: PM (Int,Int)
+getSrcLoc = PM $ \i l c s -> Ok s l
+
+pushContext :: LexContext -> PM ()
+pushContext ctxt =
+    PM $ \i l c s -> Ok (ctxt:s) ()
 
 
-class Pr a where
-    pr   :: a -> Doc
-    pr x = prn 0 x
-
-    prn  :: Int -> a -> Doc
-    prn n x = pr x
-
-    vpr  :: [a] -> Doc
-    vpr xs = vcat (map pr xs)
-
-    hpr  :: Char -> [a] -> Doc
-    hpr c xs = sep (punctuate (char c) (map pr xs))
-
-    dump :: a -> IO ()
-    dump x = putStr (render (pr x))
+popContext :: PM ()
+popContext = PM $ \i loc c stk ->
+    case stk of
+    (_:s) -> Ok s ()
+    []    -> Failed $ show loc ++
+                      ": parse error (possibly incorrect indentation)"
 
 
-instance Pr Int where 
-  pr = int
-
--- XXX Is this correct?
--- AJG It is needed by Main, but it looks wrong.
-
-instance Pr (String, String) where
-    pr (a, b) = text a <> text b
-
-infixl 4 $$$
-a $$$ b       = a $$ text " " $$ b
-
-vcat2 xs      = vcat (map ($$ text " ") xs)
-
-backQuotes p  = char '`'  <> p <> char '`'
-litChar       = charQuotes . text . lit
-litString     = doubleQuotes . text . concat . map lit
-lit c         = showLitChar c ""
-charQuotes p  = char '\'' <> p <> char '\''
-curlies       = braces
-
-commasep f xs = sep (punctuate comma (map f xs))
-
-
-show' :: Pr a => a -> String
-show' = render . pr
-
-vshow :: Pr a => [a] -> String
-vshow = render . vpr
-
-showlist :: Pr a => [a] -> String
-showlist xs = render (text "(" <> hpr ',' xs <> text ")")
-
+parseError :: String -> PM a
+parseError err =
+    PM $ \r (l,c) -> (unPM $ fail $ "Syntax error at line "++show l++", column "++show c++ "\n") r (l,c)
