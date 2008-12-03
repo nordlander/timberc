@@ -23,6 +23,42 @@ CC="$PTHREAD_CC"
 CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
 LIBS="$PTHREAD_LIBS $LIBS"
 
+# Make sure that we have realtime-threads extension so we can build with
+# the mutex protocol etc. This requires _GNU_SOURCE=1 on most Linux
+# ditrubutions (see features.h for more info).
+AC_MSG_CHECKING([pthread realtime-threads extension])
+AC_COMPILE_IFELSE(
+	[AC_LANG_PROGRAM([[#include <pthread.h>]],
+		[[pthread_mutexattr_setprotocol(NULL, PTHREAD_PRIO_INHERIT);]]
+	)],
+	[need_gnu_source=no],
+	[need_gnu_source=yes]
+	)
+if test "${need_gnu_source}"x = "yes"x
+then
+	CFLAGS="${CFLAGS} -D_GNU_SOURCE=1"
+fi
+
+# Just make sure that the program actually compiles now.
+AC_COMPILE_IFELSE(
+	[AC_LANG_PROGRAM([[#include <pthread.h>]],
+		[[pthread_mutexattr_setprotocol(NULL, PTHREAD_PRIO_INHERIT);]]
+	)],
+	[AC_MSG_RESULT([yes])],
+	[AC_MSG_FAILURE([no])]
+	)
+
+# Moving swiftly on to the S_IWUSR etc. flags that are also required 99%
+# of the times. _GNU_SOURCE will enable this but let's not take any chances.
+AC_MSG_CHECKING([sys/stat.h header sanity])
+AC_COMPILE_IFELSE(
+	[AC_LANG_PROGRAM([[#include <sys/stat.h>]],
+		[[open("", S_IWUSR|S_IRUSR|S_IRGRP|S_IROTH);]]
+	)],
+	[AC_MSG_RESULT([yes])],
+	[AC_MSG_FAILURE([no])]
+	)
+
 AC_ARG_WITH(timberc,
 [AC_HELP_STRING([--with-timberc[=DIR]], [Path to timberc])],
 [with_timberc=$withval]
