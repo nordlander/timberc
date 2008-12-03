@@ -9,7 +9,12 @@ instance intBITS16 :: IntLiteral BITS16 where
 
 instance intBITS8 :: IntLiteral BITS8 where
     fromInt = primIntToBITS8
+
     
+default intInt < intBITS8
+default intInt < intBITS16
+default intInt < intBITS32
+
 typeclass ToInt a where
     toInt :: a -> Int
 
