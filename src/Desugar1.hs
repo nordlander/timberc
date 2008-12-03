@@ -289,17 +289,17 @@ ds1S env (SIf e ss' : ss)        = doIf (EIf e (eDo env ss')) ss
         doIf f ss                = doIf f (SElse [] : ss)
 ds1S env (s@(SElsif _ _) : _)    = errorTree "elsif without corresponding if" s
 ds1S env (s@(SElse _) : _)       = errorTree "else without corresponding if" s
-ds1S env (SForall q ss' : ss)    = ds1S env (SExp (ds1Forall env q ss') : ss) -- error "forall stmt not yet implemented"
+ds1S env (SForall q ss' : ss)    = ds1S env (SExp (ds1Forall env q ss') : ss)
 ds1S env (SWhile e ss' : ss)     = internalError0 "while stmt not yet implemented"
 
 ds1Forall env [] ss              = eDo env ss
 ds1Forall env (QLet bs : qs) ss  = ELet bs (eDo env [SForall qs ss])
 ds1Forall env (QGen p (ESeq e1 Nothing e3) : qs) ss
-                                 = EAp (EAp (EAp (EVar (name' "forallSeq" p)) (ELam [p] (eDo env [SForall qs ss]))) e1) e3
+                                 = EAp (EAp (EAp (EVar (name' "forallSeq" p)) (ELam [p] (ds1Forall env qs ss))) e1) e3
 ds1Forall env (QGen p (ESeq e1 (Just e2) e3) : qs) ss
-                                 = EAp (EAp (EAp (EAp (EVar (name' "forallSeq1" p)) (ELam [p] (eDo env [SForall qs ss]))) e1) e2) e3
-ds1Forall env (QGen p e : qs) ss = EAp (EAp (EVar (name' "forallList" p)) (ELam [p] (eDo env [SForall qs ss]))) e
-ds1Forall env (QExp e : qs) ss   = EIf e (eDo env [])  (eDo env [SForall qs ss])
+                                 = EAp (EAp (EAp (EAp (EVar (name' "forallSeq1" p)) (ELam [p] (ds1Forall env qs ss))) e1) e2) e3
+ds1Forall env (QGen p e : qs) ss = EAp (EAp (EVar (name' "forallList" p)) (ELam [p] (ds1Forall env qs ss))) e
+ds1Forall env (QExp e : qs) ss   = EIf e (eDo env [])  (ds1Forall env qs ss)
 
 ds1T env asg [SRet e]            = reverse asg ++ [SRet (ds1 env e)]
 ds1T env asg [s]                 = errorTree "Last statement in class must be result, not" s
