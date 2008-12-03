@@ -1,8 +1,14 @@
+LOCALCOMP = ../dist/build/timberc/timberc --datadir ..
 TIMBERC=timberc
 
 EXAMPLES = Echo Echo2 Echo3 EchoServer EchoServer2 MasterMind Primes Reflex TCPClient PingTimeServers
 
-all: 
+examples: 
 	@for ex in $(EXAMPLES); do \
 		$(TIMBERC) --make  $$ex; \
+	done
+
+local:
+	@for ex in $(EXAMPLES); do \
+		$(LOCALCOMP) --make  $$ex; \
 	done
