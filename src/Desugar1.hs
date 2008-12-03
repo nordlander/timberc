@@ -345,33 +345,31 @@ ds1T env asg (s@(SAss p e) : ss) = ds1T env (SAss (ds1 (patEnv env) p) (ds1 env 
 ds1T env asg (s : _)             = errorTree "Illegal statement in class: " s
 
 retComplete e
-  | hasRet e                     = e
-  | otherwise                    = addRet e
-  where hasRet (EIf _ e1 e2)     = hasRet e1 || hasRet e2
-        hasRet (EDo _ _ ss)      = hasRetS ss
-        hasRet (ECase e alts)    = any hasRetA alts
-        hasRet _                 = True
-        hasRetA (Alt p r)        = hasRetR r
-        hasRetR (RExp e)         = hasRet e
-        hasRetR (RGrd gs)        = any hasRetG gs
-        hasRetR (RWhere r bs)    = hasRetR r
-        hasRetG (GExp qs e)      = hasRet e
-        hasRetS []               = False
-        hasRetS [SRet (ECon (Prim UNITTERM _))]
-                                 = False
-        hasRetS [SRet e]         = True
-        hasRetS (s:ss)           = hasRetS ss
-        addRet (EIf e e1 e2)     = EIf e (addRet e1) (addRet e2)
-        addRet (EDo v t ss)      = EDo v t (addRetS ss)
-        addRet (ECase e alts)    = ECase e (map addRetA alts)
-        addRet e                 = e
+  | completeE e                  = e
+  | otherwise                    = addRetE e
+  where completeE (EIf _ e1 e2)  = completeE e1 && completeE e2
+        completeE (ECase _ alts) = all completeA alts
+        completeE (EDo _ _ ss)   = completeS ss
+        completeE _              = True
+        completeS []             = False
+        completeS _              = True
+        completeA (Alt p r)      = completeR r
+        completeR (RExp e)       = completeE e
+        completeR (RGrd gs)      = all completeG gs
+        completeR (RWhere r bs)  = completeR r
+        completeG (GExp qs e)    = completeE e
+        
+        addRetE (EIf e e1 e2)    = EIf e (addRetE e1) (addRetE e2)
+        addRetE (ECase e alts)   = ECase e (map addRetA alts)
+        addRetE (EDo v t ss)     = EDo v t (addRetS ss)
+        addRetE e                = e
         addRetA (Alt p r)        = Alt p (addRetR r)
-        addRetR (RExp e)         = RExp (addRet e)
+        addRetR (RExp e)         = RExp (addRetE e)
         addRetR (RGrd gs)        = RGrd (map addRetG gs)
         addRetR (RWhere r bs)    = RWhere (addRetR r) bs
-        addRetG (GExp qs e)      = GExp qs (addRet e)
+        addRetG (GExp qs e)      = GExp qs (addRetE e)
         addRetS []               = [SRet (ECon (prim UNITTERM))]
-        addRetS ss@[SRet _]      = ss
+        addRetS s@[SRet _]       = errorTree "Illegal result statement" s
         addRetS (s:ss)           = s : addRetS ss
 
 
