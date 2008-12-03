@@ -23,7 +23,10 @@ time.nist.gov: no response
 examples> 
 </pre>
 <p> The program connects to servers that use the old Daytime Protocol,
-listening on TCP port 13.
+listening on TCP port 13.   In this protocol, a
+time server will immediately when connection has been
+established send current time and close the connection.
+
 The three first arguments above are existing time servers. Two of
 these responded quickly with time in this run, while
 <tt>time.nist.gov</tt>
@@ -89,9 +92,6 @@ Comments to the code:
   the <tt>connect</tt> call. They will print the host name and
   message to stdout and note that this host has replied by deleting its
   index from <tt>outstanding</tt>.
-  <li>
-  The time server will immediately when connection has been
-  established send time and close the connection.
   <li>
   The root action will make sure that the program does not
   wait more than two seconds for any host.
