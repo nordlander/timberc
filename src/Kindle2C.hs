@@ -297,7 +297,7 @@ firstLit (_ : as)       = firstLit as
 
 k2cStringAlts b e (ALit l c : as)      
                                 = (if b then text "else " else empty) <> text "if (strEq (" <> k2cExp e <>
-                                    text ", getStr ("<> pr l <> text "))) {" $$
+                                    text "," <> k2cExp (ELit l) <> text ")) {" $$
                                      nest 4 (k2cNestIfCmd c) $$
                                      text "}" $$
                                      k2cStringAlts True e as
@@ -307,7 +307,7 @@ k2cStringAlts _ e [AWild c]       = text "else {" $$
 
 k2cFloatAlts b e (ALit l c : as)      
                                   = (if b then text "else " else empty) <> text "if (" <> k2cExp e <>
-                                    text "=="<> pr l <> text ") {" $$
+                                    text "=="<> k2cExp (ELit l) <> text ") {" $$
                                      nest 4 (k2cNestIfCmd c) $$
                                      text "}" $$
                                      k2cFloatAlts True e as
