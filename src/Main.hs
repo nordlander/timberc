@@ -175,22 +175,23 @@ compileTimber clo ifs (sm,t_file) ti_file c_file h_file
                                                 return ((n,ifc):ifs')
                               else return ((n,ifc):ifs')
   where passes imps par = do (e0,e1,e2,e3) <- initEnvs imps
-                             (d1,a0) <- pass (desugar1 e0)                Desugar1  par
-                             rn      <- pass (renameM e1)                 Rename    d1
-                             d2      <- pass desugar2                     Desugar2  rn
-                             co      <- pass syntax2core                  S2C       d2
-                             kc      <- pass (kindcheck e2)               KCheck    co
-                             tc      <- pass (typecheck e2)               TCheck    kc
-                             rd      <- pass (termred e2)                 Termred   tc
-                             tc2     <- pass (typecheck2 e2)              Type2     rd
-                             (ki,ds) <- pass (core2kindle e2 e3)          C2K       tc2
-                             ki'     <- pass (kindlered e3)               Kindlered ki
-                             ll      <- pass (lambdalift e3)              LLift     ki'
-                             pc      <- pass (prepare4c e2 e3)            Prepare4C ll
-                             c       <- pass (kindle2c (init_order imps)) K2C       pc
+                             (d1,a0) <- pass clo (desugar1 e0)                Desugar1  par
+                             rn      <- pass clo (renameM e1)                 Rename    d1
+                             d2      <- pass clo desugar2                     Desugar2  rn
+                             co      <- pass clo syntax2core                  S2C       d2
+                             kc      <- pass clo (kindcheck e2)               KCheck    co
+                             tc      <- pass clo (typecheck e2)               TCheck    kc
+                             rd      <- pass clo (termred e2)                 Termred   tc
+                             tc2     <- pass clo (typecheck2 e2)              Type2     rd
+                             (ki,ds) <- pass clo (core2kindle e2 e3)          C2K       tc2
+                             ki'     <- pass clo (kindlered e3)               Kindlered ki
+                             ll      <- pass clo (lambdalift e3)              LLift     ki'
+                             pc      <- pass clo (prepare4c e2 e3)            Prepare4C ll
+                             c       <- pass clo (kindle2c (init_order imps)) K2C       pc
                              return (c,ifaceMod a0 tc2 ds)
 
-        pass m p a      = do -- tr ("Pass " ++ show p ++ "...")
+        
+pass clo m p a          = do -- tr ("Pass " ++ show p ++ " ...")
                              r <- m a
                              Monad.when (dumpAfter clo p) 
                                 $ tr ("#### Result after " ++ show p ++ ":\n\n" ++ render (pr r))
@@ -214,10 +215,11 @@ makeProg clo cfg root   = do txt <- readFile (root ++ ".t")
   where nonDummy (_,(_,_,Syntax.Module n _ _ _)) = str n /= ""
 
 
-parse t_file            = do t_exists <- Directory.doesFileExist t_file
+parse clo t_file        = do t_exists <- Directory.doesFileExist t_file
                              Monad.when (not t_exists) (fail ("File " ++ t_file ++ " does not exist."))
                              txt <- readFile t_file
-                             return (runM (parser txt),t_file)
+                             let syntax = runM (pass clo parser Parser txt)
+                             return (syntax,t_file)
 
 compileAll clo ifs []   = return ifs
 compileAll clo ifs (p@(ms,t_file):t_files)
@@ -287,7 +289,7 @@ main2 args          = do (clo, files) <- Exception.catch (cmdLineOpts args)
                          mapM (listIface clo) i_files
 --                         Monad.when (null t_files) stopCompiler
                          
-                         ps <- mapM parse t_files
+                         ps <- mapM (parse clo) t_files
                          ifs <- compileAll clo [] ps `Exception.catch` handleError
                          Monad.when (stopAtC clo) stopCompiler
                          
