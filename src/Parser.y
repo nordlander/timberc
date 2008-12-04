@@ -240,7 +240,11 @@ siglist :: { [Sig] }
         |     layout_on  sigs close		{ reverse $2 }
 
 sigs	:: { [Sig] }
-        : sigs ';' sig				{ $3 : $1 }
+	: sigs1					{ $1 }
+	| {- empty -}				{ [] }
+	
+sigs1	:: { [Sig] }
+        : sigs1 ';' sig				{ $3 : $1 }
         | sig					{ [$1] }
 
 sig	:: { Sig }
@@ -382,7 +386,8 @@ opExpb  :: { OpExp }
 	  
 exp10a  :: { Exp }
         : 'case' exp 'of' altslist              { ECase $2 $4 }
-        | '{'  layout_off recbinds '}'          { ERec Nothing (reverse $3) } 
+        | '{'  layout_off recbinds '}'          { ERec Nothing (reverse $3) }
+	| '{' '}'				{ ERec Nothing [] }
         | exp10as                               { $1 }
 
 exp10as :: { Exp }
@@ -394,6 +399,7 @@ exp10as :: { Exp }
         | con '{'  layout_off recbinds '..' '}' { ERec (Just ($1,False)) (reverse $4) } 
         | con '{'  layout_off recbinds ',' '..' '}' { ERec (Just ($1,False)) (reverse $4) } 
         | con '{'  layout_off '..' '}'          { ERec (Just ($1,False)) [] } 
+	| con '{' '}'				{ ERec (Just ($1,True)) [] }
         | fexp                                  { $1 }
 
 exp10b :: { Exp }
