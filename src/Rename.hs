@@ -224,7 +224,7 @@ instance Rename Module where
          dws2                      = ws2 \\ concat [ ss | BSig ss _ <- bs2 ]
          dtcs1                     = tcs1 \\ [ n | DRec False n _ _ _ <- ds ]
          dtcs2                     = tcs2 \\ [ n | DRec False n _ _ _ <- ps ]
-         badImpl                   = concat [ ws | BSig ss t <- bs1++bs2, let ss' = ss \\ ws, ws /= [], isWild t ]
+         badImpl                   = concat [ ws | BSig ss t <- bs1++bs2, not (null (ss `intersect` ws)), isWild t ]
          kDups                     = duplicates ks
          tDups                     = duplicates ts
          sDups                     = duplicates (ss1 ++ ss2)
