@@ -119,11 +119,10 @@ selsFromType env c              = case lookup c (sels env) of
                                                else errorIds "Unknown struct constructor" [c]
 
 
-typeFromSels env ss             = f (sels env) ss
-  where f [] ss                 = errorIds "No struct type with selectors" ss
-        f  ((c,ss'):se) ss
-          | ss == ss'           = c
-          | otherwise           = f se ss
+typeFromSels env ss             = case [ c | (c,ss') <- sels env, ss' == ss ] of
+                                    []  -> errorIds "No struct type with selectors" ss
+                                    [c] -> c
+                                    cs  -> errorIds "Multiple struct types defined by selectors" ss
 
 
 haveSelf env                    = self env /= Nothing

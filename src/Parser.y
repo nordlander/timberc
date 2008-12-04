@@ -387,7 +387,7 @@ opExpb  :: { OpExp }
 exp10a  :: { Exp }
         : 'case' exp 'of' altslist              { ECase $2 $4 }
         | '{'  layout_off recbinds '}'          { ERec Nothing (reverse $3) }
-	| '{' '}'				{ ERec Nothing [] }
+	| '{'  layout_off  '}'			{ ERec Nothing [] }
         | exp10as                               { $1 }
 
 exp10as :: { Exp }
@@ -399,7 +399,7 @@ exp10as :: { Exp }
         | con '{'  layout_off recbinds '..' '}' { ERec (Just ($1,False)) (reverse $4) } 
         | con '{'  layout_off recbinds ',' '..' '}' { ERec (Just ($1,False)) (reverse $4) } 
         | con '{'  layout_off '..' '}'          { ERec (Just ($1,False)) [] } 
-	| con '{' '}'				{ ERec (Just ($1,True)) [] }
+	| con '{'  layout_off  '}'		{ ERec (Just ($1,True)) [] }
         | fexp                                  { $1 }
 
 exp10b :: { Exp }
@@ -661,7 +661,7 @@ close :: { () }
         | error                                 {% popContext }
 
 layout_off :: { () }    :                       {% pushContext NoLayout }
-layout_on  :: { () }    :                       {% do { (_,c) <- getSrcLoc ;
+layout_on  :: { () }    :                       {% do { (r,c) <- getSrcLoc ;
                                                         pushContext (Layout c)
                                                       }
                                                 }
