@@ -122,7 +122,9 @@ selsFromType env c              = case lookup c (sels env) of
 typeFromSels env ss             = case [ c | (c,ss') <- sels env, ss' == ss ] of
                                     []  -> errorIds "No struct type with selectors" ss
                                     [c] -> c
-                                    cs  -> errorIds "Multiple struct types defined by selectors" ss
+                                    cs  -> case filter isQualified cs of
+                                             [c] -> c
+                                             _   -> errorIds ("Multiple struct types defined by selectors") ss
 
 
 haveSelf env                    = self env /= Nothing
