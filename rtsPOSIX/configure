@@ -3272,9 +3272,11 @@ CC="$PTHREAD_CC"
 CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
 LIBS="$PTHREAD_LIBS $LIBS"
 
-# Make sure that we have realtime-threads extension so we can build with
-# the mutex protocol etc. This requires _GNU_SOURCE=1 on most Linux
-# ditrubutions (see features.h for more info).
+# Make sure that pthread realtime-threads extension is available. This is
+# not the default behaviour on most GNU/Linux dists. If it turns out that
+# the realtime-threads extension is not available we add -D_GNU_SOURCE=1
+# as this should enable all extensions on most GNU/Linux dists. For more
+# information please see <features.h>.
 { echo "$as_me:$LINENO: checking pthread realtime-threads extension" >&5
 echo $ECHO_N "checking pthread realtime-threads extension... $ECHO_C" >&6; }
 cat >conftest.$ac_ext <<_ACEOF
@@ -3320,12 +3322,17 @@ sed 's/^/| /' conftest.$ac_ext >&5
 fi
 
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-if test "${need_gnu_source}"x = "yes"x
-then
+
+if test "x$need_gnu_source" = "xyes"; then
 	CFLAGS="${CFLAGS} -D_GNU_SOURCE=1"
 fi
 
-# Just make sure that the program actually compiles now.
+# Finalize the checking for pthread realtime-threads extension. This may
+# still fail if -D_GNU_SOURCE=1 does not enable the realtime-threads
+# extension. I this is the case then we are either running this on a
+# system without the realtime-threads extension or we need to perform some
+# other kind of black magic to enable it. If you know of any such platform
+# then please feel free to send a patch.
 cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
@@ -3337,59 +3344,6 @@ int
 main ()
 {
 pthread_mutexattr_setprotocol(NULL, PTHREAD_PRIO_INHERIT);
-
-  ;
-  return 0;
-}
-_ACEOF
-rm -f conftest.$ac_objext
-if { (ac_try="$ac_compile"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
-  (eval "$ac_compile") 2>conftest.er1
-  ac_status=$?
-  grep -v '^ *+' conftest.er1 >conftest.err
-  rm -f conftest.er1
-  cat conftest.err >&5
-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
-  (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       } && test -s conftest.$ac_objext; then
-  { echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6; }
-else
-  echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-	{ { echo "$as_me:$LINENO: error: no
-See \`config.log' for more details." >&5
-echo "$as_me: error: no
-See \`config.log' for more details." >&2;}
-   { (exit 1); exit 1; }; }
-
-fi
-
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-
-# Moving swiftly on to the S_IWUSR etc. flags that are also required 99%
-# of the times. _GNU_SOURCE will enable this but let's not take any chances.
-{ echo "$as_me:$LINENO: checking sys/stat.h header sanity" >&5
-echo $ECHO_N "checking sys/stat.h header sanity... $ECHO_C" >&6; }
-cat >conftest.$ac_ext <<_ACEOF
-/* confdefs.h.  */
-_ACEOF
-cat confdefs.h >>conftest.$ac_ext
-cat >>conftest.$ac_ext <<_ACEOF
-/* end confdefs.h.  */
-#include <sys/stat.h>
-int
-main ()
-{
-open("", S_IWUSR|S_IRUSR|S_IRGRP|S_IROTH);
 
   ;
   return 0;
@@ -4273,6 +4227,63 @@ fi
 
 done
 
+
+# Check the <sys/stat.h> header for XSI extensions. This should already be
+# enable by -D_GNU_SOURCE=1, if it's supported.
+# NOTE:
+#   While it might be possible for the compiler to optimize away the int xsi
+#   statement I'm not up for the challenge of writing something that is
+#   _impossible_ for the compiler to optimize away.
+{ echo "$as_me:$LINENO: checking sys/stat.h header for XSI extensions" >&5
+echo $ECHO_N "checking sys/stat.h header for XSI extensions... $ECHO_C" >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <sys/stat.h>
+int
+main ()
+{
+mode_t mode_xsi = S_IWUSR|S_IRUSR|S_IRGRP|S_IROTH;
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  { echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6; }
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	{ { echo "$as_me:$LINENO: error: no
+See \`config.log' for more details." >&5
+echo "$as_me: error: no
+See \`config.log' for more details." >&2;}
+   { (exit 1); exit 1; }; }
+
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 
 # Checks for typedefs, structures, and compiler characteristics.
 { echo "$as_me:$LINENO: checking whether time.h and sys/time.h may both be included" >&5

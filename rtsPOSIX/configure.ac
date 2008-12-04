@@ -23,9 +23,11 @@ CC="$PTHREAD_CC"
 CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
 LIBS="$PTHREAD_LIBS $LIBS"
 
-# Make sure that we have realtime-threads extension so we can build with
-# the mutex protocol etc. This requires _GNU_SOURCE=1 on most Linux
-# ditrubutions (see features.h for more info).
+# Make sure that pthread realtime-threads extension is available. This is
+# not the default behaviour on most GNU/Linux dists. If it turns out that
+# the realtime-threads extension is not available we add -D_GNU_SOURCE=1
+# as this should enable all extensions on most GNU/Linux dists. For more
+# information please see <features.h>.
 AC_MSG_CHECKING([pthread realtime-threads extension])
 AC_COMPILE_IFELSE(
 	[AC_LANG_PROGRAM([[#include <pthread.h>]],
@@ -34,26 +36,20 @@ AC_COMPILE_IFELSE(
 	[need_gnu_source=no],
 	[need_gnu_source=yes]
 	)
-if test "${need_gnu_source}"x = "yes"x
-then
+
+if test "x$need_gnu_source" = "xyes"; then
 	CFLAGS="${CFLAGS} -D_GNU_SOURCE=1"
 fi
 
-# Just make sure that the program actually compiles now.
+# Finalize the checking for pthread realtime-threads extension. This may
+# still fail if -D_GNU_SOURCE=1 does not enable the realtime-threads
+# extension. I this is the case then we are either running this on a
+# system without the realtime-threads extension or we need to perform some
+# other kind of black magic to enable it. If you know of any such platform
+# then please feel free to send a patch.
 AC_COMPILE_IFELSE(
 	[AC_LANG_PROGRAM([[#include <pthread.h>]],
 		[[pthread_mutexattr_setprotocol(NULL, PTHREAD_PRIO_INHERIT);]]
-	)],
-	[AC_MSG_RESULT([yes])],
-	[AC_MSG_FAILURE([no])]
-	)
-
-# Moving swiftly on to the S_IWUSR etc. flags that are also required 99%
-# of the times. _GNU_SOURCE will enable this but let's not take any chances.
-AC_MSG_CHECKING([sys/stat.h header sanity])
-AC_COMPILE_IFELSE(
-	[AC_LANG_PROGRAM([[#include <sys/stat.h>]],
-		[[open("", S_IWUSR|S_IRUSR|S_IRGRP|S_IROTH);]]
 	)],
 	[AC_MSG_RESULT([yes])],
 	[AC_MSG_FAILURE([no])]
@@ -77,6 +73,21 @@ fi
 # Checks for header files.
 AC_HEADER_STDC
 AC_CHECK_HEADERS([stdlib.h sys/time.h termios.h])
+
+# Check the <sys/stat.h> header for XSI extensions. This should already be
+# enable by -D_GNU_SOURCE=1, if it's supported.
+# NOTE:
+#   While it might be possible for the compiler to optimize away the int xsi
+#   statement I'm not up for the challenge of writing something that is
+#   _impossible_ for the compiler to optimize away.
+AC_MSG_CHECKING([sys/stat.h header for XSI extensions])
+AC_COMPILE_IFELSE(
+	[AC_LANG_PROGRAM([[#include <sys/stat.h>]],
+		[[mode_t mode_xsi = S_IWUSR|S_IRUSR|S_IRGRP|S_IROTH;]]
+	)],
+	[AC_MSG_RESULT([yes])],
+	[AC_MSG_FAILURE([no])]
+	)
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_HEADER_TIME
