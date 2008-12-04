@@ -68,12 +68,13 @@ data Env                        = Env { sels :: Map Name [Name],
                                         modName :: Maybe String,
                                         isPat :: Bool,
                                         isPublic :: Bool,
+                                        isTail :: Bool,
                                         tsyns :: Map Name ([Name],Type)
                                   } deriving Show
 
 
 env0 ss                       = Env { sels = [], self = Nothing, selSubst = [], modName = Nothing, isPat = False, 
-                                      isPublic = True, tsyns = ss }
+                                      isPublic = True, isTail = True, tsyns = ss }
 
 
 mkEnv c ds (rs,rn,ss)           = (env {sels = map transClose recEnv, modName = Just(str c), selSubst = rnSels },
@@ -126,6 +127,9 @@ typeFromSels env ss             = f (sels env) ss
 
 
 haveSelf env                    = self env /= Nothing
+
+haveTail env []                 = env
+haveTail env _                  = env { isTail = False }
 
 tSubst env c ts                 = case lookup c (tsyns env) of
                                      Nothing -> foldl TAp (TCon c) ts1
@@ -275,9 +279,9 @@ instance Desugar1 Exp where
       | otherwise                  = errorTree "Request outside class" e
 
     ds1 env (ETempl v t ss)      = ETempl v t (ds1T (env{self=v}) [] [] ss)
-    ds1 env (EDo v t ss)         = EDo v t (ds1S (env{self=v}) ss)
-    ds1 env (EAct v ss)          = EAct v [SExp (EDo v Nothing (ds1S env ss))]
-    ds1 env (EReq v ss)          = EReq v [SExp (EDo v Nothing (ds1S env ss))]
+    ds1 env (EDo v t ss)         = EDo v t (ds1S (env { self=v, isTail = True }) ss)
+    ds1 env (EAct v ss)          = EAct v [SExp (EDo v Nothing (ds1S (env { isTail = False }) ss))]
+    ds1 env (EReq v ss)          = EReq v [SExp (EDo v Nothing (ds1S (env { isTail = True }) ss))]
 
     ds1 env (EAfter e1 e2)       = EAfter (ds1 env e1) (ds1 env e2)
     ds1 env (EBefore e1 e2)      = EBefore (ds1 env e1) (ds1 env e2) 
@@ -310,7 +314,7 @@ ds1S env (SAss p e : ss)         = dsAss p e : ds1S env ss
             a|x     := a|x \\ (y, a|x|y \\ (z,e))
             a       := a \\ (x, a|x \\ (y, a|x|y \\ (z,e)))
         -}
-ds1S env (SCase e as : ss)       = ds1S env (SExp (retComplete (ECase e (map doAlt as))) : ss)
+ds1S env (SCase e as : ss)       = ds1S env (SExp (retComplete (haveTail env ss) (ECase e (map doAlt as))) : ss)
   where doAlt (Alt p r)          = Alt (ds1 (patEnv env) p) (doRhs r)
         doRhs (RExp ss)          = RExp (eDo env ss)
         doRhs (RGrd gs)          = RGrd (map doGrd gs)
@@ -318,7 +322,7 @@ ds1S env (SCase e as : ss)       = ds1S env (SExp (retComplete (ECase e (map doA
         doGrd (GExp qs ss)       = GExp qs (eDo env ss)
 ds1S env (SIf e ss' : ss)        = doIf (EIf e (eDo env ss')) ss
   where doIf f (SElsif e ss':ss) = doIf (f . EIf e (eDo env ss')) ss
-        doIf f (SElse ss':ss)    = ds1S env (SExp (retComplete (f (eDo env ss'))) : ss)
+        doIf f (SElse ss':ss)    = ds1S env (SExp (retComplete (haveTail env ss) (f (eDo env ss'))) : ss)
         doIf f ss                = doIf f (SElse [] : ss)
 ds1S env (s@(SElsif _ _) : _)    = errorTree "elsif without corresponding if" s
 ds1S env (s@(SElse _) : _)       = errorTree "else without corresponding if" s
@@ -342,20 +346,21 @@ ds1T env bss asg (SBind bs : ss) = ds1T env (bs:bss) asg ss
 ds1T env bss asg (SAss p e : ss) = ds1T env bss (SAss (ds1 (patEnv env) p) (ds1 env e) : asg) ss
 ds1T env bss asg (s : _)         = errorTree "Illegal statement in class: " s
 
-retComplete e
-  | completeE e                  = e
+retComplete env e
+  | partialE e                   = addRetE e
+  | isTail env                   = e
   | otherwise                    = addRetE e
-  where completeE (EIf _ e1 e2)  = completeE e1 && completeE e2
-        completeE (ECase _ alts) = all completeA alts
-        completeE (EDo _ _ ss)   = completeS ss
-        completeE _              = True
-        completeS []             = False
-        completeS _              = True
-        completeA (Alt p r)      = completeR r
-        completeR (RExp e)       = completeE e
-        completeR (RGrd gs)      = all completeG gs
-        completeR (RWhere r bs)  = completeR r
-        completeG (GExp qs e)    = completeE e
+  where partialE (EIf _ e1 e2)   = partialE e1 || partialE e2
+        partialE (ECase _ alts)  = any partialA alts
+        partialE (EDo _ _ ss)    = partialS ss
+        partialE _               = False
+        partialS []              = True
+        partialS _               = False
+        partialA (Alt p r)       = partialR r
+        partialR (RExp e)        = partialE e
+        partialR (RGrd gs)       = any partialG gs
+        partialR (RWhere r bs)   = partialR r
+        partialG (GExp qs e)     = partialE e
         
         addRetE (EIf e e1 e2)    = EIf e (addRetE e1) (addRetE e2)
         addRetE (ECase e alts)   = ECase e (map addRetA alts)
@@ -367,6 +372,8 @@ retComplete e
         addRetR (RWhere r bs)    = RWhere (addRetR r) bs
         addRetG (GExp qs e)      = GExp qs (addRetE e)
         addRetS []               = [SRet (ECon (prim UNITTERM))]
+        addRetS s@[SRet (ECon (Prim UNITTERM _))]
+                                 = s
         addRetS s@[SRet _]       = errorTree "Illegal result statement" s
         addRetS (s:ss)           = s : addRetS ss
 
