@@ -392,6 +392,7 @@ exp10as :: { Exp }
         | loc 'request' stmtlist                { EReq Nothing $3 }
         | con '{'  layout_off recbinds '}'      { ERec (Just ($1,True)) (reverse $4) } 
         | con '{'  layout_off recbinds '..' '}' { ERec (Just ($1,False)) (reverse $4) } 
+        | con '{'  layout_off recbinds ',' '..' '}' { ERec (Just ($1,False)) (reverse $4) } 
         | con '{'  layout_off '..' '}'          { ERec (Just ($1,False)) [] } 
         | fexp                                  { $1 }
 
