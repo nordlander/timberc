@@ -49,11 +49,11 @@ data LexContext
       deriving (Eq, Ord, Show)
 
 newtype PM a 
-    =  PM (String		-- input string
+    = PM (   String		    -- input string
           -> (Int,Int)		-- location of last token read (row,col)
-	  -> Int		-- current column
-	  -> ParseState   	-- layout info
-	  -> ParseResult a)
+	      -> Int		    -- current column
+	      -> ParseState   	-- layout info
+	      -> ParseResult a)
 
 unPM (PM p) = p
 
@@ -85,7 +85,6 @@ getSrcLoc = PM $ \i l c s -> Ok s l
 pushContext :: LexContext -> PM ()
 pushContext ctxt =
     PM $ \i l c s -> Ok (ctxt:s) ()
-
 
 popContext :: PM ()
 popContext = PM $ \i loc c stk ->

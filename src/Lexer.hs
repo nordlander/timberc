@@ -89,19 +89,21 @@ lexBOL :: (Token -> PM a) -> PM a
 lexBOL cont =
     PM $ \ s loc@(y,x) col ctx ->
     if need_close_curly x ctx then 
-        --trace "layout: inserting '}'\n" $
+        -- tr' ("layout: inserting '}' at " ++ show loc ++ "\n") $
         -- Set col to 0, indicating that we're still at the
         -- beginning of the line, in case we need a semi-colon too.
         -- Also pop the context here, so that we don't insert
         -- another close brace before the parser can pop it.
         (unPM $ cont VRightCurly) s loc 0 (tail ctx)
     else if need_semi_colon x ctx then
-        --trace "layout: inserting ';'\n" $
+        -- tr' ("layout: inserting ';' at " ++ show loc ++ "\n") $
         (unPM $ cont SemiColon) s loc col ctx
     else
         (unPM $ lexToken cont)  s loc col ctx
     where
         need_close_curly x []    = False
+        need_close_curly x (Layout n:Layout m:_)
+          | n <= m               = True
         need_close_curly x (i:_) = case i of
                                    NoLayout -> False
                                    Layout n -> x < n
@@ -293,7 +295,6 @@ lexString cont = PM lexString'
 
 escapeChar :: String -> PM (Char, String, Int)
 escapeChar s = case s of
-    -- Production charesc from section B.2 (Note: \& is handled by caller)
    'a':s         -> return ('\a', s, 2)
    'b':s         -> return ('\b', s, 2)
    'f':s         -> return ('\f', s, 2)
@@ -305,7 +306,6 @@ escapeChar s = case s of
    '"':s         -> return ('\"', s, 2)      -- "
    '\'':s        -> return ('\'', s, 2)
 
-    -- Production ascii from section B.2
    '^':x@(c:s)   -> cntrl x
    'N':'U':'L':s -> return ('\NUL', s, 4)
    'S':'O':'H':s -> return ('\SOH', s, 4)
@@ -344,8 +344,7 @@ escapeChar s = case s of
 
 
    -- Depending upon the compiler/interpreter's Char type, these yield either
-   -- just 8-bit ISO-8859-1 or 2^16 UniCode.  The report says it should be the
-   -- latter.
+   -- just 8-bit ISO-8859-1 or 2^16 UniCode.
 
    -- Octal representation of a character
    'o':s           -> let (ds, s') = span isOctDigit s
@@ -359,7 +358,7 @@ escapeChar s = case s of
                       in
                           numberToChar n s' (length ds + 1)
  
-   -- Base 10 representation of a charactef
+   -- Base 10 representation of a character
    d:s | isDigit d -> let (ds, s') = span isDigit s
                           n        = readNumber 10 (d:ds)
                       in 
@@ -374,11 +373,7 @@ escapeChar s = case s of
              else
                  return (chr $ fromInteger n, s, l_n)
             
-{-
 
-Production cntrl from section B.2
-
--}
 cntrl :: String -> PM (Char, String, Int)
 cntrl (c   :s) | isUpper c = return (chr (ord c - ord 'A'), s, 2)
 cntrl ('@' :s)             = return ('\^@', s, 2)
