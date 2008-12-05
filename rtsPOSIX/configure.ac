@@ -74,6 +74,10 @@ fi
 AC_HEADER_STDC
 AC_CHECK_HEADERS([stdlib.h sys/time.h termios.h])
 
+AC_CHECK_HEADER([libkern/OSAtomic.h],
+                [AC_DEFINE_UNQUOTED([HAVE_OSX_ATOMICS], 1, 
+                [Define to 1 if OSX atomic operations are supported.])])
+
 # Check the <sys/stat.h> header for XSI extensions. This should already be
 # enable by -D_GNU_SOURCE=1, if it's supported.
 # NOTE:
@@ -88,6 +92,23 @@ AC_COMPILE_IFELSE(
 	[AC_MSG_RESULT([yes])],
 	[AC_MSG_FAILURE([no])]
 	)
+
+# Does this compiler have built-in functions for atomic memory access?
+AC_MSG_CHECKING([if gcc supports __sync_bool_compare_and_swap])
+ 
+AC_TRY_LINK(,
+[
+  int variable = 1;
+  return (__sync_bool_compare_and_swap(&variable, 1, 2)
+         && __sync_add_and_fetch(&variable, 1)) ? 1 : 0;
+],
+[
+  AC_MSG_RESULT([yes])
+  AC_DEFINE(HAVE_BUILTIN_ATOMIC, 1, [Define to 1 if gcc supports __sync_bool_compare_and_swap() a.o.])
+],
+[
+  AC_MSG_RESULT([no])
+])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_HEADER_TIME

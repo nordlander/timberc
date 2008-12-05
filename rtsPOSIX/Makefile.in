@@ -31,6 +31,7 @@ install:
 	$(INSTALL) rts.h $(DESTDIR)$(prefix)/rtsPOSIX
 	$(INSTALL) rts.c $(DESTDIR)$(prefix)/rtsPOSIX
 	$(INSTALL) cyclic.c $(DESTDIR)$(prefix)/rtsPOSIX
+	$(INSTALL) config.h $(DESTDIR)$(prefix)/rtsPOSIX
 	$(INSTALL) gc.c $(DESTDIR)$(prefix)/rtsPOSIX
 	$(INSTALL) env.c $(DESTDIR)$(prefix)/rtsPOSIX
 	$(INSTALL) env.h $(DESTDIR)$(prefix)/rtsPOSIX

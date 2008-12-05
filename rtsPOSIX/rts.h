@@ -39,6 +39,8 @@
 //#include <setjmp.h>
 #include <pthread.h>
 
+#include "config.h"
+
 typedef int WORD;
 typedef WORD *ADDR;
 
@@ -124,14 +126,15 @@ extern WORD __GG__Time[] ;
 #define BYTES(words)            ((words)*sizeof(WORD))
 
 
-#if defined(__APPLE__)
+#if defined(HAVE_OSX_ATOMICS)
 #include <libkern/OSAtomic.h>
 #define CAS(old,new,mem)        OSAtomicCompareAndSwap32((WORD)(old),(WORD)(new),(ADDR)(mem))
+#else
+#if defined(HAVE_BUILTIN_ATOMIC) 
+#define CAS(old,new,mem)        __sync_bool_compare_and_swap((mem),(WORD)(old),(WORD)(new))
+#else
+#error "Can not define CAS on your architecture."
 #endif
-
-#if defined(__linux__)
-#include <atomic_ops.h>
-#define CAS(old,new,mem)        AO_compare_and_swap((AO_t*)(mem),(WORD)(old),(WORD)(new))
 #endif
 
 #define NEW(t,addr,words)       { ADDR top,stop; \

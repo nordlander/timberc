@@ -61,3 +61,9 @@
 
 /* Define to rpl_malloc if the replacement function should be used. */
 #undef malloc
+
+/* Define if we have atomic ops */
+#undef HAVE_BUILTIN_ATOMIC
+
+/* Define if we have atomic ops on OSX */
+#undef HAVE_OSX_ATOMICS
