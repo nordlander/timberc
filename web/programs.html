@@ -18,10 +18,10 @@ The compilation unit in Timber is the module, so modules may be compiled individ
 
 The syntax of a Timber module is
 <p>
-<tt>module</tt> <em>moduleName</em> <tt>where</tt><br><br>
+<tt><b>module</b></tt> <em>moduleName</em> <tt><b>where</b></tt><br><br>
 &nbsp;&nbsp;&nbsp;<em>importDeclaration</em><font color=red>*</font><br><br>
 &nbsp;&nbsp;&nbsp;<em>topLevelDeclaration</em><font color=red>*</font><br><br>
-<tt>private</tt><br><br>
+<tt><b>private</b></tt><br><br>
 &nbsp;&nbsp;&nbsp;<em>topLevelDeclaration</em><font color=red>*</font><br><br>
 
 <p>
@@ -57,9 +57,9 @@ Following the header is a sequence of import/use declarations, i.e. declaration 
 There are two forms of such declarations:
 <ul>
   <li> <em>Import declarations</em>, exemplified by<br>
-  <tt>import Data.Objects.Dictionary</tt></li>
+  <tt><b>import</b> Data.Objects.Dictionary</tt></li>
   <li> <em>Use declarations</em>, as in<br>
-  <tt>use Data.Objects.Dictionary</tt></li>
+  <tt><b>use</b> Data.Objects.Dictionary</tt></li>
 </ul>
 <p>
 Both forms of declaration give access to all exported entities from the named module; the difference is that in the latter case
