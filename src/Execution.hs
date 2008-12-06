@@ -60,7 +60,7 @@ import Name
 -- | Compile a C-file. 
 compileC cfg clo c_file = do
                              let cmd = cCompiler cfg
-                                     ++ compileFlags cfg
+                                     ++ " -c " ++ compileFlags cfg
                                      ++ " -I " ++ libDir clo ++ " " 
                                      ++ " -I " ++ includeDir clo ++ " " 
                                      ++ " -I " ++ rtsDir clo ++ " " 
@@ -89,6 +89,7 @@ linkO cfg clo r o_files = do let Just rmod  = fromMod r
                                  f c        = c
                              let cmd = cCompiler cfg
                                        ++ linkFlags cfg
+                                       ++ compileFlags cfg
                                        ++ " -o " ++ outfile clo ++ " "
                                        ++ unwords o_files ++ " "
                                        ++ " -L" ++ rtsDir clo ++ " " 

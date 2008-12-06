@@ -10,6 +10,21 @@ AC_CONFIG_HEADERS([config.h])
 AC_PROG_CC
 AC_PROG_INSTALL
 
+# Force building 32-bit applications since we're not 64-bit clean.
+#
+# GCC accepts -m32 on most architectures that might have a corresponding
+# 64-bit architecture, for example sparc and MIPS. 
+
+old_CFLAGS="$CFLAGS"
+CFLAGS="$CFLAGS -m32"
+AC_COMPILE_IFELSE(
+        [AC_LANG_PROGRAM([[]],
+                [[return 1;]]
+        )],
+        [],
+        [CFLAGS="$old_CFLAGS"]
+        )
+
 # Checks for libraries.
 
 # Look for pthreads.
@@ -38,7 +53,7 @@ AC_COMPILE_IFELSE(
 	)
 
 if test "x$need_gnu_source" = "xyes"; then
-	CFLAGS="${CFLAGS} -D_GNU_SOURCE=1"
+	CFLAGS="$CFLAGS -D_GNU_SOURCE=1"
 fi
 
 # Finalize the checking for pthread realtime-threads extension. This may
@@ -107,7 +122,23 @@ AC_TRY_LINK(,
   AC_DEFINE(HAVE_BUILTIN_ATOMIC, 1, [Define to 1 if gcc supports __sync_bool_compare_and_swap() a.o.])
 ],
 [
-  AC_MSG_RESULT([no])
+  # Retry with -march set for x86.
+  old_CFLAGS="$CFLAGS"
+  CFLAGS="$CFLAGS -march=i686"
+  AC_TRY_LINK(,
+  [
+    int variable = 1;
+    return (__sync_bool_compare_and_swap(&variable, 1, 2)
+           && __sync_add_and_fetch(&variable, 1)) ? 1 : 0;
+  ],
+  [
+    AC_MSG_RESULT([yes])
+    AC_DEFINE(HAVE_BUILTIN_ATOMIC, 1, [Define to 1 if gcc supports __sync_bool_compare_and_swap() a.o.])
+  ],
+  [
+    AC_MSG_RESULT([no])
+    CFLAGS="$old_CFLAGS"
+  ])
 ])
 
 # Checks for typedefs, structures, and compiler characteristics.
