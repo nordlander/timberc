@@ -392,7 +392,7 @@ chaseImps readModule iNames suff imps ifs
                                      = do bms <- mapM (readImport ifs) imps
                                           let newpairs = [p | (p,True) <- bms]
                                               ifs1 =  [(c,ifc) | (c,(_,ifc)) <- newpairs] ++ ifs
-                                          chaseRecursively ifs1 (map (\(Syntax.Import b c) -> (c,b)) imps) (map fst bms) (concat [ iNames b c |  ((_,(b,c)),_) <- bms ])
+                                          chaseRecursively ifs1 (map fst bms) (concat [ iNames b c |  ((_,(b,c)),_) <- bms ])
   where readIfile ifs c              = case lookup c ifs of
                                         Just ifc -> return (ifc,False)
                                         Nothing -> do (ifc,f) <- readModule f
@@ -401,24 +401,18 @@ chaseImps readModule iNames suff imps ifs
         readImport ifs (Syntax.Import b c) 
                                      = do (ifc,isNew) <- readIfile ifs c
                                           return ((c,(b,ifc)),isNew)
-        chaseRecursively ifs vs ms []= return (ms,ifs)
-        chaseRecursively ifs vs ms (p@(r,unQual) : rs)
-                                     = case lookup r vs of
-                                          Just b 
-                                            | not b && unQual -> chaseRecursively ifs (update1 r vs) (update2 r ms) rs -- found import chain; previously only use chain
-                                            | otherwise -> chaseRecursively ifs vs ms rs
+        chaseRecursively ifs ms []= return (ms,ifs)
+        chaseRecursively ifs ms (p@(r,unQual) : rs)
+                                     = case lookup r ms of
+                                          Just (b,_) 
+                                            | not b && unQual -> chaseRecursively ifs (update r ms) rs -- found import chain; previously only use chain
+                                            | otherwise -> chaseRecursively ifs ms rs
                                           Nothing -> do (ifc,isNew)  <- readIfile ifs r
-                                                        chaseRecursively (if isNew then (r,ifc) : ifs else ifs) (p : vs) ((r,(unQual,ifc)) : ms) 
-                                                                         (rs ++ iNames unQual ifc)
-        update1 r ((r',_) : ps)
-             | r == r'              = (r,True) : ps
-        update1 r (p : ps)          = p : update1 r ps
-        update1 _ []                = internalError0 "Main.update1: did not find module"
-
-        update2 r ((r',(_,ifc)) : ps)
+                                                        chaseRecursively (if isNew then (r,ifc) : ifs else ifs) ((r,(unQual,ifc)) : ms) (rs ++ iNames unQual ifc)
+        update r ((r',(_,ifc)) : ps)
              | r == r'              = (r,(True,ifc)) : ps
-        update2 r (p : ps)          = p : update2 r ps
-        update2 _ []                = internalError0 "Main.update2: did not find module"
+        update r (p : ps)          = p : update r ps
+        update _ []                = internalError0 "Main.update: did not find module"
         
 
 
