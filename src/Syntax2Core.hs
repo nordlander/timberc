@@ -49,7 +49,7 @@ s2c                             :: Module -> M s Core.Module
 s2c (Module v is ds ps)         = do (xs,ts,ws,bss) <- s2cDecls env0 ds [] [] [] [] []
                                      return (Core.Module v is' xs ts ws bss)
   where env0                    = Env { sigs = [] }
-        is'                     = [n | Import _ n <- is]
+        is'                     = [(b,n) | Import b n <- is]
 
 
 -- type signature environments

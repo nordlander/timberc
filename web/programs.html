@@ -84,7 +84,8 @@ Name clashes are handled as follows:
   All the entities (types, defaults and values) defined in the sequence of public top-level declarations are exported, i.e. can
   be referred to by importing/using modules. Entities defined in the private part are not exported and hence not visible to importing/using
   modules. In particular, this means that the type environment of the public part must be closed, i.e. the type of an exported value
-  must not mention a type defined in the private part. Imported entities are not re-exported, i.e. the import relation is not transitive.
+  must not mention a type defined in the private part. Imported entities are re-exported, i.e. if module C imports B, which imports A,
+  the entities in A are visible in C, even if C does not explicitly import A.
 
 <script type="text/javascript"> var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www."); document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E")); </script> <script type="text/javascript"> try { var pageTracker = _gat._getTracker("UA-5102454-2"); pageTracker._trackPageview(); } catch(err) {}</script>
 </body> </html>

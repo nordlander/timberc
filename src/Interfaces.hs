@@ -65,7 +65,7 @@ encodeCFile ti_file ifc = encodeFile ti_file ifc
 
 -- Data type of interface file -----------------------------------------------
 
-data IFace = IFace { impsOf      :: [Name],                         -- imported/used modules
+data IFace = IFace { impsOf      :: [(Bool,Name)],                         -- imported/used modules
                      defaults    :: [Default Scheme],               -- exported default declarations
                      recordEnv   :: Map Name [Name],                -- exported record types and their selectors,
                      tsynEnv     :: Map Name ([Name],Syntax.Type),  -- type synonyms
@@ -113,10 +113,10 @@ isAbstract (_,_)                     = False     -- this makes abstract types wi
 
 -- Building environments in which to compile the current module -----------------------------------------------
 {- 
-   Input to initEnvs is a map as built by chaseImports;
+   Input to initEnvs is a map as built by chaseIFaceFiles;
    output is four tuples of data suitable for various compiler passes.
 -}
-type ImportInfo a                     =  (Bool, Bool, a)
+type ImportInfo a                     =  (Bool, a)
 
 
 type Desugar1Env     = (Map Name [Name], Map Name Name, Map Name ([Name], Syntax.Type))
@@ -137,7 +137,7 @@ initEnvs bms         = do ims <- mapM (mkEnv . snd) bms
                                        catDecls ds1 ds2, ws1++ws2, catBinds bs1 bs2,
                                        kds1 ++ kds2)
 
-        mkEnv (unQual,direct,IFace ns xs rs ss ds ws bs kds)
+        mkEnv (unQual,IFace ns xs rs ss ds ws bs kds)
                                      = do ks  <- renaming (dom ke)
                                           ts  <- renaming (dom te'')
                                           ls' <- renaming ls -- (concatMap snd rs)
@@ -145,8 +145,8 @@ initEnvs bms         = do ims <- mapM (mkEnv . snd) bms
                                                   unMod unQual ts,ds,ws,Binds r te' es,kds)
           where Types ke ds'         = ds
                 Binds r te es        = bs
-                te'                  = if direct then te ++ concatMap (tenvSelCon ke) ds' else []
-                te''                 = if direct then te  ++ concatMap (tenvCon ke) ds' else []
+                te'                  = te ++ concatMap (tenvSelCon ke) ds'
+                te''                 = te  ++ concatMap (tenvCon ke) ds'
                 ls                   = [ s | (_,DRec _ _ _ cs) <- ds', (s,_) <- cs, not (isGenerated s) ]
                 unMod b ps           = if b then [(tag0 (dropMod c),y) | (c,y) <- ps] ++ ps else ps
 
@@ -199,7 +199,7 @@ instance Binary IFace  where
 
 instance Pr IFace where
   pr (IFace ns xs rs ss ds1 ws bs kds) =
-                                  text "Imported/used modules: " <+> hsep (map prId ns) $$
+                                  text "Imported/used modules: " <+> prImports ns $$
                                   text "Default declarations: " <+> hpr ',' xs $$
                                   text ("Record types and their selectors: "++show rs) $$
                                   text "Type synonyms: " <+> hsep (map (prId . fst) ss) $$ 
@@ -236,7 +236,7 @@ writeAPI modul ifc             = writeFile (modul ++ ".html") (render(toHTML mod
 
 toHTML n (IFace ns xs rs ss ds ws bs _) = text "<html><body>\n" $$
                                           text ("<h2>API for module "++n++"</h2>\n") $$
-                                          section ns "Imported modules" (hpr ',' ) $$
+                                          section ns "Imported modules" prImports $$
                                           section xs "Default declarations" (hpr ',') $$
                                           section ke' "Kind declarations" (pr . flip Types []) $$
                                           section ds' "Type declarations" (pr . Types [] . map addSubs) $$
@@ -246,6 +246,7 @@ toHTML n (IFace ns xs rs ss ds ws bs _) = text "<html><body>\n" $$
   where section xs header f             = if null xs 
                                            then empty 
                                            else text ("<h4>"++header++"</h4>\n<pre>") $$ f xs $$ text "</pre>"
+        
         Types ke ds'                    = ds
         ke'                             = [(n,k) | (n,k) <- ke, notElem n (dom ds')]
         Binds _ te _                    = bs

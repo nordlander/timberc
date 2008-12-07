@@ -41,7 +41,7 @@ import Data.Binary
 import Monad
 
 
-data Module     = Module Name [Name] [Default Scheme] Types [Name] [Binds]
+data Module     = Module Name [(Bool,Name)] [Default Scheme] Types [Name] [Binds]
                 deriving  (Eq,Show)
 
 data Types      = Types   KEnv Decls
@@ -777,7 +777,9 @@ instance Pr Module where
                                     $$ prImports ns $$ prDefaults xs $$ pr ds $$ prInstance is $$ vpr bss
 
 prImports []                      = empty
-prImports ns                      = text "import" <+> hpr ',' ns
+prImports (i : is)                = prI i $$ prImports is
+  where prI(True,n)               = text "import" <+> pr n
+        prI(False,n)              = text "use" <+> pr n
 
 prDefaults []                     = empty
 prDefaults ns                     = text "default" <+> hpr ',' ns

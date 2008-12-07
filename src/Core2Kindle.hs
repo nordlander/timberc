@@ -171,7 +171,7 @@ cModule e2 e3 (Module m ns xs ds ws bss)
                                              ds3 = dsThis ++ dsNQ
                                          --let fromCurrent n = not (isQualified n)|| isQual m n
                                          --    ds3 = ds1++reverse (filter (fromCurrent . fst) ds2)
-                                         return (Kindle.Module m ns ds3 bs,dsThis)
+                                         return (Kindle.Module m (map snd ns) ds3 bs,dsThis)
   where env                         = addDecls e3 (setMName m (addTEnv Kindle.primTEnv (addDecls Kindle.primDecls env0)))
 
 -- Compute the imported type environment
