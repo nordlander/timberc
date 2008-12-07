@@ -387,13 +387,12 @@ fatalErrorHandler e =  do putStrLn (show e)
 -- Getting import info ---------------------------------------------------------
 
 
-chaseImps                         :: (String -> IO (a,String)) -> (Bool -> a -> [(Bool,Name)]) -> String -> [Syntax.Import] -> Map Name a -> IO (Map Name (ImportInfo a), Map Name a)
+chaseImps                         :: (String -> IO (a,String)) -> (Bool -> a -> [(Name,Bool)]) -> String -> [Syntax.Import] -> Map Name a -> IO (Map Name (ImportInfo a), Map Name a)
 chaseImps readModule iNames suff imps ifs              
                                      = do bms <- mapM (readImport ifs) imps
                                           let newpairs = [p | (p,True) <- bms]
                                               ifs1 =  [(c,ifc) | (c,(_,ifc)) <- newpairs] ++ ifs
-                                          (rms,ifs2) <- chaseRecursively ifs1 (map impName imps) [] (concat [iNames b c |  ((_,(b,c)),_) <- bms ])
-                                          return (map fst bms ++ rms, ifs2)
+                                          chaseRecursively ifs1 (map (\(Syntax.Import b c) -> (c,b)) imps) (map fst bms) (concat [ iNames b c |  ((_,(b,c)),_) <- bms ])
   where readIfile ifs c              = case lookup c ifs of
                                         Just ifc -> return (ifc,False)
                                         Nothing -> do (ifc,f) <- readModule f
@@ -403,19 +402,34 @@ chaseImps readModule iNames suff imps ifs
                                      = do (ifc,isNew) <- readIfile ifs c
                                           return ((c,(b,ifc)),isNew)
         chaseRecursively ifs vs ms []= return (ms,ifs)
-        chaseRecursively ifs vs ms ((unQual,r) : rs)
-             | elem r vs             = chaseRecursively ifs vs ms rs
-             | otherwise             = do (ifc,isNew)  <- readIfile ifs r
-                                          chaseRecursively (if isNew then (r,ifc) : ifs else ifs) (r : vs) ((r,(unQual,ifc)) : ms) 
-                                                           (rs ++ iNames unQual ifc)
+        chaseRecursively ifs vs ms (p@(r,unQual) : rs)
+                                     = case lookup r vs of
+                                          Just b 
+                                            | not b && unQual -> chaseRecursively ifs (update1 r vs) (update2 r ms) rs -- found import chain; previously only use chain
+                                            | otherwise -> chaseRecursively ifs vs ms rs
+                                          Nothing -> do (ifc,isNew)  <- readIfile ifs r
+                                                        chaseRecursively (if isNew then (r,ifc) : ifs else ifs) (p : vs) ((r,(unQual,ifc)) : ms) 
+                                                                         (rs ++ iNames unQual ifc)
+        update1 r ((r',_) : ps)
+             | r == r'              = (r,True) : ps
+        update1 r (p : ps)          = p : update1 r ps
+        update1 _ []                = internalError0 "Main.update1: did not find module"
 
-impsOf2 b i                        = map (\(b',c) -> (b && b',c)) (impsOf i)         
+        update2 r ((r',(_,ifc)) : ps)
+             | r == r'              = (r,(True,ifc)) : ps
+        update2 r (p : ps)          = p : update2 r ps
+        update2 _ []                = internalError0 "Main.update2: did not find module"
+        
+
+
 chaseIfaceFiles clo                 = chaseImps (decodeModule clo) impsOf2 ".ti"
-                                     
+  where impsOf2 b i                 = map (\(b',c) -> (c,b && b')) (impsOf i)
+                                          
 impName (Syntax.Import b c)          = c
 impNames (Syntax.Module _ is _ _)    = map impName is
 
-impNames2 b (Syntax.Module _ is _ _)    = map  (\(Syntax.Import b' c) -> (b && b',c)) is
+impNames2 b (Syntax.Module _ is _ _)    
+                                     = map  (\(Syntax.Import b' c) -> (c,b && b')) is
 
 chaseSyntaxFiles clo                 = chaseImps readSyntax impNames2 ".t"
   where readSyntax f                 = (do cont <- readFile f
