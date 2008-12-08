@@ -78,7 +78,7 @@ import qualified Control.Exception as Exception ( throwIO, Exception )
 import Data.Dynamic
 
 
-versionString = "The Timber compiler, version 1.0.1"
+versionString = "The Timber compiler, version 1.0.2"
 
 -- | Contains the configuration for the compiler with the current
 -- command line switches.
