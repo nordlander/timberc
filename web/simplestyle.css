@@ -53,16 +53,6 @@ a[href]:hover {
   color: #111;
 }
 
-a[href^=http] {
-//  background: transparent url(data:image/gif;base64,R0lGODlhCQAJAJEAAP///wAAAP///wAAACH5BAUUAAIALAAAAAAJAAkAAAIXlI8ZK8sdGpggWhrAyXVGSVUGh42OIxQAOw%3D%3D) no-repeat scroll right center;
-//  padding-right: 13px;
-}
-
-a[href$=pdf]:after {
-//  content: ' (pdf)';
-}
-
-
 div.navbar h3, div.navbar h4 {
   margin: 0.5em 0;
   text-align: center;
@@ -104,12 +94,7 @@ ul.menu li a:active {
 }
 
 table {
-//  border: 1px solid #eee;
   font-size: 0.9em;
-}
-
-th, td {
-//  border: 0 !important;
 }
 
 th {
@@ -120,14 +105,6 @@ th {
   background: #FEF7ED;
 }
 
-tr {
-//  background: #fafafa;
-//  color: #222;
-}
-
-tr:hover {
-//  background: #FEF7ED;
-}
 
 TH, TD {
   font-size: 1em;
