@@ -51,6 +51,7 @@ extra-source-files:  rtsPOSIX/Makefile.in,
                      rtsPOSIX/rts.h,
                      rtsPOSIX/timberc.cfg.in,
                      rtsPOSIX/timer.c
+                     timberc.spec
 
 
 Executable timberc
