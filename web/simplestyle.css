@@ -31,8 +31,6 @@ img {
 }
 
 pre {
-  width: inherit;
-  overflow-x: auto;
   margin-left: 50px;
 }
 
