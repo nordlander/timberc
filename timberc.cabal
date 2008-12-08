@@ -50,7 +50,7 @@ extra-source-files:  rtsPOSIX/Makefile.in,
                      rtsPOSIX/rts.c,
                      rtsPOSIX/rts.h,
                      rtsPOSIX/timberc.cfg.in,
-                     rtsPOSIX/timer.c
+                     rtsPOSIX/timer.c,
                      timberc.spec
 
 
