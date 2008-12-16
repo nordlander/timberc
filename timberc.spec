@@ -18,7 +18,7 @@ Group:          Development/Languages/Timber
 URL:            http://timber-lang.org
 Source0:        http://timber-lang.org/dist/timberc-%{version}.tar.gz
 Packager:       Peter A. Jonsson <pj@csee.ltu.se>
-BuildRoot:      %{_tmppath}/%{name}-%{version}-build
+BuildRoot:      %{_tmppath}/BUILDROOT/%{name}-%{version}-%{release}.%{_arch}
 BuildRequires:  happy >= 1.18, ghc >= 6.10.1 
 Provides:       timber
 Summary:        The Timber Compiler
@@ -35,24 +35,29 @@ runhaskell Setup build
 
 %install
 
-runhaskell Setup copy --destdir=%{_tmppath}/%{name}-%{version}-build
-mv %{_tmppath}/%{name}-%{version}-build/%{_bindir}/timberc %{_tmppath}/%{name}-%{version}-build/%{_datadir}/timberc-%{version}/timberc
+runhaskell Setup copy --destdir=${RPM_BUILD_ROOT}
+mv ${RPM_BUILD_ROOT}%{_bindir}/timberc ${RPM_BUILD_ROOT}%{_datadir}/timberc-%{version}/timberc
 
 
 # Ugly hack: construct a temporary bin/timberc by hand to build the RTS.
 SCRIPT="%{_bindir}/timberc"
-SCRIPT_TMP="%{_tmppath}/%{name}-%{version}-build/$SCRIPT"
+SCRIPT_TMP="${RPM_BUILD_ROOT}$SCRIPT"
 DATADIR="%{_datadir}/timberc-%{version}"
-DATADIR_TMP="%{_tmppath}/%{name}-%{version}-build/$DATADIR"
+DATADIR_TMP="${RPM_BUILD_ROOT}/$DATADIR"
 
+# Build a temporary timberc for compiling things during package construction.
+# We must use a relative datadir here, otherwise the path will end up in the
+# file which in turn will fail the sanity check of rpm.
 echo "#!/bin/sh" > $SCRIPT_TMP
 echo " " >> $SCRIPT_TMP
-echo "exec $DATADIR_TMP/timberc \${1+\"\$@\"} --datadir $DATADIR_TMP" >> $SCRIPT_TMP
+echo "exec $DATADIR_TMP/timberc -v \${1+\"\$@\"} --datadir .." >> $SCRIPT_TMP
 chmod 755 $SCRIPT_TMP
 
 cd rtsPOSIX
 sh ./configure --prefix=$DATADIR --with-timberc=$SCRIPT_TMP
-make DESTDIR=%{_tmppath}/%{name}-%{version}-build install
+sed 's#^TIMBERC.*#TIMBERC = %{_bindir}/timberc#g' Makefile > Makefile.new
+mv Makefile.new Makefile
+make TIMBERC=$SCRIPT_TMP DESTDIR=${RPM_BUILD_ROOT} install
 cd ..
 
 # We're done with the temporary thing. Now make a real one.
@@ -61,6 +66,10 @@ echo "#!/bin/sh" > $SCRIPT_TMP
 echo " " >> $SCRIPT_TMP
 echo "exec $DATADIR/timberc \${1+\"\$@\"} --datadir $DATADIR" >> $SCRIPT_TMP
 chmod 755 $SCRIPT_TMP
+
+# Grep reports BUILDROOT inside our object files; disable that test.
+QA_SKIP_BUILD_ROOT=1
+export QA_SKIP_BUILD_ROOT
 
 %clean
 rm -rf ${RPM_BUILD_ROOT}

@@ -38,5 +38,5 @@ install:
 	$(INSTALL) timer.c $(DESTDIR)$(prefix)/rtsPOSIX
 	$(INSTALL) main.c $(DESTDIR)$(prefix)/rtsPOSIX
 	$(INSTALL) Makefile $(DESTDIR)$(prefix)/rtsPOSIX
-	cd $(DESTDIR)$(prefix)/rtsPOSIX && make $(DEST) 
+	cd $(DESTDIR)$(prefix)/rtsPOSIX && make TIMBERC=$(TIMBERC) $(DEST) 
 
