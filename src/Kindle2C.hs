@@ -383,6 +383,13 @@ k2cExp1 e                       = k2cExp2 e
 k2cExp2 (EVar x)                = k2cName x
 k2cExp2 (ELit (LRat _ r))       = text (show (fromRational r :: Double))
 k2cExp2 (ELit (LStr _ str))     = text ("getStr("++show str++")")
+k2cExp2 (ELit l@(LChr _ c))     = prC c
+  where prC c
+          | c < ' '             = text ("\'\\x" ++ hexDigit (fromEnum c `div` 16) : hexDigit (fromEnum c `mod` 16) : "\'")
+          | otherwise           = pr l
+        hexDigit n
+          | n < 10              = toEnum (n + fromEnum '0') 
+          | otherwise           = toEnum (n - 10 + fromEnum 'a')
 k2cExp2 (ELit l)                = pr l
 k2cExp2 (ESel e (Prim STATE _)) = text "STATEOF" <> parens (k2cExp e)
 k2cExp2 (ESel e l)              = k2cExp2 e <> text "->" <> k2cName l
