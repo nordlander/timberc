@@ -298,6 +298,36 @@ checkUpToDate clo t_file ti_file c_file h_file imps
                                else do ti_time <- Directory.getModificationTime ti_file
                                        return (ti_time <= ti_time1)
 ------------------------------------------------------------------------------
+{-
+  Debugging the compiler with the ghci debugger:
+
+  Build and install the compiler somewhere. Once that is done, run the 
+  following commands in the timber source repository:
+
+  $ cd src
+  $ ghci -fglasgow-exts Main.hs -i../dist/build/timberc/timberc-tmp
+  
+  This should give you a ghci prompt, type the following (replace PREFIX and
+  VERSION with the actual values):
+
+  > :set -fbreak-on-exception
+  > :trace main2 ["--datadir", "PREFIX/share/timberc-VERSION", "-v", "file.t"]
+ 
+  <CRASH>
+
+  > :history
+    -1  : handleError (Main.hs:346:48-57)
+    -2  : handleError (Main.hs:346:10-57)
+    -3  : handleError (Main.hs:346:2-58)
+    -4  : handleError (Main.hs:(345,31)-(347,14))
+    -5  : handleError (Main.hs:(345,0)-(347,14))
+    -6  : addDecls (Kindlered.hs:51:62-70)
+    -7  : Name.$f7 (Name.hs:525:47-51)
+    -8  : Name.$f7 (Name.hs:(518,2)-(525,51))
+    -9  : findSel (Kindlered.hs:53:99-103)
+    ...
+-}
+
 
 main                = do args <- getArgs
                          main2 args
