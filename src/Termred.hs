@@ -415,14 +415,14 @@ redBetaC env ((x,t):te) c (e:es)
   | inline x e                  = do c' <- redBetaC (addEqns env [(x,e)]) te c es
                                      return (bindx c')
   | otherwise                   = liftM (CLet bs) (redBetaC env te c es)
-  where inline x e              = isSafe x || isEVar e || (value e && finite env e && isSmall e)
+  where inline x e              = isSafe x || isSafeEVar e || (value e && finite env e && isSmall e)
         isSafe x                = isEtaExp x || isAssumption x || isCoercion x        
         bindx c'
           | x `elem` evars c'   = CLet bs c'
           | otherwise           = c'
         bs                      = Binds False [(x,t)] [(x,e)]
-        isEVar (EVar _)         = True
-        isEVar _                = False
+        isSafeEVar (EVar n)     = not $ isState n
+        isSafeEVar _            = False
 redBetaC env [] c []            = redCmd env c
 
 -- Constructor presence
