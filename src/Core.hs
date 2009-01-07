@@ -680,6 +680,29 @@ extSubst s xs                   = do s' <- mapM ext xs
                                      return (s'++s)
   where ext x                   = do n <- newNum
                                      return (x, {-annotGenerated-} x { tag = n })
+
+
+-- Refresh free unification variables -----------------------------------------------
+
+class Refresh a where
+    refresh                     :: a -> M x a
+
+instance Refresh a => Refresh [a] where
+    refresh xs                  = mapM refresh xs
+    
+instance Refresh Type where
+    refresh (TVar (TV (_,k)))   = newTVar k
+    refresh (TFun t ts)         = liftM2 TFun (refresh t) (refresh ts)
+    refresh (TAp t u)           = liftM2 TAp (refresh t) (refresh u)
+    refresh t                   = return t
+
+instance Refresh Rho where
+    refresh (R t)               = liftM R (refresh t)
+    refresh (F ts t)            = liftM2 F (refresh ts) (refresh t)
+
+instance Refresh Scheme where
+    refresh (Scheme t ps ke)    = liftM3 Scheme (refresh t) (refresh ps) (return ke)
+    
                                      
 
 -- Bound variables --------------------------------------------------------------
