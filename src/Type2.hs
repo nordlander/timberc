@@ -42,7 +42,7 @@ import PP
 typecheck2 e2 m                 = t2Module e2 m
 
 t2Module (xs',ds',ws',bs') (Module v ns xs ds ws bss)
-                                = do bss <- t2BindsList env2 bss
+                                = do bss <- t2TopBinds env2 bss
                                      return (Module v ns xs ds ws bss)
   where env2                    = addTEnv0 te2 (addKEnv0 ke2 env1)
         te2                     = tenvSelsCons ds
@@ -52,71 +52,62 @@ t2Module (xs',ds',ws',bs') (Module v ns xs ds ws bss)
         ke1                     = ksigsOf ds'
         env0                    = addTEnv0 primPredEnv (initEnv v)
 
-t2BindsList env []              = return []
-t2BindsList env (bs:bss)        = do bs <- t2Binds0 env bs
-                                     bss <- t2BindsList (addTEnv (tsigsOf bs) env) bss
+
+-- Note 1:  During type-checking of a top-level right-hand side, all unification variables found will 
+-- be generalized before a dependent binding group is checked. Thus there is no need to propagate any 
+-- substitution from one top-level binding group to the next
+
+t2TopBinds env []               = return []
+t2TopBinds env (bs:bss)         = do (_,bs) <- t2Binds env bs
+                                     bss <- t2TopBinds (addTEnv (tsigsOf bs) env) bss
                                      return (bs:bss)
 
--- t2Binds0 is a variant of t2Binds that is optimized for use on the program top level, where the only free 
--- occurrences of unification variables are in partial type signatures.  After type-checking a right-hand side,
--- all unification variables that still remain will be generalized before a dependent binding group is checked.
--- Thus there is no need to propagate any substitution from one top-level binding group to the next; and
--- furthermore, the only fragment of a substitution that can possibly affect the type of a binding whithin
--- the *same* group must have the free unification variables of the corresponding type signature as its domain.
--- Hence the restriction of s1 to the tvars of sc below.  Note: this optimization has considerable impact on
--- the efficiency of the Type2 pass!
--- Another difference between t2Binds0 and t2Binds is that t2Binds0 also applies the computed substitution to
--- the top-level *term* of a binding, so that nested signatures inside the right-hand side term may be properly 
--- updated and named according to System F-like principles.  Note that this is done as early as possible 
--- (immediately after a right-hand side has been checked), in order to allow the computed substitution to be 
--- restricted before it is applied to any sibling bindings.
 
-t2Binds0 env (Binds r te eqs)   = do (s,eqs') <- t2Eqs eqs
-                                     scs' <- mapM (t2Gen (tevars env)) (subst s scs)
-                                     return (Binds r (xs `zip` scs') eqs')
-  where env1                    = addTEnv te env
-        (xs,scs)                = unzip te
-        t2Eqs []                = return (nullSubst, [])
-        t2Eqs ((x,e):eqs)       = do (s1,e) <- t2ExpTscoped env1 sc e
-                                     (s2,eqs) <- t2Eqs eqs
-                                     return (mergeSubsts [restrict s1 (tvars sc),s2], (x, subst s1 e):eqs)
-          where sc              = lookup' te x
-
+-- Note 2:  In order to enable subsequent translation into the System F-like type system of Kindle, the
+-- type abstraction and application points are encoded in the resulting terms as uniquely shaped let-bindings
+-- (see encodeTAbs and encodeTApp defined in Core).
 
 t2Binds env (Binds r te eqs)    = do (s,eqs') <- t2Eqs eqs
-                                     let scs1 = subst s scs
-                                         tvs0 = concat [ tvars sc | (sc,eq) <- scs1 `zip` eqs, isNewAp (snd eq) ]
-                                     scs2 <- mapM (t2Gen (tevars (subst s env) ++ tvs0)) (subst s scs1)
-                                     return (s, Binds r (xs `zip` scs2) eqs')
+                                     let news = [ lookup' te x | (x,e) <- eqs, isNewAp e ]
+                                         tvs0 = tevars (subst s env) ++ tvars (subst s news)
+                                     (te',eqs'') <- t2Gen s tvs0 eqs'
+                                     return (s, Binds r te' eqs'')
   where env1                    = addTEnv te env
-        (xs,scs)                = unzip te
         t2Eqs []                = return (nullSubst, [])
         t2Eqs ((x,e):eqs)       = do (s1,e) <- t2ExpTscoped env1 sc e
                                      (s2,eqs) <- t2Eqs eqs
                                      return (mergeSubsts [s1,s2], (x,e):eqs)
           where sc              = lookup' te x
+        t2Gen s0 tvs0 []        = return ([], [])
+        t2Gen s0 tvs0 ((x,e):eqs)
+                                = do ids <- newNames tyvarSym (length tvs)
+                                     let s = mergeSubsts [tvs `zip` map TId ids, s0]
+                                         ke' = ke ++ ids `zip` map tvKind tvs 
+                                     e' <- encodeTAbs env ke' (subst s e)
+                                     (te',eqs') <- t2Gen s0 tvs0 eqs
+                                     return ((x, Scheme (subst s rh) (subst s ps) ke'):te', (x,e'):eqs')
+          where Scheme rh ps ke = subst s0 (lookup' te x)
+                tvs             = nub (filter (`notElem` tvs0) (tvars rh))
 
 
--- Note: the program is known to be typeable at this point, thus there is no need to generalize, freshly 
+-- Note 3: the program is known to be typeable at this point, thus there is no need to generalize, freshly 
 -- instantiate, and then match an inferred type against a skolemized version of the expected type scheme 
 -- (together with checking for escaping skolem variables).  Instead, all we need to ensure is that any 
 -- type equalities implied by the match are captured in the resulting substitution, treating all-quantified 
 -- variables as scoped constants once we are inside the scope of a type signature (t2ExpTscoped), or using
 -- a freshly alpha-converted copy when matching against a polymorphic signature whose bound variables are
 -- not in scope (t2ExpT).
--- 
--- Moreover, in order to enable subsequent translation into the System F-like type system of Kindle, the
--- type abstraction and application points are encoded in the resulting terms as uniquely shaped let-bindings.
 
 t2ExpTscoped env sc e           = do (s1,rh,e) <- t2Exp env e
                                      s2 <- mgi rh (quickSkolem sc)
-                                     e <- encodeTAbs env (quant sc) e
                                      return (mergeSubsts [s1,s2], e)
                                      
 
 t2ExpT env (Scheme t qs []) e   = t2ExpTscoped env (Scheme t qs []) e
 t2ExpT env sc e                 = do sc' <- ac nullSubst sc
-                                     t2ExpTscoped env sc' e
+                                     (s,e) <- t2ExpTscoped env sc' e
+                                     e <- encodeTAbs env (quant sc') e
+                                     return (s, e)
 
 
 t2ExpTs env [] []               = return (nullSubst, [])
@@ -226,14 +217,12 @@ t2Lhs env alpha t2X xs          = do x <- newName tempSym
                                      let env' = addTEnv [(x,scheme alpha)] env
                                      (ss,rhs,_) <- fmap unzip3 (mapM (t2X env' x) xs)
                                      let s = mergeSubsts ss
-                                     scs <- mapM (t2Gen (tevars (subst s env')) . scheme') (subst s rhs)
+                                     scs <- mapM (t2Gen (tevars (subst s env'))) (subst s rhs)
                                      return (subst s alpha, scs)
-
-
-t2Gen tvs0 (Scheme rh ps ke)    = do ids <- newNames tyvarSym (length tvs)
+  where t2Gen tvs0 rh           = do ids <- newNames tyvarSym (length tvs)
                                      let s = tvs `zip` map TId ids
-                                     return (Scheme (subst s rh) ps (ke ++ ids `zip` map tvKind tvs))
-  where tvs                     = nub (filter (`notElem` tvs0) (tvars rh))
+                                     return (Scheme (subst s rh) [] (ids `zip` map tvKind tvs))
+          where tvs             = nub (filter (`notElem` tvs0) (tvars rh))
     
 
 t2Inst (Scheme rh ps ke)        = do ts <- mapM newTVar ks
