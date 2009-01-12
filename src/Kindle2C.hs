@@ -383,9 +383,13 @@ k2cExp1 e                       = k2cExp2 e
 k2cChar '\\'                    = text "\\\\"
 k2cChar '\''                    = text "\\'"
 k2cChar '\"'                    = text "\\\""
+k2cChar '\n'                    = text "\\n"
 k2cChar c | isPrint c           = text [c]
-          | ord c < 10          = text ("\\0" ++ show (ord c))
-          | otherwise           = text ("\\" ++ show (ord c))
+          | ord c < 256         = text ("\\x" ++ hex2 (ord c))
+          | otherwise           = text ("\\x" ++ hex2 (ord c `div` 256) ++ hex2 (ord c `mod` 256))
+  where hex1 n | n < 10         = chr (n + ord '0')
+               | otherwise      = chr (n - 10 + ord 'a')
+        hex2 n                  = [hex1 (n `div` 16), hex1 (n `mod` 16)]
 
 
 k2cExp2 (EVar x)                = k2cName x
