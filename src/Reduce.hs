@@ -270,11 +270,11 @@ red gs []                               = do -- tr ("Ranks: " ++ show rs)
         info                            = varInfo gs
 red gs ((env, p@(Scheme (F [sc1] t2) ps2 ke2)):ps)
                                         = do (t1,ps1) <- inst sc1
-                                             -- tr ("redf " ++ render (pr t1 <+> text "<" <+> pr t2))
+                                             -- tr ("red: " ++ render (pr t1 <+> text "<" <+> pr t2))
                                              pe <- newEnv assumptionSym ps2
                                              v  <- newName coercionSym
                                              (env',qe,eq) <- closePreds env (tvars sc1 ++ tvars t2 ++ tvars ps2) pe ke2
-                                             let ps' = repeat (tick env' False) `zip` ps1
+                                             let ps' = repeat env' `zip` ps1
                                              (s,q,es,e,es') <- redf gs env' t1 t2 (ps'++ps)
                                              pe1 <- wildify ke2 pe
                                              qe1 <- wildify ke2 qe
@@ -470,8 +470,8 @@ auTerms gs es1 es2                      = auZip auTerm gs es1 es2
     auSc _ _ _                          = internalError0 "auTerms"
 
 
-newHyp (env,c)                          = do -- tr ("newHyp " ++ render (pr p) ++ "   " ++ show (forced env))
-                                             v <- newName (sym env)
+newHyp (env,c)                          = do v <- newName (sym env)
+                                             -- tr ("newHyp " ++ render (pr (v,p)) ++ ", ticked/forced: " ++ show (ticked env,forced env))
                                              return ([(v,p)], eAp (EVar (annotExplicit v)) (map EVar vs))
   where p                               = Scheme (R c) ps ke
         (vs,ps)                         = unzip (predEnv env)
