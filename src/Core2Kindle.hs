@@ -139,14 +139,14 @@ findClosureType env vs ts t         = do ds <- currentStore
 openClosureType (Kindle.TCon n ts)
   | isClosure n                     = do ds <- currentStore
                                          let Kindle.Struct vs te _ = lookup' ds n
-                                             Kindle.FunT [] ts' t' = lookup' te (prim Code)
+                                             Kindle.FunT vs' ts' t' = lookup' te (prim Code)
                                              s = vs `zip` ts
-                                         return (subst s ts', subst s t')
+                                         return (vs', subst s ts', subst s t')
 openClosureType t                   = internalError "Core2Kindle.openClosureType" t
 
 
 splitClosureType env 0 t0           = return ([], t0)
-splitClosureType env n t0           = do (ts,t) <- openClosureType t0
+splitClosureType env n t0           = do ([],ts,t) <- openClosureType t0
                                          let n' = n - length ts
                                          if n' >= 0 then do
                                              (tss,t1) <- splitClosureType env n' t
@@ -343,11 +343,11 @@ cValExpT env t e                        = do (bf,t',e') <- cValExp env e
 
 adaptClos env [] t0 [] t1 e
   | t0 == t1                            = return e                                                                  -- A
-adaptClos env xs t0 [] t1 e             = do (ts,t1) <- openClosureType t1
+adaptClos env xs t0 [] t1 e             = do ([],ts,t1) <- openClosureType t1
                                              adaptClos env xs t0 ts t1 e                                            -- B
 adaptClos env xs t0 ts t1 e
   | length xs >= length ts              = adaptClos env xs2 t0 [] t1 (Kindle.enter e [] (map Kindle.EVar xs1))      -- C
-  | otherwise                           = do (ts',t') <- openClosureType t0
+  | otherwise                           = do ([],ts',t') <- openClosureType t0
                                              te <- newEnv paramSym ts'
                                              e' <- adaptClos env (xs ++ dom te) t' ts t1 e
                                              return (Kindle.closure t0 t' te (Kindle.CRet e'))                      -- D
@@ -782,7 +782,7 @@ cExp env (EAp e es)
                                              appFun env bf t f ts es
   where appFun env bf t f ts es
           | l_ts <  l_es                = do (bf',es1) <- cValExpTs env ts es1
-                                             (ts',t') <- openClosureType t 
+                                             ([],ts',t') <- openClosureType t 
                                              appFun env (bf . bf') t' (Kindle.enter (f es1) []) ts' es2
           | l_ts == l_es                = do (bf',es) <- cValExpTs env ts es
                                              return (bf . bf', t, ValR (f es))
@@ -793,7 +793,11 @@ cExp env (EAp e es)
                 (ts1,ts2)               = splitAt l_es ts
                 (es1,es2)               = splitAt l_ts es
 cExp env (EVar x)                       = case lookup' (tenv env) x of
-                                             Kindle.ValT t        -> return (id, t, ValR e)
+                                             Kindle.ValT t
+                                               | null ts          -> return (id, t, ValR e)
+                                               | otherwise        -> do (vs,ts',t') <- openClosureType t
+                                                                        let s = vs `zip` ts
+                                                                        return (id, subst s t', FunR (Kindle.enter e ts) (subst s ts'))
                                              Kindle.FunT vs ts' t 
                                                | null ts'         -> return (id, subst s t, ValR (Kindle.ECall x ts []))
                                                | otherwise        -> return (id, subst s t, FunR (Kindle.ECall x ts) (subst s ts'))
@@ -844,7 +848,7 @@ cValExp env e                           = do (bf,t,h) <- cExp env e
 cFunExp env e                           = do (bf,t,h) <- cExp env e
                                              case h of
                                                FunR f ts -> return (bf, t, f, ts)
-                                               ValR e' -> do (ts,t') <- openClosureType t
+                                               ValR e' -> do ([],ts,t') <- openClosureType t
                                                              return (bf, t', Kindle.enter e' [], ts)
  
 

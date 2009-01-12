@@ -173,8 +173,8 @@ tiExpT' env (explWit, Scheme t0 ps ke, e)
                                          e1        = eLam pe0 (EAp (eAp (EVar c) ws) [e])
                                      return (ss, (c, Scheme (F [scheme' t] t0) ps ke) : qe, e1)
   | otherwise                   = do (ss,qe,t,e)  <- tiExp env e
---                                     tr ("REQUIRED: " ++ render (pr (Scheme t0 ps ke)))
---                                     tr ("INFERRED: " ++ render (pr t) ++ "\n" ++ render (nest 4 (vpr qe)))
+                                     -- tr ("REQUIRED: " ++ render (pr (Scheme t0 ps ke)))
+                                     -- tr ("INFERRED: " ++ render (pr t) ++ "\n" ++ render (nest 4 (vpr qe)))
                                      (s,qe,f)     <- normalize (target t (setErrPos (posInfo e) env)) ss qe `handle` (fail . tail)
                                      c            <- newNamePos coercionSym e
                                      pe0          <- newEnvPos assumptionSym ps e >>= wildify ke
