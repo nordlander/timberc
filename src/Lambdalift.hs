@@ -109,7 +109,8 @@ llCmd env (CBind r bs c)                = do vals' <- mapM (llBind env') vals
         free0                           = evars funs
         free1                           = free0 ++ concat [ xs | (f,(_,xs)) <- expansions env, f `elem` free0 ]
         fte                             = locals (if r then env1 else env) `restrict` free1
-        tvs                             = nub (typevars funs ++ typevars fte)
+        vs1                             = concat [ vs | (f,(vs,_)) <- expansions env, f `elem` free0 ]
+        tvs                             = nub (typevars funs ++ typevars fte ++ vs1)
         env1                            = addLocals (mapSnd typeOf' vals) env
         env2                            = addExpansions (dom funs `zip` repeat (tvs, dom fte)) env1
         env'                            = if r then env2 else env
@@ -150,7 +151,8 @@ llExp env ee@(ENew n ts bs)
         free0                           = evars funs
         free1                           = free0 ++ concat [ xs | (f,(_,xs)) <- expansions env, f `elem` free0 ]
         fte                             = locals env `restrict` free1
-        fvs                             = nub (typevars funs ++ typevars fte)
+        vs1                             = concat [ vs | (f,(vs,_)) <- expansions env, f `elem` free0 ]
+        fvs                             = nub (typevars funs ++ typevars fte ++ vs1)
         Struct vs te _                  = lookup' (decls env) n   -- NOTE: n can't be a tuple or a cons if fte/fvs are nonempty...
         close (x,t)                     = (x, Val t (mkEVar env x))
 
