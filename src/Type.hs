@@ -185,7 +185,7 @@ tiExpT' env (explWit, Scheme t0 ps ke, e)
                                          (ws',ps') = if explWit then (ws, ps) else ([], [])
                                          e1        = eLam pe0 (eAp (EAp (eAp (EVar c) ws) [e']) ws')
                                      sc           <- gen (tevars env1 ++ tvars qe1) t'
-                                     return (mkEqns env1 s, (c, Scheme (F [sc] (tFun ps' t0)) ps ke) : qe1, e1)
+                                     return (mkEqns env s, (c, Scheme (F [sc] (tFun ps' t0)) ps ke) : qe1, e1)
 
 mkEqns env s                    = mapFst TVar (restrict s (tevars env))
 
