@@ -265,6 +265,7 @@ instance applicativeMaybe :: Applicative Maybe = Applicative {..}
   where Functor {..} = functorMaybe
         Just f $* Just a = Just (f a)
         _      $* _      = Nothing
+        return a = Just a
 
 instance monadMaybe :: Monad Maybe = Monad {..}
   where Applicative {..} = applicativeMaybe
