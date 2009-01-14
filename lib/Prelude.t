@@ -433,7 +433,7 @@ lookup x ((a,b) : xs)
 
 replicate :: Int -> a -> [a]
 replicate n x
-  | n < 0          = []
+  | n <= 0          = []
   | otherwise       = x : replicate (n-1) x
 
 take, drop          :: Int -> [a] -> [a]
