@@ -41,7 +41,7 @@ import Core
 import PP
 import Char
 
-termred (_,ds',_,bs') m         = redModule (consOf ds') (eqnsOf bs') m
+termred (_,ds',_,bs') m         = redModule ds' (eqnsOf bs') m
 
 redTerm coercions e             = redExp (initEnv { eqns = coercions }) e
 
@@ -50,16 +50,18 @@ isFinite e                      = finite initEnv e
 
 data Env                        = Env { eqns :: Map Name Exp,
                                         args :: [Name],
-                                        cons :: [Map Name Int]
+                                        cons :: [Map Name Int],
+                                        sels :: TEnv
                                       }
 
-initEnv                         = Env { eqns = [], args = [], cons = cons0 }
+initEnv                         = Env { eqns = [], args = [], cons = cons0, sels = [] }
 
 cons0                           = [ [(prim TRUE, 0), (prim FALSE, 0)] , [(prim NIL, 0), (prim CONS, 2)] ]
 
-consOf (Types _ ds)             = [ map f ce | (_,DData _ _ ce) <- ds ]
+consOf ds                       = [ map f ce | (_,DData _ _ ce) <- ds ]
   where f (c, Constr te pe _)   = (c, length te + length pe)
 
+selsOf ds                       = concat [ ss | (_,DRec _ _ _ ss) <- ds ]
 
 conArity env (Tuple n _)        = n
 conArity env c                  = lookup' (concat (cons env)) c
@@ -74,19 +76,20 @@ addArgs env vs                  = env { args = vs ++ args env }
 
 addEqns env eqs                 = env { eqns = eqs ++ eqns env }
 
-addCons env css                 = env { cons = css ++ cons env }
+addDecls env ds                 = env { cons = consOf ds ++ cons env, sels = selsOf ds ++ sels env }
 
-redModule impCons impEqs (Module m ns xs ds is bss)
+
+redModule impDecls impEqs (Module m ns xs ds is bss)
                                 = do (bss,_) <- redTopBinds env1 bss
                                      return (Module m ns xs ds is bss)
-  where env0                    = addCons initEnv (impCons ++ consOf ds)
+  where env0                    = addDecls initEnv (tdefsOf impDecls ++ tdefsOf ds)
         env1                    = addEqns env0 (finiteEqns env0 impEqs)
 
 
 redTopBinds env []              = return ([], [])
 redTopBinds env (bs : bss)      = do Binds r te es <- redBinds env bs
                                      (bss,vs) <- redTopBinds (addEqns env (finiteEqns env es)) bss
-                                     let necessary (v,_) = maybe (elem v vs) (const True) (fromMod v)
+                                     let necessary (v,_) = r || maybe (elem v vs) (const True) (fromMod v)
                                          te' = filter necessary te
                                          es' = filter necessary es
                                          bs' = Binds r te' es'
@@ -124,7 +127,7 @@ nonzero _                       = False
 -- may be safely inlined (can't lead to infinite expansion even if part of a recursive binding group)
 finite env (EVar (Prim c _))    = True --c `notElem` [ListArray, UniArray, UpdateArray]
 finite env (EVar (Tuple _ _))   = True
-finite env (EVar x)             = x `elem` args env || maybe False (finite env )(lookup x (eqns env))
+finite env (EVar x)             = x `elem` args env || maybe False (finite env) (lookup x (eqns env))
 finite env (ECon _)             = True
 finite env (ELit _)             = True
 finite env (ESel e _)           = finite env e
@@ -139,7 +142,52 @@ finite env e                    = False
 
 
 
-redBinds env (Binds r te eqns)  = liftM (Binds r te) (redEqns env eqns)
+redBinds env (Binds r te eqns)  = do eqns <- redEqns env eqns
+                                     bs <- staticDelayRule env (Binds r te eqns)
+                                     return bs
+
+
+staticDelayRule env bs@(Binds rec te eqs)
+  | not rec                     = return bs
+  | rec                         = do (eqs',eqs1) <- walkEqs env te (dom eqs) eqs
+                                     ts <- mapM (const (newTVar Star)) eqs1
+                                     return (Binds rec (te ++ (dom eqs1 `zip` map scheme ts)) (eqs'++eqs1))
+
+      
+walkEqs env te fw []            = return ([], [])
+walkEqs env te fw (eq:eqs)      = do (eq,eqs1) <- doEq te eq
+                                     (eqs,eqs2) <- walkEqs env te (fw \\ [fst eq] ++ dom eqs1) eqs
+                                     return (eq:eqs, eqs1++eqs2)
+  where doEq te eq@(x,e)
+          | null ke             = do (e,eqs) <- doExp e
+                                     return ((x,e), eqs)
+          | otherwise           = return ((x,e), [])
+          where ke              = quant (lookup' te x)
+        doExp (ESel e l)
+          | isCoerceLabel l     = do (e,eqs1) <- doExp e
+                                     tryDelay (\e -> ESel e l) e eqs1
+          | otherwise           = do (e,eqs1) <- doExp e
+                                     return (ESel e l, eqs1)
+--                                     tryDelay (\e -> ESel e l) e eqs1
+        doExp (ECase e alts)    = do (e,eqs1) <- doExp e
+                                     return (ECase e alts, eqs1)
+--                                     tryDelay (\e -> ECase e alts) e eqs1
+        doExp (EAp e es)        = do (e,eqs1) <- doExp e
+                                     (es,eqss) <- fmap unzip (mapM doExp es)
+                                     return (EAp e es, eqs1++concat eqss)
+--                                     tryDelay (\e -> EAp e es) e (eqs1++concat eqss)
+        doExp (ELet (Binds r te eqs) e)
+                                = do (eqs',eqss) <- fmap unzip (mapM (doEq te) eqs)
+                                     (e,eqs1) <- doExp e
+                                     return (ELet (Binds r te eqs') e, eqs1++concat eqss)
+        doExp (ERec n eqs)      = do (eqs',eqss) <- fmap unzip (mapM (doEq (sels env)) eqs)
+                                     return (ERec n eqs', concat eqss)
+        doExp e                 = return (e, [])
+        tryDelay ctxt (EVar x) eqs1
+          | x `elem` fw ++ dom eqs1
+                                = do y <- newName tempSym
+                                     return (EVar y, (y,ctxt (EVar x)):eqs1)
+        tryDelay ctxt e eqs1    = return (ctxt e, eqs1)
 
 
 redEqns env []                  = return []
