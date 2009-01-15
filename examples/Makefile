@@ -6,3 +6,8 @@ examples:
 	@for ex in $(EXAMPLES); do \
 		$(TIMBERC) --make  $$ex; \
 	done
+
+local: 
+	@for ex in $(EXAMPLES); do \
+		../timberc --make  $$ex; \
+	done
