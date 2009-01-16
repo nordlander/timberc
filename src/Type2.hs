@@ -63,31 +63,41 @@ t2TopBinds env (bs:bss)         = do (_,bs) <- t2Binds env bs
                                      return (bs:bss)
 
 
--- Note 2:  In order to enable subsequent translation into the System F-like type system of Kindle, the
--- type abstraction and application points are encoded in the resulting terms as uniquely shaped let-bindings
--- (see encodeTAbs and encodeTApp defined in Core).
+-- Note 2:  In order to enable subsequent translation into the System F-like type system of Kindle, 
+-- the type abstraction and application points are encoded in the resulting terms as uniquely shaped 
+-- let-bindings (see encodeTAbs and encodeTApp defined in Core).
 
-t2Binds env (Binds r te eqs)    = do (s,eqs') <- t2Eqs eqs
+t2Binds env (Binds r te eqs)    = do (s0,eqs') <- t2Eqs eqs
                                      let news = [ lookup' te x | (x,e) <- eqs, isNewAp e ]
-                                         tvs0 = tevars (subst s env) ++ tvars (subst s news)
-                                     (te',eqs'') <- t2Gen s tvs0 eqs'
-                                     return (s, Binds r te' eqs'')
+                                         tvs0 = tevars (subst s0 env) ++ tvars (subst s0 news)
+                                         te'  = subst s0 te
+                                     quants <- mapM (t2Quant tvs0) te'
+                                     let env2 = addTEnv [ (x,t) | (x,(t,_,_)) <- quants ] env
+                                         ss   = [ (x,s) | (x,(_,s,_)) <- quants ]
+                                         s1   = [ (x,e) | (x,(_,_,e)) <- quants, e /= EVar x ]
+                                     eqs'' <- mapM (t2Gen env2 s0 ss s1) eqs'
+                                     return (s0, Binds r te' eqs'')
   where env1                    = addTEnv te env
+
         t2Eqs []                = return (nullSubst, [])
         t2Eqs ((x,e):eqs)       = do (s1,e) <- t2ExpTscoped env1 sc e
                                      (s2,eqs) <- t2Eqs eqs
                                      return (mergeSubsts [s1,s2], (x,e):eqs)
           where sc              = lookup' te x
-        t2Gen s0 tvs0 []        = return ([], [])
-        t2Gen s0 tvs0 ((x,e):eqs)
-                                = do ids <- newNames tyvarSym (length tvs)
-                                     let s = mergeSubsts [tvs `zip` map TId ids, s0]
-                                         ke' = ke ++ ids `zip` map tvKind tvs 
-                                     e' <- encodeTAbs env ke' (subst s e)
-                                     (te',eqs') <- t2Gen s0 tvs0 eqs
-                                     return ((x, Scheme (subst s rh) (subst s ps) ke'):te', (x,e'):eqs')
-          where Scheme rh ps ke = subst s0 (lookup' te x)
-                tvs             = nub (filter (`notElem` tvs0) (tvars rh))
+
+        t2Quant tvs0 (x,t)      = do ids <- newNames tyvarSym (length tvs)
+                                     let ts  = map TId ids
+                                         s   = tvs `zip` ts
+                                         ke' = ke ++ ids `zip` map tvKind tvs
+                                     e <- encodeTApp ts (EVar x)
+                                     return (x, (Scheme (subst s rh) (subst s ps) ke', s, e))
+          where tvs             = nub (filter (`notElem` tvs0) (tvars rh))
+                Scheme rh ps ke = t
+                
+        t2Gen env s ss s1 (x,e) = do e' <- encodeTAbs ke (subst s1 (subst s0 e))
+                                     return (x, e')
+          where s0              = mergeSubsts [lookup' ss x, s]
+                ke              = quant (findType env x)
 
 
 -- Note 3: the program is known to be typeable at this point, thus there is no need to generalize, freshly 
@@ -106,7 +116,7 @@ t2ExpTscoped env sc e           = do (s1,rh,e) <- t2Exp env e
 t2ExpT env (Scheme t qs []) e   = t2ExpTscoped env (Scheme t qs []) e
 t2ExpT env sc e                 = do sc' <- ac nullSubst sc
                                      (s,e) <- t2ExpTscoped env sc' e
-                                     e <- encodeTAbs env (quant sc') e
+                                     e <- encodeTAbs (quant sc') e
                                      return (s, e)
 
 
@@ -125,14 +135,14 @@ t2Exps env (e:es)               = do (s1,t,e) <- t2Exp env e
 
 t2Exp env (ELit l)              = return (nullSubst, R (litType l), ELit l)
 t2Exp env (EVar x)              = do (rh,ts) <- t2Inst (findType env x)
-                                     e <- encodeTApp env ts (EVar x)
+                                     e <- encodeTApp ts (EVar x)
                                      return (nullSubst, rh, e)
 t2Exp env (ECon k)              = do (rh,ts) <- t2Inst (findType env k)
-                                     e <- encodeTApp env ts (ECon k)
+                                     e <- encodeTApp ts (ECon k)
                                      return (nullSubst, rh, e)
 t2Exp env (ESel e l)            = do (F (sc:scs) rh,ts) <- t2Inst (findType env l)
                                      (s,e) <- t2ExpT env sc e
-                                     e' <- encodeTApp env ts (ESel e l)     -- NOTE: the *full* instantiation of l is remembered here,
+                                     e' <- encodeTApp ts (ESel e l)         -- NOTE: the *full* instantiation of l is remembered here,
                                      return (s, subst s (tFun scs rh), e')  -- including the actual struct type arguments (C.f.: c2k.cExp)
 t2Exp env (ELam te e)           = do (s,rh,e) <- t2Exp (addTEnv te env) e
                                      return (s, F (subst s (rng te)) rh, ELam te e)
@@ -144,7 +154,7 @@ t2Exp env (ELet bs e)           = do (s1,bs) <- t2Binds env bs
 t2Exp env (ERec c eqs)          = do alphas <- mapM newTVar (kArgs (findKind env c))
                                      (t,scs) <- t2Lhs env (foldl TAp (TId c) alphas) t2Sel ls
                                      (s,es) <- t2ExpTs env scs es
-                                     e <- encodeTApp env (snd (tFlat t)) (ERec c (ls `zip` es))
+                                     e <- encodeTApp (snd (tFlat t)) (ERec c (ls `zip` es))
                                      return (s, R (subst s t), e)
   where (ls,es)                 = unzip eqs
         t2Sel env x l           = t2Exp env (ESel (EVar x) l)

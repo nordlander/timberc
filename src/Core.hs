@@ -715,8 +715,8 @@ instance BVars Binds where
 -- System F encodings ============================================================
 
 -- Encode a System F type application term
-encodeTApp env [] e             = return e
-encodeTApp env ts e             = do xs <- newNames tappSym (length ts)
+encodeTApp [] e                 = return e
+encodeTApp ts e                 = do xs <- newNames tappSym (length ts)
                                      let te = xs `zip` map scheme ts
                                          eq = xs `zip` map EVar xs
                                      return (ELet (Binds True te eq) e)
@@ -727,8 +727,8 @@ tAppTypes (Binds _ te _)        = map body (rng te)
 
 
 -- Encode a System F type abstraction term
-encodeTAbs env [] e             = return e
-encodeTAbs env ke e             = do x <- newName tabsSym
+encodeTAbs [] e                 = return e
+encodeTAbs ke e                 = do x <- newName tabsSym
                                      let te = [(x,Scheme (R (TId (prim UNITTYPE))) [] ke)]
                                      return (ELet (Binds True te [(x,EVar x)]) e)
 
