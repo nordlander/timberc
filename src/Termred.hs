@@ -348,9 +348,9 @@ redCase env e alts              = case eFlat e of
                                     _            -> liftM (ECase e) (redAlts env alts)
 
 redAlts env alts
-  | complete (cons env) cs      = do es <- mapM (redExp env) es
+  | complete (cons env) cs      = do es <- mapM (redRhs env) es
                                      return (map PCon cs `zip` es)
-  | otherwise                   = do es0 <- mapM (redExp env) es0
+  | otherwise                   = do es0 <- mapM (redRhs env) es0
                                      return (ps `zip` es0)
   where (cs,es)                 = unzip [ (c,e) | (PCon c, e) <- alts ]
         (ps,es0)                = unzip alts
