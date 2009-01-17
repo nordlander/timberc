@@ -70,9 +70,9 @@ t2TopBinds env (bs:bss)         = do (_,bs) <- t2Binds env bs
 t2Binds env (Binds r te eqs)    = do (s0,eqs') <- t2Eqs eqs
                                      let mono = [ t | (x,e) <- eqs, let t = lookup' te x, monoRestrict r t e ]
                                          tvs0 = tevars (subst s0 env) ++ tvars (subst s0 mono)
-                                         te'  = subst s0 te
-                                     quants <- mapM (t2Quant tvs0) te'
-                                     let env2 = addTEnv [ (x,t) | (x,(t,_,_)) <- quants ] env
+                                     quants <- mapM (t2Quant tvs0) (subst s0 te)
+                                     let env2 = addTEnv te' env
+                                         te'  = [ (x,t) | (x,(t,_,_)) <- quants ]
                                          ss   = [ (x,s) | (x,(_,s,_)) <- quants ]
                                          s1   = [ (x,e) | (x,(_,_,e)) <- quants, e /= EVar x ]
                                      eqs'' <- mapM (t2Gen env2 s0 ss s1) eqs'
