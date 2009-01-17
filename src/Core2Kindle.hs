@@ -318,7 +318,7 @@ cBinds env (Binds rec te eqs)           = do te1 <- cValTEnv env te1
                                              return (te', comb rec bf bs)
   where comb False bf bs                = bf . Kindle.CBind False bs
         comb True bf bs                 = Kindle.CBind True (flatBinds bf ++ bs)
-        insts                           = dom (filter (isNewAp . snd) eqs)
+        insts                           = dom (filter (\(x,e) -> monoRestrict rec (lookup' te x) e) eqs)
         (te1,te2)                       = partition ((`elem` insts) . fst) te
 
 

@@ -68,8 +68,8 @@ t2TopBinds env (bs:bss)         = do (_,bs) <- t2Binds env bs
 -- let-bindings (see encodeTAbs and encodeTApp defined in Core).
 
 t2Binds env (Binds r te eqs)    = do (s0,eqs') <- t2Eqs eqs
-                                     let news = [ lookup' te x | (x,e) <- eqs, isNewAp e ]
-                                         tvs0 = tevars (subst s0 env) ++ tvars (subst s0 news)
+                                     let mono = [ t | (x,e) <- eqs, let t = lookup' te x, monoRestrict r t e ]
+                                         tvs0 = tevars (subst s0 env) ++ tvars (subst s0 mono)
                                          te'  = subst s0 te
                                      quants <- mapM (t2Quant tvs0) te'
                                      let env2 = addTEnv [ (x,t) | (x,(t,_,_)) <- quants ] env

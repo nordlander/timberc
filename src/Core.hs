@@ -124,11 +124,17 @@ litType (LChr _ c)              = TId (prim Char)
 litType (LStr _ s)              = TAp (TId (prim LIST)) (TId (prim Char)) --internalError0 "Core.litType LStr"
 
 
-isNewAp (EVar (Prim New _))     = True
-isNewAp (EAp e _)               = isNewAp e
-isNewAp (ELet bs e)
-  | isEncoding bs               = isNewAp e
-isNewAp _                       = False
+monoRestrict rec sc (EAp e _)   = monoRestrict rec sc e
+monoRestrict rec sc (ELet bs e)
+  | isEncoding bs               = monoRestrict rec sc e
+monoRestrict _ _ (EVar (Prim New _))
+                                = True
+monoRestrict _ _ (ELam _ _)     = False
+monoRestrict _ _ (EAct _ _)     = False
+monoRestrict _ _ (EReq _ _)     = False
+monoRestrict _ _ (ETempl _ _ _ _) = False
+monoRestrict _ _ (EDo _ _ _)    = False
+monoRestrict rec sc _           = rec && null (ctxt sc)
 
 
 tupleKind n                     = foldr KFun Star (replicate n Star)
@@ -151,13 +157,6 @@ isLitPat _                      = False
 
 isConPat (PCon _)               = True
 isConPat _                      = False
-
-isLambda (ELam _ _)             = True
-isLambda _                      = False
-
-
-arity (ELam te e)               = length te
-arity e                         = 0
 
 eLet [] [] e                    = e
 eLet te eq e                    = ELet (Binds False te eq) e

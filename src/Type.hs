@@ -119,6 +119,7 @@ tiBindsList env (bs:bss)        = do (ss1, pe1, bs1) <- tiBinds env bs
                                      
 tiBinds env (Binds _ [] [])     = return ([], [], nullBinds)
 tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ showids xs ++ ", at line: " ++ show (pos (fst(head te))))
+                                     -- tr ("rec: " ++ show rec ++ ", mono: " ++ show mono)
                                      -- tr (render (nest 8 (vpr te)))
                                      -- tr ("assuming\n" ++ render (nest 4 (vpr (typeEnv env))))
                                      (s,pe,es1)   <- tiRhs0 (addTEnv te env) explWits ts es
@@ -128,18 +129,17 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ showids xs ++ ",
                                      -- tr ("PREDICATES OBTAINED (" ++ showids xs ++ "):\n" ++ render (nest 8 (vpr qe)))
                                      let env1      = subst s' env
                                          ts1       = subst s' ts
-                                         tvs0      = if mono then tvars qe ++ tvs1 else []
-                                         tvs1      = concat [ tvars t | (t,e) <- ts1 `zip` es, isNewAp e ]
-                                         (qe1,qe2) = if mono then (qe,[]) else partition (isFixed (tevars env1)) qe
+                                         tvs0      = concat [ tvars t | (t,e) <- ts1 `zip` es, monoRestrict rec t e ]
+                                         (qe1,qe2) = if mono then (qe,[]) else partition (isFixed (tevars env1 ++ tvs0)) qe
                                          (vs,qs)   = unzip qe2
                                          es2       = map f es1
-                                         es3       = if mono || not rec || null vs then es2 else map (subst (satSubst vs)) es2
+                                         es3       = if mono || not rec then es2 else map (subst (satSubst vs)) es2
                                          (es',ts') = if mono then (es3,ts1) else unzip (zipWith (qual qe2) es3 ts1)
                                      -- tr ("BEFORE GEN:\n" ++ render (nest 8 (vpr (xs `zip` ts') $$ vpr qe2)))
                                      -- Note: using genL below instead of mapM gen allows us to take a simplifying 
                                      -- shortcut later on in Type2
-                                     ts'' <- genL (tevars env1 ++ tvs0) ts'
-                                     -- tr ("DONE " ++ render (nest 8 (vpr (xs `zip` ts''))))
+                                     ts'' <- genL (tevars env1 ++ tvs0 ++ tvars qe1) ts'
+                                     -- tr ("DONE\n" ++ render (nest 8 (vpr (xs `zip` ts''))))
                                      -- tr ("EXPS " ++ render (nest 8 (vpr (xs `zip` es'))))
                                      return (mkEqns env s', qe1, Binds rec (xs `zip` ts'') (xs `zip` es'))
   where ts                      = map (lookup' te) xs
@@ -150,7 +150,7 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ showids xs ++ ",
           where es              = map EVar vs
                 f x t           = (x, eLam te (EAp (EVar x) (es ++ map EVar (dom te))))
                   where te      = abcSupply `zip` ctxt t
-        mono                    = or [ isNewAp e || arity e == 0 && null (ctxt t) | (e,t) <- es `zip` ts ]
+        mono                    = or [ monoRestrict True t e | (e,t) <- es `zip` ts ]
 
 
 tiRhs0 env explWits ts es       = do (ss,pes,es') <- fmap unzip3 (mapM (tiExpT' env) (zip3 explWits ts es))
@@ -162,8 +162,8 @@ tiRhs env ts es                 = tiRhs0 env (repeat False) ts es
 tiExpT env t e                  = tiExpT' env (False, t, e)
 
 
-tiExpT' env (explWit, Scheme t0 ps ke, e)
-  | isNewAp e                   = do (ss,pe,t,e') <- tiExp env e
+tiExpT' env (explWit, sc@(Scheme t0 ps ke), e)
+  | monoRestrict False sc e     = do (ss,pe,t,e') <- tiExp env e
                                      c            <- newNamePos coercionSym e'
                                      return (ss, (c, Scheme (F [scheme' t] t0) ps ke) : pe, EAp (EVar c) [e'])
   | null ke && not explWit      = do (ss,qe,t,e)  <- tiExp env e

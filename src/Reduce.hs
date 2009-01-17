@@ -60,9 +60,13 @@ fullreduce env eqs pe                   = do -- tr ("FULLREDUCE\n" ++ render (vp
                                              -- tr ("END FULLREDUCE " ++ show pe2)
                                              return (s2@@s1, pe2, f2 . f1)
 
-topresolve env eqs pe bs                = do (s,[],f) <- fullreduce env eqs pe
+topresolve env eqs pe bs                = do -- if not (null pe) then tr ("TOPRESOLVE\n" ++ render (nest 4 (vpr pe))) else return ()
+                                             (s,[],f) <- fullreduce env eqs pe
                                              let Binds r te es = collect (f (ELit (lInt 0))) `catBinds` bs
-                                             return (Binds r (subst s te) es)
+                                                 te' = subst s te
+                                                 mono = [ (x,t) | (x,t) <- te', not (null (tvars t)) ]
+                                             assert1 (null mono) "Illegal polymorphism in top-level type" mono
+                                             return (Binds r te' es)
   where collect (ELet bs e)             = bs `catBinds` collect e
         collect e                       = nullBinds
 
@@ -170,15 +174,13 @@ a x < b x \\ x, a x < c x \\ x, b x < c Int \\ x
 
 -- Forced reduction ------------------------------------------------------------------------
 
-resolve env pe                          = do -- tr ("############### Before resolve: ")
-                                             -- tr (render (nest 8 (vpr pe)))
+resolve env pe                          = do -- tr ("############### Before resolve:\n" ++ render (nest 8 (vpr pe)))
                                              -- tr ("tevars: " ++ show env_tvs ++ ",   reachable: " ++ show reachable_tvs)
                                              (s1,q1,[],es) <- red [] (map mkGoal pe)
-                                             -- tr ("############### After resolve: ")
-                                             -- tr (render (nest 8 (vpr q1)))
+                                             -- tr ("############### After resolve:\n" ++ render (nest 8 (vpr q1)))
                                              let f1 = eLet pe (dom pe `zip` es)
                                                  badq = filter badDummy q1
-                                             assert1 (null badq) "Cannot resolve predicates" (snd (head badq))
+                                             -- assert1 (null badq) "Cannot resolve predicates" badq
                                              -- tr "DONE RESOLVING"
                                              (s2,q2,f2) <- simplify (subst s1 env) q1
                                              return (s2@@s1, q2, f2 . f1)
