@@ -111,7 +111,9 @@ findDecl env k
   
 
 -- Look up a closure type (a Kindle.Struct) in the current store, extending the store if necessary
-findClosureType env [] ts t         = do ds <- currentStore
+findClosureType env [] ts t
+  | a <= maxPrimClos                = return (Kindle.tClos a (t:ts))
+  | otherwise                       = do ds <- currentStore
                                          -- tr ("Looking for (1) " ++ render (pr (name0 "closure", Kindle.FunT [] ts t)))
                                          case Kindle.findStruct s0 ds of
                                             Just n  -> return (Kindle.TCon n (t:ts))
@@ -136,6 +138,8 @@ findClosureType env vs ts t         = do ds <- currentStore
         ts0                         = map Kindle.tVar vs0
 
 
+openClosureType (Kindle.TCon (Prim p _) (t:ts))
+  | isClosPrim p                    = return ([], ts, t)
 openClosureType (Kindle.TCon n ts)
   | isClosure n                     = do ds <- currentStore
                                          let Kindle.Struct vs te _ = lookup' ds n
@@ -233,8 +237,7 @@ cType env t                             = cType' env (tFlat t)
 
 
 -- Translate a Core.Type but treat function types as closures
-cType' env (TId (Prim Action _), [])    = return ([t,t], Kindle.tId Msg)
-  where t                               = Kindle.tId Time
+cType' env (TId (Prim Action _), [])    = return ([Kindle.tTime,Kindle.tTime], Kindle.tMsg)
 cType' env (TId (Prim Request _), [t])  = do t <- cAType env t
                                              return ([Kindle.tInt], t)
 cType' env (TId (Prim Class _), [t])    = do t <- cAType env t

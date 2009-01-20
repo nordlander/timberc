@@ -282,6 +282,10 @@ data Prim                       =
                                 | After
                                 | Before
                                 
+                                | CLOS1                 -- Low arity (polymorphic) closure types
+                                | CLOS2
+                                | CLOS3
+                                
                                 | NEWREF                -- RTS entry points
                                 | ASYNC
                                 | LOCK
@@ -317,6 +321,12 @@ data Prim                       =
 
 minPrim                         = minBound :: Prim
 maxPrim                         = maxBound :: Prim
+
+maxPrimClos                     = 3 :: Int
+primClos 1                      = CLOS1
+primClos 2                      = CLOS2
+primClos 3                      = CLOS3
+isClosPrim p                    = p `elem` [CLOS1 .. CLOS3]
 
 isConPrim p                     = p <= MAX____CONS
 

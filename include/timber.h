@@ -41,6 +41,12 @@ struct TUP3;
 typedef struct TUP3 *TUP3;
 struct TUP4;
 typedef struct TUP4 *TUP4;
+struct CLOS1;
+typedef struct CLOS1 *CLOS1;
+struct CLOS2;
+typedef struct CLOS2 *CLOS2;
+struct CLOS3;
+typedef struct CLOS3 *CLOS3;
 struct LIST;
 typedef struct LIST *LIST;
 struct NIL;
@@ -80,6 +86,24 @@ struct TUP4 {
   POLY d;
 };
 extern WORD __GC__TUP4[];
+
+struct CLOS1 {
+    POLY GCINFO;
+    POLY (*Code) (CLOS1, POLY);
+};
+extern WORD __GC__CLOS1[];
+
+struct CLOS2 {
+    POLY GCINFO;
+    POLY (*Code) (CLOS2, POLY, POLY);
+};
+extern WORD __GC__CLOS2[];
+ 
+struct CLOS3 {
+    POLY GCINFO;
+    POLY (*Code) (CLOS3, POLY, POLY, POLY);
+};
+extern WORD __GC__CLOS3[];
 
 struct LIST {
     WORD *GCINFO;

@@ -179,6 +179,8 @@ tRef a                                  = TCon (prim Ref) [a]
 tLIST a                                 = TCon (prim LIST) [a]
 tArray a                                = TCon (prim Array) [a]
 
+tClos a ts                              = TCon (prim (primClos a)) ts
+
 litType (LInt _ _)                      = tInt
 litType (LRat _ _)                      = tFloat
 litType (LChr _ _)                      = tChar
@@ -186,28 +188,35 @@ litType (LStr _ _)                      = tLIST tChar --internalError0 "Kindle.l
 
 a                                       = name0 "a"
 b                                       = name0 "b"
+c                                       = name0 "c"
+d                                       = name0 "d"
 ta                                      = TVar a []
 tb                                      = TVar b []
+tc                                      = TVar c []
+td                                      = TVar d []
         
-primDecls                               = (prim Bool,       Struct []    []                                      Union) :
-                                          (prim FALSE,      Struct []    []                                      (Extends (prim Bool))) :
-                                          (prim TRUE,       Struct []    []                                      (Extends (prim Bool))) :
-                                          (prim UNITTYPE,   Struct []    []                                      Union) :
-                                          (prim UNITTERM,   Struct []    []                                      (Extends (prim UNITTYPE))) :
-                                          (prim LIST,       Struct [a]   []                                      Union) :
-                                          (prim NIL,        Struct [a]   []                                      (Extends (prim LIST))) :
-                                          (prim CONS,       Struct [a]   [(a, ValT ta), 
-                                                                          (b, ValT (tLIST ta))]                  (Extends (prim LIST))) :
-                                          (prim Msg,        Struct []    [(prim Code, FunT [] [] tUNIT),
-                                                                          (prim Baseline, ValT (tId AbsTime)),
-                                                                          (prim Deadline, ValT (tId AbsTime)),
-                                                                          (prim Next, ValT (tId Msg))]           Top) :
-                                          (prim Ref,        Struct [a]   [(prim STATE, ValT ta)]                 Top) :
-                                          (prim EITHER,     Struct [a,b] []                                      Union) :
-                                          (prim LEFT,       Struct [a,b] [(a,ValT ta)]                           (Extends (prim EITHER))) :
-                                          (prim RIGHT,      Struct [a,b] [(a,ValT tb)]                           (Extends (prim EITHER))) :
-                                          (prim TIMERTYPE,  Struct []    [(prim Reset,  FunT [] [tInt] tUNIT),
-                                                                          (prim Sample, FunT [] [tInt] tTime)]   Top) : 
+primDecls                               = (prim Bool,      Struct []        []                                    Union) :
+                                          (prim FALSE,     Struct []        []                                    (Extends (prim Bool))) :
+                                          (prim TRUE,      Struct []        []                                    (Extends (prim Bool))) :
+                                          (prim UNITTYPE,  Struct []        []                                    Union) :
+                                          (prim UNITTERM,  Struct []        []                                    (Extends (prim UNITTYPE))) :
+                                          (prim LIST,      Struct [a]       []                                    Union) :
+                                          (prim NIL,       Struct [a]       []                                    (Extends (prim LIST))) :
+                                          (prim CLOS1,     Struct [a,b]     [(prim Code, FunT [] [tb] ta)]        Top) :
+                                          (prim CLOS2,     Struct [a,b,c]   [(prim Code, FunT [] [tb,tc] ta)]     Top) :
+                                          (prim CLOS3,     Struct [a,b,c,d] [(prim Code, FunT [] [tb,tc,td] ta)]  Top) :
+                                          (prim CONS,      Struct [a]       [(a, ValT ta), 
+                                                                             (b, ValT (tLIST ta))]                (Extends (prim LIST))) :
+                                          (prim Msg,       Struct []        [(prim Code, FunT [] [] tUNIT),
+                                                                             (prim Baseline, ValT (tId AbsTime)),
+                                                                             (prim Deadline, ValT (tId AbsTime)),
+                                                                             (prim Next, ValT (tId Msg))]         Top) :
+                                          (prim Ref,       Struct [a]       [(prim STATE, ValT ta)]               Top) :
+                                          (prim EITHER,    Struct [a,b]     []                                    Union) :
+                                          (prim LEFT,      Struct [a,b]     [(a,ValT ta)]                         (Extends (prim EITHER))) :
+                                          (prim RIGHT,     Struct [a,b]     [(a,ValT tb)]                         (Extends (prim EITHER))) :
+                                          (prim TIMERTYPE, Struct []        [(prim Reset,  FunT [] [tInt] tUNIT),
+                                                                             (prim Sample, FunT [] [tInt] tTime)] Top) : 
                                           []
                                           
 isInfix (Prim p _)                      = p `elem` [MIN____KINDLE_INFIX .. MAX____KINDLE_INFIX]
