@@ -661,7 +661,8 @@ instance AlphaConv Type where
                                       | otherwise -> return (TId n)
     ac s (TFun t ts)            = liftM2 TFun (ac s t) (ac s ts)
     ac s (TAp t u)              = liftM2 TAp (ac s t) (ac s u)
-    ac s t                      = return t
+    ac s (TVar n)               = newTVar (tvKind n)
+
 
 instance AlphaConv Rho where
     ac s (R t)                  = liftM R (ac s t)
@@ -932,6 +933,12 @@ instance Pr Type where
 
 prMaybeScheme Nothing           = empty
 prMaybeScheme (Just t)          = prn 1 t
+
+
+-- Substitutions -----------------------------------------------------------
+
+instance Pr a => Pr (a, Type) where
+    pr (n, t) = pr n <+> text "~" <+> pr t
 
 
 -- Patterns ----------------------------------------------------------------

@@ -249,8 +249,8 @@ cType' env (TId n, ts)                  = do ts <- mapM (cAType env) ts
                                                  return ([], Kindle.TVar n ts)
                                               else
                                                  return ([], Kindle.TCon n ts)
-cType' env (TVar _, [])                 = return ([], Kindle.tInt)
-cType' env (TVar _, ts)                 = do ts <- mapM (cAType env) ts
+cType' env (TVar n, [])                 = return ([], Kindle.tInt)
+cType' env (TVar n, ts)                 = do ts <- mapM (cAType env) ts
                                              return ([], Kindle.TCon (tuple (length ts)) ts)
 cType' env (t, _)                       = do t <- cAType env t
                                              return ([], t)

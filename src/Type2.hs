@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, MultiParamTypeClasses, FlexibleContexts #-}
 -- The Timber compiler <timber-lang.org>
 --
 -- Copyright 2008 Johan Nordlander <nordland@csee.ltu.se>
@@ -104,19 +105,16 @@ t2Binds env (Binds r te eqs)    = do (s0,eqs') <- t2Eqs eqs
 -- instantiate, and then match an inferred type against a skolemized version of the expected type scheme 
 -- (together with checking for escaping skolem variables).  Instead, all we need to ensure is that any 
 -- type equalities implied by the match are captured in the resulting substitution, treating all-quantified 
--- variables as scoped constants once we are inside the scope of a type signature (t2ExpTscoped), or using
--- a freshly alpha-converted copy when matching against a polymorphic signature whose bound variables are
--- not in scope (t2ExpT).
+-- variables as scoped constants.
 
-t2ExpTscoped env sc e           = do (s1,rh,e) <- t2Exp env e
+t2ExpTscoped env sc e           = do (s1,rh,e') <- t2Exp env e
                                      s2 <- mgi rh (quickSkolem sc)
-                                     return (mergeSubsts [s1,s2], e)
+                                     return (mergeSubsts [s1,s2], e')
                                      
 
 t2ExpT env (Scheme t qs []) e   = t2ExpTscoped env (Scheme t qs []) e
-t2ExpT env sc e                 = do sc' <- ac nullSubst sc
-                                     (s,e) <- t2ExpTscoped env sc' e
-                                     e <- encodeTAbs (quant sc') e
+t2ExpT env sc e                 = do (s,e) <- t2ExpTscoped env sc e
+                                     e <- encodeTAbs (quant sc) e
                                      return (s, e)
 
 
@@ -277,7 +275,7 @@ unif ((TId c, TId c'):eqs)
   | c == c'                     = unif eqs
 unif ((TFun ts t, TFun us u):eqs)
   | length ts == length us      = unif ((t,u) : (ts `zip` us) ++ eqs)
-unif eqs                        = internalError0 ("Type2.unif " ++ show eqs)
+unif eqs                        = internalError0 ("Type2.unif\n" ++ render (nest 4 (vpr eqs)))
 
 
 mergeSubsts ss                  = unif (mapFst TVar (concat ss))
