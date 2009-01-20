@@ -845,11 +845,11 @@ instance Pr Binds where
     pr (Binds _ te eqns)        = vpr te $$ vpr eqns
     
 instance Pr (Name, Scheme) where
-    pr (v, sc)                  = prId v <+> text "::" <+> pr sc'
-      where sc'                 = subst s sc
-            s                   = map f (tyvars sc)
-            f v@(Name s n m a)  = (v, Name ('_':s) n m a)
-            f v                 = (v,v)
+    pr (v, sc)                  = prId v <+> text "::" <+> pr sc
+--      where sc'                 = subst s sc
+--            s                   = map f (tyvars sc)
+--            f v@(Name s n m a)  = (v, Name ('_':s) n m a)
+--            f v                 = (v,v)
                                   
 instance Pr (Name, Exp) where
     pr (v, e)                   = prId v <+> text "=" <+> pr e
