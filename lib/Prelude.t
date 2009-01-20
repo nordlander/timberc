@@ -248,10 +248,11 @@ typeclass Functor m where
 
 typeclass Applicative m < Functor m where
   ($*)   :: m (a -> b) -> m a -> m b
-  return :: a -> m a
+  pure   :: a -> m a
 
-typeclass Monad m < Applicative m where
+typeclass Monad m where
   (>>=)  :: m a -> (a -> m b) -> m b
+  return :: a -> m a
 
 typeclass MPlus m where
   mempty :: m a
@@ -265,12 +266,12 @@ instance applicativeMaybe :: Applicative Maybe = Applicative {..}
   where Functor {..} = functorMaybe
         Just f $* Just a = Just (f a)
         _      $* _      = Nothing
-        return a = Just a
+        pure a = Just a
 
 instance monadMaybe :: Monad Maybe = Monad {..}
-  where Applicative {..} = applicativeMaybe
-        Just a  >>= f = f a
+  where Just a  >>= f = f a
         Nothing >>= _ = Nothing
+        return a = Just a
 
 instance mPlusMaybe :: MPlus Maybe where
   mempty = Nothing

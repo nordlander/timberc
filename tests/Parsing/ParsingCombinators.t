@@ -49,7 +49,7 @@ instance applicativeP :: Applicative P where
     -- (When we have the delay rule, we don't need this expansion.)
     emptyParse = case f.emptyParse of Nothing -> Nothing
                                       Just f' -> f' $^ a.emptyParse
-  return a = struct
+  pure a = struct
     arr = tarray ' ' []
     emptyParse = Just a
 
@@ -65,14 +65,14 @@ a $+ b = struct
 -- derived combinators
 
 many :: P a -> P [a]
-many p = mp where mp = return (F$ \a -> F$ \l -> a:l) $** p $** mp
-                    $+ return []
+many p = mp where mp = pure (F$ \a -> F$ \l -> a:l) $** p $** mp
+                    $+ pure []
 
 choice :: [P a] -> P a
 choice (x:xs) = foldr ($+) x xs
 
 parens :: P a -> P a
-parens p = return (F$ \_ -> F$ \a -> F$ \_ -> a) $** 
+parens p = pure (F$ \_ -> F$ \a -> F$ \_ -> a) $** 
            token '(' $** p $** token ')'
 
 -- workaround for compiler limitation.
@@ -94,11 +94,11 @@ parse' p =
                  set ts' >>
                  f >>= \ma ->
                  case ma of
-                   Just a -> return (Just a)
+                   Just a -> pure (Just a)
                    Nothing -> set ts >>
-                              return p.emptyParse
+                              pure p.emptyParse
                _ -> return p.emptyParse
-    [] -> return p.emptyParse
+    [] -> pure p.emptyParse
 
 combineArraySeq :: P (a -> b) -> P a -> 
                    TArray Token (Maybe (State [Token] (Maybe b)))
@@ -107,17 +107,17 @@ combineArraySeq fp ap =
     Nothing -> ((\ft -> 
                   ft            >>= \mf ->
                   case mf of 
-                    Nothing -> return Nothing
+                    Nothing -> pure Nothing
                     Just f -> 
                       parse' ap >>= \ma ->
-                      return (f $^ ma))$^) $^ fp.arr
+                      pure (f $^ ma))$^) $^ fp.arr
     Just f -> combineTArray cf fp.arr ap.arr where
       cf Nothing    Nothing   = Nothing
       cf Nothing    (Just at) = Just ((f$^) $^ at)
       cf (Just ft') Nothing   = (\a -> (($a) $^) $^ ft') $^ ap.emptyParse
       cf (Just ft') (Just at) = Just ((ft' >>= \mf ->
                                       case mf of 
-                                        Nothing -> return Nothing
+                                        Nothing -> pure Nothing
                                         Just f -> (f$^) $^ at)
                                     `altState`
                                       ((f$^) $^ at))

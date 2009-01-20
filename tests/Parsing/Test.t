@@ -61,12 +61,12 @@ var  = F$ \x -> Var x
 op   = F$ \x -> Op x
 
 
-pExp = return eOp  $** pVar $** pOp $** pExp
-    $+ return eVar $** pVar
-    $+                 parens pExp
+pExp = pure eOp  $** pVar $** pOp $** pExp
+    $+ pure eVar $** pVar
+    $+               parens pExp
 
-pVar = return var  $** accept (\x -> x >= 'a' && x <= 'z')
-pOp  = return op   $** accept (\x -> x `elem` "+-*/")
+pVar = pure var  $** accept (\x -> x >= 'a' && x <= 'z')
+pOp  = pure op   $** accept (\x -> x `elem` "+-*/")
 
 pExp' = parseP pExp "a*(b+c)"
              
