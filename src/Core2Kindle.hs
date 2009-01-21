@@ -304,12 +304,7 @@ cValTEnv env te                         = do ts <- mapM (cValScheme env) scs
 cBindsList env []                       = return []
 cBindsList env (bs:bss)                 = do (te,bf) <- cBinds env bs
                                              bs <- cBindsList (addTEnv te env) bss
-                                             return (flatBinds bf ++ bs)
-
-
-flatBinds bf                            = flat (bf Kindle.CBreak)
-  where flat (Kindle.CBind r bs c)      = bs ++ flat c
-        flat _                          = []
+                                             return (Kindle.flatBinds bf ++ bs)
 
 
 -- Translate a list of (mutually recursive) Core bindings into a Kindle.CBind on basis of declared type
@@ -320,7 +315,7 @@ cBinds env (Binds rec te eqs)           = do te1 <- cValTEnv env te1
                                              (bf,bs) <- cEqs (addTEnv te' env) te' eqs
                                              return (te', comb rec bf bs)
   where comb False bf bs                = bf . Kindle.CBind False bs
-        comb True bf bs                 = Kindle.CBind True (flatBinds bf ++ bs)
+        comb True bf bs                 = Kindle.CBind True (Kindle.flatBinds bf ++ bs)
         insts                           = dom (filter (\(x,e) -> monoRestrict rec (lookup' te x) e) eqs)
         (te1,te2)                       = partition ((`elem` insts) . fst) te
 

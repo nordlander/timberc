@@ -328,6 +328,10 @@ cBind bs c                              = CBind False bs c
 cBindR r [] c                           = c
 cBindR r bs c                           = CBind r bs c
 
+flatBinds bf                            = flat (bf CBreak)
+  where flat (CBind r bs c)             = bs ++ flat c
+        flat _                          = []
+
 simpleExp (EVar _)                      = True
 simpleExp (ELit _)                      = True
 simpleExp (ECast _ e)                   = simpleExp e
@@ -565,9 +569,13 @@ instance Subst AType Name AType where
                                             Just t -> appargs t
                                             _      -> TVar v ts'
       where ts'                         = subst s ts
-            appargs (TCon c ts)         = TCon c (ts++ts')
+            appargs (TCon c ts)         = norm c (ts++ts')
             appargs (TVar v ts)         = TVar v (ts++ts')
 
+            norm (Prim Class _) [t]     = tClos 1 (t : [tInt])
+            norm (Prim Request _) [t]   = tClos 1 (t : [tInt])
+            norm (Prim Cmd _) [s,t]     = tClos 2 (t : [s])
+            norm c ts                   = TCon c ts
 
 instance Subst Exp Name AType where
     subst s (ESel e l)                  = ESel (subst s e) l
