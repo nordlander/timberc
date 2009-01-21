@@ -579,8 +579,13 @@ prId3 (Name s n m a)            = text (id ++ tag ++ mod ++ suff)
     tag                         = if mod=="" || generated a || id=="_sym"  then '_':show n else ""
     suff                        = if take 2 id == "_sym" then "/* "++s++" */" else ""
     mod                         = maybe "" (('_' :) . modToundSc) m
-    okForC cs                   = all (\c -> isAlphaNum c || c=='_') cs
 prId3 n                         = prId2 n
+
+prSymComment (Name s _ _ _)
+  | not (okForC s)              = text "/*" <+> text s <+> text "*/"
+prSymComment _                  = empty
+
+okForC cs                       = all (\c -> isAlphaNum c || c=='_') cs
 
 name2str n                      = render (prId3 n)
 
