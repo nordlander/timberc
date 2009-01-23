@@ -574,7 +574,7 @@ instance Subst AType Name AType where
 
             norm (Prim Class _) [t]     = tClos 1 (t : [tInt])
             norm (Prim Request _) [t]   = tClos 1 (t : [tInt])
-            norm (Prim Cmd _) [s,t]     = tClos 2 (t : [s])
+            norm (Prim Cmd _) [s,t]     = tClos 1 (t : [tRef s])
             norm c ts                   = TCon c ts
 
 instance Subst Exp Name AType where
