@@ -566,7 +566,7 @@ cBody env (ELet bs e)
                                              return (t, rcomp bf r)
 cBody env (ECase e alts)                = cCase cBody env e alts
 cBody env (EAp e0 [e]) 
-  | isPrim Match e0                     = do (t,r) <- cPMC cBody env e
+  | isPrim Match e0                     = do (t,r) <- cPMC cBody cExpFail env e
                                              return (t, rcomp (\c -> Kindle.CSeq c (Kindle.CRaise (Kindle.ELit (lInt 1)))) r)
 cBody env e                             = do (bf,t,h) <- cExp env e
                                              case h of
@@ -586,25 +586,30 @@ cBody env e                             = do (bf,t,h) <- cExp env e
 
 
 -- Translate a Core.Exp corresponding to a PMC term into a Kindle.Cmd result
-cPMC cE env (ELet bs e)
+cPMC cE cF env (ELet bs e)
   | not (isEncoding bs)                 = do (te,bf) <- cBinds env bs
-                                             (t,r) <- cPMC cE (addTEnv te env) e
+                                             (t,r) <- cPMC cE cF (addTEnv te env) e
                                              return (t, rcomp bf r)
-cPMC cE env (ECase e alts)              = cCase (cPMC cE) env e alts
-cPMC cE env (EAp e0 [e1,e2])
-  | isPrim Fatbar e0                    = do r1 <- cPMC cE env e1
-                                             r2 <- cPMC cE env e2
-                                             let n = maximum [rArity r1, rArity r2]
-                                             r1 <- adaptR env n r1
-                                             r2 <- adaptR env n r2
+cPMC cE cF env (ECase e alts)           = cCase (cPMC cE cF) env e alts
+cPMC cE cF env (EAp e0 [e1,e2])
+  | isPrim Fatbar e0                    = do r1 <- cPMC cE cF env e1
+                                             r2 <- cPMC cE cF env e2
+                                             let r = maxR [r1, r2]
+                                             r1 <- adaptR env r r1
+                                             r2 <- adaptR env r r2
                                              return (mkSeq r1 r2)
-cPMC cE env (EAp e0 [e])
+cPMC cE cF env (EAp e0 [e])
   | isPrim Commit e0                    = cE env e
-cPMC cE env e0
-  | isPrim Fail e0                      = do [t] <- cTArgs env e0
-                                             return (t, ValR Kindle.CBreak)
-cPMC cE env e                           = internalError "PMC syntax violated in Core2Kindle" e
+cPMC cE cF env e0
+  | isPrim Fail e0                      = cF env e0
+cPMC cE cF env e                        = internalError "PMC syntax violated in Core2Kindle" e
 
+cExpFail env e0                         = do [t] <- cTArgs env e0
+                                             return (t, ValR Kindle.CBreak)
+
+cCmdFail env e0                         = do [t] <- cTArgs env e0
+                                             ([],[_],t') <- openClosureType t
+                                             return (t', ValR Kindle.CBreak)
 
 -- Translate the parts of a case expression into a Kindle.Cmd result
 cCase cE env e ((PCon k,e'):_)
@@ -707,10 +712,12 @@ cCmdExp env (ELet bs e)
 cCmdExp env (EAp e0 [e])  
 --  | isPrim ReqToCmd e0                  = ...
   | isPrim Raise e0                     = do (bf,te,e) <- freezeState env e
-                                             (bf',t,e') <- cValExp (addTEnv te env) e
-                                             return (t, bf (bf' (Kindle.CRaise e')))
+                                             (bf',_,e') <- cValExp (addTEnv te env) e
+                                             [t] <- cTArgs env e0
+                                             ([],[_],t') <- openClosureType t
+                                             return (t', bf (bf' (Kindle.CRaise e')))
   | isPrim Match e0                     = do (bf,te,e) <- freezeState env e
-                                             (t,ValR c) <- cPMC cValCmdExp (addTEnv te env) e
+                                             (t,ValR c) <- cPMC cValCmdExp cCmdFail (addTEnv te env) e
                                              return (t, bf (Kindle.CSeq c (Kindle.CRaise (Kindle.ELit (lInt 1)))))
 cCmdExp env (EDo x tx c)                = do tx <- cAType env tx
                                              (t,c) <- cCmd (pushSelf x (addATEnv [(x,Kindle.tRef tx)] env)) c
