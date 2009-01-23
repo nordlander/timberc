@@ -67,7 +67,7 @@ module Dictionary where
               Int -> Class (Dictionary a b)
   hashDict hash dictC n = class
 
-     ds = new seqC dictC n
+     ds = new mapM (\_ ->  dictC) [1..n]
      dict = array ds
   
      insert a b = (dict!(hash a n)).insert a b
@@ -96,9 +96,3 @@ private
           | a == x             = Just y
           | a < x              = look a l
           | a > x              = look a r
-
-  seqC c 0       = class result []
-  seqC c n       = class
-                     x  = new c
-                     xs = new seqC c (n-1)
-                     result (x:xs)
