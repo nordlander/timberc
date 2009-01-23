@@ -412,7 +412,7 @@ k2cExp2 e                       = parens (k2cExp e)
 
 
 k2cName (Prim p _)              = k2cPrim p
-k2cName n                       = prId3 n <> prSymComment n
+k2cName n                       = prId3 n
 
 
 k2cPrim IntPlus                 = text "+"
