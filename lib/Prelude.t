@@ -288,6 +288,23 @@ ma >> mb = ma >>= \_ -> mb
 join :: m (m a) -> m a \\ Monad m
 join m = m >>= id
 
+sequence []         = return []
+sequence (x : xs)   = x >>= \y -> sequence xs >>= \ys -> return (y:ys)
+
+mapM f []           = return []
+mapM f (x : xs)     = f x >>= \y -> mapM f xs >>= \ys -> return (y:ys)
+
+instance monadCmd :: Monad (Cmd s) where
+    return a = do result a
+    a >>= b  = do x <- a
+                  b x
+
+instance monadClass :: Monad Class where
+    return a = class result a
+    a >>= b  = class x = new a
+                     y = new b x
+                     result y
+
 -- Prelude support for forall statement --------------------
 
 forallList f []       = do result ()
@@ -540,16 +557,4 @@ min x y
 floor               = primFloatToInt
 
 round x             = floor (x + 0.5)
-
--- Command sequencing --------------------------------------
-
-sequence []         = do result []
-sequence (x : xs)   = do a  <- x
-                         as <- sequence xs
-                         result a : as
-
-mapM f []           = do result []
-mapM f (x : xs)     = do a <- f x
-                         as <- mapM f xs
-                         result a : as
 
