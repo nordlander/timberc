@@ -176,7 +176,8 @@ polyTagBinds env n ts           = bs0 ++ bs1
 
 gcInfoName n@(Name s t m a)
   | isClosure n                 = Name (gcinfoSym ++ s) 0 m a
-  | otherwise                   = Name (gcinfoSym ++ s) t m a
+  | okForC s                    = Name (gcinfoSym ++ s) t m a
+  | otherwise                   = Name (gcinfoSym ++ "_sym_" ++ show t) t m a
 gcInfoName (Tuple n a)          = Name (gcinfoSym ++ "TUP" ++ show n) 0 Nothing a
 gcInfoName (Prim p a)           = Name (gcinfoSym ++ strRep2 p) 0 Nothing a
 

@@ -225,9 +225,12 @@ optcs   :: { [Constr] }
         | {- empty -}				{ [] }
         
 constrs :: { [Constr] }
-	: constrs '|' type	                { type2cons $3 : $1 }
-	| type			                { [type2cons $1] }
+	: constrs '|' constr	                { $3 : $1 }
+	| constr			        { [$1] }
 
+constr  :: { Constr }
+        : type consym type                      { Constr $2 [$1, $3] [] }
+        | type                                  { type2cons $1 }
 
 -- Signatures --------------------------------------------------------------
 
