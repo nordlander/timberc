@@ -261,7 +261,9 @@ tFlat t                         = flat t []
         flat t ts               = (t,ts)
 
 
-type2cons (TQual t ps)          = type2cons t
+type2cons (TQual t ps)          = case tFlat t of
+                                    (TCon c,ts) -> Constr c ts ps
+                                    _           -> errorTree "Bad type constructor in" t
 type2cons t                     = case tFlat t of
                                     (TCon c,ts) -> Constr c ts []
                                     _           -> errorTree "Bad type constructor in" t
