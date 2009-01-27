@@ -487,7 +487,7 @@ isCoerceConstr n                = isGenerated n && isPrefixOf coerceConstrSym (s
 isTApp n                        = isGenerated n && str n == tappSym
 isTAbs n                        = isGenerated n && str n == tabsSym
 isGCInfo n                      = isGenerated n && isPrefixOf gcinfoSym (str n)
-
+isStateType n                   = isGenerated n && str n == stateTypeSym
 explicitSyms                    = [coercionSym, assumptionSym, witnessSym]
 
 

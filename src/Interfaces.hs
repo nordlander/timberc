@@ -88,16 +88,17 @@ the IFace.
  
 ifaceMod                   :: (Map Name [Name], Map Name ([Name], Syntax.Type)) -> Module -> Kindle.Decls -> IFace
 ifaceMod (rs,ss) (Module _ ns xs ds ws bss) kds
-   | not(null vis)                   = errorIds "Private types visible in interface" vis
+   | not(null vis2)                  = errorIds "Private types visible in interface" vis2
    | not(null ys)                    = errorTree "Public default declaration mentions private instance" (head ys)
    | otherwise                       = IFace ns xs' rs ss ds1 ws bs' kds
   where Types ke te                  = ds
         Binds r2 ts2 es2             = concatBinds bss
         xs'                          = [d | d@(Default True _ _) <- xs]
         ys                           = [d | d@(Default _ i1 i2) <- xs', isPrivate i1 || isPrivate i2 ]
-        ds1                          = Types (filter exported ke) (filter exported' te)
+        ds1                          = Types (filter exported ke ++ map (\n -> (n,Star)) vis1) (filter exported' te)
         bs'                          = Binds r2 (filter exported ts2) (filter (\ eqn -> fin eqn &&  exported eqn) (erase es2))
-        vis                          = nub (localTypes [] (rng (tsigsOf bs')))
+        (vis1,vis2)                  = partition isStateType (nub (localTypes [] (rng (tsigsOf bs'))))
+        
         exported (n,_)               = isQualified n
         exported' p@(n,_)            = isQualified n && (not(isAbstract p)) --Constructors/selectors are exported
         fin (_,e)                    = isFinite e && null(filter isPrivate (constrs e))
@@ -173,7 +174,7 @@ instance LocalTypes Type where
   localTypes ns (TId n) 
      | n `elem` ns || not (isPrivate n) = []
      | otherwise                  = [n]
-  localTypes _ (TVar t)           = internalError0 ("ChaseImports.localTypes: TVar in interface file")
+  localTypes _ (TVar t)           = internalError0 ("Interfaces.localTypes: TVar in interface file")
   localTypes ns (TFun ts t)       = localTypes ns (t : ts)
   localTypes ns (TAp t1 t2)       = localTypes ns [t1, t2]
 
@@ -210,10 +211,10 @@ instance Pr IFace where
 -- prPair (n,t)                      = prId n <+> text "::" <+> pr t
    where simpVars (Binds rec te eqns) = Binds rec (map sV te) eqns
          
-sV (n,t@(Scheme rh ps ke))            = case zip (filter isGenerated (idents (Scheme rh ps []))) abcSupply of
+sV (n,t@(Scheme rh ps ke))            = case zip (filter isTypevar (idents (Scheme rh ps []))) abcSupply of
                                           [] -> (n,t)
                                           s ->  (n,subst s t) 
-
+  where isTypevar n                   = isGenerated n && not (isStateType n)
 listIface clo f                   = do (ifc,f) <- decodeModule clo f
                                        --writeAPI f ifc
                                        let modul = rmSuffix ".ti" f
