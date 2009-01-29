@@ -281,6 +281,7 @@ sampleSpaces (v:vs)             = [ vs1 ++ vs2 | vs1 <- [[],[v]], vs2 <- sampleS
 
 isPtr vs (n,FunT _ _ _)         = False
 isPtr vs (n,ValT (TVar v _))    = v `notElem` vs
+isPtr vs (Prim Next _, _)       = False         -- the next field in Msg and its subtypes is custom handled during timerQ scanning.
 isPtr vs (n,ValT (TCon k _))    = not (isScalar k)
 
 isScalar (Prim p _)             = p `elem` scalarPrims

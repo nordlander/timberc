@@ -264,7 +264,7 @@ okRec' (TVar _ _)                       = False                           -- Bad
 okRec' (TCon (Prim p _) _)              = p `notElem` Kindle.scalarPrims  -- Bad: type that can't fit placeholder
 okRec' (TCon n _)                       = True                            -- Good: heap allocated data
 
-scalarPrims                             = [Int, Float, Char, Bool, UNITTYPE, BITS8, BITS16, BITS32]
+scalarPrims                             = [Int, Float, Char, Bool, UNITTYPE, BITS8, BITS16, BITS32, AbsTime]
 
 smallPrims                              = [Char, Bool, UNITTYPE, BITS8, BITS16]
 
