@@ -454,14 +454,15 @@ void scanTimerQ() {
         DISABLE(rts);
         if (timerQ) {
                 timerQ = (Msg)copy((ADDR)timerQ);
+                Msg m = timerQ;
                 ENABLE(rts);
                 DISABLE(rts);
-                Msg m = timerQ, next = m->next;
+                Msg next = m->next;
                 while (next) {
                         m->next = (Msg)copy((ADDR)next);
+                        m = m->next;
                         ENABLE(rts);
                         DISABLE(rts);
-                        m = m->next;
                         next = m->next;
                 }
         }
