@@ -40,9 +40,9 @@ import PP
 import Char
 import Depend
 
-kindle2c is m                   = return (render h, render c)
+kindle2c m                      = return (render h, render c)
   where h                       = k2hModule m
-        c                       = k2cModule is m
+        c                       = k2cModule m
 
 -- ====================================================================================================
 -- Generate .h file
@@ -116,7 +116,7 @@ k2cType (TVar _ _)              = k2cType tPOLY
   "Constant initializer" is presently interpreted as literals only for lack of better understanding.
 -}
 
-k2cModule is (Module n ns ds bs)= cHeader n $$$
+k2cModule (Module n ns ds bs)   = cHeader n $$$
                                   k2cDeclStubs False ds $$$
                                   k2cDecls False ds $$$
                                   k2cBindStubsC bs $$$

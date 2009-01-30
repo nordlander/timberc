@@ -219,7 +219,7 @@ compileTimber clo ifs (sm,t_file) ti_file c_file h_file
                              ki'     <- pass clo (kindlered e3)               Kindlered ki
                              ll      <- pass clo (lambdalift e3)              LLift     ki'
                              pc      <- pass clo (prepare4c e2 e3)            Prepare4C ll
-                             c       <- pass clo (kindle2c (init_order imps)) K2C       pc
+                             c       <- pass clo kindle2c                     K2C       pc
                              return (c,ifaceMod a0 tc2 ds)
 
         
@@ -466,9 +466,5 @@ transImps (_,ifc)                  = map snd (impsOf ifc)
 compile_order imps                   = case topSort (impNames . snd)  imps of 
                                          Left ms  -> errorIds "Mutually recursive modules" ms
                                          Right is -> is
-
-init_order imps                      = case topSort transImps imps of
-                                         Left ms  -> errorIds "Mutually recursive modules" ms
-                                         Right is -> map fst is
 
 
