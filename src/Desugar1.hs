@@ -250,8 +250,9 @@ instance Desugar1 Exp where
             c                      = typeFromSels env (sort (ren env sels))
             sels0                  = bvars bs
             cs                     = concat [ stuffedCons p | BEqn (LPat p) _ <- bs ]
-            sels1                  = concatMap (selsFromType env) cs \\ sels0
+            sels1                  = concatMap (boundSels env) cs \\ sels0
             sels                   = sels0 ++ sels1
+            boundSels env (c,ls)   = selsFromType env c \\ ren env ls
     ds1 env (ELet bs e)            = ELet (ds1 env bs) (ds1 env e)
     ds1 env (EAp e1 e2)            = EAp (ds1 env e1) (ds1 env e2)
     ds1 env (ETup es)              = ETup (ds1 env es)
@@ -295,7 +296,7 @@ instance Desugar1 Exp where
     ds1 env e                    = e
 
 stuffedCons (ERec (Just (c,False)) fs)
-                                 = c : concat [ stuffedCons p | Field _ p <- fs ]
+                                 = (c,bvars fs) : concat [ stuffedCons p | Field _ p <- fs ]
 stuffedCons (ETup ps)            = concatMap stuffedCons ps
 stuffedCons (EList ps)           = concatMap stuffedCons ps
 stuffedCons (EAp p p')           = stuffedCons p ++ stuffedCons p'

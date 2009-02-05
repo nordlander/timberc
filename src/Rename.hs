@@ -393,8 +393,10 @@ renRec env Nothing                 = Nothing
 renSBind envL envR (BEqn (LFun v ps) rh)    = do envR' <- extRenE envR (pvars ps)
                                                  ps'   <- rename envR' ps
                                                  liftM (BEqn (LFun (annotGenerated (renE envL v)) ps')) (rename envR' rh)
-renSBind envL envR (BEqn (LPat (EVar v)) rh)= liftM (BEqn (LPat (EVar (annotGenerated (renE envL v))))) (rename envR rh)
-renSBind _ _ (BEqn (LPat p) _)              = errorTree "Illegal pattern in struct value" p 
+--renSBind envL envR (BEqn (LPat (EVar v)) rh)= liftM (BEqn (LPat (EVar (annotGenerated (renE envL v))))) (rename envR rh)
+renSBind envL envR (BEqn (LPat p) rh)       = do p' <- rename envL p
+                                                 rh' <- rename envR rh
+                                                 return (BEqn (LPat p') rh')
 renSBind _ _ s@(BSig vs t)                  = errorTree "Signature in struct value" s 
 
 instance Rename Field where
