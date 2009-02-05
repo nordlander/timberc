@@ -232,8 +232,9 @@ instance Desugar1 Exp where
     ds1 env (ERec Nothing fs)
       | not (null dups)            = errorIds "Duplicate field definitions in struct" dups
       | otherwise                  = ERec (Just (c,True)) (sortFields (ds1 env fs))
-      where c                      = typeFromSels env (sort (ren env (bvars fs)))
-            dups                   = duplicates (bvars fs)
+      where c                      = typeFromSels env (sort (ren env sels))
+            dups                   = duplicates sels
+            sels                   = bvars fs
     ds1 env (ERec (Just (c,all)) fs)
       | not (null dups)            = errorIds "Duplicate field definitions in struct" dups
       | all && not (null miss)     = errorIds "Missing selectors in struct" miss
@@ -246,7 +247,11 @@ instance Desugar1 Exp where
               | otherwise          = s
     ds1 env (EBStruct _ _ bs)      = EBStruct (Just c) labs (ds1 env bs)
       where labs                   = selsFromType env c
-            c                      = typeFromSels env (sort (ren env (bvars bs)))
+            c                      = typeFromSels env (sort (ren env sels))
+            sels0                  = bvars bs
+            cs                     = concat [ stuffedCons p | BEqn (LPat p) _ <- bs ]
+            sels1                  = concatMap (selsFromType env) cs \\ sels0
+            sels                   = sels0 ++ sels1
     ds1 env (ELet bs e)            = ELet (ds1 env bs) (ds1 env e)
     ds1 env (EAp e1 e2)            = EAp (ds1 env e1) (ds1 env e2)
     ds1 env (ETup es)              = ETup (ds1 env es)
@@ -288,6 +293,13 @@ instance Desugar1 Exp where
     ds1 env (EBefore e1 e2)      = EBefore (ds1 env e1) (ds1 env e2) 
 
     ds1 env e                    = e
+
+stuffedCons (ERec (Just (c,False)) fs)
+                                 = c : concat [ stuffedCons p | Field _ p <- fs ]
+stuffedCons (ETup ps)            = concatMap stuffedCons ps
+stuffedCons (EList ps)           = concatMap stuffedCons ps
+stuffedCons (EAp p p')           = stuffedCons p ++ stuffedCons p'
+stuffedCons _                    = []
 
 instance Desugar1 (Alt Exp) where
     ds1 env (Alt p rh)           = Alt (ds1 (patEnv env) p) (ds1 env rh)
