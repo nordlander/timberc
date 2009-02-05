@@ -22,7 +22,7 @@ helper env rand announce msg =
             after (millisec (t `mod` 3000 + 3000)) (announce helpSanta)
         
         result Helper {..}
-    
+                
 santaClaus env =
     class
         reindeers := []
