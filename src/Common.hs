@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, DeriveDataTypeable #-}
 
 -- The Timber compiler <timber-lang.org>
 --
@@ -38,8 +38,11 @@ module Common (module Common, module Name, isDigit) where
 import PP
 import qualified List
 import qualified Maybe
+import Control.Exception
 import Char
+import Config
 import Name
+import Data.Typeable
 import Data.Binary
 import Debug.Trace
 
@@ -112,7 +115,7 @@ rmSuffix suf                    = reverse . rmPrefix (reverse suf) . reverse
 rmPrefix                        :: String -> String -> String
 rmPrefix pre str 
   | pre `List.isPrefixOf` str   = drop (length pre) str
-  | otherwise                   = error $ "rmPrefix: " ++ str ++ " is not a prefix of " ++ show pre
+  | otherwise                   = internalError0 $ "rmPrefix: " ++ str ++ " is not a prefix of " ++ show pre
 
 rmDirs                          :: String -> String
 rmDirs                          = reverse . fst . span (/='/') . reverse 
@@ -132,7 +135,7 @@ dropDigits xs                   = drop 0 xs
 
 -- Error reporting ---------------------------------------------------------
 
-errorIds mess ns                = error (unlines ((mess++":") : map pos ns))
+errorIds mess ns                = compileError (unlines ((mess++":") : map pos ns))
   where pos n                   = case loc n of
                                     Just (r,c) -> rJust 15 (show n) ++ "  at line " ++ show r ++ ", column " ++ show c
                                     Nothing ->    rJust 15 (show n) ++ modInfo n
@@ -140,13 +143,17 @@ errorIds mess ns                = error (unlines ((mess++":") : map pos ns))
         rJust w str             = replicate (w-length str) ' ' ++ str
         modInfo (Name _ _ (Just m) a) = " defined in " ++ m
         modInfo _               = " (unknown position)"
-errorTree mess t                = error (mess ++ pos ++ (if length (lines str) > 1 then "\n"++str++"\n" else str) )
+errorTree mess t                = compileError (errorMsg mess t)
+
+compileError mess               = throw (CompileError mess)
+
+errorMsg mess t                 = mess ++ pos ++ (if length (lines str) > 1 then "\n"++str++"\n" else str)
   where str                     = render (pr t)
         pos                     = " ("++ show (posInfo t) ++"): "
  
-internalError mess t            = errorTree ("**** Internal compiler error ****\n" ++ mess) t
+internalError mess t            = internalError0 (errorMsg mess t)
 
-internalError0 mess             = error ("**** Internal compiler error ****\n" ++ mess)
+internalError0 mess             = throw (Panic mess)
 
 
 -- PosInfo ---------------------------------------------------------
@@ -272,7 +279,7 @@ unexpose (Left b)               = fail b
 
 runM (M m)                      = case m (1,[]) of 
                                     Right (_,x) -> x
-                                    Left s      -> error s
+                                    Left s      -> compileError s
 
 newNum                          = M $ \(n,s) -> Right ((n+1,s), n)
 
@@ -449,7 +456,7 @@ insert k x ((k',x'):assoc)
   | otherwise                   = (k',x') : insert k x assoc
 
 
-update k f []                   = error "Internal: Common.update"
+update k f []                   = internalError0 "Internal: Common.update"
 update k f ((k',x):assoc)
   | k == k'                     = (k, f x) : assoc
   | otherwise                   = (k',x) : update k f assoc
@@ -531,6 +538,7 @@ instance HasPos Kind where
   posInfo _                     = Unknown
 
 newtype TVar                    = TV (Int,Kind)
+                                deriving (Typeable)
 
 type KEnv                       = Map Name Kind
 

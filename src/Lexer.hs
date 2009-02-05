@@ -429,7 +429,7 @@ nestedComment cont y x bol s  col =
     '\t':s    -> nestedComment cont y (nextTab x) bol s  col
     '\n':s    -> nestedComment cont (y + 1) 1 True s  col
     c:s       -> nestedComment cont y (x + 1) bol s  col
-    []        -> error "Open comment at end of file"
+    []        -> compileError "Open comment at end of file"
 
 
 

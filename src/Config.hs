@@ -74,7 +74,7 @@ module Config (
 import Char
 import System.Console.GetOpt
 import System                 ( getArgs, getEnv, getProgName )
-import qualified Control.Exception as Exception ( throwIO, Exception )
+import qualified Control.Exception as Exception
 import Data.Dynamic
 
 
@@ -198,8 +198,10 @@ data Flag            = Help
                      deriving (Show,Eq)
 
 data TimbercException
-  = CmdLineError String  -- User did something wrong with command line options.
-  | Panic String         -- Unexpected faults in timberc, panic.
+  = CmdLineError String     -- User did something wrong with command line options.
+  | ConfigError String      -- Something is wrong with the given compiler configuration.
+  | CompileError String     -- Error in the given Timber input file.
+  | Panic String            -- Unexpected faults in timberc, panic.
   deriving (Eq)
 
 instance Typeable TimbercException where
@@ -207,9 +209,10 @@ instance Typeable TimbercException where
 
 -- | Let us show our exceptions as expected.
 instance Show TimbercException where
-  showsPrec _ (CmdLineError s) = showString s
-  showsPrec _ (Panic s)        = showString $
-                                 "Panic! Please file a bug report!\n\n" ++ s
+  showsPrec _ (CmdLineError s)      = showString s
+  showsPrec _ (ConfigError s)       = showString s
+  showsPrec _ (CompileError s)      = showString s
+  showsPrec _ (Panic s)             = showString ("**** Internal compiler panic! [Please file a bug report...]\n\n" ++ s)
 
 instance Exception.Exception TimbercException
 
@@ -290,8 +293,8 @@ parseCfg file
         safeRead file text =
             let val = case [x | (x,t) <- reads text, ("","") <- lex t] of
                       [x] -> x
-                      [] -> error ("Parse error in " ++ file ++ "\n")
-                      _ -> error ("File not found: " ++ file ++ "\n")
+                      [] -> Exception.throw (ConfigError ("Parse error in " ++ file ++ "\n"))
+                      _ -> Exception.throw (ConfigError ("File not found: " ++ file ++ "\n"))
                 in (return $! val)
         emsg f = (CmdLineError $ "Could not open " ++ file)
 

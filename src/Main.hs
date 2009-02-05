@@ -352,7 +352,7 @@ main2 args          = do (clo, files) <- Exception.catch (cmdLineOpts args)
 --                         Monad.when (null t_files) stopCompiler
                          
                          ps <- mapM (parse clo) t_files
-                         ifs <- compileAll clo [] ps `Exception.catch` handleError
+                         ifs <- compileAll clo [] ps `Exception.catch` fatalErrorHandler
                          Monad.when (stopAtC clo) stopCompiler
                          
                          let root = make clo
@@ -370,10 +370,6 @@ main2 args          = do (clo, files) <- Exception.catch (cmdLineOpts args)
 
                          return ()
 
-handleError (ErrorCall mess) = do
-  putStr ("*** Timber compilation error ***\n"++mess++"\n")
-  abortCompiler
-
 
 checkRoot clo ifs def       = do if1 <- getIFile rootMod
                                  if2 <- getIFile rtsMod 
@@ -384,7 +380,7 @@ checkRoot clo ifs def       = do if1 <- getIFile rootMod
                                  case lookup rootT ke of
                                      Nothing   -> fail ("Cannot locate RootType in module " ++ rtsMod)
                                      Just Star -> case lookup rootT ds of
-                                        Nothing                -> error "Internal: checkRoot"
+                                        Nothing                -> internalError0 "checkRoot"
                                         Just (Core.DType _ t') -> checkRoot' te t'
                                         Just _                 -> checkRoot' te (Core.TId rootT)
                                      Just _    -> fail ("Bad RootType in module " ++ rtsMod)

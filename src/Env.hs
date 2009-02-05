@@ -258,7 +258,7 @@ findKind0 ke c                          = case lookup c ke of
                                                              -- expressions, there is much merit to the shortcut implemented
                                                              -- here.  Note also that unknown type constructor names have
                                                              -- already been trapped and reported during renaming.
-                                                    -- error ("Internal: Unknown type constructor: " ++ show c)
+                                                    -- internalError0 ("Internal: Unknown type constructor: " ++ show c)
                                             
 findKind env c                          = findKind0 (kindEnv env ++ kindEnv0 env) c
 

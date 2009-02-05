@@ -109,7 +109,7 @@ failPM a 	= PM $ \i l c s -> Failed a
 runPM (PM p) i l c s =
     case p i l c s of
         Ok _ a -> a
-	Failed err -> error err
+	Failed err -> compileError err
 
 runPM2 (PM p) input =
     case p input (1,1) 0 [] of

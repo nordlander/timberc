@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, MultiParamTypeClasses, FlexibleContexts #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, MultiParamTypeClasses, FlexibleContexts, DeriveDataTypeable #-}
 
 -- The Timber compiler <timber-lang.org>
 --
@@ -37,6 +37,7 @@ module Core where
 
 import Common
 import PP
+import Data.Typeable
 import Data.Binary
 import Monad
 
@@ -72,20 +73,20 @@ type PScheme    = Scheme
 type Pred       = Type
 
 data Scheme     = Scheme  Rho [PScheme] KEnv
-                deriving  (Eq,Show)
+                deriving  (Eq,Show,Typeable)
 
 data Constr     = Constr  [Scheme] [PScheme] KEnv
                 deriving (Eq,Show)
 
 data Rho        = R       Type
                 | F       [Scheme] Rho
-                deriving (Eq,Show)
+                deriving (Eq,Show,Typeable)
 
 data Type       = TId     Name
                 | TVar    TVar
                 | TFun    [Type] Type
                 | TAp     Type Type
-                deriving  (Eq,Show)
+                deriving  (Eq,Show,Typeable)
 
 type Alt        = (Pat, Exp)
 

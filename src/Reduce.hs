@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 -- The Timber compiler <timber-lang.org>
 --
 -- Copyright 2008 Johan Nordlander <nordland@csee.ltu.se>
@@ -40,13 +41,25 @@ import Env
 import Kind
 import Depend
 import Termred
-
+import Data.Typeable
+import qualified Control.Exception as Exception
 
 
 
 type TSubst                             = Map TVar Type
 
 type TEqs                               = [(Type,Type)]
+
+
+data ClosePredException                 = CircularSubPred [Scheme]
+                                        | AmbigSubPred Scheme Scheme
+                                        deriving (Typeable)
+                                        
+instance Show ClosePredException where
+    show (CircularSubPred ps)           = "Circular subtype predicates: " ++ render (hpr ',' ps)
+    show (AmbigSubPred p1 p2)           = "Ambiguous subtype predicates: " ++ render (hpr ',' [p1,p2])
+
+instance Exception.Exception ClosePredException
 
 noreduce env eqs pe                     = do s0 <- unify env eqs
                                              return (s0, pe, id)

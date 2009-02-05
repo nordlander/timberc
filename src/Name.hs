@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 -- The Timber compiler <timber-lang.org>
 --
 -- Copyright 2008 Johan Nordlander <nordland@csee.ltu.se>
@@ -39,6 +40,7 @@ import PP
 import Token
 import Char
 import Maybe
+import Data.Typeable
 import Data.Binary 
 
 -- The type of names ---------------------------------------------------------------------
@@ -46,6 +48,7 @@ import Data.Binary
 data Name                       = Name  { str :: String, tag :: Int, fromMod :: Maybe String, annot :: Annot }
                                 | Prim  { con :: Prim, annot :: Annot }
                                 | Tuple { width :: Int, annot :: Annot }
+                                deriving (Typeable)
 
 
 data Annot                      = Annot { location :: Maybe (Int,Int), 
@@ -54,7 +57,7 @@ data Annot                      = Annot { location :: Maybe (Int,Int),
                                           generated :: Bool,
                                           suppressMod :: Bool
                                         }
-                                deriving Show
+                                deriving (Show,Typeable)
 
 
 -- The built-in primitives ----------------------------------------------------------------
@@ -317,7 +320,7 @@ data Prim                       =
                                 
                                 | MAX____INVISIBLE
                                 
-                                deriving (Eq,Ord,Enum,Bounded,Show)
+                                deriving (Eq,Ord,Enum,Bounded,Show,Typeable)
 
 minPrim                         = minBound :: Prim
 maxPrim                         = maxBound :: Prim
