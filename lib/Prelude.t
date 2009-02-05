@@ -262,16 +262,17 @@ instance functorMaybe :: Functor Maybe where
   f $^ Nothing = Nothing
   f $^ Just a  = Just (f a)
 
-instance applicativeMaybe :: Applicative Maybe = Applicative {..}
-  where Functor {..} = functorMaybe
-        Just f $* Just a = Just (f a)
-        _      $* _      = Nothing
-        pure a = Just a
+instance applicativeMaybe :: Applicative Maybe where
+--    Functor {..} = functorMaybe
+    ($^) = functorMaybe.($^)
+    Just f $* Just a = Just (f a)
+    _      $* _      = Nothing
+    pure a = Just a
 
-instance monadMaybe :: Monad Maybe = Monad {..}
-  where Just a  >>= f = f a
-        Nothing >>= _ = Nothing
-        return a = Just a
+instance monadMaybe :: Monad Maybe where
+    Just a  >>= f = f a
+    Nothing >>= _ = Nothing
+    return a = Just a
 
 instance mPlusMaybe :: MPlus Maybe where
   mempty = Nothing
