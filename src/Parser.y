@@ -123,7 +123,6 @@ Reserved Ids
         'typeclass'	{ KW_Typeclass }
         'use'           { KW_Use }
         'where'		{ KW_Where }
-        'while'		{ KW_While }
 
 %monad { PM } { thenPM } { returnPM }
 %lexer { lexer } { EOF }
@@ -552,7 +551,6 @@ stmt    :: { Stmt }
         | 'if' exp 'then' stmtlist              { SIf $2 $4 }
         | 'elsif' exp 'then' stmtlist           { SElsif $2 $4 }
         | 'else' stmtlist                       { SElse $2 }
-        | 'while' exp 'do' stmtlist             { SWhile $2 $4 }
         | 'case' exp 'of' saltslist             { SCase $2 $4 }
      
 

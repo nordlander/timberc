@@ -110,7 +110,6 @@ Reserved Ids
     | KW_Typeclass
     | KW_Use   
     | KW_Where
-    | KW_While
     | EOF
       deriving (Eq, Show)
 
@@ -162,8 +161,7 @@ reserved_ids
         ( "type",      KW_Type ),  
         ( "typeclass", KW_Typeclass ),  
         ( "use",       KW_Use ),   
-        ( "where",     KW_Where ),
-        ( "while",     KW_While )
+        ( "where",     KW_Where )
       ]
 
 

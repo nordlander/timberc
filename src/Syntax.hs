@@ -148,7 +148,6 @@ data Stmt   = SExp    Exp
             | SBind   [Bind]
             | SAss    Pat Exp
             | SForall [Qual] [Stmt]
-            | SWhile  Exp [Stmt]
             | SIf     Exp [Stmt]
             | SElsif  Exp [Stmt]
             | SElse   [Stmt]
@@ -362,7 +361,6 @@ instance Subst Stmt Name Exp where
     subst s (SBind bs)          = SBind (subst s bs)
     subst s (SAss p e)          = SAss p (subst s e)
     subst s (SForall qs st)     = SForall (subst s qs) (subst s st)
-    subst s (SWhile e st)       = SWhile (subst s e) (subst s st)
     subst s (SIf e st)          = SIf (subst s e) (subst s st)
     subst s (SElsif e st)       = SElsif (subst s e) (subst s st)
     subst s (SElse st)          = SElse (subst s st)
@@ -590,7 +588,6 @@ instance Pr Stmt where
     pr (SIf e ss)               = text "if" <+> pr e <+> text "then" $$ nest 4 (pr ss)
     pr (SElsif e ss)            = text "elsif" <+> pr e <+> text "then" $$ nest 4 (pr ss)
     pr (SElse ss)               = text "else" $$ nest 4 (pr ss)
-    pr (SWhile e ss)            = text "while" <+> pr e <+> text "do" $$ nest 4 (pr ss)
     pr (SForall qs ss)          = text "forall" <+> hpr ',' qs <+> text "do" $$ nest 4 (pr ss)
     pr (SCase e alts)           = text "case" <+> pr e <+> text "of" $$ nest 4 (vpr alts)
 
@@ -668,7 +665,6 @@ identStmts (SGen p e : ss)      = idents e ++ (identStmts ss \\ pvars p)
 identStmts (SBind bs : ss)      = identSBind bs ss
 identStmts (SAss p e : ss)      = idents e ++ (identStmts ss \\ pvars p)
 identStmts (SForall qs ss' : ss)= identQuals qs ++ (identStmts ss' \\ bvars qs) ++ identStmts ss
-identStmts (SWhile e ss' : ss)  = idents e ++ identStmts ss' ++ identStmts ss
 identStmts (SIf e ss' : ss)     = idents e ++ identStmts ss' ++ identStmts ss
 identStmts (SElsif e ss' : ss)  = idents e ++ identStmts ss' ++ identStmts ss
 identStmts (SElse ss' : ss)     = identStmts ss' ++ identStmts ss
@@ -814,7 +810,6 @@ instance HasPos Stmt where
   posInfo (SBind b)             = posInfo b
   posInfo (SAss p e)            = between (posInfo p) (posInfo e)
   posInfo (SForall qs ss)       = between (posInfo qs) (posInfo ss)
-  posInfo (SWhile e ss)         = between (posInfo e) (posInfo ss)
   posInfo (SIf e ss)            = between (posInfo e) (posInfo ss)
   posInfo (SElsif e ss)         = between (posInfo e) (posInfo ss)
   posInfo (SElse ss)            = posInfo ss
@@ -1030,7 +1025,6 @@ instance Binary Stmt where
   put (SBind a) = putWord8 3 >> put a
   put (SAss a b) = putWord8 4 >> put a >> put b
   put (SForall a b) = putWord8 5 >> put a >> put b
-  put (SWhile a b) = putWord8 6 >> put a >> put b
   put (SIf a b) = putWord8 7 >> put a >> put b
   put (SElsif a b) = putWord8 8 >> put a >> put b
   put (SElse a) = putWord8 9 >> put a
@@ -1044,7 +1038,6 @@ instance Binary Stmt where
       3 -> get >>= \a -> return (SBind a)
       4 -> get >>= \a -> get >>= \b -> return (SAss a b)
       5 -> get >>= \a -> get >>= \b -> return (SForall a b)
-      6 -> get >>= \a -> get >>= \b -> return (SWhile a b)
       7 -> get >>= \a -> get >>= \b -> return (SIf a b)
       8 -> get >>= \a -> get >>= \b -> return (SElsif a b)
       9 -> get >>= \a -> return (SElse a)

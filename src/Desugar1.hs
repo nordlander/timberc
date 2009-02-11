@@ -340,7 +340,6 @@ ds1S env (SIf e ss' : ss)        = doIf (EIf e (eDo env ss')) ss
 ds1S env (s@(SElsif _ _) : _)    = errorTree "elsif without corresponding if" s
 ds1S env (s@(SElse _) : _)       = errorTree "else without corresponding if" s
 ds1S env (SForall q ss' : ss)    = ds1S env (SExp (ds1Forall env q ss') : ss)
-ds1S env (SWhile e ss' : ss)     = internalError0 "while stmt not yet implemented"
 
 ds1Forall env [] ss              = eDo env ss
 ds1Forall env (QLet bs : qs) ss  = ELet bs (eDo env [SForall qs ss])
