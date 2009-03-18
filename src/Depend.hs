@@ -115,5 +115,6 @@ buildGraph vs                   = zip ns (map findDeps fvss)
 groupBindsS                     :: [Bind] ->  [[Bind]]
 groupBindsS bs                  = map f gs
   where infos                   = graphInfo bs
+        indexedInfos            = [1..] `zip` infos
         gs                      = scc (buildGraph infos)
-        f indices               = concat (map (\i -> fst3 (fromJust (lookup i (zip [1..] infos)))) indices)
+        f indices               = concat (map (fst3 . snd) (filter ((`elem` indices) . fst) indexedInfos))
