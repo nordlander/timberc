@@ -163,19 +163,18 @@ walkEqs env te fw (eq:eqs)      = do (eq,eqs1) <- doEq te eq
                                      return ((x,e), eqs)
           | otherwise           = return ((x,e), [])
           where ke              = quant (lookup' te x)
+        doAlt (p,e)             = do (e,eqs1) <- doExp e
+                                     return ((p,e), eqs1)
         doExp (ESel e l)
-          | isCoerceLabel l     = do (e,eqs1) <- doExp e
-                                     tryDelay (\e -> ESel e l) e eqs1
+          | isCoerceLabel l     = maybeDelay (\e -> ESel e l) e
           | otherwise           = do (e,eqs1) <- doExp e
                                      return (ESel e l, eqs1)
---                                     tryDelay (\e -> ESel e l) e eqs1
         doExp (ECase e alts)    = do (e,eqs1) <- doExp e
-                                     return (ECase e alts, eqs1)
---                                     tryDelay (\e -> ECase e alts) e eqs1
+                                     (alts,eqss) <- fmap unzip (mapM doAlt alts)
+                                     return (ECase e alts, eqs1++concat eqss)
         doExp (EAp e es)        = do (e,eqs1) <- doExp e
                                      (es,eqss) <- fmap unzip (mapM doExp es)
                                      return (EAp e es, eqs1++concat eqss)
---                                     tryDelay (\e -> EAp e es) e (eqs1++concat eqss)
         doExp (ELet (Binds r te eqs) e)
                                 = do (eqs',eqss) <- fmap unzip (mapM (doEq te) eqs)
                                      (e,eqs1) <- doExp e
@@ -183,11 +182,13 @@ walkEqs env te fw (eq:eqs)      = do (eq,eqs1) <- doEq te eq
         doExp (ERec n eqs)      = do (eqs',eqss) <- fmap unzip (mapM (doEq (sels env)) eqs)
                                      return (ERec n eqs', concat eqss)
         doExp e                 = return (e, [])
-        tryDelay ctxt (EVar x) eqs1
-          | x `elem` fw ++ dom eqs1
-                                = do y <- newName tempSym
-                                     return (EVar y, (y,ctxt (EVar x)):eqs1)
-        tryDelay ctxt e eqs1    = return (ctxt e, eqs1)
+        maybeDelay f (ESel e l)
+          | isCoerceLabel l     = maybeDelay (\e -> f (ESel e l)) e
+        maybeDelay f (EVar x)
+          | x `elem` fw         = do y <- newName tempSym
+                                     return (EVar y, [(y, f (EVar x))])
+        maybeDelay f e          = do (e,eqs1) <- doExp e
+                                     return (f e, eqs1)
 
 
 redEqns env []                  = return []
