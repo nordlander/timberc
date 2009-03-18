@@ -46,7 +46,7 @@
 #define ISODD(addr)             ((WORD)(addr) & 1)
 
 #define IND0(obj)               (ADDR)((ADDR)obj)[0]
-#define GC_PROLOGUE(obj)        { if (ISFORWARD(IND0(obj))) obj = (PID)IND0(obj); }             // read barrier
+#define GC_PROLOGUE(obj)        { if (ISFORWARD(IND0(obj))) obj = (OID)IND0(obj); }             // read barrier
 #define GC_EPILOGUE(obj)        { if (ISBLACK((ADDR)obj)) { ADDR a; NEW2(a,1,(ADDR)obj); } }    // write barrier
 
 #define GC_STD                  0

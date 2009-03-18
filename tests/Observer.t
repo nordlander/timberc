@@ -7,7 +7,7 @@ updateAll a (o : os) = do o.update a
                           updateAll a os
 
 struct Object where
-  self :: PID
+  self :: OID
 
 struct Observer a < Object where
   update :: a -> Action

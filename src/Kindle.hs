@@ -164,7 +164,7 @@ tPOLY                                   = tId POLY
 
 tTime                                   = tId Time
 tMsg                                    = tId Msg
-tPID                                    = tId PID
+tOID                                    = tId OID
 tUNIT                                   = tId UNITTYPE
 tInt                                    = tId Int
 tFloat                                  = tId Float
@@ -251,8 +251,8 @@ primTEnv0                               = (prim TIMERTERM,  FunT []  [tInt] (tId
                                           (prim NEWREF,     FunT [a] [ta] (tRef ta)) :
                                           (prim STATEOF,    FunT [a] [tRef ta] ta) :
                                           (prim ASYNC,      FunT []  [tMsg,tTime,tTime] tUNIT) :
-                                          (prim LOCK,       FunT []  [tPID] tUNIT) :
-                                          (prim UNLOCK,     FunT []  [tPID] tUNIT) :
+                                          (prim LOCK,       FunT []  [tOID] tUNIT) :
+                                          (prim UNLOCK,     FunT []  [tOID] tUNIT) :
                                           (prim Inherit,    ValT tTime) :
                                           (prim EmptyArray, FunT [a] [tInt] (tArray ta)) :
                                           (prim CloneArray, FunT [a] [tArray ta, tInt] (tArray ta)) :
@@ -337,10 +337,10 @@ simpleExp (ELit _)                      = True
 simpleExp (ECast _ e)                   = simpleExp e
 simpleExp _                             = False
 
-lock t e                                = ECast t (ECall (prim LOCK) [] [ECast tPID e])
+lock t e                                = ECast t (ECall (prim LOCK) [] [ECast tOID e])
 
 unlock x c                              = cMap (CRun (ECall (prim UNLOCK) [] [e0]) . CRet) c
-  where e0                              = ECast tPID (EVar x)
+  where e0                              = ECast tOID (EVar x)
 
 
 cMap f (CRet e)                         = f e

@@ -821,8 +821,8 @@ cExp env (EAp e0 [e])
                                              return (bf, t, FunR (\_ -> e) [Kindle.tRef t2])
   | Just t <- isCastPrim e0             = do (bf,_,e') <- cExp env e
                                              return (bf, t, rcomp (Kindle.ECast t) e')
-  | isPrim RefToPID e0                  = do (bf,t,e) <- cExp env e
-                                             return (bf, Kindle.tPID, rcomp (Kindle.ECast Kindle.tPID) e)
+  | isPrim RefToOID e0                  = do (bf,t,e) <- cExp env e
+                                             return (bf, Kindle.tOID, rcomp (Kindle.ECast Kindle.tOID) e)
   | isPrim New e0                       = cExp env (EAp e [ELit (lInt 0)])       -- Can't occur but in CBind rhs, syntactic restriction
 cExp env (EAp e0 [e,e'])
   | isPrim After e0                     = do (bf,e1) <- cValExpT env Kindle.tTime e

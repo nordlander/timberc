@@ -640,7 +640,7 @@ primKindEnv             = [ (prim Action,       Star),
                                     
                             (prim Msg,          Star),
                             (prim Ref,          KFun Star Star),
-                            (prim PID,          Star),
+                            (prim OID,          Star),
                             (prim PMC,          KFun Star Star),
                             (prim Time,         Star),
                                     
@@ -670,7 +670,7 @@ primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
 
                             (prim ActToCmd,     scheme1 [tAction] (tCmd a tMsg)),
                             (prim ReqToCmd,     scheme2 [tRequest a] (tCmd b a)),
-                            (prim RefToPID,     scheme1 [tRef a] tPID),
+                            (prim RefToOID,     scheme1 [tRef a] tOID),
 
                             (prim IntPlus,      scheme0 [tInt,tInt] tInt),
                             (prim IntMinus,     scheme0 [tInt,tInt] tInt),
@@ -716,8 +716,8 @@ primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
                             (prim LazyOr,       scheme0 [tBool,tBool] tBool),
                             (prim LazyAnd,      scheme0 [tBool,tBool] tBool),
 
-                            (prim PidEQ,        scheme0 [tPID,tPID] tBool),
-                            (prim PidNE,        scheme0 [tPID,tPID] tBool),
+                            (prim PidEQ,        scheme0 [tOID,tOID] tBool),
+                            (prim PidNE,        scheme0 [tOID,tOID] tBool),
 
                             (prim Sec,          scheme0 [tInt] tTime),
                             (prim Millisec,     scheme0 [tInt] tTime),
@@ -825,7 +825,7 @@ tCmd a b                = TAp (TAp (TId (prim Cmd)) a) b
 tTime                   = TId (prim Time)
 tMsg                    = TId (prim Msg)
 tRef a                  = TAp (TId (prim Ref)) a
-tPID                    = TId (prim PID)
+tOID                    = TId (prim OID)
 tPMC a                  = TAp (TId (prim PMC)) a
 tInt                    = TId (prim Int)
 tFloat                  = TId (prim Float)
@@ -853,8 +853,8 @@ mkRho ts t              = F (map scheme ts) (R t)
 primAboveEnv    = [ (prim Action,   unitWG subActCmd),
                     (prim Request,  unitWG subReqCmd),
                     (prim Cmd,      nullWG),
-                    (prim Ref,      unitWG subRefPID),
-                    (prim PID,      nullWG)
+                    (prim Ref,      unitWG subRefOID),
+                    (prim OID,      nullWG)
                   ]
 
 primBelowEnv    = [ (prim Action,   nullWG),
@@ -862,7 +862,7 @@ primBelowEnv    = [ (prim Action,   nullWG),
                     (prim Class,    nullWG),
                     (prim Cmd,      WG [subActCmd,subReqCmd] []),
                     (prim Ref,      nullWG),
-                    (prim PID,      unitWG subRefPID)
+                    (prim OID,      unitWG subRefOID)
                   ]
 
 
@@ -872,10 +872,10 @@ subActCmd       = (prim ActToCmd,   scheme1 [] (tAction `sub` tCmd a tMsg))
 
 subReqCmd       = (prim ReqToCmd,   scheme2 [] (tRequest a `sub` tCmd b a))
 
-subRefPID       = (prim RefToPID,   scheme1 [] (tRef a `sub` tPID))
+subRefOID       = (prim RefToOID,   scheme1 [] (tRef a `sub` tOID))
 
 
-primPredEnv     = [reflAll, subActCmd, subReqCmd, subRefPID]
+primPredEnv     = [reflAll, subActCmd, subReqCmd, subRefOID]
 
 
 primClassEnv    = []

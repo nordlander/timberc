@@ -261,18 +261,18 @@ Bool primTimeGE(Time t1, Time t2) {
 }
 
 static UNITTYPE reset_fun(Ref self, Int x) {
-  self = (Ref)LOCK((PID)self);
+  self = (Ref)LOCK((OID)self);
   ((S_Timer)STATEOF(self))->start = CURRENT()->msg->baseline;
-  UNLOCK((PID)self);
+  UNLOCK((OID)self);
   return (UNITTYPE)0;
 }
 
 static Time sample_fun(Ref self, Int x) {
-  self = (Ref)LOCK((PID)self);
+  self = (Ref)LOCK((OID)self);
   AbsTime now;
   now = CURRENT()->msg->baseline;
   SUB(now,((S_Timer)STATEOF(self))->start);
-  UNLOCK((PID)self);
+  UNLOCK((OID)self);
   Time res;
   NEW(Time,res,WORDS(sizeof(struct Time)));
   res->GCINFO = __GC__Time;

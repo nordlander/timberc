@@ -75,7 +75,7 @@ data Prim                       =
 
                                 | Msg
                                 | Ref
-                                | PID
+                                | OID
                                 | PMC
                                 | Time
 
@@ -256,7 +256,7 @@ data Prim                       =
 
                                 | ActToCmd
                                 | ReqToCmd
-                                | RefToPID
+                                | RefToOID
 
                                 | CharToInt
                                 | IntToChar

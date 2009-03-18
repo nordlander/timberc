@@ -53,7 +53,7 @@ typedef WORD *ADDR;
 #define UNITTYPE char
 #define UNITTERM char       // alias for singleton type
 #define POLY ADDR
-#define PID ADDR
+#define OID ADDR
 #define BITS8 unsigned char
 #define BITS16 unsigned short
 #define BITS32 unsigned int

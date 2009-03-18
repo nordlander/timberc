@@ -367,18 +367,18 @@ void INITREF( Ref obj ) {
         obj->STATE = (ADDR)STATEOF(obj);                              // actually unused, but keep it clean
 }
 
-PID LOCK( PID to ) {
+OID LOCK( OID to ) {
     Ref r = (Ref)to;
     pthread_mutex_lock(&(r->mut));
     GC_PROLOGUE(to);
-    if (to != (PID)r) {
+    if (to != (OID)r) {
         pthread_mutex_lock(&(((Ref)to)->mut));
         pthread_mutex_unlock(&(r->mut));
     }
     return to;
 }
 
-UNITTYPE UNLOCK( PID to ) {
+UNITTYPE UNLOCK( OID to ) {
     GC_EPILOGUE(to);
     pthread_mutex_unlock(&(((Ref)to)->mut));
     return (UNITTYPE)0;

@@ -170,8 +170,8 @@ extern WORD __GC__Timer[];
 
 
 UNITTYPE ASYNC(Msg, Time, Time);
-PID      LOCK(PID);
-UNITTYPE UNLOCK(PID);
+OID      LOCK(OID);
+UNITTYPE UNLOCK(OID);
 void     RAISE(Int);
 
 POLY     Raise(BITS32, Int);

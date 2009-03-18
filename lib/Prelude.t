@@ -87,7 +87,7 @@ instance eqTime :: Eq Time where
   (==) = primTimeEQ
   (/=) = primTimeNE
 
-instance eqPID :: Eq PID where
+instance eqOID :: Eq OID where
   (==) = primPidEQ
   (/=) = primPidNE
 
