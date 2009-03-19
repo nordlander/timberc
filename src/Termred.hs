@@ -372,6 +372,7 @@ findLit env l ((PLit l',e):_)
   | l == l'                     = redExp env e
 findLit env l (_:alts)          = findLit env l alts
 
+
 redCaseStrLit env l ((PWild,e):_) = redExp env e
 redCaseStrLit env l ((PLit l',e):_)
  | l == l'                      = redExp env e
@@ -383,20 +384,21 @@ redCaseStrLit env l@(LStr _ str) alts@((PCon (Prim CONS _),e):_)
          nil = ECon (prim NIL)
 redCaseStrLit env l (_:alts)         = redCaseStrLit env l alts
 
+
 redPrim env Refl _ [e]                      = e
 redPrim env Match a [e]                     = redMatch env a e
 redPrim env Fatbar a [e,e']                 = redFat a e e'
 redPrim env UniArray a es                   = EAp (EVar (Prim UniArray a)) es
-redPrim env p a es@[ELit (LInt _ x), ELit (LInt _ y)] | y /= 0 = redInt p x y
-                                                      | otherwise = eAp (EVar (Prim p a)) es
-redPrim env p a es@[ELit (LRat l x), ELit (LRat _ y)] | y /= 0 = redRat p x y
-                                                      | otherwise = eAp (EVar (Prim p a)) es
 redPrim env IntNeg _ [ELit (LInt _ x)]      = ELit (lInt (-x))
 redPrim env IntToFloat _ [ELit (LInt _ x)]  = ELit (lRat (fromInteger x))
 redPrim env IntToChar _ [ELit (LInt _ x)]   = ELit (lChr (chr (fromInteger x)))
 redPrim env FloatNeg _ [ELit (LRat _ x)]    = ELit (lRat (-x))
 redPrim env FloatToInt _ [ELit (LRat _ x)]  = ELit (lInt (truncate x))
 redPrim env CharToInt _ [ELit (LChr _ x)]   = ELit (lInt (ord x))
+redPrim env p a [ELit (LInt _ x), ELit (LInt _ y)]
+  | p `notElem` [IntDiv,IntMod] || y /= 0   = redInt p x y
+redPrim env p a [ELit (LRat _ x), ELit (LRat _ y)]
+  | p /= FloatDiv || y /= 0                 = redRat p x y
 redPrim env p a es                          = eAp (EVar (Prim p a)) es
 
 
@@ -418,7 +420,6 @@ redFat a e e'                               = EAp (EVar (Prim Fatbar a)) [e,e']
 redInt IntPlus a b              = ELit (normLit (lInt (a + b)))
 redInt IntMinus a b             = ELit (normLit (lInt (a - b)))
 redInt IntTimes a b             = ELit (normLit (lInt (a * b)))
-redInt IntDiv a 0               = internalError0 ("redInt: division by zero")
 redInt IntDiv a b               = ELit (lInt (a `div` b))
 redInt IntMod a b               = ELit (lInt (a `mod` b))
 redInt IntEQ a b                = eBool (a == b)
@@ -427,13 +428,12 @@ redInt IntLT a b                = eBool (a < b)
 redInt IntLE a b                = eBool (a <= b)
 redInt IntGE a b                = eBool (a >= b)
 redInt IntGT a b                = eBool (a > b)
-redInt p _ _                    = internalError0 ("redInt: unknown primitive " ++ show p)
+redInt p _ _                    = internalError0 ("redInt: " ++ show p)
 
 
 redRat FloatPlus a b            = ELit (lRat (a + b))
 redRat FloatMinus a b           = ELit (lRat (a - b))
 redRat FloatTimes a b           = ELit (lRat (a * b))
-redRat FloatDiv a 0             = internalError0 ("redRat: division by zero")
 redRat FloatDiv a b             = ELit (lRat (a / b))
 redRat FloatEQ a b              = eBool (a == b)
 redRat FloatNE a b              = eBool (a /= b)
@@ -441,7 +441,7 @@ redRat FloatLT a b              = eBool (a < b)
 redRat FloatLE a b              = eBool (a <= b)
 redRat FloatGE a b              = eBool (a >= b)
 redRat FloatGT a b              = eBool (a > b)
-redRat p _ _                    = internalError0 ("redRat: unknown primitive " ++ show p)
+redRat p _ _                    = internalError0 ("redRat: " ++ show p)
 
 
 eBool True                      = ECon (prim TRUE)
