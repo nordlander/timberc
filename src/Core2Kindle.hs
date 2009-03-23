@@ -112,6 +112,7 @@ findDecl env k
 
 -- Look up a closure type (a Kindle.Struct) in the current store, extending the store if necessary
 findClosureType env [] ts t
+  | a == 0                          = internalError0 "findClosureType [] []"
   | a <= maxPrimClos                = return (Kindle.tClos a (t:ts))
   | otherwise                       = do ds <- currentStore
                                          -- tr ("Looking for (1) " ++ render (pr (name0 "closure", Kindle.FunT [] ts t)))
@@ -853,7 +854,10 @@ cExp env (EVar x)                       = case lookup' (tenv env) x of
                                                | null ts          -> return (id, t, ValR e)
                                                | otherwise        -> do (vs,ts',t') <- openClosureType t
                                                                         let s = vs `zip` ts
-                                                                        return (id, subst s t', FunR (Kindle.enter e ts) (subst s ts'))
+                                                                        if null ts' then
+                                                                            return (id, subst s t', ValR (Kindle.enter e ts []))
+                                                                         else
+                                                                            return (id, subst s t', FunR (Kindle.enter e ts) (subst s ts'))
                                              Kindle.FunT vs ts' t 
                                                | null ts'         -> return (id, subst s t, ValR (Kindle.ECall x ts []))
                                                | otherwise        -> return (id, subst s t, FunR (Kindle.ECall x ts) (subst s ts'))
