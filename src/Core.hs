@@ -135,6 +135,7 @@ monoRestrict _ _ (EAct _ _)     = False
 monoRestrict _ _ (EReq _ _)     = False
 monoRestrict _ _ (ETempl _ _ _ _) = False
 monoRestrict _ _ (EDo _ _ _)    = False
+monoRestrict _ _ (EVar x)       = False
 monoRestrict rec sc _           = rec && null (ctxt sc)
 
 

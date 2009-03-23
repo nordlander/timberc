@@ -78,6 +78,7 @@ topresolve env eqs pe bs                = do -- if not (null pe) then tr ("TOPRE
                                              let Binds r te es = collect (f (ELit (lInt 0))) `catBinds` bs
                                                  te' = subst s te
                                                  mono = [ (x,t) | (x,t) <- te', not (null (tvars t)) ]
+                                             -- if not (null mono) then tr ("AFTER TOPRESOLVE\n" ++ render (nest 4 (vpr te'))) else return ()
                                              assert1 (null mono) "Illegal polymorphism in top-level type" mono
                                              return (Binds r te' es)
   where collect (ELet bs e)             = bs `catBinds` collect e
