@@ -137,10 +137,13 @@ extern WORD __GG__Time[] ;
 #endif
 #endif
 
+
 #define NEW(t,addr,words)       { ADDR top,stop; \
                                   do { addr = (t)hp; stop = lim; top = ((ADDR)addr)+(words); } \
                                   while (!CAS(addr,top,&hp)); \
-                                  if (top>=stop) addr = (t)force((words),(ADDR)addr); }
+                                  if (top>=stop) { addr = (t)force((words),(ADDR)addr<stop?(ADDR)addr:0);} }
+
+// Note: soundness of the spin-loop above depends on the invariant that lim is never changed unless hp also changes.
 
 #define CURRENT()               ((Thread)pthread_getspecific(current_key))
 

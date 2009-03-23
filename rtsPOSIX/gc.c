@@ -39,7 +39,9 @@
 #define NEW2(addr,words,info)   { ADDR top,stop; \
                                   do { addr = hp2; stop = lim2; top = ODD((addr)+(words)); \
                                   } while (ISODD(addr) || !CAS(addr,top,&hp2)); \
-                                  if (top>=stop) addr = force2(words,addr,info); else { addr[0] = (WORD)(info); hp2 = EVEN(top); } }
+                                  if (top>=stop) addr = force2(words,addr<stop?addr:0,info); else { addr[0] = (WORD)(info); hp2 = EVEN(top); } }
+
+// Note: soundness of the spin-loop above depends on the invariant that lim2 is never changed unless hp2 also changes.
 
 #define ODD(addr)               (ADDR)((WORD)(addr) | 1)
 #define EVEN(addr)              (ADDR)((WORD)(addr) & ~1)
@@ -132,25 +134,32 @@ void pruneStaticHeap() {
         initheap();                                     // Create fresh heap for dynamic data
 }
 
+pthread_cond_t alloc;
+pthread_cond_t alloc2;
+
 ADDR force(WORD size, ADDR last) {                      // Overflow in fromspace
         ADDR a;
         if (size > HEAPSIZE-3) panic("Excessive heap block requested");
 
         DISABLE(rts);
-        // printf("# force: base=%x lim=%x (hp=%x)\n", (int)base, (int)lim, (int)hp);
-        if (base <= last && last < lim) {               // only extend if we were first to reach critical section
+        // fprintf(stderr, "# force: base=%x, lim=%x, hp=%x, last=%x\n", (int)base, (int)lim, (int)hp, (int)last);
+        if (last) {               // only extend if we were first to reach critical section
                 a = allocwords(HEAPSIZE);
                 if (!a) panic("Cannot allocate more memory");
 
                 base[0] = (WORD)a;                      // add link to new heap in first word of previous heap
                 a[0] = 0;                               // null terminate chain of heaps
                 base = a;
-                lim = a + HEAPSIZE - 1;                 // leave room for two words at the end
+                lim = a + HEAPSIZE - 2;                 // leave room for two words at the end
                 hp = a + 1;
 
                 last[0] = 0;                            // mark the end of a heap segment (nulled gcinfo)
                 last[1] = (WORD)hp;
-                // printf("# new:   base=%x lim=%x (hp=%x)\n", (int)base, (int)lim, (int)hp);
+                pthread_cond_broadcast(&alloc);
+                // fprintf(stderr, "# new:   base=%x lim=%x (hp=%x)\n", (int)base, (int)lim, (int)hp);
+        } else {
+                while (hp >= lim)
+                        pthread_cond_wait(&alloc, &rts);
         }
         ENABLE(rts);
 
@@ -163,7 +172,7 @@ ADDR force2(WORD size, ADDR last, ADDR info) {          // Overflow in tospace
         if (size > HEAPSIZE-3) panic("Excessive heap block requested");
         
         DISABLE(rts);
-        if (base2 <= last && last < lim2) {             // only extend if we were first to reach critical section
+        if (last) {             // only extend if we were first to reach critical section
                 a = allocwords(HEAPSIZE);
                 if (!a) panic("Cannot allocate more memory");
 
@@ -175,6 +184,10 @@ ADDR force2(WORD size, ADDR last, ADDR info) {          // Overflow in tospace
 
                 last[0] = 0;                            // mark the end of a heap segment (nulled gcinfo)
                 last[1] = (WORD)hp2;
+                pthread_cond_broadcast(&alloc2);
+        } else {
+                while (hp2 >= lim2)
+                        pthread_cond_wait(&alloc2, &rts);
         }
         ENABLE(rts);
 
@@ -368,6 +381,8 @@ void gcInit() {
     pagesize = sysconf(_SC_PAGESIZE) / sizeof(WORD);
     base2 = lim2 = hp2 = (ADDR)0;                   // no active tospace
     initheap();                                     // Allocate base (= heapchain)
+    pthread_cond_init(&alloc, 0);
+    pthread_cond_init(&alloc2, 0);
     gcThread = newThread(NULL, prio_min, garbageCollector, pagesize);
 }
 

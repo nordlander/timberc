@@ -295,6 +295,7 @@ void *run(void *arg) {
 
         ENABLE(rts);
         Int (*code)(Msg) = this->Code;
+        
         if (code)
             code(this);
         DISABLE(rts);
