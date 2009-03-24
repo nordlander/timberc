@@ -241,7 +241,7 @@ Thread getThread(Msg m, int prio) {
     return t;
 }
 
-int activate(Msg m) {
+int activate(Msg m, int force) {
     int count = 0;
     Thread prev = NULL, t = runQ;
     AbsTime dl = m->deadline;
@@ -250,22 +250,33 @@ int activate(Msg m) {
         prev = t;
         t = t->next;
     }
-    if (count >= NCORES)
+    if (count >= NCORES && !force) {
+        // fprintf(stderr, "** Out of cores\n");
         return 0;
+    }
     Thread new = getThread(m, midPrio(prev,t));
-    if (new == NULL)
+    if (new == NULL) {
+        // fprintf(stderr, "** Out of threads\n");
         return 0;
+    }
     new->next = t;
     if (prev == NULL)
         runQ = new;
     else
         prev->next = new;
     nactive++;
-    // fprintf(stderr, "Worker thread %d activated (%d)\n", (int)new, nactive);
+    // fprintf(stderr, "++ %d | runQ: ", new->index);
+    // Thread th = runQ;
+    // while (th) {
+    //         fprintf(stderr, "%d ", th->index);
+    //         th = th->next;
+    // }
+    // fprintf(stderr, "\n");
     return 1;
 }
 
 void deactivate(Thread t) {
+    // fprintf(stderr, "-- %d | runQ: ", t->index);
     if (t == runQ)
         runQ = runQ->next;
     else {
@@ -279,7 +290,12 @@ void deactivate(Thread t) {
     t->next = sleepQ;
     sleepQ = t;
     nactive--;
-    // fprintf(stderr, "Worker thread %d deactivated (%d)\n", (int)t, nactive);
+    // Thread th = runQ;
+    // while (th) {
+    //        fprintf(stderr, "%d ", th->index);
+    //        th = th->next;
+    // }
+    // fprintf(stderr, "\n");
 }
 
 void *run(void *arg) {
@@ -288,7 +304,7 @@ void *run(void *arg) {
     struct sched_param param;
     param.sched_priority = current->prio;
     pthread_setschedparam(current->id, SCHED_RR, &param);
-    // fprintf(stderr, "Worker thread %d started\n", (int)current);
+    // fprintf(stderr, "Worker thread %d started\n", current->index);
     DISABLE(rts);
     while (1) {
         Msg this = current->msg;
@@ -304,7 +320,7 @@ void *run(void *arg) {
         while (msgQ && !(msgQ->Code))
             msgQ = msgQ->next;
         if (msgQ) {
-            activate(msgQ);
+            activate(msgQ, 1);
             msgQ = msgQ->next;
         } else {
             pthread_cond_wait(&current->trigger, &rts);
@@ -354,7 +370,7 @@ UNITTYPE ASYNC( Msg m, Time bl, Time dl ) {
         timerQdirty = 1;
         if (timerQ == m)
             TIMERSET(m->baseline, now);     //  TIMERQ_EPILOGUE();
-    } else if (!activate(m))
+    } else if (!activate(m,0))
         enqueueByDeadline(m, &msgQ);
 
     ENABLE(rts);
@@ -440,7 +456,7 @@ void *timerHandler(void *arg) {
         while (timerQ && LESSEQ(timerQ->baseline, now)) {
             Msg m = dequeue(&timerQ);
             if (m->Code) {
-                if (!activate(m))
+                if (!activate(m,0))
                     enqueueByDeadline(m, &msgQ);
             }
         }
