@@ -74,13 +74,14 @@ fullreduce env eqs pe                   = do -- tr ("FULLREDUCE\n" ++ render (vp
                                              return (s2@@s1, pe2, f2 . f1)
 
 topresolve env eqs pe bs                = do -- if not (null pe) then tr ("TOPRESOLVE\n" ++ render (nest 4 (vpr pe))) else return ()
-                                             (s,[],f) <- fullreduce env eqs pe
+                                             (s,qe,f) <- fullreduce env eqs pe
+                                             -- if not (null qe) then tr ("TOPRESOLVE OUT:\n" ++ render (nest 4 (vpr qe))) else return ()
                                              let Binds r te es = collect (f (ELit (lInt 0))) `catBinds` bs
                                                  te' = subst s te
                                                  mono = [ (x,t) | (x,t) <- te', not (null (tvars t)) ]
                                              -- if not (null mono) then tr ("AFTER TOPRESOLVE\n" ++ render (nest 4 (vpr te'))) else return ()
                                              assert1 (null mono) "Illegal polymorphism in top-level type" mono
-                                             return (Binds r te' es)
+                                             return (Binds r (qe++te') es)
   where collect (ELet bs e)             = bs `catBinds` collect e
         collect e                       = nullBinds
 

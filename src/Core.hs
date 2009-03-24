@@ -125,10 +125,9 @@ litType (LChr _ c)              = TId (prim Char)
 litType (LStr _ s)              = TAp (TId (prim LIST)) (TId (prim Char)) --internalError0 "Core.litType LStr"
 
 
-monoRestrict rec sc (EAp e _)   = monoRestrict rec sc e
 monoRestrict rec sc (ELet bs e)
   | isEncoding bs               = monoRestrict rec sc e
-monoRestrict _ _ (EVar (Prim New _))
+monoRestrict _ _ (EAp (EVar (Prim New _)) _)
                                 = True
 monoRestrict _ _ (ELam _ _)     = False
 monoRestrict _ _ (EAct _ _)     = False
