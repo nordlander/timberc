@@ -407,9 +407,9 @@ instance Pr Decl where
                                   <+> prSubs subs <+> prCons cs
     pr (DRec isC c vs sups ss)  = text kwd <+> prId c <+> hsep (map prId vs) 
                                   <+> prSups sups <+> prEq ss $$ prSigs ss
-      where kwd                 = if isC then "typeclass " else "struct"
+      where kwd                 = if isC then "typeclass" else "struct"
 --    pr (DInst t bs)             = text "instance" <+> pr t <+> text "=" $$ nest 4 (vpr bs)
-    pr (DPSig v t)              = text "typeclass" <+> prId v <+> text "::" <+> pr t
+    pr (DPSig v t)              = text "instance" <+> prId v <+> text "::" <+> pr t
     pr (DDefault ts)            = text "default" <+> hpr ',' ts
     pr (DInstance ns)           = text "instance" <+> hpr ',' ns 
     pr (DTClass ns)             = text "typeclass" <+> hpr ',' ns 
