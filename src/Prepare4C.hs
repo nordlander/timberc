@@ -415,6 +415,8 @@ mkVarSwitch env t0 e alts
                                      c <- pCmd (addVals [(x,t)] env) t0 (CSwitch (EVar x) alts)
                                      return (bf (cBind [(x,Val t e)] c))
 
+mkSwitch env (EVar _) [] []     = CBreak
+mkSwitch env e [] []            = CSwitch e [AWild CBreak]
 mkSwitch env e [] [ACon n _ _ c]
   | n `notElem` tagged env      = c
 mkSwitch env e [] [AWild c]     = c
