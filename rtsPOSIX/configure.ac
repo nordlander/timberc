@@ -148,7 +148,7 @@ AC_HEADER_TIME
 
 # Checks for library functions.
 AC_FUNC_MALLOC
-AC_CHECK_FUNCS([gettimeofday])
+AC_CHECK_FUNCS([gettimeofday sysconf])
 
 AC_SUBST(CC)
 AC_SUBST(CFLAGS)

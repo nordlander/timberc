@@ -162,6 +162,8 @@ void pruneStaticHeap();
 
 void init_rts(int, char**);
 
+Int getNumberOfProcessors();
+
 Time sec(Int c);
 Time millisec(Int x);
 Time microsec(Int x);

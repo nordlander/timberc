@@ -117,7 +117,6 @@ pthread_key_t current_key;
 
 int prio_min, prio_max;
 
-#define NCORES          2
 #define PRIO(t)         (t ? t->prio : )
 
 
@@ -245,12 +244,14 @@ int activate(Msg m, int force) {
     int count = 0;
     Thread prev = NULL, t = runQ;
     AbsTime dl = m->deadline;
-    while (count < NCORES && t && LESS(t->msg->deadline, dl)) {
+    Int ncores = getNumberOfProcessors();
+
+    while (count < ncores && t && LESS(t->msg->deadline, dl)) {
         count++;
         prev = t;
         t = t->next;
     }
-    if (count >= NCORES && !force) {
+    if (count >= ncores && !force) {
         // fprintf(stderr, "** Out of cores\n");
         return 0;
     }
@@ -516,3 +517,16 @@ void init_rts(int argc, char **argv) {
     ENABLE(rts);
 }
 
+Int getNumberOfProcessors() {
+    static Int nproc = 0;
+
+    if (nproc == 0) {
+#if defined(HAVE_SYSCONF) && defined(_SC_NPROCESSORS_ONLN)
+        nproc = sysconf(_SC_NPROCESSORS_ONLN);
+#else
+        nproc = 2;
+#endif
+    }
+
+    return nproc;
+}
