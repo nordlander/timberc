@@ -99,7 +99,7 @@ linkO cfg clo r o_files = do let Just rmod  = fromMod r
                                        ++ " -DROOT=" ++ rootId ++ " "
                                        ++ " -DROOTINIT=" ++ initId ++ " "
                                        ++ rtsMain clo 
-                                       ++ " -lTimber"
+                                       ++ linkLibs cfg
                              putStrLn "[linking]"
                              execCmd clo cmd
 

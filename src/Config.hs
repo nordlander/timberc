@@ -84,7 +84,8 @@ versionString = "The Timber compiler, version 1.0.2"
 -- command line switches.
 data CfgOpts         = CfgOpts { cCompiler       :: FilePath,
                                  compileFlags    :: String,
-                                 linkFlags       :: String
+                                 linkFlags       :: String,
+                                 linkLibs        :: String
                                } deriving (Show, Eq, Read)
 
 -- | Command line options.
