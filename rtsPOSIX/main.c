@@ -36,9 +36,9 @@
 #include "POSIX.h"
 
 void ROOTINIT(void);
-ACTION ROOT(Env_POSIX, Int);
+CLOS2 ROOT(Env_POSIX, Int);
 
-extern ACTION prog;
+extern CLOS2 prog;
 extern Env_POSIX env;
 
 int main(int argc, char **argv) {
