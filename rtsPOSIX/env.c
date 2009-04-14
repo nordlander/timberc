@@ -40,7 +40,16 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include "POSIX.h"
-#include "env.h"
+
+#define SOCKHANDLER   CLOS2
+#define HANDLER       CLOS3
+#define ACTION        CLOS2
+#define FILE2CLOSABLE l_File_POSIX_Closable_POSIX_POSIX
+#define RFILE2FILE    l_RFile_POSIX_File_POSIX_POSIX
+#define WFILE2FILE    l_WFile_POSIX_File_POSIX_POSIX
+#define CONN2CLOSABLE l_Connection_POSIX_Closable_POSIX_POSIX
+#define SOCK2CLOSABLE l_Socket_POSIX_Closable_POSIX_POSIX
+
 
 #define SIGSELECT SIGUSR1
 
