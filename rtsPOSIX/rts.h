@@ -36,7 +36,6 @@
 
 #include <stddef.h>
 #include <sys/time.h>
-//#include <setjmp.h>
 #include <pthread.h>
 
 #include "config.h"
@@ -147,12 +146,6 @@ extern WORD __GG__Time[] ;
 
 #define CURRENT()               ((Thread)pthread_getspecific(current_key))
 
-/*
-#define TMIN(a,b)               ((a) < (b) ? (a) : (b) )
-#define TPLUS(a,b)              ((a) + (b))
-#define TMINUS(a,b)             ( (a) > (b) ? (a) - (b) : 0 )
-*/
-
 
 extern ADDR hp, lim;
 extern pthread_key_t current_key;
@@ -161,8 +154,6 @@ ADDR force(WORD, ADDR);
 void pruneStaticHeap();
 
 void init_rts(int, char**);
-
-Int getNumberOfProcessors();
 
 Time sec(Int c);
 Time millisec(Int x);

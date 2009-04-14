@@ -491,6 +491,15 @@ void scanTimerQ() {
 
 // Initialization -------------------------------------------------------------------------------------
 
+Int getNumberOfProcessors() {
+#if defined(HAVE_SYSCONF) && defined(_SC_NPROCESSORS_ONLN)
+    Int n = sysconf(_SC_NPROCESSORS_ONLN);
+    if (n >= 1)
+        return n;
+#endif
+    return 1;
+}
+
 void init_rts(int argc, char **argv) {
     pthread_mutexattr_init(&glob_mutexattr);
     pthread_mutexattr_settype(&glob_mutexattr, PTHREAD_MUTEX_NORMAL);
@@ -521,13 +530,4 @@ void init_rts(int argc, char **argv) {
     newThread(NULL, prio_max, timerHandler, pagesize);
     
     ENABLE(rts);
-}
-
-Int getNumberOfProcessors() {
-#if defined(HAVE_SYSCONF) && defined(_SC_NPROCESSORS_ONLN)
-    Int n = sysconf(_SC_NPROCESSORS_ONLN);
-    if (n >= 1)
-        return n;
-#endif
-    return 1;
 }
