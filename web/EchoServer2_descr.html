@@ -30,7 +30,7 @@ root env = <b>class</b>
 
     <b>result</b> <b>action</b>
        <b>case</b> parse (env.argv ! 1) <b>of</b>
-         Just n -> env.inet.tcp.listen port (server n clients log)
+         Right n -> env.inet.tcp.listen port (server n clients log)
          _ -> env.stdout.write "usage: EchoServer n, where n is number of concurrent clients\n"
               env.exit 1
 
