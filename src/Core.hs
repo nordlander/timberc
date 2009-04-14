@@ -127,8 +127,8 @@ litType (LStr _ s)              = TAp (TId (prim LIST)) (TId (prim Char)) --inte
 
 monoRestrict rec sc (ELet bs e)
   | isEncoding bs               = monoRestrict rec sc e
-monoRestrict _ _ (EAp (EVar (Prim New _)) _)
-                                = True
+monoRestrict _ _ (EAp e _)
+  | isNew e                     = True
 monoRestrict _ _ (ELam _ _)     = False
 monoRestrict _ _ (EAct _ _)     = False
 monoRestrict _ _ (EReq _ _)     = False
@@ -137,6 +137,11 @@ monoRestrict _ _ (EDo _ _ _)    = False
 monoRestrict _ _ (EVar x)       = False
 monoRestrict rec sc _           = rec && null (ctxt sc)
 
+
+isNew (ELet bs e)
+  | isEncoding bs               = isNew e
+isNew (EVar (Prim New _))       = True
+isNew _                         = False
 
 tupleKind n                     = foldr KFun Star (replicate n Star)
 
