@@ -52,7 +52,9 @@ server log sock = <b>class</b>
       sock.outFile.write (show n ++"> "++str)
       n := n+1
 
-   close = log (p ++ " closing")
+   close = <b>request</b>
+      log (p ++ " closing")
+      <b>result</b> ()
 
    neterror str = log ("Neterror: "++str)
 
