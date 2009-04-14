@@ -42,8 +42,7 @@
 #include "rts.h"
 #include "timber.h"
 
-
-#define MAXTHREADS      8
+#define MAXTHREADS      12          // Static maximum
 
 #define SLEEP()         sigsuspend(&enabled_mask)
 #define DISABLE(mutex)  pthread_mutex_lock(&mutex)
@@ -81,6 +80,9 @@
 
 
 // Thread management --------------------------------------------------------------------------------
+
+Int NCORES              = 0;
+Int NTHREADS            = 0;
 
 struct Thread;
 typedef struct Thread *Thread;
@@ -122,7 +124,7 @@ int prio_min, prio_max;
 
 Thread newThread(Msg m, int prio, void *(*fun)(void *), int stacksize) {
     Thread t = NULL;
-    if (nthreads < MAXTHREADS) {
+    if (nthreads < NTHREADS) {
         t = &threads[nthreads++];
         t->msg = m;
         t->prio = prio;
@@ -244,14 +246,13 @@ int activate(Msg m, int force) {
     int count = 0;
     Thread prev = NULL, t = runQ;
     AbsTime dl = m->deadline;
-    Int ncores = getNumberOfProcessors();
 
-    while (count < ncores && t && LESS(t->msg->deadline, dl)) {
+    while (count < NCORES && t && LESS(t->msg->deadline, dl)) {
         count++;
         prev = t;
         t = t->next;
     }
-    if (count >= ncores && !force) {
+    if (count >= NCORES && !force) {
         // fprintf(stderr, "** Out of cores\n");
         return 0;
     }
@@ -510,6 +511,11 @@ void init_rts(int argc, char **argv) {
     
     DISABLE(rts);
     
+    NCORES = getNumberOfProcessors();
+    NTHREADS = NCORES * 4;
+    if (NTHREADS > MAXTHREADS)
+        NTHREADS = MAXTHREADS;
+    
     gcInit();
     envInit(argc, argv);
     newThread(NULL, prio_max, timerHandler, pagesize);
@@ -518,15 +524,10 @@ void init_rts(int argc, char **argv) {
 }
 
 Int getNumberOfProcessors() {
-    static Int nproc = 0;
-
-    if (nproc == 0) {
 #if defined(HAVE_SYSCONF) && defined(_SC_NPROCESSORS_ONLN)
-        nproc = sysconf(_SC_NPROCESSORS_ONLN);
-#else
-        nproc = 2;
+    Int n = sysconf(_SC_NPROCESSORS_ONLN);
+    if (n >= 1)
+        return n;
 #endif
-    }
-
-    return nproc;
+    return 1;
 }
