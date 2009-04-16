@@ -31,7 +31,8 @@ buttons env =
     joy3handler := defaulthandler 
     joy4handler := defaulthandler 
 
-    inthandler = request
+    inthandler = before (millisec 8) action
+      env.debug "inthandler\n"
       s0F <- env.portread addrIO0IntStatF
       s2F <- env.portread addrIO2IntStatF
       s0R <- env.portread addrIO0IntStatR
@@ -46,7 +47,6 @@ buttons env =
         0x400    -> joy3handler
         0x800    -> joy4handler
         _        -> 
-      result ()
         
 
 

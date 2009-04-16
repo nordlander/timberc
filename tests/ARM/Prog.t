@@ -40,9 +40,11 @@ root env tft =
     d1 = new debug env.debug
     d2 = new debug g1.print
     t1 = new test d2
---    c1 = new counter (d1.printvardec) (millisec 200)
+    c1 = new counter (d1.printvardec) (millisec 200)
     c2 = new counter (d2.printvardec) (sec 1)
     buttons1 = new buttons env
+    
+    msg = Just "Hello World!\n"
   
     worm1 = new worm env tft buttons1
 
@@ -55,9 +57,7 @@ root env tft =
 --      after (sec 1) blink2
 
     start2 = action
-      g1.clear
-      d2.printstr "HelloWorld!\n"
---      c1.startme
+      c1.startme
       c2.startme
 
       buttons1.init
@@ -68,7 +68,8 @@ root env tft =
 --      worm1
 
     start = action
-      d2.printstr "HelloWorld!\n"
+      g1.clear
+      d2.printstr (fromJust msg)
       start2
 --      after (millisec 123) before(millisec 100)start2 -- workaround a bug in the rts(incorrect timehandling at t=0)
     result start
