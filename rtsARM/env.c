@@ -130,6 +130,8 @@ CLOS2 handler_table[32];
 
 void handler(int slot)
 {
+    debug("IRQ!\n");
+    EXTINT = EXTINT;
     IRQ_PROLOGUE();
 	handler_table[slot]->Code(handler_table[slot],(POLY)INHERIT, (POLY)INHERIT);
     IRQ_EPILOGUE();
@@ -254,6 +256,8 @@ void envInit(void) {
     initfb();
     tft->charwidth_ARM = CHAR_WIDTH;
     tft->charheight_ARM = CHAR_HEIGHT;
+    
+    EXTMODE = 0x000f;   /* Edge-triggered external interrupts */
     
     VICVectAddr0  = (unsigned long)handler0;
     VICVectAddr1  = (unsigned long)handler1;
