@@ -7,8 +7,7 @@
 static int debug_fun(Env_ARM env, CONS x) 
 {
 	while (x) {
-	    while(!(U0LSR & (1<<5)));
-	    U0THR = (int)x->a;
+        debug_char((int)x->a);
 		x = (CONS)x->b;
 	}
 	return 0;

@@ -254,11 +254,18 @@ void CONTEXT_INIT(arm7_context_t *context, int stacksize, void* function)
 
 // Last resort -----------------------------------------------------------------------------------
 
-void debug(char *msg) {
-	while (*msg) {
+void debug_char(char c) {
 		while (!(U0LSR & (1<<5)));
-		U0THR = *msg++;
-	}
+		U0THR = c;    
+		if (c == '\n') {
+            while (!(U0LSR & (1<<5)));
+            U0THR = '\r';
+		}
+}
+
+void debug(char *msg) {
+	while (*msg)
+        debug_char(*msg++);
 }
 
 void debug_hex(unsigned long value) {
