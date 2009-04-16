@@ -352,7 +352,7 @@ fromToInt m s n
 
 -- Maybe ---------------------------------------------------
 
-data Maybe a = Just a | Nothing
+data Maybe a = Nothing | Just a
 
 isNothing          :: Maybe a -> Bool
 isNothing Nothing   = True
