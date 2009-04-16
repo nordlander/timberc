@@ -126,13 +126,12 @@ static int portread(Env_ARM env, unsigned int addr, int dummy)
 
 // Interrupt handling ------------------------------------------------------------------------
 
-CLOS2 handler_table[32];
+CLOS1 handler_table[32];
 
 void handler(int slot)
 {
-    EXTINT = EXTINT;
     IRQ_PROLOGUE();
-	handler_table[slot]->Code(handler_table[slot],(POLY)INHERIT, (POLY)INHERIT);
+	handler_table[slot]->Code(handler_table[slot],(POLY)0);
     IRQ_EPILOGUE();
 }
 
@@ -169,7 +168,7 @@ void handler29(void) { handler(29); }
 void handler30(void) { handler(30); }
 void handler31(void) { handler(31); }
 
-int install(Env_ARM env, int slot, CLOS2 h, int dummy)
+int install(Env_ARM env, int bits, int slot, CLOS1 h, int dummy)
 {
 	if (slot < 0 || slot >= 32 || slot == 4)
         return 0;
@@ -214,7 +213,7 @@ void scanEnvRoots (int force) {
 		prog = (CLOS2)copy((ADDR)prog);
 		envRootsDirty = 0;
 		for(i=0;i<32;i++)
-			handler_table[i] = (CLOS2)copy((ADDR)handler_table[i]);
+			handler_table[i] = (CLOS1)copy((ADDR)handler_table[i]);
 	}
 }
 
@@ -255,8 +254,6 @@ void envInit(void) {
     initfb();
     tft->charwidth_ARM = CHAR_WIDTH;
     tft->charheight_ARM = CHAR_HEIGHT;
-    
-    EXTMODE = 0x000f;   /* Edge-triggered external interrupts */
     
     VICVectAddr0  = (unsigned long)handler0;
     VICVectAddr1  = (unsigned long)handler1;

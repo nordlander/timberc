@@ -14,7 +14,7 @@ struct Env where
     portset     :: Addr -> BITS32 -> Request ()
     portclear   :: Addr -> BITS32 -> Request ()
     portread    :: Addr -> Request BITS32
-    install     :: Int -> Action -> Request () 
+    install     :: Int -> Cmd () a -> Request () 
 
 struct TFT where
     drawchar    :: Char -> Int{-x-} -> Int{-y-} -> Request Int

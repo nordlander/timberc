@@ -57,7 +57,7 @@ root env tft =
 --      after (sec 1) blink2
 
     start2 = action
-      c1.startme
+      -- c1.startme
       c2.startme
 
       buttons1.init
@@ -71,7 +71,6 @@ root env tft =
       g1.clear
       d2.printstr (fromJust msg)
       start2
---      after (millisec 123) before(millisec 100)start2 -- workaround a bug in the rts(incorrect timehandling at t=0)
     result start
 
 {-
