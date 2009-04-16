@@ -90,11 +90,11 @@ void initfb(void){
 
 // --------------------------------------------------------------------------------------------
 
-extern unsigned int __ram_end;
+extern unsigned int __ram_start, __ram_end;
 
 static void portwrite(Env_ARM env, unsigned int addr, int data, int dummy)
 {	
-    if (addr >= __ram_end)
+    if (addr >= __ram_end || addr < __ram_start)
 	    *(int*)addr = data;
 }
 
@@ -103,7 +103,7 @@ static void portset(Env_ARM env, unsigned int addr, unsigned int data, int dummy
 {	
 	int status = ISPROTECTED();
 	PROTECT(1);
-    if (addr >= __ram_end)
+    if (addr >= __ram_end || addr < __ram_start)
 	    *(int*)addr = *(int*)addr | data;
 	PROTECT(status);
 }
@@ -112,14 +112,14 @@ static void portclear(Env_ARM env, unsigned int addr, unsigned int data, int dum
 {	
 	int status = ISPROTECTED();
 	PROTECT(1);
-    if (addr >= __ram_end)
+    if (addr >= __ram_end || addr < __ram_start)
 	    *(int*)addr = *(int*)addr & ~data;
 	PROTECT(status);
 }
 
 static int portread(Env_ARM env, unsigned int addr, int dummy)
 {
-    if (addr >= __ram_end)
+    if (addr >= __ram_end || addr < __ram_start)
 	    return *(int*)addr;
     return 0;
 }
@@ -130,7 +130,6 @@ CLOS2 handler_table[32];
 
 void handler(int slot)
 {
-    debug("IRQ!\n");
     EXTINT = EXTINT;
     IRQ_PROLOGUE();
 	handler_table[slot]->Code(handler_table[slot],(POLY)INHERIT, (POLY)INHERIT);
