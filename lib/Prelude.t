@@ -362,6 +362,10 @@ isJust              :: Maybe a -> Bool
 isJust Nothing      = False
 isJust (Just _)     = True
 
+fromJust            :: Maybe a -> a
+fromJust Nothing    = raise 2
+fromJust (Just a)   = a
+
 -- Either --------------------------------------------------
 
 isLeft (Left _)     = True
