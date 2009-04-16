@@ -51,6 +51,7 @@ install:
 	$(INSTALL) crt.S $(DESTDIR)$(prefix)/rtsARM
 	$(INSTALL) linkerscript.x $(DESTDIR)$(prefix)/rtsARM
 	$(INSTALL) Makefile $(DESTDIR)$(prefix)/rtsARM
+	$(INSTALL) ../lib/ARM.t $(DESTDIR)$(prefix)/lib
 	cd $(DESTDIR)$(prefix)/rtsARM && make TIMBERC=$(TIMBERC) $(DEST) 
 
 

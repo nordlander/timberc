@@ -8,6 +8,7 @@ struct Buttons where
   init :: Request ()
   handle :: Int -> Action -> Request ()
 
+aEXTINT         = 0xE01FC140
 aIO2IntEnR      = 0xE00280B0
 aIO2IntEnF      = 0xE00280B4
 aIO2IntStatR    = 0xE00280A4
@@ -44,7 +45,7 @@ buttons env =
                         d.printvarhex "StatR" (toInt sr)
                         d.printvarhex "StatF" (toInt sf)
 
-                        case toInt (sr .|. sf) of
+                        case toInt sf of
                           0x08000000 -> joy1handler
                           0x04000000 -> joy2handler
                           0x02000000 -> joy3handler
@@ -64,5 +65,6 @@ buttons env =
     
 ack env f = do sr <- env.portread aIO2IntStatR
                sf <- env.portread aIO2IntStatF
-               env.portset aIO2IntClr (sr .|. sf)   -- Important line!!
+               env.portset aIO2IntClr (sr .|. sf)   -- Important to acknowledge here and not in f
+               env.portwrite aEXTINT 0x08           -- Precaution in case of spurious EINT3 interrupt
                f sr sf
