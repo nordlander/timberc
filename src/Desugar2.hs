@@ -76,6 +76,7 @@ dsSig (Sig vs t)                = Sig vs (dsQualType t)
 dsDefault (Default t a b)       = Default t a b
 dsDefault (Derive v t)          = Derive v (dsQualType t)
 
+
 -- Types ----------------------------------------------------------------------
 
 dsQualType (TQual t ps)         = checkQual (dsRhoType t) (map dsQual ps)
@@ -90,7 +91,8 @@ dsType (TList t)                = TAp (TCon (prim LIST)) (dsType t)
 dsType (TTup ts)                = foldl TAp (TCon (tuple (length ts))) (map dsType ts)
 dsType (TCon c)                 = TCon c
 dsType (TVar v)                 = TVar v
-dsType t                        = internalError "Bad type expressionin dsType" t
+dsType (TWild)                  = errorTree "Illegal use of type wildcard" TWild
+dsType t                        = errorTree "Illegal type expression" t
 
 
 -- Types with wildcards ---------------------------------------------------------------
@@ -108,7 +110,7 @@ dsWildType (TTup ts)            = foldl TAp (TCon (tuple (length ts))) (map dsWi
 dsWildType (TCon c)             = TCon c
 dsWildType (TVar v)             = TVar v
 dsWildType (TWild)              = TWild
-dsWildType t                    = internalError "Bad type expression in dsWildType" t
+dsWildType t                    = errorTree "Illegal type expression" t
 
 
 -- Base types -------------------------------------------------------------
@@ -116,10 +118,14 @@ dsWildType t                    = internalError "Bad type expression in dsWildTy
 dsQualBaseType (TQual t ps)     = checkQual (dsBaseType t) (map dsKindQual ps)
 dsQualBaseType t                = TQual (dsBaseType t) []
 
+dsKindQual (PKind v k)          = PKind v k
+dsKindQual (PType (TVar v))     = PKind v KWild
+dsKindQual q                    = errorTree "Illegal base type qualifier" q
+
 dsBaseType (TAp t t')           = TAp (dsBaseType t) (dsType t')
 dsBaseType (TList t)            = TAp (TCon (prim LIST)) (dsType t)
 dsBaseType (TCon c)             = TCon c
-dsBaseType t                    = internalError "Bad base type expression in dsBaseType" t
+dsBaseType t                    = errorTree "Illegal base type expression" t
 
 
 -- Predicates ------------------------------------------------------------
@@ -127,12 +133,6 @@ dsBaseType t                    = internalError "Bad base type expression in dsB
 dsQual (PKind v k)              = PKind v k
 dsQual (PType (TVar v))         = PKind v KWild
 dsQual (PType t)                = PType (dsQualPred t)
-
-
-dsKindQual (PKind v k)          = PKind v k
-dsKindQual (PType (TVar v))     = PKind v KWild
-dsKindQual q                    = internalError "Bad qualifier in dsKindQual" q
-
 
 dsQualPred (TQual t ps)         = checkQual (dsSubOrClassPred t) (map dsQual ps)
 dsQualPred t                    = TQual (dsSubOrClassPred t) []
@@ -142,7 +142,7 @@ dsSubOrClassPred t              = dsClassPred t
 
 dsClassPred (TAp t t')          = TAp (dsClassPred t) (dsType t')
 dsClassPred (TCon c)            = TCon c
-dsClassPred p                   = internalError "Bad class predicate in dsClassPred" p
+dsClassPred p                   = errorTree "Illegal type qualifier" p
 
 
 -- Bindings ---------------------------------------------------------------
