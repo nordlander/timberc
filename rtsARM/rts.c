@@ -431,7 +431,9 @@ static void run(void) {
     while (1) {
         Msg this = current->msg = dequeue(&msgQ);
         PROTECT(0);
-        this->Code(this);
+        Int (*code)(Msg) = this->Code;
+        if (code)
+            code(this);
         PROTECT(1);
         current->msg = NULL;
         Msg oldMsg = activeStack->next->msg;
