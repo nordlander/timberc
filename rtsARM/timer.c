@@ -31,12 +31,11 @@
 // ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+
 #include "timber.h"
 
 struct S_Timer {
     WORD *GCINFO;
-/*    Thread ownedBy;
-    Thread wantedBy;*/
     AbsTime start;
 };
 
@@ -46,10 +45,10 @@ struct T_Timer;
 typedef struct T_Timer *T_Timer;
 
 struct T_Timer {
-  WORD *GCINFO;
-  UNITTYPE (*reset) (T_Timer, Int);
-  Time (*sample) (T_Timer, Int);
-  Ref self;
+    WORD *GCINFO;
+    UNITTYPE (*reset) (T_Timer, Int);
+    Time (*sample) (T_Timer, Int);
+    Ref self;
 };
 
 
@@ -57,283 +56,235 @@ static WORD __GC__T_Timer[] = {WORDS(sizeof(struct T_Timer)), GC_STD, WORDS(offs
    
 static WORD __GC__S_Timer[] = {WORDS(sizeof(struct S_Timer)), GC_STD, 0};
 
-static WORD __GC__Time[] = {WORDS(sizeof(struct Time)), GC_STD, 0};
+static WORD __GC__Time[]    = {WORDS(sizeof(struct Time)), GC_STD, 0};
 
 
 Time sec(Int c) {
-  Time res;
-  NEW(Time,res,WORDS(sizeof(struct Time)));
-  res->GCINFO = __GC__Time;
-//  SETGCINFO(res,__GC__Time);
-  res->time = c*100000;
-  return res;
+    Time res;
+    NEW(Time,res,WORDS(sizeof(struct Time)));
+    res->GCINFO = __GC__Time;
+    res->time = c*100000;
+    return res;
 }
 
 Time millisec(Int c) {
-  Time res;
-  NEW(Time,res,sizeof(struct Time));
-  res->GCINFO = __GC__Time;
-//  SETGCINFO(res,__GC__Time);
-  res->time = c * 100;
-  return res;
+    Time res;
+    NEW(Time,res,WORDS(sizeof(struct Time)));
+    res->GCINFO = __GC__Time;
+    res->time = c * 100;
+    return res;
 }
 
 Time microsec(Int c) {
-  Time res;
-  NEW(Time,res,sizeof(struct Time));
-  res->GCINFO = __GC__Time;
-//  SETGCINFO(res,__GC__Time);
-  res->time = c / 10;
-  return res;
+    Time res;
+    NEW(Time,res,WORDS(sizeof(struct Time)));
+    res->GCINFO = __GC__Time;
+    res->time = c / 10;
+    return res;
 }
 
 Int secOf(Time t) {
-  switch ((Int)t) {
-  case INHERIT: panic("secOf Inherit");
-  case TIME_INFINITY: panic("secOf infinity");
-  default: return t->time * 100000;
-  }
+    switch ((Int)t) {
+        case INHERIT: panic("secOf Inherit");
+        case TIME_INFINITY: panic("secOf infinity");
+        default: return t->time / 100000;
+    }
 }
 
 Int microsecOf(Time t) {
-  switch ((Int)t) {
-  case INHERIT: panic("microsecOf Inherit");
-  case TIME_INFINITY: panic("microsecOf infinity");
-  default: return t->time/10;
-  }
+    switch ((Int)t) {
+        case INHERIT: panic("microsecOf Inherit");
+        case TIME_INFINITY: panic("microsecOf infinity");
+        default: return t->time * 10;
+    }
 }
 
 
 
 Time primTimePlus(Time t1, Time t2) {
-  Time res;
-  switch ((Int)t1) {
-  case INHERIT: return t2;
-  case TIME_INFINITY: return Infinity;
-  default: 
-    switch ((Int)t2) {
-    case INHERIT: return t1;
-    case TIME_INFINITY: return Infinity;
-    default:
-      NEW(Time,res,sizeof(struct Time));
-      res->GCINFO = __GC__Time;
-//      SETGCINFO(res,__GC__Time);
-      res->time = t1->time + t2->time;
-      return res;
+    Time res;
+    switch ((Int)t1) {
+        case INHERIT: return t2;
+        case TIME_INFINITY: return Infinity;
+        default: 
+            switch ((Int)t2) {
+                case INHERIT: return t1;
+                case TIME_INFINITY: return Infinity;
+                default:
+                    NEW(Time,res,WORDS(sizeof(struct Time)));
+                    res->GCINFO = __GC__Time;
+                    res->time = t1->time + t2->time;
+                    return res;
+            }
     }
-  }
 }
 
 Time primTimeMin(Time t1, Time t2) {
-  switch ((Int)t1) {
-  case INHERIT: 
-  case TIME_INFINITY:return t2;
-  default:
-    switch ((Int)t2) {
-    case INHERIT: 
-    case TIME_INFINITY: return t1;
-    default: 
-      if (t1->time < t2->time )
-	return t1;
-      else
-	return t2;
+    switch ((Int)t1) {
+        case INHERIT: 
+        case TIME_INFINITY:return t2;
+        default:
+            switch ((Int)t2) {
+                case INHERIT: 
+                case TIME_INFINITY: return t1;
+                default: 
+                    if (t1->time < t2->time )
+	                    return t1;
+                    else
+	                    return t2;
+            }
     }
-  }
 }
 
 
 Time primTimeMinus(Time t1, Time t2) {
-  Time res;
-  switch ((Int)t1) {
-  case INHERIT: panic("primTimeMinus Inherit");
-  case TIME_INFINITY: 
-    switch((Int) t2) {
-    case INHERIT: panic("primTimeMinus Inherit");
-    case TIME_INFINITY: panic("infinity - infinity");
-    default: return Infinity;
-    }      
-  default:
-    switch ((Int)t2) {
-    case INHERIT: panic("primTimeMinus Inherit");
-    case TIME_INFINITY:
-      NEW(Time,res,sizeof(struct Time));
-      res->GCINFO = __GC__Time;
-//      SETGCINFO(res,__GC__Time);
-      res->time = 0;
-      return res;
-    default:
-      NEW(Time,res,sizeof(struct Time));
-      res->GCINFO = __GC__Time;
-//    SETGCINFO(res,__GC__Time);
-      res->time = t1->time - t2->time;
-      return res;
+    Time res;
+    switch ((Int)t1) {
+        case INHERIT: panic("primTimeMinus Inherit");
+        case TIME_INFINITY: 
+            switch((Int) t2) {
+                case INHERIT: panic("primTimeMinus Inherit");
+                case TIME_INFINITY: panic("infinity - infinity");
+                default: return Infinity;
+            }      
+        default:
+            switch ((Int)t2) {
+                case INHERIT: panic("primTimeMinus Inherit");
+                case TIME_INFINITY:
+                    NEW(Time,res,WORDS(sizeof(struct Time)));
+                    res->GCINFO = __GC__Time;
+                    res->time = 0;
+                    return res;
+                default:
+                    NEW(Time,res,WORDS(sizeof(struct Time)));
+                    res->GCINFO = __GC__Time;
+                    res->time = t1->time - t2->time;
+                    return res;
+            }
     }
-  }
 }
 
 Bool primTimeEQ(Time t1, Time t2) {
-  switch ((Int)t1) {
-  case INHERIT: panic("primTimeEQ Inherit");
-  case TIME_INFINITY: switch((Int)t2) {
-    case INHERIT: panic("primTimeEQ Inherit");
-    case TIME_INFINITY: return 1;
-    default:
-      return 0;
+    switch ((Int)t1) {
+        case INHERIT: panic("primTimeEQ Inherit");
+        case TIME_INFINITY: 
+            switch((Int)t2) {
+                case INHERIT: panic("primTimeEQ Inherit");
+                case TIME_INFINITY: return 1;
+                default: return 0;
+            }
+        default:
+            switch ((Int)t2) {
+                case INHERIT: panic("primTimeEQ Inherit");
+                case TIME_INFINITY: return 0;
+                default:
+                    return (t1->time == t2->time );
+            }
     }
-  default:
-    switch ((Int)t2) {
-    case INHERIT: panic("primTimeEQ Inherit");
-    case TIME_INFINITY: return 0;
-    default:
-      return (t1->time == t2->time );
-    }
-  }
 }
 
 Bool primTimeNE(Time t1, Time t2) {
-  switch ((Int)t1) {
-  case INHERIT: panic("primTimeNE Inherit");
-  case TIME_INFINITY: switch((Int)t2) {
-    case INHERIT: panic("primTimeNE Inherit");
-    case TIME_INFINITY: return 0;
-    default:
-      return 1;
+    switch ((Int)t1) {
+        case INHERIT: panic("primTimeNE Inherit");
+        case TIME_INFINITY: 
+            switch((Int)t2) {
+                case INHERIT: panic("primTimeNE Inherit");
+                case TIME_INFINITY: return 0;
+                default: return 1;
+            }
+        default:
+            switch ((Int)t2) {
+                case INHERIT: panic("primTimeNE Inherit");
+                case TIME_INFINITY: return 1;
+                default:
+                    return (t1->time != t2->time );
+            }
     }
-  default:
-    switch ((Int)t2) {
-    case INHERIT: panic("primTimeNE Inherit");
-    case TIME_INFINITY: return 1;
-    default:
-      return (t1->time != t2->time );
-    }
-  }
 }
 
 Bool primTimeLT(Time t1, Time t2) {
-  switch ((Int)t1) {
-  case INHERIT: panic("primTimeLT Inherit");
-  case TIME_INFINITY: switch((Int)t2) {
-    case INHERIT: panic("primTimeLT Inherit");
-    default:
-      return 0;
+    switch ((Int)t1) {
+        case INHERIT: panic("primTimeLT Inherit");
+        case TIME_INFINITY: 
+            switch((Int)t2) {
+                case INHERIT: panic("primTimeLT Inherit");
+                default: return 0;
+            }
+        default:
+            switch ((Int)t2) {
+                case INHERIT: panic("primTimeLT Inherit");
+                case TIME_INFINITY: return 1;
+                default:
+                    return (t1->time < t2->time );
+            }
     }
-  default:
-    switch ((Int)t2) {
-    case INHERIT: panic("primTimeLT Inherit");
-    case TIME_INFINITY: return 1;
-    default:
-      return (t1->time < t2->time );
-    }
-  }
 }
+
 Bool primTimeLE(Time t1, Time t2) {
-  switch ((Int)t1) {
-  case INHERIT: panic("primTime InheritLE");
-  case TIME_INFINITY: switch((Int)t2) {
-    case INHERIT: panic("primTime InheritLE");
-    default:
-      return 0;
+    switch ((Int)t1) {
+        case INHERIT: panic("primTime InheritLE");
+        case TIME_INFINITY: 
+            switch((Int)t2) {
+                case INHERIT: panic("primTime InheritLE");
+                default: return 0;
+            }
+        default:
+            switch ((Int)t2) {
+                case INHERIT: panic("primTime InheritLE");
+                case TIME_INFINITY: return 1;
+                default:
+                    return (t1 < t2 );
+            }
     }
-  default:
-    switch ((Int)t2) {
-    case INHERIT: panic("primTime InheritLE");
-    case TIME_INFINITY: return 1;
-    default:
-      return (t1 < t2 );
-    }
-  }
 }
 
 Bool primTimeGT(Time t1, Time t2) {
-  return primTimeLT(t2,t1);
+    return primTimeLT(t2,t1);
 }
 
 Bool primTimeGE(Time t1, Time t2) {
-  return primTimeLE(t2,t1);
+    return primTimeLE(t2,t1);
 }
 
-/*static UNITTYPE reset_fun(S_Timer self, POLY x) {
-  self = (S_Timer)LOCK((OID)self);
-  self->start = current->msg->baseline;
-  UNLOCK((OID)self);
-  return _UNITTERM;
-}*/
 static UNITTYPE reset_fun(Ref self, Int x) {
-  self = (Ref)LOCK((OID)self);
-  ((S_Timer)STATEOF(self))->start = current->msg->baseline;
-  UNLOCK((OID)self);
-  return (UNITTYPE)0;
+    self = (Ref)LOCK((OID)self);
+    ((S_Timer)STATEOF(self))->start = current->msg->baseline;
+    UNLOCK((OID)self);
+    return (UNITTYPE)0;
 }
-
 
 static Time sample_fun(Ref self, Int x) {
-  self = (Ref)LOCK((OID)self);
-  AbsTime now;
-  now = current->msg->baseline;
-  SUB(now,((S_Timer)STATEOF(self))->start);
-  UNLOCK((OID)self);
-  Time res;
-  NEW(Time,res,WORDS(sizeof(struct Time)));
-  res->GCINFO = __GC__Time;
-  res->time = now;
-  return res;
+    self = (Ref)LOCK((OID)self);
+    AbsTime now;
+    now = current->msg->baseline;
+    SUB(now,((S_Timer)STATEOF(self))->start);
+    UNLOCK((OID)self);
+    Time res;
+    NEW(Time,res,WORDS(sizeof(struct Time)));
+    res->GCINFO = __GC__Time;
+    res->time = now;
+    return res;
 }
 
-
-/*
-static Time sample_fun(S_Timer self, POLY x) {
-  panic("sample_fun_BROKEN");
-  S_Timer self1 = (S_Timer)LOCK((OID)self);
-  AbsTime now;
-  now = current->msg->baseline;
-//  SUB(now,self1->start);
-  UNLOCK((OID)self1);
-  Time res;
-  NEW(Time,res,sizeof(struct Time));
-  SETGCINFO(res,__GC__Time);
-  res->time = now;
-  return res;
-}*/
-
-//static UNITTYPE reset_sel(T_Timer this,POLY x) {
 static UNITTYPE reset_sel(T_Timer this,Int x) {
-  return reset_fun(this->self,x);
+    return reset_fun(this->self,x);
 }
 
-//static Time sample_sel(T_Timer this, POLY x) {
 static Time sample_sel(T_Timer this, Int x) {
-  return sample_fun(this->self,x);
+    return sample_fun(this->self,x);
 }
-
 
 TIMERTYPE primTIMERTERM(Int x) {
-  Ref self;
-  NEW(Ref,self,WORDS(sizeof(struct Ref))+WORDS(sizeof(struct S_Timer)));
-  INITREF(self);
-  ((S_Timer)STATEOF(self))->GCINFO = __GC__S_Timer;
-  ((S_Timer)STATEOF(self))->start = current->msg->baseline;
-  T_Timer res;
-  NEW(T_Timer,res,WORDS(sizeof(struct T_Timer)));
-  res->GCINFO = __GC__T_Timer;
-  res->reset = reset_sel;
-  res->sample = sample_sel;
-  res->self = self;
-  return (TIMERTYPE)res;
+    Ref self;
+    NEW(Ref,self,WORDS(sizeof(struct Ref))+WORDS(sizeof(struct S_Timer)));
+    INITREF(self);
+    ((S_Timer)STATEOF(self))->GCINFO = __GC__S_Timer;
+    ((S_Timer)STATEOF(self))->start = current->msg->baseline;
+    T_Timer res;
+    NEW(T_Timer,res,WORDS(sizeof(struct T_Timer)));
+    res->GCINFO = __GC__T_Timer;
+    res->reset = reset_sel;
+    res->sample = sample_sel;
+    res->self = self;
+    return (TIMERTYPE)res;
 }
-/*TIMERTYPE primTIMERTERM(POLY x) {
-  S_Timer self;
-  NEW(S_Timer,self,WORDS(sizeof(struct S_Timer)));
-  SETGCINFO(self,__GC__S_Timer);
-  self->ownedBy = (Thread)0;
-  self->wantedBy = (Thread)0;
-  self->start = current->msg->baseline;
-  T_Timer res;
-  NEW(T_Timer,res,sizeof(struct T_Timer));
-  SETGCINFO(res,__GC__T_Timer);
-  res->reset = reset_sel;
-  res->sample = sample_sel;
-  res->self = self;
-  return (TIMERTYPE)res;
-}*/
-
-
