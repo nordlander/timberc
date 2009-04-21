@@ -1,7 +1,5 @@
 module ARM where
 
-import BitOps
-
 type RootType = Env -> TFT -> Class Prog
 
 type Prog = Action

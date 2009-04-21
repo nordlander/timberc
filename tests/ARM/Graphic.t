@@ -15,7 +15,7 @@ graphic tft =
         screenXpos := 0
         if screenYpos == 31 then
           screenYpos := 0
-        else 
+        else
           screenYpos := screenYpos + 1
           
         if screenYpos == 31 then

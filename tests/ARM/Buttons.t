@@ -1,6 +1,7 @@
 module Buttons where
 
 import ARM
+import BitOps
 
 import Debug
 
