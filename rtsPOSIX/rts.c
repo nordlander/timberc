@@ -154,7 +154,26 @@ void panic(char *str) {
 
 // Memory management --------------------------------------------------------------------------------
 
+Thread gcThread;
+
 #include "gc.c"
+
+void gcStart(void) {
+    pthread_cond_signal(&gcThread->trigger);
+}
+
+void *garbageCollector(void *arg) {
+    Thread current = (Thread)arg;
+    pthread_setspecific(current_key, current);
+    struct sched_param param;
+    param.sched_priority = current->prio;
+    pthread_setschedparam(current->id, SCHED_RR, &param);
+    DISABLE(rts);
+    while (1) {
+        pthread_cond_wait(&current->trigger, &rts);
+        gc();
+    }
+}
 
 
 // Cyclic data handling -----------------------------------------------------------------------------
@@ -317,18 +336,19 @@ void *run(void *arg) {
         if (code)
             code(this);
         DISABLE(rts);
-
         deactivate(current);
+
+        if (heapLevel(16) > 13)
+            gcStart();
+
         while (msgQ && !(msgQ->Code))
             msgQ = msgQ->next;
         if (msgQ) {
             activate(msgQ, 1);
             msgQ = msgQ->next;
-        } else {
+        } else {            
             pthread_cond_wait(&current->trigger, &rts);
         }
-        if (STARTGC())
-                gcStart();
     }
 }
 
@@ -488,7 +508,6 @@ void scanTimerQ() {
         ENABLE(rts);
 }
 
-
 // Initialization -------------------------------------------------------------------------------------
 
 Int getNumberOfProcessors() {
@@ -527,6 +546,7 @@ void init_rts(int argc, char **argv) {
     
     gcInit();
     envInit(argc, argv);
+    gcThread = newThread(NULL, prio_min, garbageCollector, pagesize);
     newThread(NULL, prio_max, timerHandler, pagesize);
     
     ENABLE(rts);

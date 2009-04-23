@@ -64,7 +64,6 @@
 
 #define allocwords(size)        (ADDR)malloc(BYTES(size))
 #define HEAPSIZE                0x100000  //  0x100000 words = 0x400000 bytes = 4194304 bytes = 4 Mb = 1024 pages = 0x400 pages
-#define STARTGC()               (WORD)hp >= 7 * (((WORD)lim)/8)
 
 #define ISWHITE(a)              INSIDE(heapchain,a,hp)
 #define ISBLACK(a)              hp2 && INSIDE(heapchain2,a,scanp)
@@ -350,24 +349,15 @@ void gc() {
         heapchain2 = (ADDR)0;
 }
 
-void *garbageCollector(void *arg) {
-    Thread current = (Thread)arg;
-    pthread_setspecific(current_key, current);
-    struct sched_param param;
-    param.sched_priority = current->prio;
-    pthread_setschedparam(current->id, SCHED_RR, &param);
-    DISABLE(rts);
-    while (1) {
-        pthread_cond_wait(&current->trigger, &rts);
-        // printf("# Starting GC\n");
-        gc();
+int heapLevel(int steps) {
+    int acc = 0;
+    ADDR link = heapchain;
+    while (link[0]) {
+        acc += HEAPSIZE;
+        link = (ADDR)link[0];
     }
-}
-
-Thread gcThread;
-
-void gcStart(void) {
-    pthread_cond_signal(&gcThread->trigger);
+    acc += hp-base;
+    return acc / (HEAPSIZE/steps);
 }
 
 void gcInit() {
@@ -383,6 +373,5 @@ void gcInit() {
     initheap();                                     // Allocate base (= heapchain)
     pthread_cond_init(&alloc, 0);
     pthread_cond_init(&alloc2, 0);
-    gcThread = newThread(NULL, prio_min, garbageCollector, pagesize);
 }
 
