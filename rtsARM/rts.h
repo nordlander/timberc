@@ -92,18 +92,55 @@ extern WORD __GG__Time[] ;
 
 #define offsetof(TYPE, MEMBER) __builtin_offsetof (TYPE, MEMBER)
 
-ADDR gc_new(int);
+//ADDR gc_new(int);
 
-#define NEW(t,addr,words)       addr = (t)gc_new(words)
+//#define NEW(t,addr,words)       addr = (t)gc_new(words)
 
-/*
+
+static inline void PROTECT(int state)
+{
+	/*
+	 * WARNING!!!
+	 * 	The use of %0 et al. is _very_ fragile and may break at any time.
+	 * 	Honestly I don't have a clue why this miscompiles every now and then...
+	 */
+	int tmp;
+	asm volatile(
+		"cmp	%1, #0\n"
+		"mrs	%0, CPSR\n"
+		"orrne	%0, %0, #0x80|0x40\n"
+		"biceq	%0, %0, #0x80|0x40\n"
+		"msr	CPSR_c, %0\n"
+		: "=r" (tmp)
+		: "r" (state)
+		);
+}
+
+static inline int ISPROTECTED(void)
+{
+	/*
+	 * WARNING!!!
+	 * 	The use of %0 et al. is _very_ fragile and may break at any time.
+	 * 	Honestly I don't have a clue why this miscompiles every now and then...
+	 */
+	int tmp;
+	asm volatile(
+			"mrs	%0, CPSR\n"
+			"and	%0, %0, #0x80|0x40\n"
+			: "=r" (tmp)
+			);
+	return tmp;
+}
+
+
+
 #define NEW(t,addr,words)       { int status = ISPROTECTED(); \
                                   PROTECT(1); \
 	                              addr = (t)hp; \
 	                              hp = (ADDR)addr+(words); \
 		                          PROTECT(status); \
                                 }
-*/
+
 
 #define CURRENT() current
 

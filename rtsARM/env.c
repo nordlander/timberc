@@ -178,7 +178,8 @@ int install(Env_ARM env, int bits, int slot, CLOS1 h, int dummy)
 
 	handler_table[slot] = h;
 	VICIntEnable |= (1<<slot);
-	
+    envRootsDirty = 1;
+    
 	PROTECT(status);
 	return 0;
 }
@@ -207,34 +208,17 @@ CLOS2 prog      = NULL;
 /* This is used during gc */
 int envRootsDirty = 0;
 
-void scanEnvRoots (int force) {
+void scanEnvRoots (void) {
+	envRootsDirty = 0;
+	prog = (CLOS2)copy((ADDR)prog);
     int i;
-	if (force || envRootsDirty) {
-		prog = (CLOS2)copy((ADDR)prog);
-		envRootsDirty = 0;
-		for(i=0;i<32;i++)
-			handler_table[i] = (CLOS1)copy((ADDR)handler_table[i]);
+	for(i=0;i<32;i++) {
+        PROTECT(1);
+		handler_table[i] = (CLOS1)copy((ADDR)handler_table[i]);
+        PROTECT(0);
 	}
 }
 
-/*void scanEnvRoots (int force) {
-	if (force || envRootsDirty){
-		prog = (CLOS2)copy((ADDR)prog);
-		envRootsDirty = 0;
-		for(int i=0;i<32;i++){
-			//void *newptr = (CLOS2)copy((ADDR)t_handler[i]);
-			//if (newptr != t_handler[i]) {
-			//	debug(" s:");debug_hex(i);debug(". ");
-			//}
-			//t_handler[i] = newptr;
-			t_handler[i] = (CLOS2)copy((ADDR)t_handler[i]);
-
-		}
-		debug("ok");
-		//panic("DONE");
-	}
-	
-}*/
 
 void envInit(void) {
 //  PINSEL0 = 0x00000050;   // USART0

@@ -112,41 +112,6 @@ void debug_hex(unsigned long);
 #define ENV_STACKSIZE_IDLE 65536
 #define ARM7_STACKSIZE (NTHREADS*ENV_STACKSIZE+ENV_STACKSIZE_IDLE)
 
-static inline void PROTECT(int state)
-{
-	/*
-	 * WARNING!!!
-	 * 	The use of %0 et al. is _very_ fragile and may break at any time.
-	 * 	Honestly I don't have a clue why this miscompiles every now and then...
-	 */
-	int tmp;
-	asm volatile(
-		"cmp	%1, #0\n"
-		"mrs	%0, CPSR\n"
-		"orrne	%0, %0, #0x80|0x40\n"
-		"biceq	%0, %0, #0x80|0x40\n"
-		"msr	CPSR_c, %0\n"
-		: "=r" (tmp)
-		: "r" (state)
-		);
-}
-
-static inline int ISPROTECTED(void)
-{
-	/*
-	 * WARNING!!!
-	 * 	The use of %0 et al. is _very_ fragile and may break at any time.
-	 * 	Honestly I don't have a clue why this miscompiles every now and then...
-	 */
-	int tmp;
-	asm volatile(
-			"mrs	%0, CPSR\n"
-			"and	%0, %0, #0x80|0x40\n"
-			: "=r" (tmp)
-			);
-	return tmp;
-}
-
 #define SLEEP()         /* not yet defined */
 
 #define TDELTA          1
@@ -398,7 +363,8 @@ void idle(void) {
     PROTECT(0);
 
     while (1) {
-		gc(0);
+        if (heapLevel(16) > 13)
+		    gc(0);
         SLEEP();
 	}
 }
@@ -470,8 +436,10 @@ UNITTYPE ASYNC( Msg m, Time bl, Time dl ) {
 	        break;
         default:
             ADD(m->baseline, bl);
-            if (LESS(m->baseline, now))
+            if (LESS(m->baseline, now)) {
                 m->baseline = now;
+                debug("^");
+            }
     }
 
     switch((Int)dl) {
@@ -508,11 +476,11 @@ void INITREF( Ref obj ) {
 }
 
 OID LOCK( OID to_2 ) {
-	Ref to = (Ref)to_2;
-    gc_prologue(&to);
-
 	int status = ISPROTECTED();
     PROTECT(1);
+    
+	Ref to = (Ref)to_2;
+    GC_PROLOGUE(to);
     Thread t = to->ownedBy;
     if (t) {                                                // "to" is already locked
         if (status)
@@ -528,15 +496,16 @@ OID LOCK( OID to_2 ) {
         dispatch(t);
     }
     to->ownedBy = current;
+
     PROTECT(status);
     return (OID)to;
 }
 
 UNITTYPE UNLOCK( OID to_2 ) {
-	Ref to = (Ref)to_2;
-
     int status = ISPROTECTED();
     PROTECT(1);
+
+	Ref to = (Ref)to_2;
     to->ownedBy = NULL;
     Thread t = to->wantedBy;
     if (t) {                                                // we have run on someone's behalf
@@ -544,8 +513,9 @@ UNITTYPE UNLOCK( OID to_2 ) {
         t->waitsFor = NULL;
         dispatch(t);
     }
+	GC_EPILOGUE(to);
+
     PROTECT(status);
-	gc_epilogue(&to);
     return (UNITTYPE)0;
 }
 
@@ -630,30 +600,24 @@ int snprintf(char *s, int n, const char *format, ...) {
 
 // ----------------------------------------------------------------------------------------------------
 
-void scanTimerQ(int force) {
-	
-	if (force || timerQdirty)
-	{
-		int status = ISPROTECTED();
-		PROTECT(1);
-	
-		timerQdirty = 0;
-	
-		if (timerQ) {
-			timerQ = (Msg)copy((ADDR)timerQ);
-	//                ENABLE(rts);
-	//                DISABLE(rts);
-			Msg m = timerQ, next = m->next;
-			while (next) {
-				m->next = (Msg)copy((ADDR)next);
-				//ENABLE(rts);
-				//DISABLE(rts);
-				m = m->next;
-				next = m->next;
-			}
+void scanTimerQ(void) {
+	timerQdirty = 0;
+	PROTECT(1);
+	if (timerQ) {
+		timerQ = (Msg)copy((ADDR)timerQ);
+        Msg m = timerQ;
+	    PROTECT(0);
+	    PROTECT(1);
+		Msg next = m->next;
+		while (next) {
+			m->next = (Msg)copy((ADDR)next);
+			m = m->next;
+	        PROTECT(0);
+	        PROTECT(1);
+			next = m->next;
 		}
-		PROTECT(status);
 	}
+	PROTECT(0);
 }
 
 
@@ -698,6 +662,6 @@ void init_rts(void) {
 
     TIMERINIT();
     envInit();
-    gcinit();
+    gcInit();
     init_threads();
 }
