@@ -138,6 +138,7 @@ static inline int ISPROTECTED(void)
                                   PROTECT(1); \
 	                              addr = (t)hp; \
 	                              hp = (ADDR)addr+(words); \
+                                  if (hp >= lim) force(words,(ADDR)addr); \
 		                          PROTECT(status); \
                                 }
 

@@ -40,6 +40,7 @@
                                   PROTECT(1); \
 	                              addr = hp2; \
 	                              hp2 = (ADDR)addr+(words); \
+                                  if (hp2 >= lim2) force2(words,(ADDR)addr,info); \
                                   addr[0] = (WORD)(info); \
 		                          PROTECT(status); \
                                 }
@@ -231,7 +232,7 @@ ADDR scan(ADDR obj) {
 }
 
 void gc() {
-        // fprintf(stderr, "GC started\n");
+        // debug("$");
         PROTECT(1);
         base2 = (base==heap1 ? heap2 : heap1);          // allocate tospace
         base2[0] = 0;
