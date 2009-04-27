@@ -31,24 +31,15 @@
 // ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#include "rts.h"
-#include "timber.h"
-#include "ARM.h"
-
 void ROOTINIT(void);
-CLOS2 ROOT(Env_ARM, TFT_ARM, Int);
+void ROOT(void);
 
-extern CLOS2 prog;
-extern Env_ARM env;
-extern TFT_ARM tft;
+void envInit(int argc, char** argv);
+void envStart(void (*root)(void));
 
-int main(void) {
-    init_rts();
+int main(int argc, char **argv) {
+    envInit(argc, argv);
     ROOTINIT();
-    pruneStaticHeap();
-    prog = ROOT(env, tft, 0); 
-    prog->Code(prog,(POLY)Inherit,(POLY)Inherit);
-    idle(); /* BUG: The idlestack will NOT be in the space initiazied by ENV_CONTEXT_INIT(idle) */
+    envStart(ROOT);
     return 0;
 }
-

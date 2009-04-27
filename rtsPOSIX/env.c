@@ -587,10 +587,19 @@ void eventLoop (void) {
     }
 }
 
+void envStart(CLOS2 (*root)(Env_POSIX, Int)) {
+    pruneStaticHeap();
+    prog = root(env, 0);
+    TIMERGET(msg0.baseline);
+    prog->Code(prog, (POLY)Inherit, (POLY)Inherit);
+    eventLoop();
+}
+
+
 // --------- Initialization ----------------------------------------------------
 
 void envInit (int argc, char **argv) {
-    Int i;
+    init_rts();
   
     pthread_setspecific(current_key, &thread0);
     pthread_mutex_init(&envmut, &glob_mutexattr);
@@ -607,21 +616,18 @@ void envInit (int argc, char **argv) {
     Array arr; NEW(Array,arr,WORDS(sizeof(struct Array))+argc);
     arr->GCINFO = __GC__Array0;
     arr->size = argc;
+    int i;
     for (i=0; i<argc; i++)
         arr->elems[i] = (POLY)getStr(argv[i]);
     env->argv_POSIX = arr;
   
-    struct timeval now;
-    if (gettimeofday(&now,NULL) < 0)
-      perror("gettimeofday failed");
-    startTime.sec = now.tv_sec;
-    startTime.usec = now.tv_usec;
-
     fcntl(0, F_SETFL, O_NONBLOCK);
     fcntl(1, F_SETFL, O_NONBLOCK);
 
     TIMERGET(msg0.baseline);
+    startTime.sec = msg0.baseline.tv_sec;
+    startTime.usec = msg0.baseline.tv_usec;
 
     thread0.msg = &msg0;
     thread0.id = pthread_self();
-  }
+}

@@ -449,6 +449,8 @@ POLY Raise(BITS32 polyTag, Int err) {
 
 // Environment object ---------------------------------------------------------------------------------
 
+void init_rts(void);
+
 #include "env.c"
 
 // Show Float -----------------------------------------------------------------------------------------
@@ -519,7 +521,7 @@ Int getNumberOfProcessors() {
     return 1;
 }
 
-void init_rts(int argc, char **argv) {
+void init_rts(void) {
     pthread_mutexattr_init(&glob_mutexattr);
     pthread_mutexattr_settype(&glob_mutexattr, PTHREAD_MUTEX_NORMAL);
     pthread_mutexattr_setprotocol(&glob_mutexattr, PTHREAD_PRIO_INHERIT);
@@ -545,7 +547,6 @@ void init_rts(int argc, char **argv) {
         NTHREADS = MAXTHREADS;
     
     gcInit();
-    envInit(argc, argv);
     gcThread = newThread(NULL, prio_min, garbageCollector, pagesize);
     newThread(NULL, prio_max, timerHandler, pagesize);
     

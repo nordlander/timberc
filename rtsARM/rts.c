@@ -584,6 +584,8 @@ POLY Raise(BITS32 polyTag, Int err) {
 
 // Environment object ---------------------------------------------------------------------------------
 
+void init_rts(void);
+
 #include "env.c"
 
     
@@ -661,7 +663,6 @@ void init_rts(void) {
     PROTECT(1);
 
     TIMERINIT();
-    envInit();
     gcInit();
     init_threads();
 }

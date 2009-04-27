@@ -150,9 +150,6 @@ extern ADDR hp, lim;
 extern pthread_key_t current_key;
 
 ADDR force(WORD, ADDR);
-void pruneStaticHeap();
-
-void init_rts(int, char**);
 
 Time sec(Int c);
 Time millisec(Int x);

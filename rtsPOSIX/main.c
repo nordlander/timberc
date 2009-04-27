@@ -31,21 +31,15 @@
 // ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#include "rts.h"
-#include "timber.h"
-#include "POSIX.h"
-
 void ROOTINIT(void);
-CLOS2 ROOT(Env_POSIX, Int);
+void ROOT(void);
 
-extern CLOS2 prog;
-extern Env_POSIX env;
+void envInit(int argc, char** argv);
+void envStart(void (*root)(void));
 
 int main(int argc, char **argv) {
-    init_rts(argc, argv);
+    envInit(argc, argv);
     ROOTINIT();
-    pruneStaticHeap();
-    prog = ROOT(env, 0);
-    prog->Code(prog,(POLY)Inherit,(POLY)Inherit);
-    eventLoop();
+    envStart(ROOT);
+    return 0;
 }

@@ -220,7 +220,18 @@ void scanEnvRoots (void) {
 }
 
 
+void envStart(CLOS2 (*root)(Env_ARM, TFT_ARM, Int)) {
+    pruneStaticHeap();
+    prog = root(env, tft, 0);
+    IRQ_PROLOGUE();
+    prog->Code(prog,(POLY)Inherit,(POLY)Inherit);
+    IRQ_EPILOGUE();
+    idle();
+}
+
 void envInit(void) {
+    init_rts();
+    
 //  PINSEL0 = 0x00000050;   // USART0
 //  PINMODE0 = 0;           // Enable pullups on all pins
 //  PINSEL3 = 0x05555505;   // Ethernet and LCD
