@@ -37,8 +37,8 @@
 #define TOGGLE0(val)            ((WORD)(val) ^ 0x01)
 
 #define ISPLACEHOLDER(obj)      (BIT0(obj) && ((int)(obj) < 0))
-#define INDEXOF(obj)            (((-(int)(obj)) >> 1) - current->placeholders)
-#define PLACEHOLDER(index)      (-((((index) + current->placeholders) << 1) | 0x01))
+#define INDEXOF(obj)            (((-(int)(obj)) >> 1) - current_thread->placeholders)
+#define PLACEHOLDER(index)      (-((((index) + current_thread->placeholders) << 1) | 0x01))
 
 #define CURRENT_CYCLE(obj,roots)    !INSIDE(heapchain,obj,(ADDR)roots)
 
@@ -50,7 +50,7 @@
                                         } \
                                       }
 
-ADDR substObj(ADDR obj, Array roots, int limit, Thread current) {
+ADDR substObj(ADDR obj, Array roots, int limit, Thread current_thread) {
         ADDR info = IND0(obj);
         if (!info)                                      // if gcinfo is null we have reached the end of a heap segment
                 return (ADDR)obj[1];                    // pointer to first object of next segment is found in subsequent slot
@@ -103,42 +103,42 @@ ADDR substObj(ADDR obj, Array roots, int limit, Thread current) {
                         return obj + size;
                 }
                 case GC_MUT: {
-                        return substObj(obj + STATIC_SIZE(info), roots, limit, current);
+                        return substObj(obj + STATIC_SIZE(info), roots, limit, current_thread);
                 }
         }
         return (ADDR)0;                 // Not reached
 }
 
-void subst(Array roots, int limit, ADDR stop, Thread current) {
+void subst(Array roots, int limit, ADDR stop, Thread current_thread) {
         ADDR p = (ADDR)roots + STATIC_SIZE(roots->GCINFO) + roots->size;
         int i;
         for (i = 0; i < limit; i++)
                 if (ISPLACEHOLDER(roots->elems[i])) 
                         RAISE(2);
         while (p != stop)
-                p = substObj(p, roots, limit, current);
+                p = substObj(p, roots, limit, current_thread);
 }
 
 Array CYCLIC_BEGIN(Int n, Int updates) {
-        Thread current = CURRENT();
+        Thread current_thread = CURRENT();
         Array roots = EmptyArray(0,n);
         int i;
         for (i = 0; i < n; i++)
                 roots->elems[i] = (POLY)PLACEHOLDER(i);
-        current->placeholders += n;
+        current_thread->placeholders += n;
         return roots;
 }
 
 void CYCLIC_UPDATE(Array roots, Int limit, ADDR stop) {
-        Thread current = CURRENT();
-        current->placeholders -= roots->size;
-        subst(roots, limit, stop, current);
-        current->placeholders += roots->size;
+        Thread current_thread = CURRENT();
+        current_thread->placeholders -= roots->size;
+        subst(roots, limit, stop, current_thread);
+        current_thread->placeholders += roots->size;
 }
 
 void CYCLIC_END(Array roots, ADDR stop) {
-        Thread current = CURRENT();
-        current->placeholders -= roots->size;
-        subst(roots, roots->size, stop, current);
+        Thread current_thread = CURRENT();
+        current_thread->placeholders -= roots->size;
+        subst(roots, roots->size, stop, current_thread);
 }
 

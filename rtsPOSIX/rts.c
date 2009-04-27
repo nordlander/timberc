@@ -163,14 +163,14 @@ void gcStart(void) {
 }
 
 void *garbageCollector(void *arg) {
-    Thread current = (Thread)arg;
-    pthread_setspecific(current_key, current);
+    Thread current_thread = (Thread)arg;
+    pthread_setspecific(current_key, current_thread);
     struct sched_param param;
-    param.sched_priority = current->prio;
-    pthread_setschedparam(current->id, SCHED_RR, &param);
+    param.sched_priority = current_thread->prio;
+    pthread_setschedparam(current_thread->id, SCHED_RR, &param);
     DISABLE(rts);
     while (1) {
-        pthread_cond_wait(&current->trigger, &rts);
+        pthread_cond_wait(&current_thread->trigger, &rts);
         gc();
     }
 }
@@ -320,15 +320,15 @@ void deactivate(Thread t) {
 }
 
 void *run(void *arg) {
-    Thread current = (Thread)arg;
-    pthread_setspecific(current_key, current);
+    Thread current_thread = (Thread)arg;
+    pthread_setspecific(current_key, current_thread);
     struct sched_param param;
-    param.sched_priority = current->prio;
-    pthread_setschedparam(current->id, SCHED_RR, &param);
-    // fprintf(stderr, "Worker thread %d started\n", current->index);
+    param.sched_priority = current_thread->prio;
+    pthread_setschedparam(current_thread->id, SCHED_RR, &param);
+    // fprintf(stderr, "Worker thread %d started\n", current_thread->index);
     DISABLE(rts);
     while (1) {
-        Msg this = current->msg;
+        Msg this = current_thread->msg;
 
         ENABLE(rts);
         Int (*code)(Msg) = this->Code;
@@ -336,7 +336,7 @@ void *run(void *arg) {
         if (code)
             code(this);
         DISABLE(rts);
-        deactivate(current);
+        deactivate(current_thread);
 
         if (heapLevel(16) > 13)
             gcStart();
@@ -347,7 +347,7 @@ void *run(void *arg) {
             activate(msgQ, 1);
             msgQ = msgQ->next;
         } else {            
-            pthread_cond_wait(&current->trigger, &rts);
+            pthread_cond_wait(&current_thread->trigger, &rts);
         }
     }
 }
@@ -360,9 +360,9 @@ UNITTYPE ASYNC( Msg m, Time bl, Time dl ) {
 
     AbsTime now;
     TIMERGET(now);
-    Thread current = CURRENT();
-    // fprintf(stderr, "Working thread %d in ASYNC\n", (int)current);
-    m->baseline = current->msg->baseline;
+    Thread current_thread = CURRENT();
+    // fprintf(stderr, "Working thread %d in ASYNC\n", (int)current_thread);
+    m->baseline = current_thread->msg->baseline;
     switch ((Int)bl) {
 	    case INHERIT: break;
         case TIME_INFINITY:
@@ -376,7 +376,7 @@ UNITTYPE ASYNC( Msg m, Time bl, Time dl ) {
     }
     switch((Int)dl) {
 	    case INHERIT: 
-	        m->deadline = current->msg->deadline;
+	        m->deadline = current_thread->msg->deadline;
             break;
 	    case TIME_INFINITY:
 	        m->deadline.tv_sec = INF;
@@ -462,10 +462,10 @@ void init_rts(void);
 int timerQdirty;
 
 void *timerHandler(void *arg) {
-    Thread current = (Thread)arg;
+    Thread current_thread = (Thread)arg;
     struct sched_param param;
-    param.sched_priority = current->prio;
-    pthread_setschedparam(current->id, SCHED_RR, &param);
+    param.sched_priority = current_thread->prio;
+    pthread_setschedparam(current_thread->id, SCHED_RR, &param);
 
 //    pthread_sigmask(SIG_BLOCK, &all_sigs, NULL);
     sigset_t accept;
