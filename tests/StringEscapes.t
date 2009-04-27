@@ -2,5 +2,5 @@ module StringEscapes where
 
 import POSIX
 
-root env = class result action env.stdout.write ('\"' : '\'' : ";[~\o33\n' \"\\ \HT")
+root env = class result action env.stdout.write ('\"' : '\'' : ";[~\o33\n' \"\\ \HTxy\x000dude")
 
