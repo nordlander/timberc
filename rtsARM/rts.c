@@ -294,7 +294,7 @@ void arm7_context_panic(void)
 
 static void enqueueByDeadline(Msg p, Msg *queue) {
         Msg prev = NULL, q = *queue;
-        while (q && LESS(q->deadline, p->deadline)) {
+        while (q && LESSEQ(q->deadline, p->deadline)) {
                 prev = q;
                 q = q->next;
         }
@@ -307,7 +307,7 @@ static void enqueueByDeadline(Msg p, Msg *queue) {
 
 static void enqueueByBaseline(Msg p, Msg *queue) {
         Msg prev = NULL, q = *queue;
-        while (q && LESS(q->baseline, p->baseline)) {
+        while (q && LESSEQ(q->baseline, p->baseline)) {
                 prev = q;
                 q = q->next;
         }
