@@ -73,8 +73,6 @@ tailOptimize x te c
   | otherwise                           = return c
 
 
-isTailRecursive x (CBind False [(y,Val _ (ECall x' _ _))] (CRet (EVar y')))
-                                        = x == x' && y == y'
 isTailRecursive x (CRet (ECall y _ _))  = x == y
 isTailRecursive x (CRun _ c)            = isTailRecursive x c
 isTailRecursive x (CBind _ _ c)         = isTailRecursive x c
@@ -91,8 +89,6 @@ isTailRecursiveAlt x (ALit _ c)         = isTailRecursive x c
 isTailRecursiveAlt x (AWild c)          = isTailRecursive x c
 
 
-redTailCall x vs (CBind False [(y,Val t (ECall x' ts es))] (CRet (EVar y')))
-  | x == x' && y == y'                  = updateParams vs es
 redTailCall x vs (CRet (ECall y ts es))    
   | x == y                              = updateParams vs es
 redTailCall x vs (CBind r bs c)         = liftM (CBind r bs) (redTailCall x vs c)
