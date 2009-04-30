@@ -438,7 +438,7 @@ UNITTYPE ASYNC( Msg m, Time bl, Time dl ) {
             ADD(m->baseline, bl);
             if (LESS(m->baseline, now)) {
                 m->baseline = now;
-                debug("^");
+                // debug("^");
             }
     }
 
