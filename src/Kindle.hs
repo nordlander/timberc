@@ -332,6 +332,9 @@ flatBinds bf                            = flat (bf CBreak)
   where flat (CBind r bs c)             = bs ++ flat c
         flat _                          = []
 
+cUpd [] [] c                            = c
+cUpd (x:xs) (e:es) c                    = CUpd x e (cUpd xs es c)
+
 simpleExp (EVar _)                      = True
 simpleExp (ELit _)                      = True
 simpleExp (ECast _ e)                   = simpleExp e

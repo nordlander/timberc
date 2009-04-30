@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE PatternGuards, ParallelListComp #-}
 
 -- The Timber compiler <timber-lang.org>
 --
@@ -34,12 +34,12 @@
 -- POSSIBILITY OF SUCH DAMAGE.
 
 module Kindlered where
-    
+
 import Monad
 import Common
 import Kindle
 import PP
-
+import System
 
 kindlered ds m                          = redModule ds m
 
@@ -61,9 +61,63 @@ redModule dsi (Module m ns ds bs)       = do bs <- mapM (redBind env0) bs
 
 -- Convert a binding
 redBind env (x, Fun vs t te c)          = do c <- redCmd env c
+                                             c <- tailOptimize x te c
                                              return (x, Fun vs t te c)
 redBind env (x, Val t e)                = do e <- redExp env e
                                              return (x, Val t e)
+-- Tail recursiion optimization
+
+tailOptimize x te c
+  | isTailRecursive x c                 = do c <- redTailCall x te c
+                                             return (CWhile (ELit (lInt 1)) c (CRaise (ELit (lInt 1))))
+  | otherwise                           = return c
+
+
+isTailRecursive x (CBind False [(y,Val _ (ECall x' _ _))] (CRet (EVar y')))
+                                        = x == x' && y == y'
+isTailRecursive x (CRet (ECall y _ _))  = x == y
+isTailRecursive x (CRun _ c)            = isTailRecursive x c
+isTailRecursive x (CBind _ _ c)         = isTailRecursive x c
+isTailRecursive x (CUpd _ _ c)          = isTailRecursive x c
+isTailRecursive x (CUpdS _ _ _ c)       = isTailRecursive x c
+isTailRecursive x (CUpdA _ _ _ c)       = isTailRecursive x c
+isTailRecursive x (CSwitch _ alts)      = or [isTailRecursiveAlt x a | a <- alts]
+isTailRecursive x (CSeq c1 c2)          = (isTailRecursive x c1) || (isTailRecursive x c2)
+isTailRecursive x (CWhile _ c1 c2)      = isTailRecursive x c2
+isTailRecursive _ _                     =  False
+
+isTailRecursiveAlt x (ACon _ _ _ c)     = isTailRecursive x c
+isTailRecursiveAlt x (ALit _ c)         = isTailRecursive x c
+isTailRecursiveAlt x (AWild c)          = isTailRecursive x c
+
+
+redTailCall x vs (CBind False [(y,Val t (ECall x' ts es))] (CRet (EVar y')))
+  | x == x' && y == y'                  = updateParams vs es
+redTailCall x vs (CRet (ECall y ts es))    
+  | x == y                              = updateParams vs es
+redTailCall x vs (CBind r bs c)         = liftM (CBind r bs) (redTailCall x vs c)
+redTailCall x vs (CRun e c)             = liftM (CRun e) (redTailCall x vs c)
+redTailCall x vs (CUpd y e c)           = liftM (CUpd y e) (redTailCall x vs c)
+redTailCall x vs (CUpdS e y v c)        = liftM (CUpdS e y v) (redTailCall x vs c)
+redTailCall x vs (CUpdA e i e' c)       = liftM (CUpdA e i e') (redTailCall x vs c)
+redTailCall x vs (CSwitch e alts)       = liftM (CSwitch e) (mapM (redTailAlt x vs) alts)
+redTailCall x vs (CSeq c c')            = liftM2 CSeq (redTailCall x vs c) (redTailCall x vs c')
+redTailCall x vs (CWhile e c c')        = liftM2 (CWhile e) (redTailCall x vs c) (redTailCall x vs c')
+redTailCall _ _ c                       = return c
+
+redTailAlt x vs (ACon y us te c)        = liftM (ACon y us te) (redTailCall x vs c)
+redTailAlt x vs (ALit l c)              = liftM (ALit l) (redTailCall x vs c)
+redTailAlt x vs (AWild c)               = liftM AWild (redTailCall x vs c)
+
+updateParams [] []                      = return CCont
+updateParams ((x,t):te) (e:es)
+  | e == EVar x                         = updateParams te es
+  | x `elem` evars es                   = do y <- newName tempSym
+                                             c <- updateParams te (subst [(x,EVar y)] es)
+                                             return (CBind False [(y,Val t (EVar x))] (CUpd x e c))
+  | otherwise                           = do c <- updateParams te es
+                                             return (CUpd x e c)
+
 
 
 single x e                              = length (filter (==x) (evars e)) == 1
