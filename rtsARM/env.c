@@ -124,6 +124,55 @@ static int portread(Env_ARM env, unsigned int addr, int dummy)
     return 0;
 }
 
+static int valid_net_addr(unsigned int addr)
+{
+	if ((addr >= 0x7fe00000) && (addr < 0x7fe04000)) {
+		return !0;
+	} else {
+		return !!0;
+	}
+}
+
+static Array netmemread(Env_ARM env, unsigned int addr, unsigned int size, int dummy)
+{
+	int i;
+	void **ptr = (void **)addr;
+	Array array;
+
+	NEW(Array, array, WORDS(sizeof(struct Array)+size));
+	array->GCINFO = __GC__Array0;
+	array->size   = WORDS(size);
+
+	if (valid_net_addr(addr) && valid_net_addr(addr + size)) {
+		for (i=0;i<size;i++) {
+			array->elems[i] = *ptr++;
+		}
+	} else {
+		for (i=0;i<size;i++) {
+			array->elems[i] = (void *)0;
+		}
+	}
+
+	return array;
+}
+
+static void netmemwrite(Env_ARM env, Array array, unsigned int addr, unsigned int size, int dummy)
+{
+	int i;
+	char *to = (char *)addr;
+	char *from= (char *)array->elems;
+
+	if (
+		valid_net_addr(addr) &&
+		valid_net_addr(addr + size) &&
+		(size < (array->size * 4))
+	   ) {
+		for (i=0;i<size*4;i++) {
+			*to++ = *from++;
+		}
+	}
+}
+
 // Interrupt handling ------------------------------------------------------------------------
 
 CLOS1 handler_table[32];
@@ -184,21 +233,23 @@ int install(Env_ARM env, int bits, int slot, CLOS1 h, int dummy)
 	return 0;
 }
 
-struct Env_ARM envS = { __GC__Env_ARM, 
-                        (void*)debug_fun,
-                        (void*)portwrite, 
-                        (void*)portset, 
-                        (void*)portclear, 
-                        (void*)portread, 
-                        (void*)install };
+struct Env_ARM envS = { .GCINFO          = __GC__Env_ARM,
+                        .debug_ARM       = (void*)debug_fun,
+                        .portwrite_ARM   = (void*)portwrite,
+                        .portset_ARM     = (void*)portset,
+                        .portclear_ARM   = (void*)portclear,
+                        .portread_ARM    = (void*)portread,
+                        .install_ARM     = (void*)install,
+                        .netmemread_ARM  = (void*)netmemread,
+                        .netmemwrite_ARM = (void*)netmemwrite};
                        
-struct TFT_ARM tftS = { __GC__TFT_ARM, 
-                        (void*)drawchar, 
-                        (void*)drawbox, 
-                        SCREEN_XSIZE,
-                        SCREEN_YSIZE,
-                        0,
-                        0 }; 
+struct TFT_ARM tftS = { .GCINFO          = __GC__TFT_ARM, 
+                        .drawchar_ARM    = (void*)drawchar, 
+                        .drawbox_ARM     = (void*)drawbox, 
+                        .xsize_ARM       = SCREEN_XSIZE,
+                        .ysize_ARM       = SCREEN_YSIZE,
+                        .charwidth_ARM   = 0,
+                        .charheight_ARM  = 0 }; 
 
 Env_ARM env     = &envS;
 TFT_ARM tft     = &tftS;

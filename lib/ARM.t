@@ -13,6 +13,8 @@ struct Env where
     portclear   :: Addr -> BITS32 -> Request ()
     portread    :: Addr -> Request BITS32
     install     :: Int -> Cmd () a -> Request () 
+    netmemread  :: Addr -> Int -> Request (Array BITS32)
+    netmemwrite :: Array BITS32 -> Addr -> Int -> Request ()
 
 struct TFT where
     drawchar    :: Char -> Int{-x-} -> Int{-y-} -> Request Int
