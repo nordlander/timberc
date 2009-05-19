@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 -- The Timber compiler <timber-lang.org>
 --
--- Copyright 2008 Johan Nordlander <nordland@csee.ltu.se>
+-- Copyright 2008-2009 Johan Nordlander <nordland@csee.ltu.se>
 -- All rights reserved.
 -- 
 -- Redistribution and use in source and binary forms, with or without

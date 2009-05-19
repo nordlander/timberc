@@ -2,12 +2,12 @@
 #
 # This file is subject to the same free software license as timberc.
 #
-# Copyright 2008, Peter A. Jonsson
+# Copyright 2008-2009, Peter A. Jonsson
 #
 # This file was derived from ghc.spec.in
 
 %define name    timberc
-%define version 1.0.2
+%define version 1.0.3
 %define release 1
 
 Name:           %{name}

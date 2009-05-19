@@ -1,6 +1,6 @@
 -- The Timber compiler <timber-lang.org>
 --
--- Copyright 2008 Johan Nordlander <nordland@csee.ltu.se>
+-- Copyright 2008-2009 Johan Nordlander <nordland@csee.ltu.se>
 -- All rights reserved.
 -- 
 -- Redistribution and use in source and binary forms, with or without
@@ -78,7 +78,7 @@ import qualified Control.Exception as Exception
 import Data.Dynamic
 
 
-versionString = "The Timber compiler, version 1.0.2"
+versionString = "The Timber compiler, version 1.0.3"
 
 -- | Contains the configuration for the compiler with the current
 -- command line switches.

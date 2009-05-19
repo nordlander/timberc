@@ -1,5 +1,5 @@
 Name:                timberc
-Version:             1.0.2
+Version:             1.0.3
 Synopsis:            The Timber Compiler.
 Description:         This is a compiler for a strict and pure functional 
 		     language
