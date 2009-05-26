@@ -1,5 +1,5 @@
 DESTDIR      = /usr/local/share/timberc
-prefix       = -1.0.2
+prefix       = -1.0.3
 CC           = arm-eabi-gcc
 CFLAGS       = -Os -g -I. -I../include -I../lib -I./asm
 INSTALL	     = install
