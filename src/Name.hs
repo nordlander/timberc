@@ -314,7 +314,8 @@ data Prim                       =
                                 | AbsTime               -- type of selectors Baseline and Deadline
                                 
                                 | POLY                  -- Type representing polymorhic values
-                                                                
+                                | WORD                  -- Target-depending int type
+                                
                                 | Float2POLY            -- Conversion macros required to circumvent C casting irreguliarity
                                 | POLY2Float
                                 

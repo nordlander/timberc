@@ -161,6 +161,7 @@ tCon n                                  = TCon n []
 tVar n                                  = TVar n []
 
 tPOLY                                   = tId POLY
+tWORD                                   = tId WORD
 
 tTime                                   = tId Time
 tMsg                                    = tId Msg

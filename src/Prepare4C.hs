@@ -416,7 +416,7 @@ mkSwitch env e [] [AWild c]     = c
 mkSwitch env e [] alts1         = CSwitch (ESel e (prim Tag)) (map (mkLitAlt env) alts1)
 mkSwitch env e alts0@[ACon n _ _ c] []
   | allCons env alts0 == [n]    = c
-mkSwitch env e alts0 []         = CSwitch (ECast tInt e) (map (mkLitAlt env) alts0)
+mkSwitch env e alts0 []         = CSwitch (ECast tWORD e) (map (mkLitAlt env) alts0)
 mkSwitch env e alts0 alts1      = mkSwitch env e (alts0++[AWild d]) []
   where d                       = mkSwitch env e [] alts1
 
@@ -480,7 +480,7 @@ pRhsExp env e                   = pExp env e
 
 
 pNewExp env n ts bs
-  | n `elem` nulls env          = return (id, t0, cast t0 tInt (ELit (conLit env n)))
+  | n `elem` nulls env          = return (id, t0, cast t0 tWORD (ELit (conLit env n)))
   | otherwise                   = do (bf,bs) <- pBinds (pSBind t0 te0) env bs
                                      return (bf, t0, ENew n [] (bs''++bs'++bs))
   where bs'                     = if n `elem` tagged env then [(prim Tag, Val tInt (ELit (conLit env n)))] else []
@@ -501,8 +501,8 @@ pExpT env t0 e                  = do (bf,t,e) <- pExp env e
 
 cast t0 t1 e
   | u0 == u1                    = e
-  | u0 == tPOLY && smallPrim u1 = ECast tPOLY (ECast tInt e)
-  | smallPrim u0 && u1 == tPOLY = ECast u0 (ECast tInt e)
+  | u0 == tPOLY && smallPrim u1 = ECast tPOLY (ECast tWORD e)
+  | smallPrim u0 && u1 == tPOLY = ECast u0 (ECast tWORD e)
   | u0 == tPOLY && u1 == tFloat = ECall (prim Float2POLY) [] [e]
   | u0 == tFloat && u1 == tPOLY = ECall (prim POLY2Float) [] [e]
   | otherwise                   = ECast u0 e
@@ -545,7 +545,7 @@ pExp env (EEnter e f ts es)         = do (bf1,t1,e) <- pRhsExp env e
 pExp env (ECast t e)                = do (bf,t',e) <- pExp env e
                                          return (bf, t, cast t t' e)
 pExp env (ENew n ts bs)
-  | n `elem` nulls env              = return (id, tInt, ELit (conLit env n))
+  | n `elem` nulls env              = return (id, tWORD, ELit (conLit env n))
   | otherwise                       = do (bf,t,e) <- pNewExp env n ts bs
                                          x <- newName tempSym
                                          return (bf . cBind [(x, Val (erase t) e)], t, EVar x)
