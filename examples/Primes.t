@@ -17,7 +17,9 @@ root env = class
                  result True
               elsif k `mod` p  == 0 then
                  result False
-              else loop (n+1)
+              else
+                 r <- loop (n+1)
+                 result r
 
    checkFrom k = do
      p <- isPrime k

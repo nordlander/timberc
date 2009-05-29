@@ -141,7 +141,7 @@ data Qual   = QExp    Exp
             | QGen    Pat Exp
             | QLet    [Bind]
             deriving  (Eq,Show)
-            
+
 data Stmt   = SExp    Exp
             | SRet    Exp
             | SGen    Pat Exp
@@ -288,6 +288,64 @@ tyCons TWild                    = []
 tyCons (TList t)                = tyCons t
 tyCons (TTup ts)                = nub (concatMap tyCons ts)
 tyCons (TFun ts t)              = nub (concatMap tyCons (t : ts))
+
+
+-- Checking syntax of statement lists ----------------------------------------
+
+checkStmts ss
+  | isResult ss                 = ss
+  | otherwise                   = ss
+
+
+isResult []                     = False
+--isResult [SExp e]               = tr' ("######## Suspicious tail: " ++ render (pr e)) False
+isResult (SRet e : ss)
+  | null ss                     = True
+  | otherwise                   = errorTree "Illegal continuation after result" ss
+isResult (s@(SCase e alts) : ss)
+  | and rs && null ss           = True
+  | and rs                      = errorTree "Illegal continuation after final 'case'" ss
+  | all not rs                  = isResult ss
+  | otherwise                   = errorTree "Inconsistent alternatives in 'case'" s
+  where rs                      = map isResult (concat [ cmds rh | Alt p rh <- alts ])
+        cmds (RExp c)           = [c]
+        cmds (RGrd gs)          = [ c | GExp qs c <- gs ]
+        cmds (RWhere rh bs)     = cmds rh
+isResult (s@(SIf e c) : ss)
+  | and rs && null ss2          = True
+  | and rs                      = errorTree "Illegal continuation after final 'if'" ss2
+  | all not rs                  = isResult ss2
+  | otherwise                   = errorTree "Inconsistent branches in 'if'" (s:ss1)
+  where (ss1,ss2)               = ifTail ss
+        rs                      = map isResult (c : map branch ss1)
+        branch (SElsif e c)     = c
+        branch (SElse c)        = c
+isResult (s@(SElsif e c) : ss)  = errorTree "'elsif' without preceeding 'if'" s
+isResult (s@(SElse c) : ss)     = errorTree "'else' without preceeding 'if'" s
+isResult (s@(SForall q c) : ss)
+  | isResult c                  = errorTree "Illegal result in 'forall' body" c
+  | otherwise                   = isResult ss
+isResult (s : ss)               = isResult ss
+
+
+ifTail (SElsif e s : ss)        = (SElsif e s : ss1, ss2)
+  where (ss1,ss2)               = ifTail ss
+ifTail (SElse s : ss)           = ([SElse s], ss)
+ifTail ss                       = ([], ss)
+
+
+checkClass ss
+  | okClass ss                  = ss
+  | otherwise                   = errorTree "Missing result in class" ss
+
+okClass []                      = False
+okClass (SRet e : ss)
+  | null ss                     = True
+  | otherwise                   = errorTree "Illegal continuation after result" ss
+okClass (SBind bs : ss)         = okClass ss
+okClass (SAss p e : ss)         = okClass ss
+okClass (s : ss)                = errorTree "Illegal command in class" s
+
 
 -- Substitution --------------------------------------------------------------
 

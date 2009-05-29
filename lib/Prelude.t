@@ -298,7 +298,8 @@ mapM f (x : xs)     = f x >>= \y -> mapM f xs >>= \ys -> return (y:ys)
 instance monadCmd :: Monad (Cmd s) where
     return a = do result a
     a >>= b  = do x <- a
-                  b x
+                  y <- b x
+                  result y
 
 instance monadClass :: Monad Class where
     return a = class result a

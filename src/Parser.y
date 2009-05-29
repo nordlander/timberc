@@ -395,10 +395,10 @@ exp10a  :: { Exp }
         | exp10as                               { $1 }
 
 exp10as :: { Exp }
-        : loc 'do' stmtlist                     { EDo Nothing Nothing $3  }
-        | loc 'class' stmtlist                  { ETempl Nothing Nothing $3 }
-        | loc 'action' stmtlist                 { EAct Nothing $3 }
-        | loc 'request' stmtlist                { EReq Nothing $3 }
+        : loc 'do' stmtlist                     { EDo Nothing Nothing (checkStmts $3) }
+        | loc 'class' stmtlist                  { ETempl Nothing Nothing (checkClass $3) }
+        | loc 'action' stmtlist                 { EAct Nothing (checkStmts $3) }
+        | loc 'request' stmtlist                { EReq Nothing (checkStmts $3) }
         | con '{'  layout_off recbinds '}'      { ERec (Just ($1,True)) (reverse $4) } 
         | con '{'  layout_off recbinds '..' '}' { ERec (Just ($1,False)) (reverse $4) } 
         | con '{'  layout_off recbinds ',' '..' '}' { ERec (Just ($1,False)) (reverse $4) } 
@@ -528,16 +528,13 @@ sgdcaserhs :: { GExp [Stmt] }
 -- Statement sequences -----------------------------------------------------------
 
 stmtlist :: { [Stmt] }
-        : '{' layout_off stmts0 '}'             { reverse $3 }
-        | layout_on stmts0 close                { reverse $2 }
-
-stmts0  :: { [Stmt] }
-	: stmts					{ $1 }
-	| {- empty -}				{ [] }
+        : '{' layout_off stmts '}'              { reverse $3 }
+        | layout_on stmts close                 { reverse $2 }
 
 stmts   :: { [Stmt] }
         : stmts ';' stmt                        { $3 : $1 }
-        | stmt                                  { [$1] }
+	| stmt					{ [$1] }
+	| {- empty -}				{ [] }
 
 stmt    :: { Stmt }
         : pat '<-' exp                          { SGen $1 $3 }

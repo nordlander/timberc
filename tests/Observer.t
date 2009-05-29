@@ -2,7 +2,7 @@ module Observer where
 
 import Data.Functional.List
 
-updateAll a [] = do result []
+updateAll a [] = do result ()           -- triggers parser error if left empty...
 updateAll a (o : os) = do o.update a
                           updateAll a os
 
