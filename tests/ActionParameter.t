@@ -12,9 +12,7 @@ cl x a = class
             act2 = action
               if x>0 then
                 a 1
-                result ()
               else
                 a 2
-                result ()
 
             result A{..}

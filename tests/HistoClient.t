@@ -19,8 +19,7 @@ root env = class
                    env.exit 0
                 else
                    h.addObs(fromRight (parse d))
-                   result ()
-
+                   
              showResults rs = do
                    forall i <- [0..size bds-1] do
                      env.stdout.write ("   -- "++show(bds!i))

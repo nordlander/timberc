@@ -11,4 +11,4 @@ acts = map (.display) []
 test True  = class
                result (\y->y) 
 test False = class
-               result (\_->action result ())
+               result (\_->action)

@@ -7,4 +7,4 @@ root env = class
       forall b <- xs, c <- [1..3] do
         env.stdout.write (show b ++ show c)
 
-    result action result ()
+    result action
