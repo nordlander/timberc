@@ -281,6 +281,7 @@ instance Desugar1 Exp where
       | haveSelf env               = ds1 env (EReq (self env) ss)
       | otherwise                  = errorTree "Request outside class" e
 
+    ds1 env (ETempl v t [])      = errorTree "Class with empty statement list" (ETempl Nothing t [])
     ds1 env (ETempl v t ss)      = ETempl v t (ds1T (env{self=v}) [] [] ss)
     ds1 env (EDo v t ss)         = EDo v t (ds1S (env { self=v }) ss)
     ds1 env (EAct v ss)          = EAct v [SExp (EDo v Nothing (ds1S env ss))]
