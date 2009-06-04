@@ -153,7 +153,7 @@ tupleType n                     = Scheme (tFun' (map scheme ts) t) [] (vs `zip` 
 
 
 newTVar k                       = fmap TVar (newTV k)
-
+newTVars s n                    = mapM (const (newTVar s)) [1..n]
 
 nullCon                         = Constr [] [] []
 

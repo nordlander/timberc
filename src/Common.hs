@@ -49,6 +49,7 @@ import Debug.Trace
 
 
 fromJust                        = Maybe.fromJust
+isJust                          = Maybe.isJust
 listToMaybe                     = Maybe.listToMaybe
 
 fst3 (a,b,c)                    = a

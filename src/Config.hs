@@ -100,6 +100,7 @@ data CmdLineOpts     = CmdLineOpts { isVerbose :: Bool,
                                      shortcut  :: Bool,
                                      stopAtC   :: Bool,
                                      stopAtO   :: Bool,
+                                     doScp     :: Bool,
                                      dumpAfter :: Pass -> Bool,
                                      stopAfter :: Pass -> Bool
                                    }
@@ -161,7 +162,11 @@ options              = [ Option []
                          Option ['c'] 
                                 ["stop-at-o"] 
                                 (NoArg StopAtO)
-                                "Stop compiler after .o file generation"
+                                "Stop compiler after .o file generation",
+                         Option ['S']
+                                ["scp"]
+                                (NoArg DoScp)
+                                "Supercompile the program"
                        ]
                        ++ 
                        [ Option []
@@ -194,6 +199,7 @@ data Flag            = Help
                      | ShortCut
                      | StopAtC
                      | StopAtO
+                     | DoScp
                      | DumpAfter Pass
                      | StopAfter Pass
                      deriving (Show,Eq)
@@ -266,6 +272,7 @@ mkCmdLineOpts flags  =  CmdLineOpts { isVerbose = find Verbose,
                                       shortcut  = find ShortCut,
                                       stopAtC   = find StopAtC,
                                       stopAtO   = find StopAtO,
+                                      doScp     = find DoScp,
                                       dumpAfter = find . DumpAfter,
                                       stopAfter = find . StopAfter
                                     }
@@ -310,6 +317,7 @@ data Pass            = Parser
                      | KCheck
                      | TCheck
                      | Termred
+                     | SCP
                      | Type2
                      | C2K
                      | Kindlered

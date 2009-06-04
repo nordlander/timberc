@@ -69,6 +69,7 @@ import Lambdalift
 import Data.Binary
 import Interfaces
 import GHC.Exception
+import Scp
 {-
 
 Lexer:
@@ -214,7 +215,8 @@ compileTimber clo ifs (sm,t_file) ti_file c_file h_file
                              kc      <- pass clo (kindcheck e2)               KCheck    co
                              tc      <- pass clo (typecheck e2)               TCheck    kc
                              rd      <- pass clo (termred e2)                 Termred   tc
-                             tc2     <- pass clo (typecheck2 e2)              Type2     rd
+                             sc      <- pass clo (scp clo e2)                 SCP       rd
+                             tc2     <- pass clo (typecheck2 e2)              Type2     sc
                              (ki,ds) <- pass clo (core2kindle e2 e3)          C2K       tc2
                              ki'     <- pass clo (kindlered e3)               Kindlered ki
                              ll      <- pass clo (lambdalift e3)              LLift     ki'
