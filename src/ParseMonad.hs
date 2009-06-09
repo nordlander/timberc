@@ -99,10 +99,11 @@ instance Monad PM where
     return 	= returnPM
     fail  	= failPM
 
-m `thenPM` k	= PM $ \i l c s -> 
-                    case (unPM m) i l c s of 
+PM m `thenPM` k	= PM $ \i l c s -> 
+                    case m i l c s of 
                         Failed s -> Failed s
                         Ok s' a  -> case k a of PM k' -> k' i l c s'
+                        
 returnPM a	= PM $ \i l c s -> Ok s a
 failPM a 	= PM $ \i l c s -> Failed a
 
@@ -119,9 +120,11 @@ runPM2 (PM p) input =
 getSrcLoc :: PM (Int,Int)
 getSrcLoc = PM $ \i l c s -> Ok s l
 
+getCurrent :: PM (String,(Int,Int),Int,ParseState)
+getCurrent = PM $ \i l c s -> Ok s (i,l,c,s)
+
 pushContext :: LexContext -> PM ()
-pushContext ctxt =
-    PM $ \i l c s -> Ok (ctxt:s) ()
+pushContext ctxt = PM $ \i l c s -> Ok (ctxt:s) ()
 
 popContext :: PM ()
 popContext = PM $ \i loc c stk ->

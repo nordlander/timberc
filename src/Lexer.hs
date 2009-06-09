@@ -91,30 +91,32 @@ to kick off the lexer.
 
 -}
 lexer :: (Token -> PM a) -> PM a
-lexer cont =
-    PM $ \input (y,x) col ->
-    if col == 0 then tab y x   True  input  col
-                else tab y col False input  col -- throw away old x
+lexer contPM =
+    PM $ \input (y,x) col state ->
+    if col == 0 then tab y x   True  input  col state
+                else tab y col False input  col state -- throw away old x
     where
     -- move past whitespace and comments
-    tab y x bol []          col = (unPM $ cont EOF) [] (y,x) col
-    tab y x bol ('\t':s)    col = tab y (nextTab x) bol s col
-    tab y x bol ('\n':s)    col = newLine s y col
-    tab y x bol ('-':'-':s) col = newLine (drop 1 (dropWhile (/= '\n') s))
-                                      y col
-    tab y x bol ('{':'-':s) col = nestedComment tab y x bol s col
-    tab y x bol (c:s)       col
-                 | isSpace c = tab y (x + 1) bol s col
+    tab y x bol []          col state = cont EOF [] (y,x) col state
+    tab y x bol ('\t':s)    col state = tab y (nextTab x) bol s col state 
+    tab y x bol ('\n':s)    col state = newLine s y col state 
+    tab y x bol ('-':'-':s) col state = newLine (drop 1 (dropWhile (/= '\n') s)) y col state
+    tab y x bol ('{':'-':s) col state = nestedComment tab y x bol s col state 
+    tab y x bol (c:s)       col state 
+                 | isSpace c = tab y (x + 1) bol s col state 
                  | otherwise =
                      if bol then
-                         (unPM $ lexBOL cont)   (c:s) (y,x) x
+                         lexBOL cont (c:s) (y,x) x state
                      else
-                         (unPM $ lexToken cont) (c:s) (y,x) x
+                         lexToken cont (c:s) (y,x) x state
 
-    newLine s y col = tab (y + 1) 1 True s col
+    newLine s y col state = tab (y + 1) 1 True s col state 
 
+    cont t = unPM $ contPM t
 
 nextTab x = x + (tab_length - (x - 1) `mod` tab_length)
+
+type P a = String -> (Int,Int) -> Int -> ParseState -> ParseResult a
 
 {-
 
@@ -122,43 +124,41 @@ When we are lexing the first token of a line, check whether we need to
 insert virtual semicolons or close braces due to layout.
 
 -}
-lexBOL :: (Token -> PM a) -> PM a
-lexBOL cont =
-    PM $ \ s loc@(y,x) col ctx ->
-    if need_close_curly x ctx then 
-        -- tr' ("layout: inserting '}' at " ++ show loc ++ "\n") $
+lexBOL :: (Token -> P a) -> P a
+lexBOL cont s loc@(y,x) col state =
+    if need_close_curly x state then 
+        -- tr' ("layout: inserting '}' at " ++ show loc ++ " " ++ show state ++ "\n") $
         -- Set col to 0, indicating that we're still at the
         -- beginning of the line, in case we need a semi-colon too.
         -- Also pop the context here, so that we don't insert
         -- another close brace before the parser can pop it.
-        (unPM $ cont VRightCurly) s loc 0 (tail ctx)
-    else if need_semi_colon x ctx then
-        -- tr' ("layout: inserting ';' at " ++ show loc ++ "\n") $
-        (unPM $ cont SemiColon) s loc col ctx
+        cont VRightCurly s loc 0 (tail state)
+    else if need_semi_colon x state then
+        -- tr' ("layout: inserting ';' at " ++ show loc ++ " " ++ show state ++ ", input: " ++ s ++ "\n") $
+        cont SemiColon s loc col state
     else
-        (unPM $ lexToken cont)  s loc col ctx
-    where
-        need_close_curly x []    = False
-        need_close_curly x (Layout n:Layout m:_)
-          | n <= m               = True
-        need_close_curly x (i:_) = case i of
-                                   NoLayout -> False
-                                   Layout n -> x < n
-                                   RecLayout n -> False
-
-        need_semi_colon x []     = False
-        need_semi_colon x (i:_)  = case i of
-                                   NoLayout -> False
-                                   Layout n -> x == n
-                                   RecLayout n -> x == n
+        lexToken cont s loc col state
 
 
-lexToken :: (Token -> PM a) -> PM a
-lexToken cont =
-    PM lexToken'
-    where
-    lexToken' (c:s) loc@(y,x') x =
-        -- trace ("lexer: y = " ++ show y ++ " x = " ++ show x ++ "\n") $ 
+need_close_curly x []    = False
+need_close_curly x (Layout n:Layout m:_)
+  | n <= m               = True
+need_close_curly x (i:_) = case i of
+                           NoLayout -> False
+                           Layout n -> x < n
+                           RecLayout n -> False
+
+need_semi_colon x []     = False
+need_semi_colon x (i:_)  = case i of
+                           NoLayout -> False
+                           Layout n -> x == n
+                           RecLayout n -> x == n
+
+lexToken :: (Token -> P a) -> P a
+lexToken cont [] loc x state = 
+        internalError0 "Lexer.lexToken: empty input stream."
+lexToken cont (c:s) loc@(y,x') x state =
+        -- tr' ("lexer: y = " ++ show y ++ " x = " ++ show x ++ "   " ++ show state ++ "\n") $
         case c of
         -- First the special symbols
         '(' -> special LeftParen
@@ -169,16 +169,12 @@ lexToken cont =
         ']' -> special RightSquare
         '`' -> special BackQuote
         '{' -> special LeftCurly
-        '}' -> \state ->
-               case state of
-               (_:ctxt) ->
-                   special RightCurly ctxt -- pop context on }
-               []       ->
-                   (unPM $ parseError "parse error (possibly incorrect indentation)")
-                   s loc x []
+        '}' -> case state of 
+               (_:ctxt) -> cont RightCurly s loc (x+1) ctxt
+               []       -> Failed "parse error (possibly incorrect indentation)"
 
-        '\'' -> (unPM $ lexChar cont)   s loc (x + 1)
-        '\"' -> (unPM $ lexString cont) s loc (x + 1)
+        '\'' -> lexChar cont s loc (x + 1) state
+        '\"' -> lexString cont s loc (x + 1) state
 
         '_' | null s || not (isIdent (head s)) -> special Wildcard
         
@@ -188,9 +184,7 @@ lexToken cont =
                   case rest of
                   ('.':c2:rest2) | isDigit c2 ->
                                      case lexFloatRest (c2:rest2) of
-                                     Nothing -> (unPM $
-                                                 parseError "illegal float.")
-                                                s loc x
+                                     Nothing -> Failed "illegal float."
                                      Just (n2,rest3) ->
                                          let f = n ++ ('.':n2) in
                                          forward (length f) (FloatTok f) rest3
@@ -205,14 +199,11 @@ lexToken cont =
           | isSymbol c -> lexSymbol "" c s
 
           | otherwise ->
-              (unPM $
-               parseError ("illegal character \'" ++
-                           showLitChar c "" ++ "\'\n"))
-              s loc x
-                  
+              Failed ("illegal character \'" ++ showLitChar c "" ++ "\'\n")
+
       where
-      special t = forward 1 t s
-      forward n t s = (unPM $ cont t) s loc (x + n)
+      special t = forward 1 t s 
+      forward n t s = cont t s loc (x + n) state
  
       join "" n = n
       join q n  = q ++ '.' : n
@@ -240,7 +231,7 @@ lexToken cont =
                   case lookup vid reserved_ids of
                   Just keyword -> case q of
                                     "" -> forward l_vid keyword rest
-                                    _ -> (unPM $ parseError "illegal qualified name") s loc x
+                                    _ -> Failed "illegal qualified name"
                   Nothing      -> forward l_vid (VarId (q,vid)) rest
 
       lexQualName q c s = let (contail, rest) = span isIdent s
@@ -251,7 +242,7 @@ lexToken cont =
                                   | isUpper c' -> lexQualName con c' rest'
                                   | isLower c' -> lexVarId con c' rest'
                                   | isSymbol c' -> lexSymbol con c' rest'
-                                  | otherwise -> (unPM $ parseError "illegal qualified name") s loc x
+                                  | otherwise -> Failed "illegal qualified name"
                                _ -> forward l_con (ConId (q,c:contail)) rest
                   
       lexSymbol q c s = let (symtail, rest) = span isSymbol s
@@ -260,31 +251,23 @@ lexToken cont =
                         in case lookup sym reserved_ops of
                                 Just t  -> case q of
                                     "" -> forward l_sym t rest
-                                    _ -> (unPM $ parseError "illegal qualified name") s loc x
+                                    _ -> Failed "illegal qualified name"
                                 Nothing -> case c of
                                  ':' -> forward l_sym (ConSym (q,sym)) rest
                                  _   -> forward l_sym (VarSym (q,sym)) rest
-   
-      
-    lexToken' _  _ _ =
-        internalError0 "Lexer.lexToken: empty input stream."
 
 
 lexInt ('0':o:d:r) | toLower o == 'o' && isOctDigit d
     = let (ds, rs) = span isOctDigit r
-      in
-           Octal       ('0':'o':d:ds, rs)
+      in Octal ('0':'o':d:ds, rs)
 lexInt ('0':x:d:r) | toLower x == 'x' && isHexDigit d
     = let (ds, rs) = span isHexDigit r
-      in 
-           Hexadecimal ('0':'x':d:ds, rs)
-lexInt r = Decimal     (span isDigit r)
+      in Hexadecimal ('0':'x':d:ds, rs)
+lexInt r = Decimal (span isDigit r)
 
 
-lexChar :: (Token -> PM a) -> PM a
-lexChar cont = PM lexChar'
-    where
-    lexChar' s loc@(y,_) x =
+lexChar :: (Token -> P a) -> P a
+lexChar cont s loc@(y,_) x state =
         case s of
         '\\':s ->
             let (e, s2, i) =
@@ -294,16 +277,14 @@ lexChar cont = PM lexChar'
         c:s  -> charEnd c s  loc (x + 1)
         []   -> internalError0 "Lexer.lexChar: empty list."
 
-    charEnd c ('\'':s)   =
-        \loc x -> (unPM $ cont (Character c)) s loc (x + 1)
-    charEnd c s         =
-        (unPM $ parseError "improperly terminated character constant.") s 
+  where
+    charEnd c ('\'':s) loc x = cont (Character c) s loc (x + 1) state
+    charEnd c s _ _          = Failed "improperly terminated character constant."
 
 
-lexString :: (Token -> PM a) -> PM a
-lexString cont = PM lexString'
-    where
-    lexString' s loc@(y',_) x = loop "" s x y'
+lexString :: (Token -> P a) -> P a
+lexString cont s loc@(y',_) x state = 
+    loop "" s x y'
         where
         loop e s x y =
             case s of
@@ -314,10 +295,9 @@ lexString cont = PM lexString'
                                runPM (escapeChar (c:s)) ""  loc x [] 
                          in
                              loop (e':e) sr (x+i) y
-            '\"':s{-"-} -> (unPM $ cont (StringTok (reverse e))) s  loc (x + 1)
+            '\"':s{-"-} -> cont (StringTok (reverse e)) s  loc (x + 1) state
             c:s       -> loop (c:e) s (x + 1) y
-            []          -> (unPM $ parseError "improperly terminated string.")
-                                    s  loc x
+            []          -> Failed "improperly terminated string."
 
         stringGap e s x y =
             case s of
@@ -325,8 +305,7 @@ lexString cont = PM lexString'
                 '\\':s -> loop e s (x + 1) y
                 c:s' | isSpace c -> stringGap e s' (x + 1) y
                      | otherwise ->
-                         (unPM $ parseError "illegal character in string gap.")
-                         s  loc x
+                         Failed "illegal character in string gap."
                 []     -> internalError0 "Lexer.stringGap: empty list."
 
 
@@ -401,12 +380,12 @@ escapeChar s = case s of
                       in 
                           numberToChar n s' (length ds + 1)
 
-   _               -> parseError "illegal escape sequence."
+   _               -> fail $ "illegal escape sequence."
 
    where numberToChar n s l_n =
              if n < (toInteger $ fromEnum (minBound :: Char)) ||
                 n > (toInteger $ fromEnum (maxBound :: Char)) then
-                 parseError "illegal character literal (number out of range)."
+                 fail $ "illegal character literal (number out of range)."
              else
                  return (chr $ fromInteger n, s, l_n)
             
@@ -419,17 +398,17 @@ cntrl ('\\':s)             = return ('\^\', s, 2)
 cntrl (']' :s)             = return ('\^]', s, 2)
 cntrl ('^' :s)             = return ('\^^', s, 2)
 cntrl ('_' :s)             = return ('\^_', s, 2)
-cntrl _                    = parseError "illegal control character"
+cntrl _                    = fail "illegal control character"
 
 
-nestedComment cont y x bol s  col =
+nestedComment cont y x bol s col state =
     case s of
-    '-':'}':s -> cont y (x + 2) bol s  col
-    '{':'-':s -> nestedComment (nestedComment cont) y (x + 2) bol s  col
-    '\t':s    -> nestedComment cont y (nextTab x) bol s  col
-    '\n':s    -> nestedComment cont (y + 1) 1 True s  col
-    c:s       -> nestedComment cont y (x + 1) bol s  col
-    []        -> compileError "Open comment at end of file"
+    '-':'}':s -> cont y (x + 2) bol s col state
+    '{':'-':s -> nestedComment (nestedComment cont) y (x + 2) bol s col state
+    '\t':s    -> nestedComment cont y (nextTab x) bol s col state
+    '\n':s    -> nestedComment cont (y + 1) 1 True s col state
+    c:s       -> nestedComment cont y (x + 1) bol s col state
+    []        -> Failed "Open comment at end of file"
 
 
 
