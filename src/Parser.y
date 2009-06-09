@@ -528,11 +528,11 @@ sgdcaserhs :: { GExp [Stmt] }
 -- Statement sequences -----------------------------------------------------------
 
 stmtlist :: { [Stmt] }
-        : '{' layout_off stmts '}'              { reverse $3 }
-        | layout_on stmts close                 { reverse $2 }
+        : '{' layout_off stmts '}'              { $3 }
+        | layout_on stmts close                 { $2 }
 
 stmts   :: { [Stmt] }
-        : stmts ';' stmt                        { $3 : $1 }
+        : stmt ';' stmts                        { $1 : $3 }
 	| stmt					{ [$1] }
 	| {- empty -}				{ [] }
 
@@ -661,7 +661,8 @@ close :: { () }
         | error                                 {% popContext }
 
 layout_off :: { () }    :                       {% pushContext NoLayout }
-layout_on  :: { () }    :                       {% do { (r,c) <- getSrcLoc ;
+
+layout_on  :: { () }    :                       {% do { (r,c) <- getSrcLoc;
                                                         pushContext (Layout c)
                                                       }
                                                 }
@@ -669,12 +670,6 @@ layout_on  :: { () }    :                       {% do { (r,c) <- getSrcLoc ;
 loc     :: { (Int,Int) }
          : {- empty -}                          {% getSrcLoc }
 
-{-
-    layout_onR  :: { () }   :                       {% do { (_,c) <- getSrcLoc ;
-                                                        pushContext (RecLayout c)
-                                                      }
-                                                }
--}
 
 -- Error -----------------------------------------------------------------------
 
