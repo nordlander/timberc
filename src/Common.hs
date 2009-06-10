@@ -298,8 +298,10 @@ localStore (M m)                = M $ \(n0,s0) ->
 newNameMod m s                  = do n <- newNum
                                      return (Name s n m ann)
   where ann                     = if s `elem` explicitSyms then suppAnnot { explicit = True } else suppAnnot
-        suppAnnot               = genAnnot { suppressMod = True }
+        suppAnnot               = genAnnot { suppress = True }
 
+newNameModPub m pub s           = do n <- newNameMod m s
+                                     return (n {annot = (annot n) {public = pub}})
 newName s                       = newNameMod Nothing s
 
 newNames s n                    = mapM (const (newName s)) [1..n]
@@ -307,7 +309,7 @@ newNames s n                    = mapM (const (newName s)) [1..n]
 newNamesPos s ps                = mapM (newNamePos s) ps
 
 newNamePos s p                  = do n <- newName s
-                                     return (n {annot = genAnnot {location = startPos(posInfo p)}})
+                                     return (n {annot = (annot n) {location = startPos(posInfo p)}})
 
 renaming vs                     = mapM f vs
   where f v | tag v == 0        = do n <- newNum
@@ -324,7 +326,7 @@ renaming vs                     = mapM f vs
 -- remove pairs from rn2 that are shadowed by rn1; return also shadowed names
 deleteRenamings [] rn2           = (rn2,[])
 deleteRenamings ((n,_):rn1) rn2
-  | not(isQualified n)          = (rn',if b then n:ns else ns)
+  | not (isQualified n)         = (rn',if b then n:ns else ns)
   | otherwise                   = (rn,ns)
   where (rn,ns)                 = deleteRenamings rn1 rn2
         (b,rn')                 = deleteName n rn

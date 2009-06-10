@@ -37,7 +37,7 @@ module Desugar1 where
 
 import List(sort, sortBy)
 import Monad
-import Common
+import Common hiding (isPublic)
 import Syntax
 import Depend
 import PP

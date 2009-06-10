@@ -55,7 +55,8 @@ data Annot                      = Annot { location :: Maybe (Int,Int),
                                           explicit :: Bool, 
                                           stateVar :: Bool , 
                                           generated :: Bool,
-                                          suppressMod :: Bool
+                                          suppress :: Bool,
+                                          public :: Bool
                                         }
                                 deriving (Show,Typeable)
 
@@ -352,9 +353,9 @@ primSels                        = map primKeyValue [MIN____SELS .. MAX____SELS]
                                   
 primKeyValue p                  = (name0 (strRep p), prim p)
 
-rigidNames			            = map rigidKeyValue [IndexArray, LazyAnd, LazyOr]
+rigidNames		        = map rigidKeyValue [IndexArray, LazyAnd, LazyOr]
 
-rigidKeyValue p			        = (strRep p, prim p)
+rigidKeyValue p			= (strRep p, prim p)
 
 lowPrims                        = [New,Sec,Millisec,Microsec,Nanosec,Raise,Catch,Baseline,Deadline,Next,
                                    Infinity,Reset,Sample,SecOf,MicrosecOf,Abort,
@@ -391,12 +392,12 @@ strRep2 p
 -------------------------------------------------------
 
 noAnnot                         = Annot { location = Nothing, explicit = False, stateVar = False, 
-                                          generated = False, suppressMod = False }
+                                          generated = False, suppress = False,  public = False}
 
 -- This function is used (only) by the parser to build Names
 name l (q,s)                    = case lookup s rigidNames of
                                     Just n -> n 
-                                    Nothing -> Name s 0 (m q) (noAnnot {location = Just l})
+                                    Nothing -> Name s 0 (m q) (noAnnot {location = Just l, public = False})
                                        where m "" = Nothing
                                              m q = Just q
 joinString [x]                  = x
@@ -436,7 +437,7 @@ pos n                           = location (annot n)
 
 -- Generated names ----------------------------------------------------------------
 
-genAnnot                        = noAnnot { generated = True }
+genAnnot                        = noAnnot { generated = True}
 name0 s                         = Name s 0 Nothing genAnnot
 
 
@@ -523,8 +524,11 @@ isState n                       = stateVar (annot n)
 isQualified (Name _ _ (Just _) _) = True
 isQualified _                    = False
 
-isLocal (Name _ _ Nothing _)    = True
-isLocal _                       = False
+isPublic (Name _ _ (Just _) a)  = public a
+isPublic (Name _ _ Nothing _)   = False
+isPublic _                      = True
+
+isPrivate n                     = not (isPublic n)
 
 -- Equality & Order ----------------------------------------------------------------
 
@@ -554,7 +558,7 @@ instance Ord Name where
 instance Show Name where
   show (Name s n m a)           = mod ++ s ++ tag
      where tag                  = if n/=0 && generated a  then '_' : show n else ""
-           mod                  = if m==Nothing || suppressMod a then "" else fromJust m ++ "."
+           mod                  = if m==Nothing || suppress a then "" else fromJust m ++ "."
   show (Tuple n _)              = '(' : replicate (n-1) ',' ++ ")"
   show (Prim p _)               = strRep p
 
@@ -575,8 +579,10 @@ prId2 n                         = prId n
 
 
 prId3 n@(Name s t m a)
-  | t == 0 || isClosure n || isCoerceLabel n || isCoerceConstr n
+  | t == 0 || isClosure n || isCoerceLabel n || isCoerceConstr n 
                                 = text (s ++ maybe "" (('_' :) . modToundSc) m)
+prId3 (Name s t (Just _) a)
+  | not (public a)            = text (s ++ '_':show t)
 prId3 (Name s n m a)            = text (id ++ tag ++ mod ++ suff)
   where 
     id                          = if okForC s then s else "_sym"
@@ -619,8 +625,8 @@ instance Binary Name where
 
 
 instance Binary Annot where
-  put (Annot _ b c d e) = put b >> put c >> put d >> put e >> put False
-  get = get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> get >>= \False -> return (Annot Nothing b c d e)
+  put (Annot _ b c d e f) = put b >> put c >> put d >> put e >> put f
+  get = get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> get >>= \f -> return (Annot Nothing b c d e f)
 
 
 maxPrimWord = fromIntegral (fromEnum maxPrim) :: Word8

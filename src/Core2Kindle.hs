@@ -171,7 +171,7 @@ cModule e2 e3 (Module m ns xs ds ws bss)
                                          ds1  <- cDecls env ds
                                          bs  <- cBindsList (addTEnv te0 (addDecls ds1 env)) bss
                                          ds2 <- currentStore
-                                         let (dsQ,dsNQ) = partition (isQualified . fst) (reverse ds2)
+                                         let (dsQ,dsNQ) = partition (isPublic . fst) (reverse ds2)
                                              dsThis = ds1 ++ filter (isQual m . fst) dsQ
                                              ds3 = dsThis ++ dsNQ
                                          --let fromCurrent n = not (isQualified n)|| isQual m n

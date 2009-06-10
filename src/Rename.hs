@@ -78,7 +78,7 @@ tscope env                         = dom (rT env)
 renE env n@(Tuple _ _)             = n
 renE env n@(Prim _ _)              = n
 renE env v                         = case lookup v (rE env) of
-                                       Just n  -> n { annot = (annot v) {suppressMod = suppressMod (annot n)} }
+                                       Just n  -> n { annot = (annot v) {suppress = suppress (annot n), public = public (annot n)} }
                                        Nothing -> errorIds "Undefined identifier" [v]
 
 renS env n@(Tuple _ _)             = n
@@ -89,13 +89,13 @@ renS env v                         = case lookup v (rS env) of
   where a                          = annot v
 
 renL env v                         = case lookup v (rL env) of
-                                       Just n  -> n { annot = (annot v){suppressMod = suppressMod (annot n)} }
+                                       Just n  -> n { annot = (annot v){suppress = suppress (annot n), public = public (annot n)} }
                                        Nothing -> errorIds "Undefined selector" [v]
 
 renT env n@(Tuple _ _)             = n
 renT env n@(Prim _ _)              = n
 renT env v                         = case lookup v (rT env) of
-                                       Just n  -> n { annot = (annot v) {suppressMod = suppressMod (annot n)} }
+                                       Just n  -> n { annot = (annot v) {suppress = suppress (annot n), public = public (annot n)} }
                                        Nothing -> errorIds "Undefined type identifier" [v]
 
 extRenE env vs
@@ -135,13 +135,10 @@ extRenLMod pub m env vs            = do rL' <- extRenXMod pub m (rL env) vs
 extRenSelf env s                   = do rE' <- renaming (legalBind [s])
                                         return (env { rE = rE' ++ rE env, self = [s] })
 
-extRenXMod pub m rX vs             = if pub
-                                      then do rX1 <- renaming (map (qName (str m)) (legalBind vs))
-                                              let rX2 = map suppressPair rX1
-                                              return  (mergeRenamings1 (map dropModFst rX2) rX ++ rX2)
-                                      else do rX' <- renaming (legalBind vs)
-                                              return (mergeRenamings1 rX' rX) 
-  where suppressPair (n1,n2)       = (n1, n2 {annot = (annot n2) {suppressMod = True}}) 
+extRenXMod pub m rX vs             = do rX1 <- renaming (map (qName (str m)) (legalBind vs))
+                                        let rX2 = map suppressPair rX1
+                                        return  (mergeRenamings1 (map dropModFst rX2) rX ++ rX2)
+  where suppressPair (n1,n2)       = (n1, n2 {annot = (annot n2) {suppress = True, public = pub}}) 
         dropModFst (n1,n2)         = (dropMod n1,n2)
 
 legalBind vs                        = map checkName vs
@@ -198,6 +195,7 @@ instance Rename Module where
                                         env4 <- extRenTMod False c env3 ((ts2 \\ ks1') ++ ks2)
                                         env5 <- extRenEMod False c env4 (cs2 ++ (vs2 \\ vss) ++ vs2'++is2)
                                         env6 <- extRenLMod False c env5 ss2
+                                        -- tr (concatMap (\(n1,n2) -> render (pr n1) ++ "," ++ render (pr n2) ++ "   ") (rE env6))
                                         ds <- rename env6 (ds1 ++ ps1)
                                         bs <- rename env6 (bs1' ++ bs2' ++ shuffleB (bs1 ++ bs2))
                                         return (Module c is (ds ++ map DBind (groupBindsS bs)) [])

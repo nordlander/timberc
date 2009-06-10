@@ -293,7 +293,7 @@ findBelow env c                         = case lookup c (belowEnv env) of
 
 findClass env c                         = case lookup c (classEnv env) of
                                             Just wg -> wg
-                                            Nothing -> internalError0 ("Unknown class identifier: " ++ show c)
+                                            Nothing -> internalError0 ("Unknown class identifier: " ++ show c ++ show (classEnv env))
 
 
 

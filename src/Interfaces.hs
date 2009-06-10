@@ -65,12 +65,12 @@ encodeCFile ti_file ifc = encodeFile ti_file ifc
 
 -- Data type of interface file -----------------------------------------------
 
-data IFace = IFace { impsOf      :: [(Bool,Name)],                         -- imported/used modules
+data IFace = IFace { impsOf      :: [(Bool,Name)],                  -- imported/used modules
                      defaults    :: [Default Scheme],               -- exported default declarations
                      recordEnv   :: Map Name [Name],                -- exported record types and their selectors,
                      tsynEnv     :: Map Name ([Name],Syntax.Type),  -- type synonyms
                      tEnv        :: Types,                          -- Core type environment
-                     insts       :: [Name],                         -- types for instances
+                     insts       :: [Name],                         -- instances
                      valEnv      :: Binds,                          -- types for exported values (including sels and cons) and some finite eqns
                      kdeclEnv    :: Kindle.Decls                    -- Kindle form of declarations
                    }
@@ -90,24 +90,27 @@ ifaceMod                   :: (Map Name [Name], Map Name ([Name], Syntax.Type)) 
 ifaceMod (rs,ss) (Module _ ns xs ds ws bss) kds
    | not(null vis2)                  = errorIds "Private types visible in interface" vis2
    | not(null ys)                    = errorTree "Public default declaration mentions private instance" (head ys)
-   | otherwise                       = IFace ns xs' rs ss ds1 ws bs' kds
+   | otherwise                       = IFace ns xs1 rs ss ds1 ws bs1 kds
   where Types ke te                  = ds
-        Binds r2 ts2 es2             = concatBinds bss
-        xs'                          = [d | d@(Default True _ _) <- xs]
-        ys                           = [d | d@(Default _ i1 i2) <- xs', isPrivate i1 || isPrivate i2 ]
-        ds1                          = Types (filter exported ke ++ map (\n -> (n,Star)) vis1) (filter exported' te)
-        bs'                          = Binds r2 (filter exported ts2) (filter (\ eqn -> fin eqn &&  exported eqn) (erase es2))
-        (vis1,vis2)                  = partition isStateType (nub (localTypes [] (rng (tsigsOf bs'))))
+        Binds r ts es                = concatBinds bss
+        (xs1,xs2)                    = partition (\(Default pub _ _) -> pub) xs
+        (ke1,ke2)                    = partition exported ke
+        (te1,te2)                    = partition exported' te
+        (ts1,ts2)                    = partition exported ts
+        (es1,es2)                    = partition (\eqn -> fin eqn && exported eqn) (erase es)
+        (vis1,vis2)                  = partition isStateType (nub (localTypes [] (rng ts1)))
+        ds1                          = Types (ke1 ++ map (\n -> (n,Star)) vis1) te1
+        bs1                          = Binds r ts1 es1
+        ds2                          = Types (filter (flip notElem vis1 . fst) ke2) te2
+        bs2                          = Binds r ts2 es2
         
-        exported (n,_)               = isQualified n
-        exported' p@(n,_)            = isQualified n && (not(isAbstract p)) --Constructors/selectors are exported
+        ys                           = [d | d@(Default _ i1 i2) <- xs1, isPrivate i1 || isPrivate i2 ]
+        exported (n,a)               = isPublic n
+        exported' p@(n,_)            = isPublic n && (not(isAbstract p)) --Constructors/selectors are exported
         fin (_,e)                    = isFinite e && null(filter isPrivate (constrs e))
 
-isPrivate nm@(Name _ _ _ _)          = not(isQualified nm)
-isPrivate _                          = False
-
-isAbstract (_,DData _ _ ((c,_):_))   = isPrivate c
-isAbstract (_,DRec _ _ _ ((c,_):_))  = isPrivate c
+isAbstract (_,DData _ _ cs)          = all isPrivate (dom cs)
+isAbstract (_,DRec _ _ _ ls)         = all isPrivate (dom ls)
 isAbstract (_,_)                     = False     -- this makes abstract types without selectors/constructors non-private...
 
 
@@ -152,6 +155,8 @@ initEnvs bms         = do ims <- mapM (mkEnv . snd) bms
                 unMod b ps           = if b then [(tag0 (dropMod c),y) | (c,y) <- ps] ++ ps else ps
 
 -- Checking that public part is closed ---------------------------------------------------------
+
+-- localTypes ns a is the set of unqualified type names which do not occur in ns and are not bound in a
 
 class LocalTypes a where 
   localTypes :: [Name] -> a -> [Name]
