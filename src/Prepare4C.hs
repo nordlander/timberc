@@ -231,9 +231,9 @@ intlit i                        = ECast tBITS32 (ELit (lInt i))
 -- Prepare modules and types
 -- =============================
     
-pModule e2 dsi (Module m ns ds bs)      
+pModule (Core.Module _ _ _ _ _ [bs']) dsi (Module m ns ds bs)      
                                 = do -- tr (render (vcat (map pr dsi))
-                                     let (_,_,_,Core.Binds _ te2 _) = e2
+                                     let te2 = Core.tsigsOf bs'
                                      tei <- Core2Kindle.c2kTEnv dsi te2
                                      let env1 = addTEnv (primTEnv++tei) (addDecls (primDecls++dsi) env0)
                                          env  = addTEnv (mapSnd typeOf bs) (addDecls ds env1)

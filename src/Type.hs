@@ -89,7 +89,7 @@ let f = \w0 v x -> e w0 (f w0 v 7)                                            ::
 ---------------
 -}
 
-tiModule (xs',ds',ws',bs') (Module v ns xs ds ws bss)
+tiModule (Module _ _ xs' ds' ws' [bs']) (Module v ns xs ds ws bss)
                                 = do env0' <- impPreds env0 pe'
                                      (env1,ds1,bs1) <- typeDecls env0' ds
                                      let env1' = addTEnv0 (tenvSelsCons ds') env1

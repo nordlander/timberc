@@ -524,8 +524,7 @@ isState n                       = stateVar (annot n)
 isQualified (Name _ _ (Just _) _) = True
 isQualified _                    = False
 
-isPublic (Name _ _ (Just _) a)  = public a
-isPublic (Name _ _ Nothing _)   = False
+isPublic (Name _ _ _ a)         = public a
 isPublic _                      = True
 
 isPrivate n                     = not (isPublic n)

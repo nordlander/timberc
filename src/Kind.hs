@@ -43,7 +43,7 @@ import Monad
 
 kindcheck m                             = kiModule m
 
-kiModule (_,ds',_,bs') (Module v ns xs ds ws bss)
+kiModule (Module _ _ _ ds' _ [bs']) (Module v ns xs ds ws bss)
                                          = do ds <- kiDeclsList env (groupTypes ds)
                                               (bss',xs1) <- derive (concatMap bvars bss ++ bvars bs') (ds' `catDecls` ds) xs
                                               let env' = addKEnv0 (ksigsOf ds) env

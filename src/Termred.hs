@@ -41,7 +41,7 @@ import Core
 import PP
 import Char
 
-termred (_,ds',_,bs') m         = redModule ds' (eqnsOf bs') m
+termred (Module _ _ _ ds' _ [bs']) m         = redModule ds' (eqnsOf bs') m
 
 redTerm coercions e             = redExp (initEnv { eqns = coercions }) e
 

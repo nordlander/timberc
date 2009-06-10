@@ -42,7 +42,7 @@ import PP
 
 typecheck2 e2 m                 = t2Module e2 m
 
-t2Module (xs',ds',ws',bs') (Module v ns xs ds ws bss)
+t2Module (Module _ _ xs' ds' ws' [bs']) (Module v ns xs ds ws bss)
                                 = do bss <- t2TopBinds env2 bss
                                      return (Module v ns xs ds ws bss)
   where env2                    = addTEnv0 te2 (addKEnv0 ke2 env1)

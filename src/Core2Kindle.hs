@@ -180,7 +180,7 @@ cModule e2 e3 (Module m ns xs ds ws bss)
   where env                         = addDecls e3 (setMName m (addTEnv Kindle.primTEnv (addDecls Kindle.primDecls env0)))
 
 -- Compute the imported type environment
-tenvImp env (_,ds,ws,bs)            = cTEnv env (tsigsOf bs)
+tenvImp env (Module _ _ _ _ _ [bs])            = cTEnv env (tsigsOf bs)
 
 
 -- =========================================================================================
