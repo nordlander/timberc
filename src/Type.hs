@@ -92,7 +92,8 @@ let f = \w0 v x -> e w0 (f w0 v 7)                                            ::
 tiModule (xs',ds',ws',bs') (Module v ns xs ds ws bss)
                                 = do env0' <- impPreds env0 pe'
                                      (env1,ds1,bs1) <- typeDecls env0' ds
-                                     (env2,bs2) <- instancePreds env1 pe
+                                     let env1' = addTEnv0 (tenvSelsCons ds') env1
+                                     (env2,bs2) <- instancePreds env1' pe
                                      -- Here it should be checked that any coercions in weqs follow the
                                      -- restricted rules for coercions, and that the equalities collected 
                                      -- in env2 are actually met by the equations in bs1, bs2 and bss

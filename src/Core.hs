@@ -864,8 +864,8 @@ instance Pr [(Name, Scheme)] where
     pr ss                       = vpr ss
         
 
-prTop te                        = vcat (map pr' te)
-  where pr' (v,sc)              = prId v <+> text "::" <+> pr sc
+prTop ws te                     = vcat (map pr' te)
+  where pr' (v,sc)              = (if elem v ws then text "instance " else empty) <> prId v <+> text "::" <+> pr sc
 
 
 -- Sub/supertypes -----------------------------------------------------------

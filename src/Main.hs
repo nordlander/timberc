@@ -188,13 +188,6 @@ Kindle2C:
 -}
 
 
--- | This compiles a set of Timber modules. 
--- | Example: 'compile ["Main"] compiles the module in Main.t
--- | leaving the result in Main.c
--- | It also compiles every module *called* by this module 
--- | right now.
-
-
 compileTimber clo ifs (sm,t_file) ti_file c_file h_file
                         = do let Syntax.Module n is _ _ = sm
                              putStrLn ("[compiling "++ t_file++"]")
@@ -207,7 +200,9 @@ compileTimber clo ifs (sm,t_file) ti_file c_file h_file
                                                 writeAPI (rmSuffix ".ti" ti_file) ifc
                                                 return ((n,ifc):ifs')
                               else return ((n,ifc):ifs')
-  where passes imps par = do (e0,e1,e2,e3) <- initEnvs imps
+  where passes imps par = do (e0,e1,e2,e3,e4) <- initEnvs imps
+                             -- e4 :: Core.Module contains types, type signatures and equations from imported modules
+                             --                   that are not included in e3. Presently not used.
                              (d1,a0) <- pass clo (desugar1 e0)                Desugar1  par
                              rn      <- pass clo (renameM e1)                 Rename    d1
                              d2      <- pass clo desugar2                     Desugar2  rn
