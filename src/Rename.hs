@@ -79,8 +79,14 @@ renE env n@(Tuple _ _)             = n
 renE env n@(Prim _ _)              = n
 renE env v                         = case lookup v (rE env) of
                                        Just n  -> n { annot = (annot v) {suppress = suppress (annot n), public = public (annot n)} }
-                                       Nothing -> errorIds "Undefined identifier" [v]
+                                       Nothing -> checkQualError v (rE env)
 
+
+   where ms = [m | Name s t (Just m) _ <- dom (rE env), s == str v]
+         checkQualError v rE =  if fromMod v==Nothing && length ms > 1
+                                then errorIds ("Variable not in scope; imported from several modules (" ++ concat(intersperse ", " ms) ++")") [v]
+                                else errorIds "Undefined identifier" [v]
+                                
 renS env n@(Tuple _ _)             = n
 renS env n@(Prim _ _)              = n
 renS env v                         = case lookup v (rS env) of
