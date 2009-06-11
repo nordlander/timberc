@@ -35,7 +35,7 @@ env0 = ScpE { ctxt = emptyContext,
                      globEqns = [], globTEnv = [],
                      inSet = [], splitVars = [], ls = [] }
 
-scp clo (_, ds', _, bs') m = 
+scp clo (Module _ _ _ ds' _ [bs']) m = 
   if doScp clo
     then scpModule (tsigsOf bs') (eqnsOf bs')  m
     else return m
