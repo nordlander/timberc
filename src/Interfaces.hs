@@ -266,8 +266,8 @@ toHTML n (IFace rs ss (Module _ ns xs es ds ws [bs]) _ _) = text "<html><body>\n
          where (ss1, ss2)               = partition (isGenerated . fst) (map stripStar ss)
         addSubs d                       = d
         stripStar (n,Scheme rh ps ke)   = (n,Scheme rh ps (filter (( /= Star) . snd) ke))
-        te'                             = map (sV . stripStar)  (filter (not . isGenerated . fst) te)
-        stripTopdecls te                = bs1 ++ bs2
+        te'                             = map (sV . stripStar)  (filter (not . isGenerated . fst) (te ++ extsMap es))
+        stripTopdecls te                = bs1 ++ bs2 
          where (bs1,bs2)                = partition (flip elem ws . fst ) te
                                                   
         
