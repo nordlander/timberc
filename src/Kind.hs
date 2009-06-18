@@ -43,12 +43,12 @@ import Monad
 
 kindcheck m                             = kiModule m
 
-kiModule (Module _ _ _ ds' _ [bs']) (Module v ns xs ds ws bss)
+kiModule (Module _ _ _ _ ds' _ [bs']) (Module v ns xs es ds ws bss)
                                          = do ds <- kiDeclsList env (groupTypes ds)
                                               (bss',xs1) <- derive (concatMap bvars bss ++ bvars bs') (ds' `catDecls` ds) xs
                                               let env' = addKEnv0 (ksigsOf ds) env
                                               bss <- mapM (kiBinds env') (bss++bss')
-                                              return (Module v ns xs1 ds (ws++dom(concatMap tsigsOf bss')) bss)
+                                              return (Module v ns xs1 es ds (ws++dom(concatMap tsigsOf bss')) bss)
   where env                             = addKEnv0 (ksigsOf ds') (initEnv v)
 
 
@@ -72,7 +72,6 @@ kvarBind n k cs
   | otherwise                           = do s' <- kunify (subst s cs)
                                              return (s' @@ s)
   where s                               = n +-> k
-
 
 kindUnify cs                            = do s <- kunify cs
                                              return (freeVars s `zip` repeat Star @@ s)

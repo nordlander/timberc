@@ -2,12 +2,13 @@ module Echo where
 
 import POSIX
 
-root env = class
+root :: World -> Cmd () ()
+root w = do
+
+   env = new posix w
 
    echo str = action
       env.stdout.write str
 
-   result 
-      action 
-         env.stdin.installR echo
+   env.stdin.installR echo
 

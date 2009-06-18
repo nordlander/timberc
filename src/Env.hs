@@ -644,6 +644,7 @@ primKindEnv             = [ (prim Action,       Star),
                             (prim PMC,          KFun Star Star),
                             (prim Time,         Star),
                                     
+                            (prim World,        Star),
                             (prim Int,          Star),
                             (prim Float,        Star),
                             (prim Char,         Star),

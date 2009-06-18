@@ -3,19 +3,19 @@ module SantaProblem2 where
     import POSIX
     import RandomGenerator
 
-    root env = 
-        class
-            rand = new baseGen (microsecOf env.startTime)
-            santa = new santaClaus env
-            secretary = new semaphore santa.announce santa.confirm
-            shepherdRin  = new batch 9 (\es -> secretary.lock (Reindeer es))
-            shepherdRout = new batch 9 (\es -> secretary.unlock (Reindeer es))
-            shepherdEin  = new batch 3 (\rs -> secretary.lock (Elves rs))
-            shepherdEout = new batch 3 (\rs -> secretary.unlock (Elves rs))
-            reindeer = new mapM (\n -> helper env rand shepherdRin shepherdRout (rMsg n)) [1..10]
-            elves    = new mapM (\n -> helper env rand shepherdEin shepherdEout (eMsg n)) [1..9]
-            result action
-                mapM (.doSomethingElse) (elves ++ reindeer)
+    root :: World -> Cmd () ()
+    root w = do
+       env = new posix w
+       rand = new baseGen (microsecOf env.startTime)
+       santa = new santaClaus env
+       secretary = new semaphore santa.announce santa.confirm
+       shepherdRin  = new batch 9 (\es -> secretary.lock (Reindeer es))
+       shepherdRout = new batch 9 (\es -> secretary.unlock (Reindeer es))
+       shepherdEin  = new batch 3 (\rs -> secretary.lock (Elves rs))
+       shepherdEout = new batch 3 (\rs -> secretary.unlock (Elves rs))
+       reindeer = new mapM (\n -> helper env rand shepherdRin shepherdRout (rMsg n)) [1..10]
+       elves    = new mapM (\n -> helper env rand shepherdEin shepherdEout (eMsg n)) [1..9]
+       mapM (.doSomethingElse) (elves ++ reindeer)
 
 private
 

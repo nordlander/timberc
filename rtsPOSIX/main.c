@@ -35,11 +35,14 @@ void ROOTINIT(void);
 void ROOT(void);
 
 void envInit(int argc, char** argv);
-void envStart(void (*root)(void));
+void envStart();
 
 int main(int argc, char **argv) {
+    init_rts(ROOT);
     envInit(argc, argv);
+    pruneStaticHeap();
     ROOTINIT();
-    envStart(ROOT);
+    ROOT();
+    startLoops();
     return 0;
 }

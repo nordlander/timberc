@@ -231,15 +231,15 @@ intlit i                        = ECast tBITS32 (ELit (lInt i))
 -- Prepare modules and types
 -- =============================
     
-pModule (Core.Module _ _ _ _ _ [bs']) dsi (Module m ns ds bs)      
+pModule (Core.Module _ _ _ es' _ _ [bs']) dsi (Module m ns es ds bs)      
                                 = do -- tr (render (vcat (map pr dsi))
-                                     let te2 = Core.tsigsOf bs'
-                                     tei <- Core2Kindle.c2kTEnv dsi te2
-                                     let env1 = addTEnv (primTEnv++tei) (addDecls (primDecls++dsi) env0)
+                                     let te2 = Core.tsigsOf bs' ++ extsMap es'
+                                     tei <- Core2Kindle.c2kTEnv dsi te2 
+                                     let env1 = addTEnv (primTEnv++tei++es) (addDecls (primDecls++dsi) env0)
                                          env  = addTEnv (mapSnd typeOf bs) (addDecls ds env1)
                                      (bf,bs) <- pBinds pBind env bs
                                      bs' <- currentStore
-                                     return (Module m ns (pDecls env ds) (gcinfo env ds ++ flatBinds bf ++ bs ++ reverse bs'))
+                                     return (Module m ns es (pDecls env ds) (gcinfo env ds ++ flatBinds bf ++ bs ++ reverse bs'))
 
 
 -- Prepare structs declarations

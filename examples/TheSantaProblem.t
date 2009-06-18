@@ -47,12 +47,11 @@ santaClaus env =
 elfMsg n      = "Elf " ++ show n ++ " meeting in the study\n"
 reindeerMsg n = "Reindeer " ++ show n ++ " delivering toys\n"
 
-root env =
-    class
-        rand = new baseGen (microsecOf env.startTime)
-        santa = new santaClaus env
-        elves = new mapM (\n -> helper env rand santa.announceElf (elfMsg n)) [1..10]
-        reindeer = new mapM (\n -> helper env rand santa.announceReindeer (reindeerMsg n)) [1..9]
-        
-        result action
-            mapM (.doSomethingElse) (elves ++ reindeer)
+root :: World -> Cmd () ()
+root w = do
+   env = new posix w
+   rand = new baseGen (microsecOf env.startTime)
+   santa = new santaClaus env
+   elves = new mapM (\n -> helper env rand santa.announceElf (elfMsg n)) [1..10]
+   reindeer = new mapM (\n -> helper env rand santa.announceReindeer (reindeerMsg n)) [1..9]
+   mapM (.doSomethingElse) (elves ++ reindeer)

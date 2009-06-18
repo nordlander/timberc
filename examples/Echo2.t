@@ -2,8 +2,7 @@ module Echo2 where
 
 import POSIX
 
-root env = class
-
+echo2 env = class
    count := 1
 
    prompt = do
@@ -14,9 +13,17 @@ root env = class
       env.stdout.write str
       prompt
 
-   result 
-      action 
-         env.stdin.installR echo
-         env.stdout.write "Welcome to Echo2!\n"
-         prompt
+   init = action 
+      env.stdin.installR echo
+      env.stdout.write "Welcome to Echo2!\n"
+      prompt
+
+   result init
+
+root :: World -> Cmd () ()
+root w = do
+  env  = new posix w
+  init = new echo2 env
+  init
+
 

@@ -56,7 +56,7 @@ consistent board cs = [ c | c <- cs, null (contradictions board c)]
 
 data State = Idle | JustGuessed | GameOver | GetSecret
            
-root env = class
+mastermind env = class
   
   gen = new baseGen(microsecOf env.startTime)
 
@@ -123,9 +123,15 @@ root env = class
                            checkQuit
                          _ -> env.stdout.write "Secret must be four colours separated by spaces; try again\n"
 
-  result 
-     action
-         env.stdin.installR inpHandler
-         env.stdout.write "Welcome to Mastermind!\n"
-         startGame
+  init = action
+     env.stdin.installR inpHandler
+     env.stdout.write "Welcome to Mastermind!\n"
+     startGame
 
+  result init
+
+root :: World -> Cmd () ()
+root w = do
+  env = new posix w
+  init = new mastermind env
+  init

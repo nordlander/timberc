@@ -620,6 +620,23 @@ instance HasPos a => HasPos (Default a) where
   posInfo (Default _ a b)       = between (posInfo a) (posInfo b)
   posInfo (Derive v t)          = between (posInfo v) (posInfo t)
 
+-- Externals -----------------------------------------
+
+data Extern a = Extern Name a
+             deriving (Eq, Show)
+
+instance Pr a => Pr (Extern a) where
+  pr (Extern n t)               = prId n <+> text "::" <+> pr t
+
+instance BVars [Extern a] where
+    bvars (Extern n _ : es)     = n : bvars es
+    bvars []                    = []
+
+instance Binary a => Binary (Extern a) where
+  put (Extern a b) =  put a >> put b 
+  get = get >>= \a -> get >>= \b -> return (Extern a b) 
+
+extsMap es = map (\(Extern v t) -> (v,t)) es
 
 -- Binary --------------------------------------------
 

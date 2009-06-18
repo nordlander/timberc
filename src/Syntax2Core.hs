@@ -46,8 +46,8 @@ syntax2core m = s2c m
 -- translate a module in the empty environment
 
 s2c                             :: Module -> M s Core.Module
-s2c (Module v is ds ps)         = do (xs,ts,ws,bss) <- s2cDecls env0 ds [] [] [] [] []
-                                     return (Core.Module v is' xs ts ws bss)
+s2c (Module v is ds ps)         = do (xs,es,ts,ws,bss) <- s2cDecls env0 ds [] [] [] [] [] []
+                                     return (Core.Module v is' xs es ts ws bss)
   where env0                    = Env { sigs = [] }
         is'                     = [(b,n) | Import b n <- is]
 
@@ -62,35 +62,39 @@ addSigs te env                  = env { sigs = te ++ sigs env }
 
 -- Translate top-level declarations, accumulating signature environment env, kind environment ke, 
 -- type declarations ts, instance names ws, bindings bs as well as default declarations xs
-s2cDecls env [] ke ts ws bss xs = do bss <- s2cBindsList env (reverse bss)
+s2cDecls env [] ke ts ws bss xs es 
+                                = do bss <- s2cBindsList env (reverse bss)
                                      ke' <- mapM s2cKSig (impl_ke `zip` repeat KWild)
                                      xs' <- mapM s2cDefault xs
+                                     es' <- mapM s2cExtern es
                                      let ds = Core.Types (reverse ke ++ ke') (reverse ts)
-                                     return (xs', ds, ws, bss)
+                                     return (xs', es', ds, ws, bss)
   where impl_ke                 = dom ts \\ dom ke
 
-s2cDecls env (DKSig c k : ds) ke ts ws bss xs
+s2cDecls env (DKSig c k : ds) ke ts ws bss xs es
                                 = do ck  <- s2cKSig (c,k)
-                                     s2cDecls env ds (ck:ke) ts ws bss xs
-s2cDecls env (DData c vs bts cs : ds) ke ts ws bss xs
+                                     s2cDecls env ds (ck:ke) ts ws bss xs es
+s2cDecls env (DData c vs bts cs : ds) ke ts ws bss xs es
                                 = do bts <- mapM s2cQualType bts
                                      cs  <- mapM s2cConstr cs
-                                     s2cDecls env' ds ke ((c,Core.DData vs bts cs):ts) ws bss xs
+                                     s2cDecls env' ds ke ((c,Core.DData vs bts cs):ts) ws bss xs es
   where env'                    = addSigs (teConstrs c vs cs) env
-s2cDecls env (DRec isC c vs bts ss : ds) ke ts ws bss xs
+s2cDecls env (DRec isC c vs bts ss : ds) ke ts ws bss xs es
                                 = do bts <- mapM s2cQualType bts
                                      sss <- mapM s2cSig ss
-                                     s2cDecls env' ds ke ((c,Core.DRec isC vs bts (concat sss)):ts) ws bss xs
+                                     s2cDecls env' ds ke ((c,Core.DRec isC vs bts (concat sss)):ts) ws bss xs es
   where env'                    = addSigs (teSigs c vs ss) env
-s2cDecls env (DType c vs t : ds) ke ts ws bss xs
+s2cDecls env (DType c vs t : ds) ke ts ws bss xs es
                                 = do t <- s2cType t
-                                     s2cDecls env ds ke ((c,Core.DType vs t):ts) ws bss xs
-s2cDecls env (DInstance vs : ds) ke ts ws bss xs
-                                = s2cDecls env ds ke ts (ws++vs) bss xs
-s2cDecls env (DDefault d : ds) ke ts ws bss xs
-                                = s2cDecls env ds ke ts ws bss (d ++ xs)
-s2cDecls env (DBind bs : ds) ke ts ws bss xs
-                                = s2cDecls env ds ke ts ws (bs:bss) xs
+                                     s2cDecls env ds ke ((c,Core.DType vs t):ts) ws bss xs es
+s2cDecls env (DInstance vs : ds) ke ts ws bss xs es
+                                = s2cDecls env ds ke ts (ws++vs) bss xs es
+s2cDecls env (DDefault d : ds) ke ts ws bss xs es
+                                = s2cDecls env ds ke ts ws bss (d ++ xs) es
+s2cDecls env (DExtern es' : ds) ke ts ws bss xs es
+                                = s2cDecls env ds ke ts ws bss xs (es ++ es')
+s2cDecls env (DBind bs : ds) ke ts ws bss xs es
+                                = s2cDecls env ds ke ts ws (bs:bss) xs es
 
 
 s2cBindsList env []             = return []
@@ -102,6 +106,10 @@ s2cBindsList env (bs:bss)       = do (te,bs) <- s2cBinds env bs
 s2cDefault (Default t a b)      = return (Default t a b)
 s2cDefault (Derive n t)         = do t <- s2cQualType t
                                      return (Derive n t)
+
+s2cExtern (Extern n t)         = do t <- s2cQualType t
+                                    return (Extern n t)
+
 
 --translate a constructor declaration
 s2cConstr (Constr c ts ps)      = do ts <- mapM s2cQualType ts

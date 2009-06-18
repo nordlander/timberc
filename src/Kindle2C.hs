@@ -48,24 +48,24 @@ kindle2c m                      = return (render h, render c)
 -- Generate .h file
 -- ====================================================================================================
 
-k2hModule (Module n ns ds bs)   = hHeader n ns $$$
+k2hModule (Module n ns es ds bs)= hHeader n ns $$$
                                   k2cDeclStubs True ds $$$
                                   k2cDecls True ds $$$
                                   k2cBindStubsH bs $$$
                                   k2cInitProcStub n <> text ";" $$$
-                                  hFooter n
+                                  hFooter n (null es)
   
 k2cImport n                     = text "#include \"" <> text (modToPath (str n) ++ ".h\"")
 
 
 hHeader n []                    = includeGuard n $$ text "#include \"rts.h\"" $$ text "#include \"timber.h\""
-hHeader n ns                    = includeGuard n $$ vcat (map k2cImport ns)
+hHeader n ns                    = includeGuard n $$ vcat (map k2cImport ns) 
 
 includeGuard n                  = text ("#ifndef " ++ g) $$
 	                              text ("#define " ++ g)
   where g                       = map toUpper (modToundSc (str n)) ++ "_H_"
                          
-hFooter n                       = text "#endif\n"
+hFooter n b                     = (if b then empty else text "#include \"" <> text (modToPath (str n)) <> text ".extern.h\"") $$ text "#endif\n"
 
 k2cDeclStubs isH ds             = vcat (map f ds)
   where f (n, _)
@@ -116,7 +116,7 @@ k2cType (TVar _ _)              = k2cType tPOLY
   "Constant initializer" is presently interpreted as literals only for lack of better understanding.
 -}
 
-k2cModule (Module n ns ds bs)   = cHeader n $$$
+k2cModule (Module n ns es ds bs)= cHeader (null es) n $$$
                                   k2cDeclStubs False ds $$$
                                   k2cDecls False ds $$$
                                   k2cBindStubsC bs $$$
@@ -128,7 +128,8 @@ k2cModule (Module n ns ds bs)   = cHeader n $$$
 k2cSize n                       = text "WORDS(sizeof(struct" <+> k2cName n <> text "))"
 
 
-cHeader n                       = text "#include \"" <> text (modToPath (str n)) <> text ".h\"" 
+cHeader b n                     = text "#include \"" <> text (modToPath (str n)) <> text ".h\"" $$
+                                  if b then empty else text "#include \"" <> text (modToPath (str n)) <> text ".extern.c\""
 cFooter n                       = text "\n"
 
 

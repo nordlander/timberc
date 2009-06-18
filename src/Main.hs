@@ -403,10 +403,6 @@ fatalErrorHandler   :: TimbercException -> IO a
 fatalErrorHandler e =  do putStrLn (show e)
                           abortCompiler
 
-
-
-
-
 -- Getting import info ---------------------------------------------------------
 
 

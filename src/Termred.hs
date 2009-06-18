@@ -41,7 +41,7 @@ import Core
 import PP
 import Char
 
-termred (Module _ _ _ ds' _ [bs']) m         = redModule ds' (eqnsOf bs') m
+termred (Module _ _ _ _ ds' _ [bs']) m         = redModule ds' (eqnsOf bs') m
 
 redTerm coercions e             = redExp (initEnv { eqns = coercions }) e
 
@@ -79,9 +79,9 @@ addEqns env eqs                 = env { eqns = eqs ++ eqns env }
 addDecls env ds                 = env { cons = consOf ds ++ cons env, sels = selsOf ds ++ sels env }
 
 
-redModule impDecls impEqs (Module m ns xs ds is bss)
+redModule impDecls impEqs (Module m ns xs es ds is bss)
                                 = do (bss,_) <- redTopBinds env1 bss
-                                     return (Module m ns xs ds is bss)
+                                     return (Module m ns xs es ds is bss)
   where env0                    = addDecls initEnv (tdefsOf impDecls ++ tdefsOf ds)
         env1                    = addEqns env0 (finiteEqns env0 impEqs)
 

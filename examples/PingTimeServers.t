@@ -20,23 +20,35 @@ client neterror report sock = class
 
     result Connection {..}
  
+struct Pinger where
+    report :: Int -> String -> Action
+    finish :: Action
 
-root env = class
-
-    args = [1..size env.argv-1] 
-    print i mess = env.stdout.write (env.argv!i ++ ": "++ mess ++ "\n")
+pinger args print quit = class
 
     outstanding := args
 
     report i mess = action
        outstanding := delete i outstanding
        print i mess
-       if (null outstanding) then env.exit 0
+       if (null outstanding) then quit
     
-    result action
-       forall i <- args do
-          env.inet.tcp.connect (Host (env.argv!i)) port (client (report i) (report i))
-       after (sec 2) action
-          forall i <- outstanding do 
-             print i "no response"
-          env.exit 0
+    finish = action
+      forall i <- outstanding do 
+        print i "no response"
+      quit
+
+    result Pinger {..}
+
+root :: World -> Cmd () ()
+root w = do
+   env = new posix w
+   args = [1..size env.argv-1] 
+   print i mess = env.stdout.write (env.argv!i ++ ": "++ mess ++ "\n")
+
+   p = new pinger args print (env.exit 0)
+       
+   forall i <- args do
+      env.inet.tcp.connect (Host (env.argv!i)) port (client (p.report i) (p.report i))
+   after (sec 2) p.finish
+

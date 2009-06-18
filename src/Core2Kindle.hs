@@ -165,22 +165,24 @@ splitClosureType env n t0           = do ([],ts,t) <- openClosureType t0
 -- =========================================================================================
 
 -- Translate a Core.Module into a Kindle.Module
-cModule e2 e3 (Module m ns xs ds ws bss)
+cModule e2 e3 (Module m ns xs es ds ws bss)
                                     = do mapM_ addToStore (filter (isClosure . fst) e3)
                                          te0 <- tenvImp env e2
                                          ds1  <- cDecls env ds
-                                         bs  <- cBindsList (addTEnv te0 (addDecls ds1 env)) bss
+                                         let env1 = addTEnv te0 (addDecls ds1 env)
+                                         te1 <- cTEnv env1 (extsMap es)
+                                         bs  <- cBindsList (addTEnv te1 env1) bss
                                          ds2 <- currentStore
                                          let (dsQ,dsNQ) = partition (isPublic . fst) (reverse ds2)
                                              dsThis = ds1 ++ filter (isQual m . fst) dsQ
                                              ds3 = dsThis ++ dsNQ
                                          --let fromCurrent n = not (isQualified n)|| isQual m n
                                          --    ds3 = ds1++reverse (filter (fromCurrent . fst) ds2)
-                                         return (Kindle.Module m (map snd ns) ds3 bs,dsThis)
+                                         return (Kindle.Module m (map snd ns) te1 ds3 bs,dsThis)
   where env                         = addDecls e3 (setMName m (addTEnv Kindle.primTEnv (addDecls Kindle.primDecls env0)))
 
 -- Compute the imported type environment
-tenvImp env (Module _ _ _ _ _ [bs])            = cTEnv env (tsigsOf bs)
+tenvImp env (Module _ _ _ es _ _ [bs])            = cTEnv env (tsigsOf bs ++ extsMap es)
 
 
 -- =========================================================================================

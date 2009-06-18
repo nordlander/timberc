@@ -80,6 +80,7 @@ data Prim                       =
                                 | PMC
                                 | Time
 
+                                | World
                                 | Int
                                 | Float
                                 | Char

@@ -64,9 +64,9 @@ addExpansions exps env                  = env { expansions = exps ++ expansions 
 
 
 -- Convert a module
-llModule dsi (Module m ns ds bs)        = do bs <- mapM (llBind env0) bs
+llModule dsi (Module m ns es ds bs)     = do bs <- mapM (llBind env0) bs
                                              s <- currentStore
-                                             return (Module m ns (ds ++ declsOfStore s) (bs ++ bindsOfStore s))
+                                             return (Module m ns es (ds ++ declsOfStore s) (bs ++ bindsOfStore s))
   where env0                            = addDecls (ds ++ dsi) nullEnv
 
 

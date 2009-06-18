@@ -85,23 +85,24 @@ the IFace.
 -}
  
 ifaceMod                   :: (Map Name [Name], Map Name ([Name], Syntax.Type)) -> Module -> Kindle.Decls -> IFace
-ifaceMod (rs,ss) (Module m ns xs ds ws bss) kds
+ifaceMod (rs,ss) (Module m ns xs es ds ws bss) kds
    | not(null vis2)                  = errorIds "Private types visible in interface" vis2
    | not(null ys)                    = errorTree "Public default declaration mentions private instance" (head ys)
-   | otherwise                       = IFace rs ss (Module m ns xs1 ds1 ws1 [bs1]) (Module m [] xs2 ds2 ws2 [bs2]) kds
+   | otherwise                       = IFace rs ss (Module m ns xs1 es1 ds1 ws1 [bs1]) (Module m [] xs2 es2 ds2 ws2 [bs2]) kds
   where Types ke te                  = ds
-        Binds r ts es                = concatBinds bss
+        Binds r ts eqs                = concatBinds bss
         (xs1,xs2)                    = partition (\(Default pub _ _) -> pub) xs
+        (es1,es2)                    = partition (\(Extern v _) -> isPublic v) es
         (ke1,ke2)                    = partition exported ke
         (te1,te2)                    = partition exported' te
         (ws1,ws2)                    = partition (\n -> elem n (dom ts1)) ws
         (ts1,ts2)                    = partition exported ts
-        (es1,es2)                    = partition (\eqn -> fin eqn && exported eqn) (erase es)
+        (eqs1,eqs2)                  = partition (\eqn -> fin eqn && exported eqn) (erase eqs)
         (vis1,vis2)                  = partition isStateType (nub (localTypes [] (rng ts1)))
         ds1                          = Types (ke1 ++ map (\n -> (n,Star)) vis1) te1
-        bs1                          = Binds r ts1 es1
+        bs1                          = Binds r ts1 eqs1
         ds2                          = Types (filter (flip notElem vis1 . fst) ke2) te2
-        bs2                          = Binds r ts2 es2
+        bs2                          = Binds r ts2 eqs2
         
         ys                           = [d | d@(Default _ i1 i2) <- xs1, isPrivate i1 || isPrivate i2 ]
         exported (n,a)               = isPublic n
@@ -142,19 +143,19 @@ initEnvs bms         = do ims <- mapM (mkEnv . snd) bms
                                      = do rss <- mkRenamings unQual rs ss m1
                                           return (rss,m1,m2,kds)
 
-        nullMod = Module (name0 "Import data") [] [] (Types [] []) [] [Binds False [] []]
+        nullMod = Module (name0 "Import data") [] [] [] (Types [] []) [] [Binds False [] []]
 
-        mergeMod (Module _ _ xs1 ds1 ws1 [bs1]) (Module m _ xs2 ds2 ws2 [bs2]) =
-             Module m [] (xs1 ++ xs2) (catDecls ds1 ds2) (ws1 ++ ws2) [catBinds bs1 bs2]
+        mergeMod (Module _ _ xs1 es1 ds1 ws1 [bs1]) (Module m _ xs2 es2 ds2 ws2 [bs2]) =
+             Module m [] (xs1 ++ xs2) (es1 ++ es2) (catDecls ds1 ds2) (ws1 ++ ws2) [catBinds bs1 bs2]
 
-        mkRenamings unQual rs ss (Module m ns xs ds ws [bs]) 
+        mkRenamings unQual rs ss (Module m ns xs es ds ws [bs]) 
                                      = do rT  <- renaming (dom ke)
                                           rE  <- renaming (dom te')
                                           rL <- renaming ls
                                           return (unMod rs, unMod ss, unMod rL ,unMod rT, unMod rE)
           where Types ke ds'         = ds
-                Binds r te es        = bs
-                te'                  = te ++ concatMap (tenvCon ke) ds'
+                Binds _ te _         = bs
+                te'                  = te ++ concatMap (tenvCon ke) ds' ++ extsMap es
                 ls                   = [ s | (_,DRec _ _ _ cs) <- ds', (s,_) <- cs, not (isGenerated s) ]
                 unMod ps             = if unQual then [(tag0 (dropMod c),y) | (c,y) <- ps] ++ ps else ps
 
@@ -207,7 +208,7 @@ instance Binary IFace  where
 -- Printing -----------------------------------------------------------------------------
 
 instance Pr IFace where
-  pr (IFace rs ss (Module _ ns xs ds1 ws [bs]) _ kds) =
+  pr (IFace rs ss (Module _ ns xs _ ds1 ws [bs]) _ kds) =
                                   text "Imported/used modules: " <+> prImports ns $$
                                   text "Default declarations: " <+> hpr ',' xs $$
                                   text ("Record types and their selectors: "++show rs) $$
@@ -243,7 +244,7 @@ listIface clo f                   = do (ifc,f) <- decodeModule clo f
 
 writeAPI modul ifc             = writeFile (modul ++ ".html") (render(toHTML modul (ifc :: IFace)))
 
-toHTML n (IFace rs ss (Module _ ns xs ds ws [bs]) _ _) = text "<html><body>\n" $$
+toHTML n (IFace rs ss (Module _ ns xs es ds ws [bs]) _ _) = text "<html><body>\n" $$
                                           text ("<h2>API for module "++n++"</h2>\n") $$
                                           section ns "Imported modules" prImports $$
                                           section xs "Default declarations" (hpr ',') $$
@@ -277,7 +278,7 @@ decodeModule clo f                      = (do ifc <- decodeCFile f
                                                                                  putStrLn ("[reading " ++ show libf ++ "]")
                                                                                  return (ifc,libf))
 
-impsOf (IFace _ _ (Module _ ns _ _ _ _) _ _)  = ns
-tEnv (IFace _ _ (Module _ _ _ ts _ _) _ _)  = ts
-valEnv (IFace _ _ (Module _ _ _ _ _ [bs]) _ _)  = bs
+impsOf (IFace _ _ (Module _ ns _ _ _ _ _) _ _)  = ns
+tEnv (IFace _ _ (Module _ _ _ _ ts _ _) _ _)  = ts
+valEnv (IFace _ _ (Module _ _ _ _ _ _ [bs]) _ _)  = bs
 

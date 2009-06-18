@@ -2,9 +2,20 @@ module Primes where
 
 import POSIX 
 
-root env = class
+root :: World -> Cmd () ()
+root w = do
+   env = new posix w
+
    limit :: Int
    limit = fromRight (parse (env.argv!1))
+
+   primesCounter = new primes limit
+   ct <- primesCounter
+   env.stdout.write (show ct++"\n")
+   env.exit 0
+
+
+primes limit = class
    primesBound = limit `div` log3 limit
 
    primes := uniarray primesBound 0
@@ -28,12 +39,11 @@ root env = class
         count := count + 1
      if k < limit then checkFrom (k+1)
 
-   result action
+   result request
      primes!0 := 2
      count := 1
      checkFrom 3
-     env.stdout.write (show count++"\n")
-     env.exit 0
+     result count
 
 
 log3 :: Int -> Int

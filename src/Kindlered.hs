@@ -54,8 +54,8 @@ findSel env l                           = head [ t | (_,Struct _ te _) <- decls 
 
 
 -- Convert a module
-redModule dsi (Module m ns ds bs)       = do bs <- mapM (redBind env0) bs
-                                             return (Module m ns ds bs)
+redModule dsi (Module m ns es ds bs)    = do bs <- mapM (redBind env0) bs
+                                             return (Module m ns es ds bs)
   where env0                            = addDecls (ds++dsi) nullEnv
 
 
@@ -65,7 +65,7 @@ redBind env (x, Fun vs t te c)          = do c <- redCmd env c
                                              return (x, Fun vs t te c)
 redBind env (x, Val t e)                = do e <- redExp env e
                                              return (x, Val t e)
--- Tail recursiion optimization
+-- Tail recursion optimization
 
 tailOptimize x te c
   | isTailRecursive x c                 = do c <- redTailCall x te c

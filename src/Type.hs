@@ -89,7 +89,7 @@ let f = \w0 v x -> e w0 (f w0 v 7)                                            ::
 ---------------
 -}
 
-tiModule (Module _ _ xs' ds' ws' [bs']) (Module v ns xs ds ws bss)
+tiModule (Module _ _ xs' es' ds' ws' [bs']) (Module v ns xs es ds ws bss)
                                 = do env0' <- impPreds env0 pe'
                                      (env1,ds1,bs1) <- typeDecls env0' ds
                                      let env1' = addTEnv0 (tenvSelsCons ds') env1
@@ -97,14 +97,14 @@ tiModule (Module _ _ xs' ds' ws' [bs']) (Module v ns xs ds ws bss)
                                      -- Here it should be checked that any coercions in weqs follow the
                                      -- restricted rules for coercions, and that the equalities collected 
                                      -- in env2 are actually met by the equations in bs1, bs2 and bss
-                                     let env3 = insertDefaults env2 (pe'++pe) (xs'++xs)
+                                     let env3 = insertDefaults (addTEnv0 (extsMap (es' ++ es)) env2) (pe'++pe) (xs'++xs)
                                          env4 = addCoercions (weqs1 ++ weqs) env3
                                          weqs1 = eqnsOf bs1 ++ eqnsOf bs2
                                      (ss0,pe0,bs0) <- tiBindsList env4 bss
                                      -- tr ("Top-level: \n" ++ render (nest 4 (vpr (tsigsOf bs0) $$ vpr pe0)))
                                      bs3 <- topresolve env4 ss0 pe0 bs0
                                      -- tr ("Top-level after resolve: \n" ++ render (nest 4 (vpr (tsigsOf bs3))))
-                                     return (Module v ns xs ds1 (dom weqs1 ++ ws) (groupBinds (concatBinds [bs1,bs2,bs3])))
+                                     return (Module v ns xs es ds1 (dom weqs1 ++ ws) (groupBinds (concatBinds [bs1,bs2,bs3])))
     where bs                    = concatBinds bss
           weqs                  = restrict (eqnsOf bs') ws' ++ restrict (eqnsOf bs) ws
           pe                    = restrict (tsigsOf bs) ws

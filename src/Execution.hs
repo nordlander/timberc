@@ -82,12 +82,10 @@ compileC cfg clo c_file = do
                                  return (c_time <= o_time)
 
 -- | Link together a bunch of object files.
-linkO cfg clo r o_files = do let Just rmod  = fromMod r
-                                 rootId     = name2str r
-                                 initId     = "_init_" ++ map f rmod
-                                 f '\''     = '_'
-                                 f c        = c
-                             let cmd = cCompiler cfg
+linkO cfg clo r o_files = do let rootId     = name2str r
+                                 Just rMod = fromMod r
+                                 initId     = "_init_" ++ modToundSc rMod
+                                 cmd = cCompiler cfg
                                        ++ linkFlags cfg
                                        ++ compileFlags cfg
                                        ++ " -o " ++ outfile clo ++ " "

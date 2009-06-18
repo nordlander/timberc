@@ -60,7 +60,9 @@ import Control.Monad.Identity
 -- a struct type, and optionally also an enumeration of type names.  A binding defines either a named 
 -- function or a named value of atomic type.  Function bindings are immutable.  All type declarations 
 -- are mutually recursive, and so are binding groups.
-data Module     = Module  Name [Name] Decls Binds
+
+
+data Module     = Module Name [Name] TEnv Decls Binds
                 deriving (Eq,Show)
 
 -- A type declaration introduces a struct type that defines the layout of heap-allocated objects.
@@ -296,7 +298,7 @@ rngType (FunT vs ts t)                  = t
 
 typeOf' b                               = rngType (typeOf b)
 
-declsOf (Module _ _ ds _)               = ds
+declsOf (Module _ _ _ ds _)             = ds
 
 unions ds                               = [ n | (n,Struct _ _ Union) <- ds ]
         
@@ -616,8 +618,9 @@ instance Subst Alt Name AType where
 -- Tentative concrete syntax ------------------------------------------------------------------------------
 
 instance Pr Module where
-    pr (Module m ns ds bs)              = text "module" <+> prId2 m <+> text "where" $$
+    pr (Module m ns es ds bs)            =text "module" <+> prId2 m <+> text "where" $$
                                           text "import" <+> hpr ',' ns $$
+                                          text "extern" <+> vpr es $$
                                           vpr ds $$ 
                                           vpr bs
 

@@ -56,6 +56,7 @@ data Decl   = DKSig   Name Kind
             | DInstance [Name]
             | DTClass [Name]
             | DBind   [Bind]
+            | DExtern [Extern Type]
             deriving  (Eq,Show)
 
 data Constr =  Constr Name [Type] [Pred]
@@ -472,6 +473,7 @@ instance Pr Decl where
     pr (DInstance ns)           = text "instance" <+> hpr ',' ns 
     pr (DTClass ns)             = text "typeclass" <+> hpr ',' ns 
     pr (DBind bs)               = vpr bs
+    pr (DExtern es)             = text "extern" <+> hpr ',' es
 
 prPreds []                      = empty
 prPreds ps                      = text " \\\\" <+> hpr ',' ps
@@ -775,7 +777,6 @@ instance BVars [Pred] where
     bvars (PType (TVar v) : ps) = v : bvars ps
     bvars (p : ps)              = bvars ps
 
-
 -- Free type variables -------------------------------------------------------
 
 instance Ids Type where
@@ -902,6 +903,7 @@ instance Binary Decl where
   put (DInstance a) = putWord8 6 >> put a
   put (DTClass a) = putWord8 7 >> put a
   put (DBind a) = putWord8 8 >> put a
+  put (DExtern a) = putWord8 9 >> put a
   get = do
     tag_ <- getWord8
     case tag_ of
@@ -915,8 +917,9 @@ instance Binary Decl where
       6 -> get >>= \a -> return (DInstance a)
       7 -> get >>= \a -> return (DTClass a)
       8 -> get >>= \a -> return (DBind a)
-      _ -> fail "no parse"
+      9 -> get >>= \a -> return (DExtern a)
 
+      _ -> fail "no parse"
 
 instance Binary Constr where
   put (Constr a b c) = put a >> put b >> put c

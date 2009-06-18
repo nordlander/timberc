@@ -5,18 +5,20 @@ import Counter
 
 port = Port 12345
 
-root env = class
+root :: World -> Cmd () ()
+root w = do
  
+    env = new posix w
     clients = new counter
 
     log str = action
        env.stdout.write ('[':str ++ "]\n")
 
-    result action
-       case parse (env.argv!1) of
-         Right n -> env.inet.tcp.listen port (server n clients log)
-         _ -> env.stdout.write "usage: EchoServer n, where n is number of concurrent clients\n"
-              env.exit 1
+    case parse (env.argv!1) of
+       Right n -> env.inet.tcp.listen port (server n clients log)
+       _ -> env.stdout.write "usage: EchoServer n, where n is number of concurrent clients\n"
+            env.exit 1
+
 server :: Int -> Counter -> (String -> Action) -> Socket -> Class Connection
 server maxClients clients log sock = class
 

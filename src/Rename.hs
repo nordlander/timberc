@@ -196,17 +196,17 @@ instance Rename Module where
                                         assert (null dtcs2) "Dangling typeclass declarations" dtcs2
                                         assert (null badImpl) "Illegal type signature for instance" badImpl
                                         env1 <- extRenTMod True  c env  (ts1 ++ ks1')
-                                        env2 <- extRenEMod True  c env1 (cs1 ++ vs1 ++ vs1' ++ vss++is1)
+                                        env2 <- extRenEMod True  c env1 (cs1 ++ vs1 ++ vs1' ++ vss++is1++ bvars es1)
                                         env3 <- extRenLMod True  c env2 ss1
                                         env4 <- extRenTMod False c env3 ((ts2 \\ ks1') ++ ks2)
-                                        env5 <- extRenEMod False c env4 (cs2 ++ (vs2 \\ vss) ++ vs2'++is2)
+                                        env5 <- extRenEMod False c env4 (cs2 ++ (vs2 \\ vss) ++ vs2'++is2++bvars es2)
                                         env6 <- extRenLMod False c env5 ss2
                                         -- tr (concatMap (\(n1,n2) -> render (pr n1) ++ "," ++ render (pr n2) ++ "   ") (rE env6))
                                         ds <- rename env6 (ds1 ++ ps1)
                                         bs <- rename env6 (bs1' ++ bs2' ++ shuffleB (bs1 ++ bs2))
                                         return (Module c is (ds ++ map DBind (groupBindsS bs)) [])
-   where (ks1,ts1,ss1,cs1,ws1,tcs1,is1,bss1) = renameD [] [] [] [] [] [] [] [] ds
-         (ks2,ts2,ss2,cs2,ws2,tcs2,is2,bss2) = renameD [] [] [] [] [] [] [] [] ps
+   where (ks1,ts1,ss1,cs1,ws1,tcs1,is1,es1,bss1) = renameD [] [] [] [] [] [] [] [] [] ds
+         (ks2,ts2,ss2,cs2,ws2,tcs2,is2,es2,bss2) = renameD [] [] [] [] [] [] [] [] [] ps
          ds1                       = mergeTClasses tcs1 ds
          ps1                       = mergeTClasses tcs2 ps
          vs1                       = concat (map bvars bss1)
@@ -251,27 +251,29 @@ mergeTClasses tcs (DBind _ : ds) = mergeTClasses tcs ds
 mergeTClasses tcs (d : ds) = d : mergeTClasses tcs ds
 mergeTClasses _ [] = []
 
-renameD ks ts ss cs ws tcs is bss (DKSig c k : ds)
-                                   = renameD (c:ks) ts ss cs ws tcs is bss ds
-renameD ks ts ss cs ws tcs is bss (DRec _ c _ _ sigs : ds)
-                                   = renameD ks (c:ts) (sels++ss) cs ws tcs is bss ds
+renameD ks ts ss cs ws tcs is es bss (DKSig c k : ds)
+                                   = renameD (c:ks) ts ss cs ws tcs is es bss ds
+renameD ks ts ss cs ws tcs is es bss (DRec _ c _ _ sigs : ds)
+                                   = renameD ks (c:ts) (sels++ss) cs ws tcs is es bss ds
   where sels                       = concat [ vs | Sig vs t <- sigs ]
-renameD ks ts ss cs ws tcs is bss (DData c _ _ cdefs : ds)
-                                   = renameD ks (c:ts) ss (cons++cs) ws tcs is bss ds
+renameD ks ts ss cs ws tcs is es bss (DData c _ _ cdefs : ds)
+                                   = renameD ks (c:ts) ss (cons++cs) ws tcs is es bss ds
   where cons                       = [ c | Constr c _ _ <- cdefs ]
-renameD ks ts ss cs ws tcs is bss (DType c _ _ : ds)
-                                   = renameD ks (c:ts) ss cs ws tcs is bss ds
-renameD ks ts ss cs ws tcs is bss (DInstance vs : ds)
-                                   = renameD ks ts ss cs (ws++vs) tcs is bss ds
-renameD ks ts ss cs ws tcs is bss (DTClass vs : ds)
-                                   = renameD ks ts ss cs ws (tcs++vs) is bss ds
-renameD ks ts ss cs ws tcs is bss (DDefault ps : ds)
-                                   = renameD ks ts ss cs ws tcs (is1 ++ is) bss ds
+renameD ks ts ss cs ws tcs is es bss (DType c _ _ : ds)
+                                   = renameD ks (c:ts) ss cs ws tcs is es bss ds
+renameD ks ts ss cs ws tcs is es bss (DInstance vs : ds)
+                                   = renameD ks ts ss cs (ws++vs) tcs is es bss ds
+renameD ks ts ss cs ws tcs is es bss (DTClass vs : ds)
+                                   = renameD ks ts ss cs ws (tcs++vs) is es bss ds
+renameD ks ts ss cs ws tcs is es bss (DDefault ps : ds)
+                                   = renameD ks ts ss cs ws tcs (is1 ++ is) es bss ds
   where is1                        = [i | Derive i _ <- ps]
-renameD ks ts ss cs ws tcs is bss (DBind bs : ds)
-                                   = renameD ks ts ss cs ws tcs is (bs : bss) ds
-renameD ks ts ss cs ws tcs is bss []
-                                   = (ks, ts, ss, cs, ws, tcs, is, bss)
+renameD ks ts ss cs ws tcs is es bss (DBind bs : ds)
+                                   = renameD ks ts ss cs ws tcs is es (bs : bss) ds
+renameD ks ts ss cs ws tcs is es bss (DExtern es' : ds)
+                                   = renameD ks ts ss cs ws tcs is (es ++ es') bss ds
+renameD ks ts ss cs ws tcs is es bss []
+                                   = (ks, ts, ss, cs, ws, tcs, is, es, bss)
 
 
 instance Rename Decl where
@@ -285,6 +287,7 @@ instance Rename Decl where
   rename env (DInstance vs)        = return (DInstance (map (renE env) vs))
   rename env (DDefault ts)         = liftM DDefault (rename env ts)
   rename env (DBind bs)            = liftM DBind (rename env bs)
+  rename env (DExtern es)          = liftM DExtern (rename env es)
 
 instance Rename (Default Type) where
   rename env (Default pub a b)     = return (Default pub (renE env a) (renE env b))
@@ -295,6 +298,8 @@ instance Rename Constr where
                                         liftM2 (Constr (renE env c)) (rename env' ts) (rename env' ps')
    where ps'                       = completeP env ts ps
 
+instance Rename (Extern Type) where
+  rename env (Extern n t)          = liftM (Extern (renE env n)) (renameQT env t)
 completeP env t ps
   | not (null dups)                = errorIds "Duplicate type variable abstractions" dups
   | not (null dang)                = errorIds "Dangling type variable abstractions" dang

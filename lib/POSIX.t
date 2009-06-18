@@ -33,9 +33,7 @@
 
 module POSIX where
     
-type RootType = Env -> Class Prog
-
-type Prog = Action
+type RootType = World -> Cmd () ()
 
 struct Env where
     exit      :: Int -> Request ()
@@ -84,3 +82,5 @@ struct Sockets where
 instance showHost :: Show Host
 showHost = struct
     show (Host nm) = nm
+
+extern posix :: World -> Class Env

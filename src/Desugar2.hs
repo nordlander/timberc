@@ -65,6 +65,7 @@ dsDecls (DPSig v t : ds)        = liftM (DPSig v (dsQualPred t) :) (dsDecls ds)
 dsDecls (DInstance vs : ds)     = liftM (DInstance vs :) (dsDecls ds)
 dsDecls (DTClass vs : ds)       = dsDecls ds
 dsDecls (DDefault ts : ds)      = liftM (DDefault (map dsDefault ts) :) (dsDecls ds) 
+dsDecls (DExtern es : ds)      = liftM (DExtern (map dsExtern es) :) (dsDecls ds) 
 dsDecls (DBind bs : ds)         = do bs <- dsBinds bs
                                      liftM (DBind bs :) (dsDecls ds)
         
@@ -75,6 +76,8 @@ dsSig (Sig vs t)                = Sig vs (dsQualType t)
 
 dsDefault (Default t a b)       = Default t a b
 dsDefault (Derive v t)          = Derive v (dsQualType t)
+
+dsExtern (Extern v t)           = Extern v (dsQualType t)
 
 
 -- Types ----------------------------------------------------------------------

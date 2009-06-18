@@ -92,6 +92,7 @@ Reserved Ids
     | KW_Do       
     | KW_Else   
     | KW_Elsif
+    | KW_Extern
     | KW_Forall
     | KW_If
     | KW_Import   
@@ -143,7 +144,8 @@ reserved_ids
         ( "default",   KW_Default),   
         ( "do",        KW_Do ),       
         ( "else",      KW_Else ),
-        ( "elsif",     KW_Elsif ),     
+        ( "elsif",     KW_Elsif ),
+        ( "extern",    KW_Extern ),     
         ( "forall",    KW_Forall ),
         ( "if",        KW_If ),
         ( "import",    KW_Import ),

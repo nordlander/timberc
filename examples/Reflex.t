@@ -5,12 +5,9 @@ import RandomGenerator
 
 data State = Idle | Waiting Msg | Counting
 
-root env = class
+reflex print gen = class
   
-   print str = env.stdout.write (str ++ "\n")
-
    tmr = new timer
-   gen = new baseGen (microsecOf env.startTime)
 
    state := Idle
   
@@ -33,10 +30,18 @@ root env = class
                         print (format t)
                         state := Idle
 
-   result 
-     action
-       env.stdin.installR enter
-       print "Press return to start"
+   result enter
+
+root :: World -> Cmd () ()
+root w = do
+   env = new posix w
+   print str = env.stdout.write (str ++ "\n")
+   gen = new baseGen (microsecOf env.startTime)
+   enter = new reflex print gen
+   env.stdin.installR enter
+   print "Press return to start"
+   
+
 
 format t = show (secOf t) ++ '.' : fracs ++ " secs"
   where t100  = microsecOf t `div` 10000

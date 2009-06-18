@@ -123,7 +123,7 @@ typeFromSels env ss             = case [ c | (c,ss') <- sels env, ss' == ss ] of
                                     [c] -> c
                                     cs  -> case filter isQualified cs of
                                              [c] -> c
-                                             _   -> errorIds ("Multiple struct types defined by selectors") ss
+                                             _   -> errorIds ("Multiple struct types with same selectors") cs
 
 
 haveSelf env                    = self env /= Nothing
@@ -158,6 +158,7 @@ dsDecls env (DDefault ts : ds)  = liftM (DDefault (ds1 env ts) :) (dsDecls env d
 dsDecls env ds@(DBind _ : _)    = dsDs [] ds
   where dsDs bs (DBind bs':ds)  = dsDs (bs++bs') ds
         dsDs bs ds              = liftM (DBind (ds1 env bs) :) (dsDecls env ds)
+dsDecls env (DExtern es : ds)   = liftM (DExtern (ds1 env es) :) (dsDecls env ds)
 dsDecls env (d : ds)            = liftM (d :) (dsDecls env ds)
 dsDecls env []                  = return []
 
@@ -193,6 +194,9 @@ instance Desugar1 Type where
     ds1 env (TFun ts t)         = TFun (ds1 env ts) (ds1 env t)
     ds1 env (TCon c)            = tSubst env c []
     ds1 env t                   = t
+
+instance Desugar1 (Extern Type) where
+    ds1 env (Extern n t)        = Extern n (ds1 env t)
 
 instance Desugar1 Pred where
     ds1 env (PType t)           = PType (ds1 env t)

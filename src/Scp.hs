@@ -35,16 +35,16 @@ env0 = ScpE { ctxt = emptyContext,
                      globEqns = [], globTEnv = [],
                      inSet = [], splitVars = [], ls = [] }
 
-scp clo (Module _ _ _ ds' _ [bs']) m = 
+scp clo (_, ds', _, bs') m = 
   if doScp clo
     then scpModule (tsigsOf bs') (eqnsOf bs')  m
     else return m
 
-scpModule impCons impEqns (Module m ns xs ds ie bss) = do
+scpModule impCons impEqns (Module m ns xs es ds ie bss) = do
   let env = env0 { locEqns = locEqns', locTEnv = locTEnvs',
                     globEqns = impEqns, globTEnv = impCons }
   bss' <- scpBinds env bss
-  return (Module m ns xs ds ie bss')
+  return (Module m ns xs es ds ie bss')
   where go [] = ([], [])
         go ((Binds _ te eqns):t) = (eqns ++ eqns', te ++ te')
           where (eqns', te') = go t

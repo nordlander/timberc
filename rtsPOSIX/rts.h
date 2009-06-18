@@ -37,7 +37,9 @@
 #include <stddef.h>
 #include <sys/time.h>
 #include <pthread.h>
-
+#include <signal.h>
+#include <string.h>
+#include <stdlib.h>
 #include "config.h"
 
 typedef int WORD;
@@ -52,10 +54,16 @@ typedef WORD *ADDR;
 #define UNITTYPE char
 #define UNITTERM char       // alias for singleton type
 #define POLY ADDR
+
 #define OID ADDR
 #define BITS8 unsigned char
 #define BITS16 unsigned short
 #define BITS32 unsigned int
+
+#define DISABLE(mutex)  pthread_mutex_lock(&mutex)
+#define ENABLE(mutex)   pthread_mutex_unlock(&mutex)
+#define TIMERGET(x)     gettimeofday(&x, NULL)
+
 
 
 #define primSHIFTRA8(a,b)  ((signed char)(a) >> (b))
@@ -87,19 +95,30 @@ union FloatCast {
 #define SETBIT(n)       (1 << n)
 #define COPYBIT(x,m,n)  (((x >> m) & 1) << n)
 
-/*
-#define SEC(x)          ((x)*1000000)
-#define MILLISEC(x)     ((x)*1000)
-#define MICROSEC(x)     (x)
-*/
+#define INF             0x7fffffff
 
-struct Msg;
+typedef struct timeval AbsTime;
 
 typedef struct Ref *Ref;
+
 struct Ref {
     WORD *GCINFO;
     pthread_mutex_t mut;
     POLY STATE;
+};
+
+typedef struct Thread *Thread;
+
+typedef struct Msg *Msg;
+
+struct Thread {
+   Thread next;            // for use in linked lists
+   Msg msg;                // message under execution
+   int prio;
+   pthread_t id;
+   int index;
+   pthread_cond_t trigger;
+   int placeholders;       // for use during cyclic data construction
 };
 
 #define STATEOF(ref)    (((ADDR)(ref))+WORDS(sizeof(struct Ref)))
@@ -108,7 +127,12 @@ void INITREF(Ref);
 
 extern WORD __GC__Ref[];
 
-typedef struct timeval AbsTime;
+pthread_mutex_t rts;
+pthread_mutexattr_t glob_mutexattr;
+
+
+#define SIGSELECT SIGUSR1
+
 
 struct Time {
   WORD *GCINFO;
@@ -117,6 +141,7 @@ struct Time {
 };
 
 typedef struct Time *Time;
+
 
 extern WORD __GG__Time[] ;
 
@@ -173,5 +198,17 @@ Bool primTimeLT(Time t1, Time t2);
 Bool primTimeLE(Time t1, Time t2);
 Bool primTimeGT(Time t1, Time t2);
 Bool primTimeGE(Time t1, Time t2);
+
+struct FunList;
+typedef struct FunList *FunList;
+
+struct FunList {
+  void (*f) (); 
+  FunList next;
+};
+
+void addEventLoop(FunList ls, Bool mustBeLast);
+void addRootScanner(FunList ls);
+
 
 #endif

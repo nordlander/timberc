@@ -60,8 +60,8 @@ typedef struct LEFT *LEFT;
 struct RIGHT;
 typedef struct RIGHT *RIGHT;
 
-struct Msg;
-typedef struct Msg *Msg;
+struct World;
+typedef struct World *World;
 
 struct TUP2 {
   WORD *GCINFO;
@@ -167,7 +167,6 @@ struct Timer {
 };
 
 extern WORD __GC__Timer[];
-
 
 UNITTYPE ASYNC(Msg, Time, Time);
 OID      LOCK(OID);

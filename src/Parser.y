@@ -105,6 +105,7 @@ Reserved Ids
         'do'		{ KW_Do }
         'else'		{ KW_Else }
         'elsif'		{ KW_Elsif }
+        'extern'        { KW_Extern }
         'forall'	{ KW_Forall }
         'if'		{ KW_If }
         'import'        { KW_Import }
@@ -177,6 +178,7 @@ topdecl :: { [Decl] }
         | 'instance' var '::' type rhs                     { [DBind [BEqn (exp2lhs (EVar $2)) $5], DPSig $2 $4] }
         | 'instance' ids                                   { [DInstance $2] }
         | 'default' def                                    { [DDefault (reverse $2)] }
+        | 'extern' ext                                     { [DExtern (reverse $2)] }
         | vars '::' type		                   { [DBind [BSig (reverse $1) $3]] }
         | lhs rhs 					   { [DBind [BEqn $1 $2]] }
 
@@ -217,6 +219,21 @@ prefs   ::  { [Default Type] }
 pref     :: { Default Type }
         : var '<' var                           { Default True $1 $3 }
         | var '::' type                         { Derive $1 $3 }  
+
+
+-- External declarations -----------------------------------------------------
+
+ext :: { [Extern Type] }
+ext     : '{' layout_off exts '}'              { $3 }
+        | layout_on exts close                 { $2 }
+
+exts   ::  { [Extern Type] }
+        : exts ';' extt                        { $3 : $1 }
+        | extt                                 { [$1] }
+ 
+
+extt    :: { Extern Type }
+        : var '::' type                         { Extern $1 $3 }  
 
 
 -- Datatype declarations ---------------------------------------------------

@@ -45,12 +45,8 @@
 #define MAXTHREADS      12          // Static maximum
 
 #define SLEEP()         sigsuspend(&enabled_mask)
-#define DISABLE(mutex)  pthread_mutex_lock(&mutex)
-#define ENABLE(mutex)   pthread_mutex_unlock(&mutex)
-
 
 #define TDELTA          1
-#define TIMERGET(x)     gettimeofday(&x, NULL)
 #define TIMERSET(x,now) { struct itimerval t; \
                           t.it_value = (x); \
                           SUB(t.it_value, now); \
@@ -76,26 +72,12 @@
                           (a).tv_sec -= (b).tv_sec; \
                         }
 
-#define INF             0x7fffffff
-
 
 // Thread management --------------------------------------------------------------------------------
 
 Int NCORES              = 0;
 Int NTHREADS            = 0;
 
-struct Thread;
-typedef struct Thread *Thread;
-
-struct Thread {
-        Thread next;            // for use in linked lists
-        Msg msg;                // message under execution
-        int prio;
-        pthread_t id;
-        int index;
-        pthread_cond_t trigger;
-        int placeholders;       // for use during cyclic data construction
-};
 
 Msg msgQ                = NULL;
 Msg timerQ              = NULL;
@@ -108,9 +90,6 @@ int nthreads            = 0;
 
 struct Thread threads[MAXTHREADS];
 
-pthread_mutex_t rts;
-
-pthread_mutexattr_t glob_mutexattr;
 pthread_mutexattr_t obj_mutexattr;
 
 sigset_t all_sigs;
@@ -352,7 +331,6 @@ void *run(void *arg) {
     }
 }
 
-
 // Major primitives ---------------------------------------------------------------------
 
 UNITTYPE ASYNC( Msg m, Time bl, Time dl ) {
@@ -439,23 +417,15 @@ POLY Raise(BITS32 polyTag, Int err) {
 }
 
 
-// Arrays ---------------------------------------------------------------------------------------------
-
-#include "arrays.c"
-
 // Primitive timer class ------------------------------------------------------------------------------
 
 #include "timer.c"
 
 // Environment object ---------------------------------------------------------------------------------
 
-void init_rts(void);
+//void init_rts(void);
 
-#include "env.c"
-
-// Show Float -----------------------------------------------------------------------------------------
-
-#include "float.c"
+// #include "env.c"
 
 // timerQ handling ------------------------------------------------------------------------------------
 
@@ -509,6 +479,66 @@ void scanTimerQ() {
         }
         ENABLE(rts);
 }
+// Event loops etc ------------------------------------------------------------------------------------
+
+FunList loops = NULL;
+
+FunList last = NULL;
+
+void addEventLoop(FunList ls, Bool mustBeLast) {
+  if (mustBeLast) {
+    if (last) 
+      panic("More than one event loop requests to be last");
+    else {
+      last = ls;
+      if (loops) {
+         FunList tmp = loops;
+         while (tmp->next) tmp = tmp->next;
+         tmp->next = ls;
+      } else loops = ls;
+    }
+  } else {
+    ls->next = loops;
+    loops = ls;
+  }
+}
+
+void startLoops() {
+  // Here we should run through the list loops, forking processes with event loops.
+  loops->f();
+}
+
+// Scanning roots -------------------------------------------------------------------------------------
+
+FunList scanners = NULL;
+
+void addRootScanner(FunList ls) {
+  ls->next = scanners;
+  scanners = ls;
+}
+
+typedef UNITTYPE (*root_t)(World,Ref);
+
+root_t prog = NULL;
+
+void scanRoots() {
+    FunList s = scanners;
+
+    prog = (root_t)copy((ADDR)prog);
+    envRootsDirty=0;
+    while(!s) {
+      s->f();
+      s = s->next;
+    }
+}
+
+// Arrays ---------------------------------------------------------------------------------------------
+
+#include "arrays.c"
+
+// Show Float -----------------------------------------------------------------------------------------
+
+#include "float.c"
 
 // Initialization -------------------------------------------------------------------------------------
 
@@ -521,7 +551,8 @@ Int getNumberOfProcessors() {
     return 1;
 }
 
-void init_rts(void) {
+void init_rts(root_t root) {
+    prog = root;
     pthread_mutexattr_init(&glob_mutexattr);
     pthread_mutexattr_settype(&glob_mutexattr, PTHREAD_MUTEX_NORMAL);
     pthread_mutexattr_setprotocol(&glob_mutexattr, PTHREAD_PRIO_INHERIT);

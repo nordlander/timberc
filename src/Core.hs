@@ -42,7 +42,7 @@ import Data.Binary
 import Monad
 
 
-data Module     = Module Name [(Bool,Name)] [Default Scheme] Types [Name] [Binds]
+data Module     = Module Name [(Bool,Name)] [Default Scheme] [Extern Scheme] Types [Name] [Binds]
                 deriving  (Eq,Show)
 
 data Types      = Types   KEnv Decls
@@ -50,8 +50,6 @@ data Types      = Types   KEnv Decls
 
 data Binds      = Binds   Bool TEnv Eqns
                 deriving  (Eq,Show)
-
---type Default    = (Bool,Name,Name)
 
 type PEnv       = TEnv
 
@@ -802,8 +800,8 @@ instance Erase Scheme where
 -- Modules -------------------------------------------------------------------
 
 instance Pr Module where
-    pr (Module i ns xs ds is bss) = text "module" <+> prId i <+> text "where"
-                                    $$ prImports ns $$ prDefaults xs $$ pr ds $$ prInstance is $$ vpr bss
+    pr (Module i ns xs es ds is bss) = text "module" <+> prId i <+> text "where"
+                                    $$ prImports ns $$ prDefaults xs $$ prExterns es $$ pr ds $$ prInstance is $$ vpr bss
 
 prImports []                      = empty
 prImports (i : is)                = prI i $$ prImports is
@@ -812,6 +810,9 @@ prImports (i : is)                = prI i $$ prImports is
 
 prDefaults []                     = empty
 prDefaults ns                     = text "default" <+> hpr ',' ns
+
+prExterns []                     = empty
+prExterns ns                     = text "extern" <+> hpr ',' ns
 
 prInstance []                     = empty
 prInstance ns                     = text "instance" <+> hpr ',' ns
@@ -1070,8 +1071,8 @@ instance HasPos Cmd where
 -- Binary --------------------------------------------------
 
 instance Binary Module where
-  put (Module a b c d e f) = put a >> put b >> put c >> put d >> put e >> put f
-  get = get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> get>>= \f -> return (Module a b c d e f)
+  put (Module a b c d e f g) = put a >> put b >> put c >> put d >> put e >> put f >>put g
+  get = get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> get>>= \f -> get >>= \g -> return (Module a b c d e f g)
 
 instance Binary Types where
   put (Types a b) = put a >> put b

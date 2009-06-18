@@ -4,13 +4,14 @@ import POSIX
 
 port = Port 12345
 
-root env = class
+root :: World -> Cmd () ()
+root w = do
+    env = new posix w
 
     log str = action
        env.stdout.write ('[':str ++ "]\n")
 
-    result action
-       env.inet.tcp.listen port (server log)
+    env.inet.tcp.listen port (server log)
 
 server log sock = class
 
