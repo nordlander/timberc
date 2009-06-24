@@ -41,7 +41,6 @@
 #include <errno.h>
 #include "POSIX.h"
 #include "rts.h"
-
 #define SOCKHANDLER   CLOS2
 #define HANDLER       CLOS3
 #define ACTION        CLOS2
@@ -625,6 +624,6 @@ void envInit (int argc, char **argv) {
     thread0.msg = &msg0;
     thread0.id = pthread_self();
 
-    addEventLoop(&loop,false);
+    addEventLoop(&loop,0);
     addRootScanner(&scanner);
 }
