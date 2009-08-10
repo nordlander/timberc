@@ -517,14 +517,9 @@ void addRootScanner(FunList ls) {
   scanners = ls;
 }
 
-typedef UNITTYPE (*root_t)(World,Ref);
-
-root_t prog = NULL;
-
 void scanRoots() {
     FunList s = scanners;
 
-    prog = (root_t)copy((ADDR)prog);
     envRootsDirty=0;
     while(!s) {
       s->f();
@@ -551,8 +546,7 @@ Int getNumberOfProcessors() {
     return 1;
 }
 
-void init_rts(root_t root) {
-    prog = root;
+void init_rts(void) {
     pthread_mutexattr_init(&glob_mutexattr);
     pthread_mutexattr_settype(&glob_mutexattr, PTHREAD_MUTEX_NORMAL);
     pthread_mutexattr_setprotocol(&glob_mutexattr, PTHREAD_PRIO_INHERIT);

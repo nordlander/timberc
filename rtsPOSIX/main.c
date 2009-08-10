@@ -38,10 +38,10 @@ void envInit(int argc, char** argv);
 void envStart();
 
 int main(int argc, char **argv) {
-    init_rts(ROOT);
+    init_rts();
     envInit(argc, argv);
-    pruneStaticHeap();
     ROOTINIT();
+    pruneStaticHeap();
     ROOT();
     startLoops();
     return 0;
