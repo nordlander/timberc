@@ -452,7 +452,7 @@ _abcSupply                      = map (name0 . ('_':)) (gensupply "abcdefghijklm
 _ABCSupply                      = map (name0 . ('_':)) (gensupply "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 gensupply                       :: [Char] -> [String]
-gensupply chars                 = map (:"") chars ++ concat (map g [1..])
+gensupply chars                 = concat (map g [1..])
   where g n                     = map (replicate n) chars
 
 
