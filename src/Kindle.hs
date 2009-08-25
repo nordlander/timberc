@@ -69,10 +69,13 @@ data Module     = Module Name [Name] TEnv Decls Binds
 -- A struct type may bind type parameters and may contain both value and function fields.  Each 
 -- struct introduces a private namespace for its field names.  A struct can also be declared an
 -- extension of another struct, as indicated by the Link parameter.  If a struct is an extension,
--- a prefix of its field names and their types must match the definition of the extended struct
--- exactly.  If a struct is not an extension, it must either be an ordinary Top of an extension 
--- hierarchy, or a Union - the latter form supporting case analysis between different extensions 
--- by means of the switch command.
+-- a prefix of its field names and their types must match the full definition of the extended 
+-- struct when instantiated with the given type arguments.  In addition, an extended struct may
+-- indicate that a subset of its type parameters are to be existentially quantified when the
+-- struct is cast to its base type, and this list must contain the existential parameters of
+-- its base type (if any) as a prefix.  If a struct is not an extension, it must either be an 
+-- ordinary Top of an extension hierarchy, or a Union - the latter form supporting case analysis
+-- between different extensions by means of the 'switch' command.
 type Decls      = Map Name Decl
 
 data Decl       = Struct [Name] TEnv Link
@@ -80,7 +83,7 @@ data Decl       = Struct [Name] TEnv Link
 
 data Link       = Top
                 | Union
-                | Extends Name
+                | Extends Name [AType] [Name]
                 deriving (Eq,Show)
 
 -- A term binding is either a named value of atomic type or a named function.  A named function can
@@ -104,12 +107,14 @@ data Type       = ValT   AType
                 deriving (Eq,Show)
 
 
--- An atomic type is either a named constructor or a type variable, both possibly applied to
--- further atomic type arguments.
+-- An atomic type is either a named constructor or a type variable (both possibly applied to
+-- further atomic type arguments), or an index into the sequence of existentially quantified
+-- type components of the surrounding struct (only valid within function-valued field definitions).
 type ATEnv      = Map Name AType
 
 data AType      = TCon   Name [AType]
                 | TVar   Name [AType]
+                | TThis  Int
                 deriving (Eq,Show)
 
 
@@ -143,10 +148,11 @@ data Alt        = ACon  Name [Name] ATEnv Cmd -- if switch value has struct type
 
 -- Simple expressions that can be RH sides of value definitions as well as function arguments.
 data Exp        = EVar   Name                   -- local or global value name, enum constructor or function parameter
-                | EThis                         -- the implicit first parameter of a function-valued struct field
+                | EThis                         -- the surrounding struct itself 
+                                                -- (only valid within function fields, illegal in local/global functions)
                 | ELit   Lit                    -- literal
                 | ESel   Exp Name               -- selection of value field $2 from struct $1
-                | ENew   Name [AType] Binds     -- a new struct of type $1 with args $2, (partially) initialized by $3
+                | ENew   Name [AType] Binds     -- a new struct of type $1 with type args $2, (partially) initialized by $3
                 | ECall  Name [AType] [Exp]     -- calling local or global function $1 with type/term arguments $2/$3
                 | EEnter Exp Name [AType] [Exp] -- entering function $2 of struct $1 with type/term arguments $3/($1:$4)
                 | ECast  AType Exp              -- unchecked cast of value $2 to type $1
@@ -182,7 +188,52 @@ tRef a                                  = TCon (prim Ref) [a]
 tLIST a                                 = TCon (prim LIST) [a]
 tArray a                                = TCon (prim Array) [a]
 
-tClos a ts                              = TCon (prim (primClos a)) ts
+maxSmallCLOS                            = 3 :: Int
+smallCLOS 1                             = CLOS1
+smallCLOS 2                             = CLOS2
+smallCLOS 3                             = CLOS3
+
+encodeCLOS [] t ts                      = t:ts
+encodeCLOS vs t ts                      = t:ts ++ tCon (prim CLOS) : map tVar vs
+
+decodeCLOS ts0                          = (vs, ts, t)
+  where (t:ts,tvs)                      = span (/=(tCon (prim CLOS))) ts0
+        vs                              = [ v | TVar v _ <- tvs ]
+
+tClos t ts                              = tClos2 [] t ts
+
+tClos2 [] t ts
+  | a <= maxSmallCLOS                   = TCon (prim (smallCLOS a)) (t:ts)
+  where a                               = length ts
+tClos2 vs t ts                          = TCon (prim CLOS) (encodeCLOS vs t ts)
+
+openClosureType (TCon (Prim p _) ts)
+  | p `elem` [CLOS1,CLOS2,CLOS3,CLOS]   = decodeCLOS ts
+openClosureType t                       = internalError "Kindle.openClosureType" t
+
+closure t te c                          = closure2 [] t te c
+
+closure2 [] t te c
+  | a <= maxSmallCLOS                   = ENew (prim (smallCLOS a)) (t:rng te) [(prim Code, Fun [] t te c)]
+  where a                               = length te
+closure2 vs t te c                      = ENew (prim CLOS) (encodeCLOS vs t (rng te)) [(prim Code, Fun vs t te c)]
+
+closBind ts0                            = [(prim Code, FunT vs ts t)]
+  where (vs,ts,t)                       = decodeCLOS ts0
+
+enter e ts es                           = EEnter e (prim Code) ts es
+
+multiEnter [] [] e                      = e
+multiEnter (ts:tss) es e                = multiEnter tss es2 (enter e [] es1)
+  where (es1,es2)                       = splitAt (length ts) es
+                                        
+tupleDecl (Tuple n _)                   = Struct ids (map f ids) Top
+  where ids                             = take n abcSupply
+        f n                             = (n, ValT (TVar n []))
+
+equants (Extends _ _ vs)                = vs
+equants _                               = []
+
 
 litType (LInt _ _)                      = tInt
 litType (LRat _ _)                      = tFloat
@@ -198,28 +249,30 @@ tb                                      = TVar b []
 tc                                      = TVar c []
 td                                      = TVar d []
         
-primDecls                               = (prim Bool,      Struct []        []                                    Union) :
-                                          (prim FALSE,     Struct []        []                                    (Extends (prim Bool))) :
-                                          (prim TRUE,      Struct []        []                                    (Extends (prim Bool))) :
-                                          (prim UNITTYPE,  Struct []        []                                    Union) :
-                                          (prim UNITTERM,  Struct []        []                                    (Extends (prim UNITTYPE))) :
-                                          (prim LIST,      Struct [a]       []                                    Union) :
-                                          (prim NIL,       Struct [a]       []                                    (Extends (prim LIST))) :
-                                          (prim CLOS1,     Struct [a,b]     [(prim Code, FunT [] [tb] ta)]        Top) :
-                                          (prim CLOS2,     Struct [a,b,c]   [(prim Code, FunT [] [tb,tc] ta)]     Top) :
-                                          (prim CLOS3,     Struct [a,b,c,d] [(prim Code, FunT [] [tb,tc,td] ta)]  Top) :
-                                          (prim CONS,      Struct [a]       [(a, ValT ta), 
-                                                                             (b, ValT (tLIST ta))]                (Extends (prim LIST))) :
+primDecls                               = (prim Bool,      Struct []    []                      Union) :
+                                          (prim FALSE,     Struct []    []                      (Extends (prim Bool) [] [])) :
+                                          (prim TRUE,      Struct []    []                      (Extends (prim Bool) [] [])) :
+                                          (prim UNITTYPE,  Struct []    []                      Union) :
+                                          (prim UNITTERM,  Struct []    []                      (Extends (prim UNITTYPE) [] [])) :
+                                          (prim LIST,      Struct [a]   []                      Union) :
+                                          (prim NIL,       Struct [a]   []                      (Extends (prim LIST) [ta] [])) :
+                                          (prim CONS,      Struct [a]   [(a, ValT ta), 
+                                                                         (b, ValT (tLIST ta))]  (Extends (prim LIST) [ta] [])) :
+                                          (prim Ref,       Struct [a]   [(prim STATE, ValT ta)] Top) :
+                                          (prim EITHER,    Struct [a,b] []                      Union) :
+                                          (prim LEFT,      Struct [a,b] [(a,ValT ta)]           (Extends (prim EITHER) [ta,tb] [])) :
+                                          (prim RIGHT,     Struct [a,b] [(a,ValT tb)]           (Extends (prim EITHER) [ta,tb] [])) :
+
                                           (prim Msg,       Struct []        [(prim Code, FunT [] [] tUNIT),
                                                                              (prim Baseline, ValT (tId AbsTime)),
                                                                              (prim Deadline, ValT (tId AbsTime)),
                                                                              (prim Next, ValT (tId Msg))]         Top) :
-                                          (prim Ref,       Struct [a]       [(prim STATE, ValT ta)]               Top) :
-                                          (prim EITHER,    Struct [a,b]     []                                    Union) :
-                                          (prim LEFT,      Struct [a,b]     [(a,ValT ta)]                         (Extends (prim EITHER))) :
-                                          (prim RIGHT,     Struct [a,b]     [(a,ValT tb)]                         (Extends (prim EITHER))) :
                                           (prim TIMERTYPE, Struct []        [(prim Reset,  FunT [] [tInt] tUNIT),
                                                                              (prim Sample, FunT [] [tInt] tTime)] Top) : 
+
+                                          (prim CLOS1,     Struct [a,b]     [(prim Code, FunT [] [tb] ta)]        Top) :
+                                          (prim CLOS2,     Struct [a,b,c]   [(prim Code, FunT [] [tb,tc] ta)]     Top) :
+                                          (prim CLOS3,     Struct [a,b,c,d] [(prim Code, FunT [] [tb,tc,td] ta)]  Top) :
                                           []
                                           
 isInfix (Prim p _)                      = p `elem` [MIN____KINDLE_INFIX .. MAX____KINDLE_INFIX]
@@ -264,6 +317,7 @@ primTEnv0                               = (prim TIMERTERM,  FunT []  [tInt] (tId
 okRec (ValT t)                          = okRec' t
 okRec (FunT vs ts t)                    = True                            -- Good: recursive function
 okRec' (TVar _ _)                       = False                           -- Bad: statically unknown representation
+okRec' (TThis _)                        = False                           -- Bad: statically unknown representation
 okRec' (TCon (Prim p _) _)              = p `notElem` Kindle.scalarPrims  -- Bad: type that can't fit placeholder
 okRec' (TCon n _)                       = True                            -- Good: heap allocated data
 
@@ -271,18 +325,14 @@ scalarPrims                             = [Int, Float, Char, Bool, UNITTYPE, BIT
 
 smallPrims                              = [Char, Bool, UNITTYPE, BITS8, BITS16]
 
-tupleDecl (Tuple n _)                   = Struct ids (map f ids) Top
-  where ids                             = take n abcSupply
-        f n                             = (n, ValT (TVar n []))
-
 isVal (_, Val _ _)                      = True
 isVal (_, Fun _ _ _ _)                  = False
 
 isFunT (_, ValT _)                      = False
 isFunT (_, FunT _ _ _)                  = True
 
-isTVar (TCon _ _)                       = False
 isTVar (TVar _ _)                       = True
+isTVar _                                = False
 
 isArray (TCon (Prim Array _) _)         = True
 isArray _                               = False
@@ -302,24 +352,7 @@ declsOf (Module _ _ _ ds _)             = ds
 
 unions ds                               = [ n | (n,Struct _ _ Union) <- ds ]
         
-variants ds n0                          = [ n | (n,Struct _ _ (Extends n')) <- ds, n' == n0 ]
-
-structRoot ds n
-  | isTuple n                           = n
-  | otherwise                           = case lookup' ds n of
-                                            Struct _ _ (Extends n') -> n'
-                                            _                       -> n
-    
-structArity ds n 
-  | isTuple n                           = width n
-  | otherwise                           = length vs
-  where Struct vs _ _                   = lookup' ds n
-
-typeOfCon ds k
-  | isTuple k                           = (k, width k)
-  | otherwise                           = (k0, structArity ds k0)
-  where k0                              = structRoot ds k
-
+variants ds n0                          = [ n | (n,Struct _ _ (Extends n' _ _)) <- ds, n' == n0 ]
 
 typeOfSel ds l                          = head [ (k,vs,t) | (k,Struct vs te _) <- ds, (l',t) <- te, l'==l ]
 
@@ -387,18 +420,6 @@ instance CLift a => CLift [a] where
 cmap f                                  = clift (cMap (CRet . f))
 
 
-enter e ts es                           = EEnter e (prim Code) ts es
-
-multiEnter [] [] e                      = e
-multiEnter (ts:tss) es e                = multiEnter tss es2 (enter e [] es1)
-  where (es1,es2)                       = splitAt (length ts) es
-                                        
-
-closure t0 t te c                       = closure2 t0 [] t te c
-
-closure2 (TCon n ts) vs t te c          = ENew n ts [(prim Code, Fun vs t te c)]
-
-
 findStruct s0 []                        = Nothing
 findStruct s0 ((n,s):ds)
   | equalStructs (s0,s)                 = Just n
@@ -435,7 +456,56 @@ subexps _                               = []
 
 raises es                               = [ e | ECall (Prim Raise _) _ [e] <- es ]
 
-    
+
+class RefThis a where
+    refThis                             :: a -> Bool
+
+instance RefThis a => RefThis [a] where
+    refThis xs                          = any refThis xs
+
+instance RefThis a => RefThis (Name,a) where
+    refThis (_,x)                       = refThis x
+
+instance RefThis Exp where
+    refThis (EVar _)                    = False
+    refThis (EThis)                     = True
+    refThis (ELit _)                    = False
+    refThis (ESel e _)                  = refThis e
+    refThis (ENew _ ts bs)              = refThis ts || refThis bs
+    refThis (ECall _ ts es)             = refThis ts || refThis es
+    refThis (EEnter e _ ts es)          = refThis e || refThis ts || refThis es
+    refThis (ECast t e)                 = refThis t || refThis e
+
+instance RefThis Cmd where
+    refThis (CRet e)                    = refThis e
+    refThis (CRun e c)                  = refThis e || refThis c
+    refThis (CBind _ bs c)              = refThis bs || refThis c
+    refThis (CUpd _ e c)                = refThis e || refThis c
+    refThis (CUpdS e _ e' c)            = refThis [e,e'] || refThis c
+    refThis (CUpdA e e' e'' c)          = refThis [e,e',e''] || refThis c
+    refThis (CSwitch e alts)            = refThis e || refThis alts
+    refThis (CSeq c c')                 = refThis c || refThis c'
+    refThis (CBreak)                    = False
+    refThis (CRaise e)                  = refThis e
+    refThis (CWhile e c c')             = refThis e || refThis c || refThis c'
+    refThis (CCont)                     = False
+
+instance RefThis Alt where
+    refThis (ACon _ _ te c)             = refThis te || refThis c
+    refThis (ALit l c)                  = refThis c
+    refThis (AWild c)                   = refThis c
+
+instance RefThis Bind where
+    refThis (Val t e)                   = refThis t || refThis e
+    refThis (Fun vs t te c)             = refThis t || refThis te
+
+instance RefThis AType where
+    refThis (TCon _ ts)                 = refThis ts
+    refThis (TVar _ ts)                 = refThis ts
+    refThis (TThis i)                   = True
+
+
+
 -- Free variables ------------------------------------------------------------------------------------
 
 instance Ids Exp where
@@ -475,6 +545,7 @@ instance Ids Bind where
 instance Ids AType where
     idents (TCon c ts)                  = c : idents ts
     idents (TVar v ts)                  = v : idents ts
+    idents (TThis i)                    = []
 
 instance Ids Type where
     idents (ValT t)                     = idents t
@@ -526,6 +597,7 @@ instance TypeVars Alt where
 instance TypeVars AType where
     typevars (TCon _ ts)                = typevars ts
     typevars (TVar n ts)                = n : typevars ts
+    typevars (TThis i)                  = []
     
 -- Substitutions ------------------------------------------------------------------------------------------
 
@@ -577,11 +649,13 @@ instance Subst AType Name AType where
       where ts'                         = subst s ts
             appargs (TCon c ts)         = norm c (ts++ts')
             appargs (TVar v ts)         = TVar v (ts++ts')
+            appargs (TThis i)           = TThis i
 
-            norm (Prim Class _) [t]     = tClos 1 (t : [tInt])
-            norm (Prim Request _) [t]   = tClos 1 (t : [tInt])
-            norm (Prim Cmd _) [s,t]     = tClos 1 (t : [tRef s])
+            norm (Prim Class _) [t]     = tClos t [tInt]
+            norm (Prim Request _) [t]   = tClos t [tInt]
+            norm (Prim Cmd _) [s,t]     = tClos t [tRef s]
             norm c ts                   = TCon c ts
+    subst s (TThis i)                   = TThis i
 
 instance Subst Exp Name AType where
     subst s (ESel e l)                  = ESel (subst s e) l
@@ -640,7 +714,8 @@ prTyvars vs                             = text "<" <> commasep pr vs <> text ">"
 instance Pr Link where
     pr Top                              = empty
     pr Union                            = text "union"
-    pr (Extends n)                      = text "extends" <+> prId2 n
+    pr (Extends n ts [])                = text "extends" <+> pr (TCon n ts)
+    pr (Extends n ts vs)                = text "extends" <+> pr (TCon n ts) <+> text "hiding" <+> prTyvars vs
 
 
 instance Pr (Name, Type) where
@@ -649,8 +724,11 @@ instance Pr (Name, Type) where
 
 
 instance Pr AType where
+    pr (TCon (Prim CLOS _) ts0)         = prTyvars vs <+> prId2 (prim CLOS) <> prTyargs (t:ts)
+      where (vs,ts,t)                   = decodeCLOS ts0
     pr (TCon c ts)                      = prId2 c <> prTyargs ts
     pr (TVar v ts)                      = prId2 v <> prTyargs ts
+    pr (TThis i)                        = text ('#' : show i)
 
 prTyargs []                             = empty
 prTyargs ts                             = text "<" <> commasep pr ts <> text ">"
@@ -740,6 +818,7 @@ prInit b                                = pr b
 instance HasPos AType where
   posInfo (TCon n ts)           = between (posInfo n) (posInfo ts)
   posInfo (TVar n ts)           = between (posInfo n) (posInfo ts)
+  posInfo (TThis i)             = Unknown
 
 
 -- Binary --------------------
@@ -759,13 +838,13 @@ instance Binary Decl where
 instance Binary Link where
     put Top = putWord8 0
     put Union = putWord8 1
-    put (Extends n) = putWord8 2 >> put n
+    put (Extends a b c) = putWord8 2 >> put a >> put b >> put c
     get = do
       tag_ <- getWord8
       case tag_ of
         0 -> return Top
         1 -> return Union
-        2 -> get >>= \a -> return (Extends a)
+        2 -> get >>= \a -> get >>= \b -> get >>= \c -> return (Extends a b c)
         _ -> fail "no parse"
 {-
 instance Binary Bind where
@@ -791,10 +870,12 @@ instance Binary Type where
 instance Binary AType where
   put (TCon a b) = putWord8 0 >> put a >> put b
   put (TVar a b) = putWord8 1 >> put a >> put b
+  put (TThis a) = putWord8 2 >> put a
   get = do
     tag_ <- getWord8
     case tag_ of
       0 -> get >>= \a -> get >>= \b -> return (TCon a b)
       1 -> get >>= \a -> get >>= \b -> return (TVar a b)
+      2 -> get >>= \a -> return (TThis a)
       _ -> fail "no parse"
 

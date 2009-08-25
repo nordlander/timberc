@@ -287,9 +287,11 @@ data Prim                       =
                                 | After
                                 | Before
                                 
-                                | CLOS1                 -- Low arity (polymorphic) closure types
+                                | CLOS1                 -- Low arity closure types
                                 | CLOS2
                                 | CLOS3
+
+                                | CLOS                  -- Generic closure type
                                 
                                 | NEWREF                -- RTS entry points
                                 | ASYNC
@@ -328,12 +330,6 @@ data Prim                       =
 minPrim                         = minBound :: Prim
 maxPrim                         = maxBound :: Prim
 
-maxPrimClos                     = 3 :: Int
-primClos 1                      = CLOS1
-primClos 2                      = CLOS2
-primClos 3                      = CLOS3
-isClosPrim p                    = p `elem` [CLOS1 .. CLOS3]
-
 isConPrim p                     = p <= MAX____CONS
 
 invisible p                     = p >= MIN____INVISIBLE
@@ -354,9 +350,9 @@ primSels                        = map primKeyValue [MIN____SELS .. MAX____SELS]
                                   
 primKeyValue p                  = (name0 (strRep p), prim p)
 
-rigidNames		        = map rigidKeyValue [IndexArray, LazyAnd, LazyOr]
+rigidNames		                = map rigidKeyValue [IndexArray, LazyAnd, LazyOr]
 
-rigidKeyValue p			= (strRep p, prim p)
+rigidKeyValue p			        = (strRep p, prim p)
 
 lowPrims                        = [New,Sec,Millisec,Microsec,Nanosec,Raise,Catch,Baseline,Deadline,Next,
                                    Infinity,Reset,Sample,SecOf,MicrosecOf,Abort,
@@ -414,7 +410,6 @@ modId (Name s t (Just m) a)     = Name (m++'.':s) t Nothing a
 prim p                          = Prim p noAnnot
 
 tuple n                         = Tuple n noAnnot
-
 
 splitString s                   = case break (=='.') s of
                                     (local,[])  -> [local]                                 
@@ -476,7 +471,6 @@ skolemSym                       = "sk"
 selfSym                         = "self"
 thisSym                         = "this"
 instanceSym                     = "inst"
-closureSym                      = "CLOS"
 tappSym                         = "TApp"
 tabsSym                         = "TAbs"
 gcinfoSym                       = "__GC__"
@@ -486,7 +480,6 @@ isAssumption n                  = isGenerated n && str n == assumptionSym
 isEtaExp n                      = isGenerated n && str n == etaExpSym
 isCoercion n                    = isGenerated n && str n == coercionSym
 isPatTemp n                     = isGenerated n && str n == patSym
-isClosure n                     = isGenerated n && isPrefixOf closureSym (str n)
 isDummy n                       = isGenerated n && str n == dummySym
 isCoerceLabel n                 = isGenerated n && isPrefixOf coerceLabelSym (str n)
 isCoerceConstr n                = isGenerated n && isPrefixOf coerceConstrSym (str n)
@@ -500,15 +493,15 @@ explicitSyms                    = [coercionSym, assumptionSym, witnessSym]
 -- Testing Names ----------------------------------------------------------------
 
 isId (Name s _ _ _)             = isIdent (head s)
-isId (Tuple _ _)                = True
 isId (Prim p _)                 = isIdPrim p
+isId _                          = True
 
 isSym i                         = not (isId i)
 
 
 isCon (Name (c:_) _ _ _)        = isIdent c && isUpper c || c == ':'
-isCon (Tuple _ _)               = True
 isCon (Prim p _)                = isConPrim p
+isCon _                         = True
 
 isTuple (Tuple _ _)             = True
 isTuple _                       = False
@@ -579,7 +572,7 @@ prId2 n                         = prId n
 
 
 prId3 n@(Name s t m a)
-  | t == 0 || isClosure n || isCoerceLabel n || isCoerceConstr n 
+  | t == 0 || isCoerceLabel n || isCoerceConstr n 
                                 = text (s ++ maybe "" (('_' :) . modToundSc) m)
 prId3 (Name s t (Just _) a)
   | not (public a)            = text (s ++ '_':show t)

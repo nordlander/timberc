@@ -110,54 +110,13 @@ findDecl env k
   | otherwise                       = lookup' (decls env) k
   
 
--- Look up a closure type (a Kindle.Struct) in the current store, extending the store if necessary
-findClosureType env [] ts t
-  | a == 0                          = internalError0 "findClosureType [] []"
-  | a <= maxPrimClos                = return (Kindle.tClos a (t:ts))
-  | otherwise                       = do ds <- currentStore
-                                         -- tr ("Looking for (1) " ++ render (pr (name0 "closure", Kindle.FunT [] ts t)))
-                                         case Kindle.findStruct s0 ds of
-                                            Just n  -> return (Kindle.TCon n (t:ts))
-                                            Nothing -> do
-                                               n <- newNameMod (mname env) (closureSym ++ show a)
-                                               addToStore (n, s0)
-                                               return (Kindle.TCon n (t:ts))
-  where s0                          = Kindle.Struct vs0 [(prim Code, Kindle.FunT [] (tail ts0) (head ts0))] Kindle.Top
-        vs0                         = take (a + 1) abcSupply
-        ts0                         = map Kindle.tVar vs0
-        a                           = length ts
-findClosureType env vs ts t         = do ds <- currentStore
-                                         -- tr ("Looking for (2) " ++ render (pr (name0 "closure", Kindle.FunT vs ts t)))
-                                         case Kindle.findStruct s0 ds of
-                                            Just n  -> return (Kindle.TCon n ts0)
-                                            Nothing -> do
-                                               n <- newNameMod (mname env) closureSym
-                                               addToStore (n, s0)
-                                               return (Kindle.TCon n ts0)
-  where s0                          = Kindle.Struct vs0 [(prim Code, Kindle.FunT vs ts t)] Kindle.Top
-        vs0                         = nub (Kindle.typevars (t:ts) \\ vs)
-        ts0                         = map Kindle.tVar vs0
-
-
-openClosureType (Kindle.TCon (Prim p _) (t:ts))
-  | isClosPrim p                    = return ([], ts, t)
-openClosureType (Kindle.TCon n ts)
-  | isClosure n                     = do ds <- currentStore
-                                         let Kindle.Struct vs te _ = lookup' ds n
-                                             Kindle.FunT vs' ts' t' = lookup' te (prim Code)
-                                             s = vs `zip` ts
-                                         return (vs', subst s ts', subst s t')
-openClosureType t                   = internalError "Core2Kindle.openClosureType" t
-
-
-splitClosureType env 0 t0           = return ([], t0)
-splitClosureType env n t0           = do ([],ts,t) <- openClosureType t0
-                                         let n' = n - length ts
-                                         if n' >= 0 then do
-                                             (tss,t1) <- splitClosureType env n' t
-                                             return (ts:tss, t1)
-                                          else 
-                                             return ([], t0)
+splitClosureType env 0 t0           = ([], t0)
+splitClosureType env n t0
+  | n' >= 0                         = (ts:tss, t1)
+  | otherwise                       = ([], t0)
+  where ([],ts,t)                   = Kindle.openClosureType t0
+        n'                          = n - length ts
+        (tss,t1)                    = splitClosureType env n' t
                                              
                                          
 -- =========================================================================================
@@ -166,8 +125,7 @@ splitClosureType env n t0           = do ([],ts,t) <- openClosureType t0
 
 -- Translate a Core.Module into a Kindle.Module
 cModule e2 e3 (Module m ns xs es ds ws bss)
-                                    = do mapM_ addToStore (filter (isClosure . fst) e3)
-                                         te0 <- tenvImp env e2
+                                    = do te0 <- tenvImp env e2
                                          ds1  <- cDecls env ds
                                          let env1 = addTEnv te0 (addDecls ds1 env)
                                          te1 <- cTEnv env1 (extsMap es)
@@ -199,8 +157,9 @@ cDecls env (Types ke ds)            = do dss <- mapM cDecl ds
 
         cCon n vs (c,Constr ts ps ke) 
                                     = do te' <- cValTEnv env te
-                                         return (injectCon c, Kindle.Struct (vs++dom ke) te' (Kindle.Extends n))
+                                         return (injectCon c, Kindle.Struct (vs++vs') te' (Kindle.Extends n (map Kindle.tVar vs) vs'))
           where te                  = abcSupply `zip` (ps++ts)
+                vs'                 = dom ke
 
 
 injectCon (Name s t m a)            = Name ('_':s) t m a
@@ -266,14 +225,14 @@ cType' env (t, _)                       = do t <- cAType env t
 cAType env t                            = do (ts, t) <- cType env t
                                              case ts of
                                                 [] -> return t
-                                                _  -> findClosureType env [] ts t
+                                                _  -> return (Kindle.tClos t ts)
 
 
 -- Translate a Core.Scheme unconditionally into a Kindle.AType
 cAScheme env sc                         = do t0 <- cScheme env sc
                                              case t0 of
                                                Kindle.ValT t -> return t
-                                               Kindle.FunT vs ts t -> findClosureType env vs ts t
+                                               Kindle.FunT vs ts t -> return (Kindle.tClos2 vs t ts)
 
 
 -- Translate a Core.Scheme unconditionally into a ValT variant of a Kindle.Type
@@ -355,19 +314,19 @@ adaptVars env (t0:ts) ((x,t1):te)       = do f <- adaptVal env [] t0 [] t1
 
 adaptVal env [] s [] t
   | s == t                              = return id                                                                 -- A
-adaptVal env se s [] t                  = do ([],ts,t1) <- openClosureType t
-                                             adaptVal env se s ts t1                                                -- B
+adaptVal env se s [] t                  = adaptVal env se s ts t1                                                -- B
+  where ([],ts,t1)                      = Kindle.openClosureType t
 adaptVal env se s ts t
-  | l_se >= l_ts                        = do let (se1,se2) = splitAt l_ts se
-                                             es <- adaptVars env ts se1
+  | l_se >= l_ts                        = do es <- adaptVars env ts se1
                                              f <- adaptVal env se2 s [] t
                                              return (\e -> f (Kindle.enter e [] es))                                -- C
-  | otherwise {- l_se < l_ts -}         = do ([],ss,s1) <- openClosureType s
-                                             se' <- newEnv paramSym ss
+  | otherwise {- l_se < l_ts -}         = do se' <- newEnv paramSym ss
                                              f <- adaptVal env (se++se') s1 ts t
-                                             return (\e -> Kindle.closure s s1 se' (Kindle.CRet (f e)))             -- D
+                                             return (\e -> Kindle.closure s1 se' (Kindle.CRet (f e)))             -- D
   where l_se                            = length se
         l_ts                            = length ts
+        (se1,se2)                       = splitAt l_ts se
+        ([],ss,s1)                      = Kindle.openClosureType s
 
 adaptVals env [] []                     = return id
 adaptVals env (s:ss) (t:ts)             = do f <- adaptVal env [] s [] t
@@ -396,16 +355,17 @@ adaptEnv env (s:ss) ((x,t):te)
 
 adaptFun env ss s te t c
   | s:ss == t:rng te                    = return (te, t, c)
-  | l_ss >=  l_te                       = do (tss,t') <- splitClosureType env (l_ss - l_te) t
-                                             te' <- newEnv paramSym (concat tss)
+  | l_ss >=  l_te                       = do te' <- newEnv paramSym (concat tss)
                                              (bf,se) <- adaptEnv env ss (te++te')
                                              f <- adaptVal env [] s [] t'
                                              return (se, s, bf (Kindle.cmap (f . Kindle.multiEnter tss (map Kindle.EVar (dom te'))) c))
   | otherwise {- l_ss <  l_te -}        = do let (te1,te2) = splitAt l_ss te
-                                             t1 <- findClosureType env [] (rng te2) t
-                                             adaptFun env ss s te1 t1 (Kindle.CRet (Kindle.closure t1 t te2 c))
+                                                 t1 = Kindle.tClos t (rng te2)
+                                             adaptFun env ss s te1 t1 (Kindle.CRet (Kindle.closure t te2 c))
   where l_ss                            = length ss
         l_te                            = length te
+        (tss,t')                        = splitClosureType env (l_ss - l_te) t
+
         
 
 -- []         (s1 -> s2 -> s3)               []         (t1 t2 -> t3)                  e                             ^                          B
@@ -457,7 +417,7 @@ cFun0 env e                             = do (te,t,c) <- cFun env e
 cFun env (ELam te e)                    = do te <- cATEnv env te
                                              (te',t,c) <- cFun (addATEnv te env) e
                                              return (te ++ te', t, c)
-cFun env (EReq e (EDo x tx c))          = do tx <- fmap Kindle.tRef (cAType env tx)
+cFun env (EReq e (EDo x tx0 c))         = do tx <- fmap Kindle.tRef (cAType env tx0)
                                              (bf,e) <- cValExpT env tx e
                                              (t,c) <- cCmd (pushSelf x (addATEnv [(x,tx)] env)) c
                                              let bf' = Kindle.cBind [(x,Kindle.Val tx (Kindle.lock tx e))]
@@ -472,7 +432,7 @@ cFun env (EReq e e')                    = do (bf,tx,e) <- cValExp env e
 cFun env e@(EAct _ _)                   = cAct env id id e
 cFun env e@(EAp e0 _) 
   | isPrim After e0 || isPrim Before e0 = cAct env id id e
-cFun env (ETempl x tx te c)             = do tx@(Kindle.TCon n []) <- cAType env tx  -- Type-checker guarantees tx is a struct type name
+cFun env (ETempl x tx0 te c)            = do tx@(Kindle.TCon n []) <- cAType env tx0  -- Type-checker guarantees tx is a struct type name
                                              te <- cValTEnv env te
                                              (t,c) <- cCmd (pushSelf x (addATEnv [(x,Kindle.tRef tx)] (addTEnv te env))) c
                                              addToStore (n, Kindle.Struct vs te Kindle.Top)
@@ -481,7 +441,7 @@ cFun env (ETempl x tx te c)             = do tx@(Kindle.TCon n []) <- cAType env
                                              return ([(y,Kindle.tInt)], t, Kindle.cBind [(x,Kindle.Val (Kindle.tRef tx) e)] c)
   where vs                              = nub (tyvars te)
         ts                              = map Kindle.tVar vs
-cFun env (EDo x tx c)                   = do tx <- fmap Kindle.tRef (cAType env tx)
+cFun env (EDo x tx0 c)                  = do tx <- fmap Kindle.tRef (cAType env tx0)
                                              (t,c) <- cCmd (pushSelf x (addATEnv [(x,tx)] env)) c
                                              return ([(x,tx)], t, c)
 cFun env e                              = do (t,r) <- cBody env e
@@ -533,7 +493,7 @@ cAlt cBdy env (PWild, e)                = do (t1,r) <- cBdy env e
                                              return (t1, rcomp Kindle.AWild r)
 cAlt cBdy env (PCon k, e)               = do (vs,te,t,r) <- cRhs0 cBdy env (length te0) e
                                              return (t, rcomp (Kindle.ACon (injectCon k) vs te) r)
-  where Kindle.Struct vs0 te0 _         = findDecl env k
+  where Kindle.Struct _ te0 _           = findDecl env k
 
 
 -- Translate a Core right-hand-side into a Kindle.Cmd result, a binding, and a type abstraction
@@ -551,10 +511,10 @@ cRhs cBdy env n te e
   | n == l_te                           = do (t,r) <- cBdy env e
                                              return (te, t, r)
   | n < l_te                            = do (t,r) <- cBdy env e
-                                             t' <- findClosureType env [] (rng te2) t
-                                             return (te1, t', rcomp (Kindle.CRet . Kindle.closure t' t te2) r)
+                                             let t' = Kindle.tClos t (rng te2)
+                                             return (te1, t', rcomp (Kindle.CRet . Kindle.closure t te2) r)
   | n > l_te                            = do (t,r) <- cBdy env e
-                                             (tss,t') <- splitClosureType env (n - l_te) t
+                                             let (tss,t') = splitClosureType env (n - l_te) t
                                              te' <- newEnv paramSym (concat tss)
                                              let f = Kindle.multiEnter tss (map Kindle.EVar (dom te'))
                                              return (te++te', t', rcomp (Kindle.cmap f) r)
@@ -611,7 +571,7 @@ cExpFail env e0                         = do [t] <- cTArgs env e0
                                              return (t, ValR Kindle.CBreak)
 
 cCmdFail env e0                         = do [t] <- cTArgs env e0
-                                             ([],[_],t') <- openClosureType t
+                                             let ([],[_],t') = Kindle.openClosureType t
                                              return (t', ValR Kindle.CBreak)
 
 -- Translate the parts of a case expression into a Kindle.Cmd result
@@ -634,19 +594,19 @@ adaptR env (s,ValR _) (t,ValR c)
                                              return (s, ValR (Kindle.cmap f c))
 adaptR env (s,FunR _ ss) (t, FunR f ts)
   | s:ss == t:ts                        = return (s, FunR f ss)
-  | l_ss >= l_ts                        = do (tss,t') <- splitClosureType env (l_ss - l_ts) t
-                                             g <- adaptVals env (ts ++ concat tss) ss
+  | l_ss >= l_ts                        = do g <- adaptVals env (ts ++ concat tss) ss
                                              h <- adaptVal env [] s [] t'
                                              return (s, FunR (sat g h tss) ss)
   where l_ss                            = length ss
         l_ts                            = length ts
+        (tss,t')                        = splitClosureType env (l_ss - l_ts) t
         sat g h tss es                  = let (es1,es2) = splitAt l_ts (g es)
                                           in Kindle.cmap (h . Kindle.multiEnter tss es2) (f es1)
-adaptR env (s,FunR _ ss) (t,ValR c)     = do (tss,t') <- splitClosureType env (length ss) t
-                                             g <- adaptVals env (concat tss) ss
+adaptR env (s,FunR _ ss) (t,ValR c)     = do g <- adaptVals env (concat tss) ss
                                              h <- adaptVal env [] s [] t'
                                              return (s, FunR (sat g h tss) ss)
-  where sat g h tss es                  = Kindle.cmap (h . Kindle.multiEnter tss (g es)) c
+  where (tss,t')                        = splitClosureType env (length ss) t
+        sat g h tss es                  = Kindle.cmap (h . Kindle.multiEnter tss (g es)) c
 
 
 maxR (r:rs)                             = max (arity r) r rs
@@ -698,8 +658,8 @@ cCmd env (CGen x tx (ECase e alts) c)
   where alts'                           = filter useful alts
         useful (_,EDo _ _ (CRet (ECon (Prim UNITTERM _))))  = False
         useful _                                            = True
-cCmd env (CGen x tx e c)                = do (bf,te,e) <- freezeState env e
-                                             tx <- cAType env tx
+cCmd env (CGen x tx0 e c)               = do (bf,te,e) <- freezeState env e
+                                             tx <- cAType env tx0
                                              (bf',e) <- cValExpT (addTEnv te env) tx (EAp e [EVar (self env)])
                                              (t,c) <- cCmd (addATEnv [(x,tx)] env) c
                                              return (t, bf (bf' (Kindle.cBind [(x,Kindle.Val tx e)] c)))
@@ -717,12 +677,12 @@ cCmdExp env (EAp e0 [e])
   | isPrim Raise e0                     = do (bf,te,e) <- freezeState env e
                                              (bf',_,e') <- cValExp (addTEnv te env) e
                                              [t] <- cTArgs env e0
-                                             ([],[_],t') <- openClosureType t
+                                             let ([],[_],t') = Kindle.openClosureType t
                                              return (t', bf (bf' (Kindle.CRaise e')))
   | isPrim Match e0                     = do (bf,te,e) <- freezeState env e
                                              (t,ValR c) <- cPMC cValCmdExp cCmdFail (addTEnv te env) e
                                              return (t, bf (Kindle.CSeq c (Kindle.CRaise (Kindle.ELit (lInt 1)))))
-cCmdExp env (EDo x tx c)                = do tx <- cAType env tx
+cCmdExp env (EDo x tx0 c)               = do tx <- cAType env tx0
                                              (t,c) <- cCmd (pushSelf x (addATEnv [(x,Kindle.tRef tx)] env)) c
                                              return (t, Kindle.cBind [(x,Kindle.Val (Kindle.tRef tx) (Kindle.EVar (self env)))] c)
 cCmdExp env (ECase e alts)              = do (bf,te,e) <- freezeState env e
@@ -841,7 +801,7 @@ cExp env (EAp e es)
                                              appFun env bf t f ts es
   where appFun env bf t f ts es
           | l_ts <  l_es                = do (bf',es1) <- cValExpTs env ts es1
-                                             ([],ts',t') <- openClosureType t 
+                                             let ([],ts',t') = Kindle.openClosureType t 
                                              appFun env (bf . bf') t' (Kindle.enter (f es1) []) ts' es2
           | l_ts == l_es                = do (bf',es) <- cValExpTs env ts es
                                              return (bf . bf', t, ValR (f es))
@@ -853,17 +813,15 @@ cExp env (EAp e es)
                 (es1,es2)               = splitAt l_ts es
 cExp env (EVar x)                       = case lookup' (tenv env) x of
                                              Kindle.ValT t
-                                               | null ts          -> return (id, t, ValR e)
-                                               | otherwise        -> do (vs,ts',t') <- openClosureType t
-                                                                        let s = vs `zip` ts
-                                                                        if null ts' then
-                                                                            return (id, subst s t', ValR (Kindle.enter e ts []))
-                                                                         else
-                                                                            return (id, subst s t', FunR (Kindle.enter e ts) (subst s ts'))
+                                               | null ts         -> return (id, t, ValR e)
+                                               | null ts'        -> return (id, subst s t', ValR (Kindle.enter e ts []))
+                                               | otherwise       -> return (id, subst s t', FunR (Kindle.enter e ts) (subst s ts'))
+                                               where (vs,ts',t')  = Kindle.openClosureType t
+                                                     s            = vs `zip` ts
                                              Kindle.FunT vs ts' t 
-                                               | null ts'         -> return (id, subst s t, ValR (Kindle.ECall x ts []))
-                                               | otherwise        -> return (id, subst s t, FunR (Kindle.ECall x ts) (subst s ts'))
-                                               where s             = vs `zip` ts
+                                               | null ts'        -> return (id, subst s t, ValR (Kindle.ECall x ts []))
+                                               | otherwise       -> return (id, subst s t, FunR (Kindle.ECall x ts) (subst s ts'))
+                                               where s            = vs `zip` ts
   where e                               = if stateVar (annot x) then Kindle.ESel (stateRef env) x else Kindle.EVar x
         ts                              = tArgs env
 cExp env (ESel e l)                     = do (bf,e) <- cValExpT (setTArgs env []) (Kindle.TCon k ts0) e
@@ -873,24 +831,27 @@ cExp env (ESel e l)                     = do (bf,e) <- cValExpT (setTArgs env []
                                                  where s            = vs `zip` ts1
   where (k,vs0,rhstype)                 = Kindle.typeOfSel (decls env) l
         (ts0,ts1)                       = splitAt (length vs0) (tArgs env)  -- tArgs lists *full* instantiation, not just local quantification
-cExp env (ECon k)                       = case te of
+cExp env (ECon k) 
+  | isTuple k                           = case ts of
+                                             [] -> return (id, Kindle.TCon k [], ValR (Kindle.ENew k [] []))
+                                             _  -> return (id, Kindle.TCon k ts, FunR (Kindle.ENew k ts . mkBinds abcSupply ts) ts)
+  | otherwise                           = case te of
                                              [] -> return (id, t0, ValR (newK []))
                                              _  -> return (id, t0, FunR (newK . mkBinds abcSupply ts') ts')
   where ts                              = tArgs env
-        Kindle.Struct vs te _           = findDecl env k
-        ts'                             = subst (vs `zip` ts) (map (Kindle.rngType . snd) te)
-        (k0,n)                          = Kindle.typeOfCon (decls env) k
-        t0                              = Kindle.TCon k0 (take n ts)
-        newK | isTuple k                = Kindle.ENew k ts
-             | otherwise                = Kindle.ECast t0 . Kindle.ENew (injectCon k) ts
+        Kindle.Struct vs te (Kindle.Extends k0 ts0 _) = findDecl env k
+        s                               = vs `zip` ts
+        ts'                             = subst s (map Kindle.rngType (rng te))
+        t0                              = Kindle.TCon k0 (subst s ts0)
+        newK                            = Kindle.ECast t0 . Kindle.ENew (injectCon k) ts
 cExp env e                              = do (vs,te,t,c) <- cFun0 env e
                                              case (vs,te) of
                                                ([],[]) -> do
                                                   x <- newName tempSym
                                                   return (Kindle.cBind [(x, Kindle.Fun [] t [] c)], t, ValR (Kindle.ECall x [] []))
-                                               _  -> do 
-                                                  t' <- findClosureType env vs (rng te) t
-                                                  return (id, t', ValR (Kindle.closure2 t' vs t te c))
+                                               _  -> return (id, t', ValR (Kindle.closure2 vs t te c))
+                                                  where t' = Kindle.tClos2 vs t (rng te)
+                                                  
 
 
 -- Translate a Core.Exp into a Kindle value expression
@@ -900,18 +861,18 @@ cValExp env e                           = do (bf,t,h) <- cExp env e
                                                   return (bf, t, e)
                                                FunR f ts -> do
                                                   xs <- newNames paramSym (length ts)
-                                                  t' <- findClosureType env [] ts t
-                                                  let es = map Kindle.EVar xs
+                                                  let t' = Kindle.tClos t ts
+                                                      es = map Kindle.EVar xs
                                                       te = xs `zip` ts
-                                                  return (bf, t', Kindle.closure t' t te (Kindle.CRet (f es)))
+                                                  return (bf, t', Kindle.closure t te (Kindle.CRet (f es)))
 
 
 -- Translate a Core.Exp into a Kindle function
 cFunExp env e                           = do (bf,t,h) <- cExp env e
                                              case h of
                                                FunR f ts -> return (bf, t, f, ts)
-                                               ValR e' -> do ([],ts,t') <- openClosureType t
-                                                             return (bf, t', Kindle.enter e' [], ts)
+                                               ValR e'   -> return (bf, t', Kindle.enter e' [], ts)
+                                                 where ([],ts,t') = Kindle.openClosureType t
  
 
 -- Map a Kindle.ATEnv (unzipped) and a list of Kindle.Exps into a list of Kindle.Binds
@@ -944,10 +905,4 @@ cTArgs env e                            = return []
 
 
 -- Additional entry point for translating imported environments
-c2kTEnv ds te                         = localStore f
-  where f                               = do mapM_ addToStore (filter (isClosure . fst) ds)
-                                             te <- cTEnv env0 te
-                                             return (filter p te)
---        p (_,Kindle.FunT _ _ (Kindle.TCon n _))    
---                                        = not (isClosure n) -- ???
-        p _                             = True
+c2kTEnv ds te                           = cTEnv env0 te

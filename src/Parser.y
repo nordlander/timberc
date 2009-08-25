@@ -416,6 +416,8 @@ exp10as :: { Exp }
         | loc 'class' stmtlist                  { ETempl Nothing Nothing (checkClass $3) }
         | loc 'action' stmtlist                 { EAct Nothing (checkStmts $3) }
         | loc 'request' stmtlist                { EReq Nothing (checkStmts $3) }
+--        | 'forall' quals 'do' stmtlist          { EDo Nothing Nothing (checkStmts $4) }
+--        | 'forall' quals 'class' stmtlist       { ETempl Nothing Nothing (checkClass $4) }
         | con '{'  layout_off recbinds '}'      { ERec (Just ($1,True)) (reverse $4) } 
         | con '{'  layout_off recbinds '..' '}' { ERec (Just ($1,False)) (reverse $4) } 
         | con '{'  layout_off recbinds ',' '..' '}' { ERec (Just ($1,False)) (reverse $4) } 

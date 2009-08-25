@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternGuards, ParallelListComp #-}
+{-# LANGUAGE PatternGuards, ParallelListComp, FlexibleInstances #-}
 
 -- The Timber compiler <timber-lang.org>
 --
@@ -150,10 +150,10 @@ redRet env (EEnter e f ts es)           = do c <- redRet env e
 redRet env e                            = return (CRet e)
 
 
-ff env f ts es (ENew n _ bs)            = subst (vs `zip` ts) (subst (dom te `zip` es) c)
+ff env f ts es (ENew n _ bs)
+  | not (refThis c)                     = subst (vs `zip` ts) (subst (dom te `zip` es) c)
   where Fun vs t te c                   = lookup' bs f
 ff env f ts es e                        = CRet (EEnter e f ts es)
-
 
 
 -- Convert a switch alternative
@@ -186,14 +186,15 @@ redExp env (ECast t e)                  = liftM (ECast t) (redExp env e)
 
 
 redEnter env e@(ENew n _ bs) f ts es    = case c of
-                                             CRet e' -> return (subst (vs `zip` ts) (subst (dom te `zip` es) e'))
-                                             _       -> return (EEnter e f ts es)
+                                             CRet e' | not (refThis e') 
+                                                    -> return (subst (vs `zip` ts) (subst (dom te `zip` es) e'))
+                                             _      -> return (EEnter e f ts es)
   where Fun vs t te c                   = lookup' bs f
 redEnter env e f ts es                  = return (EEnter e f ts es)
 
 
-redNew env n _ [(Prim Code _, Fun vs _ te (CRet (EEnter e (Prim Code _) ts es)))]
-  | ts == map tVar vs && es == map EVar (dom te)
+redNew env _ _ [(Prim Code _, Fun vs _ te (CRet (EEnter e (Prim Code _) ts es)))]
+  | ts == map tVar vs && es == map EVar (dom te) && not (refThis e)
                                         = return e
 redNew env n ts bs                      = return (ENew n ts bs)
 
