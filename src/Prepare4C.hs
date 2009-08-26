@@ -108,17 +108,17 @@ bitSplit i                      = (i `div` 32, i `mod` 32)
 
 setThis x env                   = env { this = Just x }
 
-findValT xx te x                = t
-  where ValT t                  = lookup'' xx te x
+findValT te x                   = t
+  where ValT t                  = lookup' te x
   
 findFunT te x ts                = (vs `zip` ts, ts', t)
-  where FunT vs ts' t           = lookup'' "B" te x
+  where FunT vs ts' t           = lookup' te x
 
-findStructTEnv xx env (TCon n ts)
+findStructTEnv env (TCon n ts)
   | isTuple n                   = (abcSupply `zip` ts, abcSupply `zip` map (ValT . tVar) (take (width n) abcSupply))
   | n == prim CLOS              = ([], closBind ts)
   | otherwise                   = (vs `zip` ts, te)
-  where Struct vs te _          = lookup'' xx (decls env) n
+  where Struct vs te _          = lookup' (decls env) n
 
 findStructEQuant env n ts
   | isTuple n                   = []
@@ -132,14 +132,14 @@ findStructInfo env n
   | n == prim CLOS              = (1, [])
   | otherwise                   = lookup' (strinfo env) n
 
-findPolyTag xx env v            = lookup'' (xx ++ ": " ++ show (polyenv env)) (polyenv env) v
+findPolyTag xx env v            = lookup' (polyenv env) v
 
-conLit env n                    = lInt (lookup'' "GGG" (conval env) n)
+conLit env n                    = lInt (lookup' (conval env) n)
 
 allCons env (ACon n _ _ _ : _)
   | isTuple n                   = [n]
   | otherwise                   = variants (decls env) n0
-  where Struct _ _ (Extends n0 _ _) = lookup'' "Apa" (decls env) n
+  where Struct _ _ (Extends n0 _ _) = lookup' (decls env) n
 allCons env _                   = []
 
 
@@ -182,7 +182,6 @@ gcInfoName n@(Name s t m a)
   | okForC s                    = Name (gcinfoSym ++ s) t m a
   | otherwise                   = Name (gcinfoSym ++ "_sym_" ++ show t) t m a
 gcInfoName (Tuple n a)          = Name (gcinfoSym ++ "TUP" ++ show n) 0 Nothing a
---gcInfoName (Clos n a)           = Name (gcinfoSym ++ "CLOSURE") 0 Nothing a
 gcInfoName (Prim p a)           = Name (gcinfoSym ++ strRep2 p) 0 Nothing a
 
 
@@ -239,8 +238,7 @@ intlit i                        = ECast tBITS32 (ELit (lInt i))
 -- =============================
     
 pModule (Core.Module _ _ _ es' _ _ [bs']) dsi (Module m ns es ds bs)      
-                                = do -- tr (render (vcat (map pr dsi))
-                                     let te2 = Core.tsigsOf bs' ++ extsMap es'
+                                = do let te2 = Core.tsigsOf bs' ++ extsMap es'
                                      tei <- Core2Kindle.c2kTEnv dsi te2 
                                      let env1 = addTEnv (primTEnv++tei++es) (addDecls (primDecls++dsi) env0)
                                          env  = addTEnv (mapSnd typeOf bs) (addDecls ds env1)
@@ -277,7 +275,7 @@ gcinfo env ds                   = map f (prune ds (nulls env))
                 l_vs1           = length vs1
                 idx             = vs1 `zip` [0..]
                 bitRef (n,v)    = [ EVar n, ELit (lInt (i `div` 32 + 1)), ELit (lInt (i `mod` 32)) ]
-                  where i       = lookup'' "DDD" idx v
+                  where i       = lookup' idx v
 
 pad n es                        = es ++ replicate (n - length es) (ELit (lInt 0))
 
@@ -297,17 +295,17 @@ isScalar n                      = False
 varFields te                    = [ (n,v) | (n,ValT (TVar v _)) <- te ]
 
 
--- Simplify types
-pType (ValT t)                  = ValT (erase t)
-pType (FunT vs ts t)            = FunT [] (polyTagTypes (length vs) ++ map erase ts) (erase t)
+-- Prepare types
+pType (ValT t)                  = ValT (pAType t)
+pType (FunT vs ts t)            = FunT [] (polyTagTypes (length vs) ++ map pAType ts) (pAType t)
 
 
--- Erase polymorphism from atomic types
-erase (TCon n _)                = TCon n []
-erase (TVar _ _)                = tPOLY
-erase (TThis _)                 = tPOLY
+-- Prepare atomic types: erase polymorphism and uniformly represent big tuples
+pAType (TCon n _)               = TCon n []
+pAType (TVar _ _)               = tPOLY
+pAType (TThis _)                = tPOLY
 
-eraseEnv te                     = mapSnd erase te
+pATEnv te                       = mapSnd pAType te
 
 
 -- =============================
@@ -320,20 +318,20 @@ pBinds f env xs                 = do (bfs,xs) <- fmap unzip (mapM (f env) xs)
 
 -- Prepare top-level & cmd bindings (assume code is lambda-lifted)
 pBind env (x, Val t e)          = do (bf,t',e) <- pRhsExp env e 
-                                     return (bf, (x, Val (erase t) (cast t t' e)))
+                                     return (bf, (x, Val (pAType t) (cast t t' e)))
 pBind env (x, Fun vs t te c)    = do te' <- newEnv paramSym (polyTagTypes (length vs))
                                      c <- pCmd (addVals te (addPolyEnv vs (dom te') env)) t c
-                                     return (id, (x, Fun [] (erase t) (te' ++ eraseEnv te) c))
+                                     return (id, (x, Fun [] (pAType t) (te' ++ pATEnv te) c))
 
 
 -- Prepare struct bindings (assume code is lambda-lifted)
 pSBind _ te0 env (x,Val t e)    = do (bf,e) <- pExpT env t e 
-                                     return (bf, (x, Val (erase t0) (cast t0 t e)))
-  where t0                      = findValT "1" te0 x
+                                     return (bf, (x, Val (pAType t0) (cast t0 t e)))
+  where t0                      = findValT te0 x
 pSBind _ te0 env (x,Fun [] t te c@(CRet (ECall f [] (EThis:es))))
   | okAlready                   = return (id, (x, Fun [] t te c))
   where (_,ts0,t0)              = findFunT te0 x []
-        okAlready               = t == erase t0 && rng te == map erase ts0 && es == map EVar (dom te)
+        okAlready               = t == pAType t0 && rng te == map pAType ts0 && es == map EVar (dom te)
 pSBind ty te0 env (x,Fun vs t te c)
                                 = do y <- newName thisSym
                                      te0 <- newEnv paramSym ts0
@@ -341,14 +339,14 @@ pSBind ty te0 env (x,Fun vs t te c)
                                      let bs0  = [ (x, Val t (cast t t0 (EVar x0))) | (x0,t0) <- te0 | (x,t) <- te ]
                                          te1  = [ if isEVar e then (x,t) else xt0 | (x, Val t e) <- bs0 | xt0 <- te0 ]
                                          bs1  = [ b | b@(_,Val _ e) <- bs0, not (isEVar e) ]
-                                         te1' = te' ++ eraseEnv te1
+                                         te1' = te' ++ pATEnv te1
                                          env' = addPolyEnv vs (dom te') env
                                      c <- pCmd (setThis y (addVals ((y,ty):te) env')) t0 c
                                      f <- newName functionSym
-                                     addToStore (f, Fun [] t0' ((y,erase ty):te1') (cBind bs1 c))
+                                     addToStore (f, Fun [] t0' ((y,pAType ty):te1') (cBind bs1 c))
                                      return (id, (x, Fun [] t0' te1' (CRet (ECall f [] (EThis : map EVar (dom te1'))))))
   where (_,ts0,t0)              = findFunT te0 x []
-        t0'                     = erase t0
+        t0'                     = pAType t0
 
 
 -- Prepare commands
@@ -363,11 +361,11 @@ pCmd env t0 (CBind False bs c)  = do (bf,bs) <- pBinds pBind env bs
 pCmd env t0 (CBind True bs c)   = do (bf,bs) <- pBinds pBind env' bs
                                      liftM (CBind True (flatBinds bf ++ bs)) (pCmd env' t0 c)
   where env'                    = addTEnv (mapSnd typeOf bs) env
-pCmd env t0 (CUpd x e c)        = do (bf,e) <- pExpT env (findValT "2" (tenv env) x) e
+pCmd env t0 (CUpd x e c)        = do (bf,e) <- pExpT env (findValT (tenv env) x) e
                                      liftM (bf . CUpd x e) (pCmd env t0 c)
 pCmd env t0 (CUpdS e x e' c)    = do (bf,t1,e) <- pExp env e
-                                     let (s,te) = findStructTEnv "AA" env t1
-                                     (bf',e') <- pExpT env (findValT "3" te x) e'
+                                     let (s,te) = findStructTEnv env t1
+                                     (bf',e') <- pExpT env (findValT te x) e'
                                      liftM (bf . bf' . CUpdS e x e') (pCmd env t0 c)
 pCmd env t0 (CUpdA e i e' c)    = do (bf,TCon (Prim Array _) [t],e) <- pExp env e
                                      (bf',i) <- pExpT env tInt i
@@ -445,9 +443,9 @@ pAlt env e (TCon _ ts) t0 (ACon k vs te c)
                                      c <- pCmd (addPolyEnv vs (dom te') (addVals te env)) t0 c
                                      return (ACon k [] [] (cBind (bs0 te' ++ bs1) c))
   where bs0 te'                 = zipWith mkBind te' (_abcSupply `zip` repeat (ValT tBITS32))
-        (_,te0)                 = findStructTEnv "KKK" env (TCon k (ts ++ map tVar vs))
+        (_,te0)                 = findStructTEnv env (TCon k (ts ++ map tVar vs))
         bs1                     = filter (not . isDummy . fst) (zipWith mkBind te te0)
-        mkBind (x,t) (y,ValT u) = (x, Val (erase t) (cast t u (ESel (ECast (TCon k (ts ++ map tVar vs)) e) y)))
+        mkBind (x,t) (y,ValT u) = (x, Val (pAType t) (cast t u (ESel (ECast (tCon k) e) y)))
         
         
 
@@ -488,12 +486,12 @@ pNewExp env n ts bs
   where bs'                     = if n `elem` tagged env then [(prim Tag, Val tInt (ELit (conLit env n)))] else []
         bs''                    = polyTagBinds env n ts
         t0                      = TCon n ts
-        (_,te0)                 = findStructTEnv "BB" env t0
+        (_,te0)                 = findStructTEnv env t0
 
 
 pRefBind te0 env (x,Val _ e)    = do (bf,t,e) <- pRhsExp env e 
-                                     return (bf, (x, Val (erase t0) (cast t0 t e)))
-  where t0                      = findValT "1" te0 x
+                                     return (bf, (x, Val (pAType t0) (cast t0 t e)))
+  where t0                      = findValT te0 x
 
 
 -- Prepare an expression in an arbitrary position and match its type with the expected one
@@ -508,8 +506,8 @@ cast t0 t1 e
   | u0 == tPOLY && u1 == tFloat = ECall (prim Float2POLY) [] [e]
   | u0 == tFloat && u1 == tPOLY = ECall (prim POLY2Float) [] [e]
   | otherwise                   = ECast u0 e
-  where u0                      = erase t0
-        u1                      = erase t1
+  where u0                      = pAType t0
+        u1                      = pAType t1
 
 smallPrim (TCon (Prim p _) _)   = p `elem` smallPrims
 smallPrim _                     = False
@@ -522,28 +520,28 @@ pExpTs env (t:ts) (e:es)        = do (bf1,e) <- pExpT env t e
 
 
 -- Prepare an expression in an arbitrary position and compute its type
-pExp env (EVar x)                   = return (id, findValT "4" (tenv env) x, EVar x)
+pExp env (EVar x)                   = return (id, findValT (tenv env) x, EVar x)
 pExp env (ELit l)                   = return (id, litType l, ELit l)
-pExp env (EThis)                    = return (id, findValT "5" (tenv env) x, EVar x)
+pExp env (EThis)                    = return (id, findValT (tenv env) x, EVar x)
   where x                           = fromJust (this env)
 pExp env (ESel e l)                 = do (bf,t1,e) <- pExp env e
-                                         let (s,te) = findStructTEnv "CC" env t1
-                                             t = findValT ("6" ++ " e: " ++ render (pr e) ++ "  te: " ++ show te) te l
+                                         let (s,te) = findStructTEnv env t1
+                                             t = findValT te l
                                          specialize s t bf (ESel e l)
 pExp env (ECall f ts es)            = do (bf,es) <- pExpTs env ts0 es
                                          specialize s t bf (ECall f [] (polyTagArgs env ts ++ es))
   where (s,ts0,t)                   = findFunT (tenv env) f ts
-pExp env (EEnter (EVar x) f ts es)  = do let t1 = findValT "7" (tenv env) x
-                                         let (s,te) = findStructTEnv "DD" env t1
+pExp env (EEnter (EVar x) f ts es)  = do let t1 = findValT (tenv env) x
+                                         let (s,te) = findStructTEnv env t1
                                              (s',ts0,t) = findFunT te f ts
                                          (bf,es) <- pExpTs env ts0 es
                                          specialize (s'@@s) t bf (EEnter (castIfClos t1 x) f [] (polyTagArgs env ts ++ es))
 pExp env (EEnter e f ts es)         = do (bf1,t1,e) <- pRhsExp env e
-                                         let (s,te) = findStructTEnv "EE" env t1
+                                         let (s,te) = findStructTEnv env t1
                                              (s',ts0,t) = findFunT te f ts
                                          (bf2,es) <- pExpTs env ts0 es
                                          x <- newName tempSym
-                                         specialize (s'@@s) t (bf1 . bf2 . cBind [(x, Val (erase t1) e)]) 
+                                         specialize (s'@@s) t (bf1 . bf2 . cBind [(x, Val (pAType t1) e)]) 
                                                     (EEnter (castIfClos t1 x) f [] (polyTagArgs env ts ++ es))
 pExp env (ECast t e)                = do (bf,t',e) <- pExp env e
                                          return (bf, t, cast t t' e)
@@ -551,12 +549,12 @@ pExp env (ENew n ts bs)
   | n `elem` nulls env              = return (id, tWORD, ELit (conLit env n))
   | otherwise                       = do (bf,t,e) <- pNewExp env n ts bs
                                          x <- newName tempSym
-                                         return (bf . cBind [(x, Val (erase t) e)], t, EVar x)
+                                         return (bf . cBind [(x, Val (pAType t) e)], t, EVar x)
 
 specialize s t bf e                 = return (bf, t', cast t' t e)
   where t'                          = subst s t
   
 castIfClos (TCon (Prim CLOS _) ts0) x
-                                    = ECast (TCon (prim CLOS) (polyTagTypes (length vs) ++ map erase (t:ts))) (EVar x)
+                                    = ECast (TCon (prim CLOS) (polyTagTypes (length vs) ++ map pAType (t:ts))) (EVar x)
   where (vs,ts,t)                   = decodeCLOS ts0
 castIfClos t x                      = EVar x
