@@ -171,18 +171,11 @@ polyTagBinds env n ts           = bs0 ++ bs1
         l_ts0                   = length ts0
         te0                     = polyTagEnv0 l_ts0
         es0                     = polyTagArgs env ts0
-        bs0 | l_ts0 <= 4        = zipWith mkBind te0 [ECall (gcInfoName n) [] (map offset es0)]
-            | otherwise         = zipWith mkBind te0 (ECall (gcInfoName n) [] [] : es0)
+        bs0 | l_ts0 <= 4        = zipWith mkBind te0 [ECall n [] (map offset es0)]
+            | otherwise         = zipWith mkBind te0 (ECall n [] [] : es0)
         bs1                     = zipWith mkBind (polyTagEnv1 (length ts1)) (polyTagArgs env ts1)
         offset e                = ECall (prim IntTimes) [] [ELit (lInt (d + 2)),e]
         (d,vflags)              = findStructInfo env n
-
-
-gcInfoName n@(Name s t m a)
-  | okForC s                    = Name (gcinfoSym ++ s) t m a
-  | otherwise                   = Name (gcinfoSym ++ "_sym_" ++ show t) t m a
-gcInfoName (Tuple n a)          = Name (gcinfoSym ++ "TUP" ++ show n) 0 Nothing a
-gcInfoName (Prim p a)           = Name (gcinfoSym ++ strRep2 p) 0 Nothing a
 
 
 -- Create a list of polyTag Exp arguments from a list of type arguments
@@ -265,7 +258,7 @@ gcMUT                           = ELit (lInt 4)
 
 -- Generate gcinfo for structs
 gcinfo env ds                   = map f (prune ds (nulls env))
-  where f (n,Struct vs te _)    = (gcInfoName n, Val tPOLY (ECall (prim GCINFO) [] es))
+  where f (n,Struct vs te _)    = (n, Val tPOLY (ECall (prim GCINFO) [] es))
           where es | l_vs1 <= 4 = concat [ EVar n : gcSTD : pad l_es0 (ptrFields te vs) | vs <- sampleSpaces vs1 ]
                    | otherwise  = EVar n : gcBIG : es0 ++ concat (map bitRef (varFields te)) ++ [ELit (lInt 0)]
                 es0             = ptrFields te []

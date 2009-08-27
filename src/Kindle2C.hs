@@ -94,7 +94,7 @@ k2cBindStubsH bs                 = vcat (map f bs)
           | isPrivate x         = empty
         f (x, Fun [] t te c)    = k2cType t <+> k2cName x <+> k2cFunParams te <> text";"
         f (x, Val _ (ECall (Prim GCINFO _) _ _))
-                                = text "extern" <+> text "WORD" <+> k2cName x <> text "[];"
+                                = text "extern" <+> text "WORD" <+> k2cGCInfoName x <> text "[];"
         f (x, Val t e)          = text "extern" <+> k2cType t <+> k2cName x <> text ";"
 
 
@@ -139,7 +139,7 @@ k2cBindStubsC bs                = vcat (map f bs)
           | otherwise           = k2cStatic x <+> k2cType t <+> k2cName x <+> k2cFunParams te <> text";"
         f (x, Val _ (ECall (Prim GCINFO _) _ _))
           | isPublic x          = empty
-          | otherwise           = k2cStatic x <+> text "WORD" <+> k2cName x <> text "[];"
+          | otherwise           = k2cStatic x <+> text "WORD" <+> k2cGCInfoName x <> text "[];"
         f (x, Val t e)          = k2cStatic x <+> k2cType t <+> k2cName x <> text ";"
 
 
@@ -177,7 +177,7 @@ k2cTopBinds bs                  = vcat (map f bs)
                                     nest 4 (k2cCmd c) $$
                                   text "}"
         f (x, Val _ (ECall (Prim GCINFO _) [] es@(EVar n : _)))
-                                = k2cStatic x <+> text "WORD" <+> k2cName x <> text "[]" <+> text "=" <+> 
+                                = k2cStatic x <+> text "WORD" <+> k2cGCInfoName x <> text "[]" <+> text "=" <+> 
                                     braces (commasep (k2cGC n) es) <> text ";"
         f _                     = empty
 
@@ -275,13 +275,13 @@ newCall t x ns                  = text "NEW" <+> parens (k2cType t <> text "," <
 k2cStructBinds e0 n bs
   | isBigTuple n                = k2cExp2 e0 <> text "->size = " <+> pr (widthInclTags n) <> text ";" $$
                                   vcat (map f bs)
-  where f (Prim GCINFO _, _)    = k2cExp (ESel e0 (prim GCINFO)) <+> text ("= " ++ gcinfoSym ++ "TUPLE;")
+  where f (Prim GCINFO _, _)    = k2cExp (ESel e0 (prim GCINFO)) <+> text "=" <+> k2cGCInfoName n <> text ";"
         f (x, Val t e)
           | t == tPOLY          = k2cBigSel e0 x <+> text "=" <+> k2cExp e <> text ";"
           | otherwise           = k2cBigSel e0 x <+> text "=" <+> k2cExp (ECast tPOLY e) <> text ";"
 k2cStructBinds e0 n bs          = vcat (map f bs)
-  where f (Prim GCINFO _, Val _ (ECall x [] es))
-                                = k2cExp (ESel e0 (prim GCINFO)) <+> text "=" <+> k2cName x <> off <> text ";"
+  where f (Prim GCINFO _, Val _ (ECall _ [] es))
+                                = k2cExp (ESel e0 (prim GCINFO)) <+> text "=" <+> k2cGCInfoName n <> off <> text ";"
           where off | null es   = empty
                     | otherwise = text "+" <> parens (k2cExp (head es))
         f (x, Val t e)          = k2cExp (ESel e0 x) <+> text "=" <+> k2cExp e <> text ";"
@@ -451,6 +451,8 @@ widthInclTags n                 = w + ((w+31) `div` 32)
 k2cName (Prim p _)              = k2cPrim p
 k2cName n | isBigTuple n        = text "TUPLE"
           | otherwise           = prId3 n
+
+k2cGCInfoName n                 = text gcinfoSym <> k2cName n
 
 
 k2cPrim IntPlus                 = text "+"
