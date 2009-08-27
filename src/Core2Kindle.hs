@@ -125,11 +125,7 @@ splitClosureType env n t0
 
 -- Translate a Core.Module into a Kindle.Module
 cModule e2 e3 (Module m ns xs es ds ws bss)
-                                    = do te0 <- tenvImp env e2
-                                         ds1  <- cDecls env ds
-                                         let env1 = addTEnv te0 (addDecls ds1 env)
-                                         te1 <- cTEnv env1 (extsMap es)
-                                         bs  <- cBindsList (addTEnv te1 env1) bss
+                                    = do bs  <- cBindsList (addTEnv te1 env1) bss
                                          ds2 <- currentStore
                                          let (dsQ,dsNQ) = partition (isPublic . fst) (reverse ds2)
                                              dsThis = ds1 ++ filter (isQual m . fst) dsQ
@@ -138,26 +134,25 @@ cModule e2 e3 (Module m ns xs es ds ws bss)
                                          --    ds3 = ds1++reverse (filter (fromCurrent . fst) ds2)
                                          return (Kindle.Module m (map snd ns) te1 ds3 bs,dsThis)
   where env                         = addDecls e3 (setMName m (addTEnv Kindle.primTEnv (addDecls Kindle.primDecls env0)))
+        ds1                         = cDecls ds
+        env1                        = addTEnv (tenvImp e2) (addDecls ds1 env)
+        te1                         = cTEnv (extsMap es)
 
 -- Compute the imported type environment
-tenvImp env (Module _ _ _ es _ _ [bs])            = cTEnv env (tsigsOf bs ++ extsMap es)
+tenvImp (Module _ _ _ es _ _ [bs])  = cTEnv (tsigsOf bs ++ extsMap es)
 
 
 -- =========================================================================================
 -- Translating Core type declarations into Kindle.Decls
 -- =========================================================================================
 
-cDecls env (Types ke ds)            = do dss <- mapM cDecl ds
-                                         return (concat dss)
-  where cDecl (n,DRec _ vs [] ss)   = do te <- cTEnv env ss
-                                         return [(n, Kindle.Struct vs te Kindle.Top)]
-        cDecl (n,DType vs t)        = return []
-        cDecl (n,DData vs [] cs)    = do ds <- mapM (cCon n vs) cs
-                                         return ((n, Kindle.Struct vs [] Kindle.Union) : ds)
+cDecls (Types ke ds)                = concat (map cDecl ds)
+  where cDecl (n,DRec _ vs [] ss)   = [(n, Kindle.Struct vs (cTEnv ss) Kindle.Top)]
+        cDecl (n,DType vs t)        = []
+        cDecl (n,DData vs [] cs)    = (n, Kindle.Struct vs [] Kindle.Union) : map (cCon n vs) cs
 
-        cCon n vs (c,Constr ts ps ke) 
-                                    = do te' <- cValTEnv env te
-                                         return (injectCon c, Kindle.Struct (vs++vs') te' (Kindle.Extends n (map Kindle.tVar vs) vs'))
+        cCon n vs (c,Constr ts ps ke)
+                                    = (injectCon c, Kindle.Struct (vs++vs') (cValTEnv te) (Kindle.Extends n (map Kindle.tVar vs) vs'))
           where te                  = abcSupply `zip` (ps++ts)
                 vs'                 = dom ke
 
@@ -171,90 +166,72 @@ injectCon n                         = n
 -- =========================================================================================
 
 -- Translate a Core.Scheme into an Kindle.Type on basis of arity and polymorphism
-cScheme env (Scheme rh ps ke)           = do ts0 <- mapM (cAScheme env) ps
-                                             (ts,t) <- cRho env rh
-                                             case (dom ke, ts0++ts) of          -- concatenate witness params with ts
-                                               ([],[]) -> return (Kindle.ValT t)
-                                               (vs,ts) -> return (Kindle.FunT vs ts t)
+cScheme (Scheme rh ps ke)               = case (dom ke, ts' ++ ts) of           -- concatenate witness params with ts
+                                               ([],[]) -> Kindle.ValT t
+                                               (vs,ts) -> Kindle.FunT vs ts t
+  where (ts,t)                          = cRho rh
+        ts'                             = map cAScheme ps
         
 
 -- Translate a Core.Rho type
-cRho env (F scs rh)                     = do ts <- mapM (cAScheme env) scs
-                                             (ts',t) <- cRho' env rh
-                                             return (ts++ts', t)                -- concatenate ts with monadic params
-cRho env (R t)                          = cType env t
+cRho (F scs rh)                         = (map cAScheme scs ++ ts, t)           -- concatenate scs with monadic params
+  where (ts,t)                          = cRho' rh
+cRho (R t)                              = cType t
 
 
 -- Translate a Core.Rho type but treat function types as closures
-cRho' env (R t)                         = cType' env (tFlat t)
-cRho' env rh                            = do t <- cAScheme env (Scheme rh [] [])
-                                             return ([],t)
+cRho' (R t)                             = cType' (tFlat t)
+cRho' rh                                = ([], cAScheme (Scheme rh [] []))
 
 
 -- Translate a Core.Type
-cType env (TFun ts t)                   = do ts <- mapM (cAType env) ts
-                                             (ts',t) <- cType' env (tFlat t)
-                                             return (ts++ts', t)                -- concatenate ts with monadic params
-cType env t                             = cType' env (tFlat t)
+cType (TFun ts t)                       = (map cAType ts ++ ts', t')            -- concatenate ts with monadic params
+  where (ts',t')                        = cType' (tFlat t)
+cType t                                 = cType' (tFlat t)
 
 
 -- Translate a Core.Type but treat function types as closures
-cType' env (TId (Prim Action _), [])    = return ([Kindle.tTime,Kindle.tTime], Kindle.tMsg)
-cType' env (TId (Prim Request _), [t])  = do t <- cAType env t
-                                             return ([Kindle.tInt], t)
-cType' env (TId (Prim Class _), [t])    = do t <- cAType env t
-                                             return ([Kindle.tInt], t)
-cType' env (TId (Prim Cmd _), [s,t])    = do s <- cAType env s
-                                             t <- cAType env t
-                                             return ([Kindle.tRef s], t)
-cType' env (TId (Prim PMC _), [t])      = do t <- cAType env t
-                                             return ([], t)
-cType' env (TId n, ts)                  = do ts <- mapM (cAType env) ts
-                                             if isVar n then
-                                                 return ([], Kindle.TVar n ts)
-                                              else
-                                                 return ([], Kindle.TCon n ts)
-cType' env (TVar n, [])                 = return ([], Kindle.tInt)
-cType' env (TVar n, ts)                 = do ts <- mapM (cAType env) ts
-                                             return ([], Kindle.TCon (tuple (length ts)) ts)
-cType' env (t, _)                       = do t <- cAType env t
-                                             return ([], t)
+cType' (TId (Prim Action _), [])        = ([Kindle.tTime,Kindle.tTime], Kindle.tMsg)
+cType' (TId (Prim Request _), [t])      = ([Kindle.tInt], cAType t)
+cType' (TId (Prim Class _), [t])        = ([Kindle.tInt], cAType t)
+cType' (TId (Prim Cmd _), [s,t])        = ([Kindle.tRef (cAType s)], cAType t)
+cType' (TId (Prim PMC _), [t])          = ([], cAType t)
+cType' (TId n, ts) | isVar n            = ([], Kindle.TVar n (map cAType ts))
+cType' (TId n, ts)                      = ([], Kindle.TCon n (map cAType ts))
+cType' (TVar n, [])                     = ([], Kindle.tInt)
+cType' (TVar n, ts)                     = ([], Kindle.TCon (tuple (length ts)) (map cAType ts))
+cType' (t, _)                           = ([], cAType t)
 
 
 -- Translate a Core.Type unconditionally into a Kindle.AType
-cAType env t                            = do (ts, t) <- cType env t
-                                             case ts of
-                                                [] -> return t
-                                                _  -> return (Kindle.tClos t ts)
+cAType t0
+  | null ts                             = t
+  | otherwise                           = Kindle.tClos t ts
+  where (ts, t)                         = cType t0
 
 
 -- Translate a Core.Scheme unconditionally into a Kindle.AType
-cAScheme env sc                         = do t0 <- cScheme env sc
-                                             case t0 of
-                                               Kindle.ValT t -> return t
-                                               Kindle.FunT vs ts t -> return (Kindle.tClos2 vs t ts)
+cAScheme sc                             = case cScheme sc of
+                                               Kindle.ValT t       -> t
+                                               Kindle.FunT vs ts t -> Kindle.tClos2 vs t ts
 
 
 -- Translate a Core.Scheme unconditionally into a ValT variant of a Kindle.Type
-cValScheme env sc                       = do t <- cAScheme env sc
-                                             return (Kindle.ValT t)
+cValScheme sc                           = Kindle.ValT (cAScheme sc)
 
 
 -- Translate a Core.TEnv into an Kindle.TEnv
-cTEnv env te                            = do ts <- mapM (cScheme env) scs
-                                             return (xs `zip` ts)
+cTEnv te                                = xs `zip` map cScheme scs
   where (xs,scs)                        = unzip te
        
 
 -- Translate a Core.TEnv into an Kindle.ATEnv
-cATEnv env te                           = do ts <- mapM (cAScheme env) scs
-                                             return (xs `zip` ts)
+cATEnv te                               = xs `zip` map cAScheme scs
   where (xs,scs)                        = unzip te
   
     
 -- Translate a Core.TEnv into an Kindle.TEnv with only ValT types
-cValTEnv env te                         = do ts <- mapM (cValScheme env) scs
-                                             return (xs `zip` ts)
+cValTEnv te                             = xs `zip` map cValScheme scs
   where (xs,scs)                        = unzip te
 
 
@@ -270,16 +247,15 @@ cBindsList env (bs:bss)                 = do (te,bf) <- cBinds env bs
 
 
 -- Translate a list of (mutually recursive) Core bindings into a Kindle.CBind on basis of declared type
-cBinds env (Binds rec te eqs)           = do te1 <- cValTEnv env te1
-                                             te2 <- cTEnv env te2
-                                             let te' = te1 ++ te2
-                                             assert (not rec || all Kindle.okRec (rng te')) "Illegal value recursion" (dom te')
-                                             (bf,bs) <- cEqs (addTEnv te' env) te' eqs
-                                             return (te', comb rec bf bs)
+cBinds env (Binds r te eqs)
+  | not r || all Kindle.okRec (rng te') = do (bf,bs) <- cEqs (addTEnv te' env) te' eqs
+                                             return (te', comb r bf bs)
+  | otherwise                           = errorIds "Illegal value recursion" (dom te')
   where comb False bf bs                = bf . Kindle.CBind False bs
         comb True bf bs                 = Kindle.CBind True (Kindle.flatBinds bf ++ bs)
-        insts                           = dom (filter (\(x,e) -> monoRestrict rec (lookup' te x) e) eqs)
+        insts                           = dom (filter (\(x,e) -> monoRestrict r (lookup' te x) e) eqs)
         (te1,te2)                       = partition ((`elem` insts) . fst) te
+        te'                             = cValTEnv te1 ++ cTEnv te2
 
 
 -- Translate a list of Core equations into a list of Kindle bindings on basis of declared type
@@ -414,15 +390,15 @@ cFun0 env e                             = do (te,t,c) <- cFun env e
                                              
 
 -- Convert a Core.Exp into a parameter list and a Kindle.Cmd
-cFun env (ELam te e)                    = do te <- cATEnv env te
-                                             (te',t,c) <- cFun (addATEnv te env) e
+cFun env (ELam te0 e)                   = do (te',t,c) <- cFun (addATEnv te env) e
                                              return (te ++ te', t, c)
-cFun env (EReq e (EDo x tx0 c))         = do tx <- fmap Kindle.tRef (cAType env tx0)
-                                             (bf,e) <- cValExpT env tx e
+  where te                              = cATEnv te0
+cFun env (EReq e (EDo x tx0 c))         = do (bf,e) <- cValExpT env tx e
                                              (t,c) <- cCmd (pushSelf x (addATEnv [(x,tx)] env)) c
                                              let bf' = Kindle.cBind [(x,Kindle.Val tx (Kindle.lock tx e))]
                                              y <- newName dummySym
                                              return ([(y,Kindle.tInt)], t, bf (bf' (Kindle.unlock x c)))
+  where tx                              = Kindle.tRef (cAType tx0)
 cFun env (EReq e e')                    = do (bf,tx,e) <- cValExp env e
                                              x <- newName selfSym
                                              (t,c) <- cCmdExp (pushSelf x (addATEnv [(x,tx)] env)) e'
@@ -432,18 +408,18 @@ cFun env (EReq e e')                    = do (bf,tx,e) <- cValExp env e
 cFun env e@(EAct _ _)                   = cAct env id id e
 cFun env e@(EAp e0 _) 
   | isPrim After e0 || isPrim Before e0 = cAct env id id e
-cFun env (ETempl x tx0 te c)            = do tx@(Kindle.TCon n []) <- cAType env tx0  -- Type-checker guarantees tx is a struct type name
-                                             te <- cValTEnv env te
-                                             (t,c) <- cCmd (pushSelf x (addATEnv [(x,Kindle.tRef tx)] (addTEnv te env))) c
+cFun env (ETempl x tx0 te0 c)           = do (t,c) <- cCmd (pushSelf x (addATEnv [(x,Kindle.tRef tx)] (addTEnv te env))) c
                                              addToStore (n, Kindle.Struct vs te Kindle.Top)
                                              y <- newName dummySym
                                              let e = Kindle.ENew (prim Ref) [tx] [(prim STATE, Kindle.Val tx (Kindle.ENew n ts []))]
                                              return ([(y,Kindle.tInt)], t, Kindle.cBind [(x,Kindle.Val (Kindle.tRef tx) e)] c)
-  where vs                              = nub (tyvars te)
+  where tx@(Kindle.TCon n [])           = cAType tx0  -- Type-checker guarantees tx is a struct type name
+        te                              = cValTEnv te0
+        vs                              = nub (tyvars te)
         ts                              = map Kindle.tVar vs
-cFun env (EDo x tx0 c)                  = do tx <- fmap Kindle.tRef (cAType env tx0)
-                                             (t,c) <- cCmd (pushSelf x (addATEnv [(x,tx)] env)) c
+cFun env (EDo x tx0 c)                  = do (t,c) <- cCmd (pushSelf x (addATEnv [(x,tx)] env)) c
                                              return ([(x,tx)], t, c)
+  where tx                              = Kindle.tRef (cAType tx0)
 cFun env e                              = do (t,r) <- cBody env e
                                              case r of
                                                FunR f ts -> do xs <- newNames paramSym (length ts)
@@ -505,8 +481,8 @@ cRhs0 cBdy env n e                      = do (te,t,r) <- cRhs cBdy env n [] e
                                              
 
 -- Translate a Core right-hand-side into a Kindle.Cmd result and a binding
-cRhs cBdy env n te (ELam te' e)         = do te' <- cATEnv env te'
-                                             cRhs cBdy (addATEnv te' env) n (te++te') e
+cRhs cBdy env n te (ELam te0 e)         = cRhs cBdy (addATEnv te1 env) n (te++te1) e
+  where te1                             = cATEnv te0
 cRhs cBdy env n te e
   | n == l_te                           = do (t,r) <- cBdy env e
                                              return (te, t, r)
@@ -659,10 +635,10 @@ cCmd env (CGen x tx (ECase e alts) c)
         useful (_,EDo _ _ (CRet e))     = e /= eUnit
         useful _                        = True
 cCmd env (CGen x tx0 e c)               = do (bf,te,e) <- freezeState env e
-                                             tx <- cAType env tx0
                                              (bf',e) <- cValExpT (addTEnv te env) tx (EAp e [EVar (self env)])
                                              (t,c) <- cCmd (addATEnv [(x,tx)] env) c
                                              return (t, bf (bf' (Kindle.cBind [(x,Kindle.Val tx e)] c)))
+  where tx                              = cAType tx0
 cCmd env (CExp e)                       = cCmdExp env e
 
 
@@ -682,9 +658,9 @@ cCmdExp env (EAp e0 [e])
   | isPrim Match e0                     = do (bf,te,e) <- freezeState env e
                                              (t,ValR c) <- cPMC cValCmdExp cCmdFail (addTEnv te env) e
                                              return (t, bf (Kindle.CSeq c (Kindle.CRaise (Kindle.ELit (lInt 1)))))
-cCmdExp env (EDo x tx0 c)               = do tx <- cAType env tx0
-                                             (t,c) <- cCmd (pushSelf x (addATEnv [(x,Kindle.tRef tx)] env)) c
+cCmdExp env (EDo x tx0 c)               = do (t,c) <- cCmd (pushSelf x (addATEnv [(x,Kindle.tRef tx)] env)) c
                                              return (t, Kindle.cBind [(x,Kindle.Val (Kindle.tRef tx) (Kindle.EVar (self env)))] c)
+  where tx                              = cAType tx0
 cCmdExp env (ECase e alts)              = do (bf,te,e) <- freezeState env e
                                              (t,ValR c) <- cCase cValCmdExp (addTEnv te env) e alts
                                              return (t, bf c)
@@ -764,8 +740,7 @@ stateRef env                            = Kindle.ESel (Kindle.EVar (self env)) (
 -- Translate a Core.Exp into an expression result that is either a value or a function,
 -- overflowing into a list of Kindle.Binds if necessary
 cExp env (ELet bs e)
-  | isTAppEncoding bs                   = do ts <- mapM (cAType env) (tAppTypes bs)
-                                             cExp (setTArgs env ts) e
+  | isTAppEncoding bs                   = cExp (setTArgs env (map cAType (tAppTypes bs))) e
   | not (isTAbsEncoding bs)             = do (te,bf) <- cBinds env bs
                                              (bf',t,h) <- cExp (addTEnv te env) e
                                              return (bf . bf', t, h)
@@ -899,10 +874,10 @@ isCastPrim _                            = Nothing
 
 -- Extract type arguments from expression
 cTArgs env (ELet bs e)
-  | isTAppEncoding bs                   = mapM (cAType env) (tAppTypes bs)
+  | isTAppEncoding bs                   = return (map cAType (tAppTypes bs))
 cTArgs env e                            = return []
 
 
 
 -- Additional entry point for translating imported environments
-c2kTEnv ds te                           = cTEnv env0 te
+c2kTEnv ds te                           = return (cTEnv te)
