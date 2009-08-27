@@ -188,7 +188,7 @@ tiExpT' env (explWit, sc@(Scheme t0 ps ke), e)
                                      sc           <- gen (tevars env1 ++ tvars qe1) t'
                                      return (mkEqns env s, (c, Scheme (F [sc] (tFun ps' t0)) ps ke) : qe1, e1)
 
-mkEqns env s                    = mapFst TVar (restrict s (tevars env))
+mkEqns env s                    = mapFst Tvar (restrict s (tevars env))
 
 isFixed tvs (w,p)               = isDummy w || all (`elem` tvs) (tvars p)
 
@@ -205,7 +205,7 @@ tiAp env s pe (F scs rho) e es
         (es1,es2)               = splitAt len_scs es
 tiAp env s pe (R (TFun ts t)) e es
                                 = tiAp env s pe (F (map scheme ts) (R t)) e es
-tiAp env s pe rho e es          = do t <- newTVar Star
+tiAp env s pe rho e es          = do t <- newTvar Star
                                      c <- newNamePos coercionSym e
                                      (ss,pes,ts,es) <- fmap unzip4 (mapM (tiExp env) es)
                                      let p = Scheme (F [scheme' rho] (F (map scheme' ts) (R t))) [] []
@@ -237,7 +237,7 @@ tiExp env (EAp e es)            = do (s,pe,t,e) <- tiExp env e
 tiExp env (ELet bs e)           = do (s,pe,bs) <- tiBinds env bs
                                      (s',pe',t,e) <- tiExp (addTEnv (tsigsOf bs) env) e
                                      return (s++s',pe++pe', t, ELet bs e)
-tiExp env (ERec c eqs)          = do alphas <- mapM newTVar (kArgs (findKind env c))
+tiExp env (ERec c eqs)          = do alphas <- mapM newTvar (kArgs (findKind env c))
                                      (t,ts,_) <- tiLhs env (foldl TAp (TId c) alphas) tiSel sels
                                      (s,pe,es') <- tiRhs env ts es
                                      -- tr ("RECORD " ++ render (pr t))
@@ -247,7 +247,7 @@ tiExp env (ERec c eqs)          = do alphas <- mapM newTVar (kArgs (findKind env
                                      return (s, pe, R t, e)
   where (sels,es)               = unzip eqs
         tiSel env x l           = tiExp env (ESel (EVar x) l)
-tiExp env (ECase e alts)        = do alpha <- newTVar Star
+tiExp env (ECase e alts)        = do alpha <- newTvar Star
                                      (t,ts,_) <- tiLhs env alpha tiPat pats
                                      (s,pe,es')   <- tiRhs env ts es
                                      let TFun [t0] t1 = t
@@ -260,35 +260,35 @@ tiExp env (ECase e alts)        = do alpha <- newTVar Star
                                      te <- newEnv paramSym (funArgs t)
                                      tiExp env (eLam te (EAp (EVar x) [eAp (ECon k) (map EVar (dom te))]))
         tiPat env x (PWild)     = do y <- newName tempSym
-                                     t <- newTVar Star
+                                     t <- newTvar Star
                                      tiExp (addTEnv [(y,scheme t)] env) (EAp (EVar x) [EVar y])
-tiExp env (EReq e e')           = do alpha <- newTVar Star
-                                     beta <- newTVar Star
+tiExp env (EReq e e')           = do alpha <- newTvar Star
+                                     beta <- newTvar Star
                                      (s,pe,e) <- tiExpT env (scheme (tRef alpha)) e
                                      (s',pe',e') <- tiExpT env (scheme (tCmd alpha beta)) e'
                                      return (s++s', pe++pe', R (tRequest beta), EReq e e')
-tiExp env (EAct e e')           = do alpha <- newTVar Star
-                                     beta <- newTVar Star
+tiExp env (EAct e e')           = do alpha <- newTvar Star
+                                     beta <- newTvar Star
                                      (s,pe,e) <- tiExpT env (scheme (tRef alpha)) e
                                      (s',pe',e') <- tiExpT env (scheme (tCmd alpha beta)) e'
                                      return (s++s', pe++pe', R tAction, EAct e e')
 tiExp env (EDo x tx c)
-  | isTVar tx                   = do (s,pe,t,c) <- tiCmd (setSelf x tx env) c
+  | isTvar tx                   = do (s,pe,t,c) <- tiCmd (setSelf x tx env) c
                                      let s' = case stateT env of Nothing -> []; Just t' -> [(t',tx)]
                                      return (s'++s, pe, R (tCmd tx t), EDo x tx c)
   | otherwise                   = internalError0 "Explicitly typed do expressions not yet implemented"
 tiExp env (ETempl x tx te c)
-  | isTVar tx                   = do n <- newName stateTypeSym
+  | isTvar tx                   = do n <- newName stateTypeSym
                                      let env' = setSelf x (TId n) (addTEnv te (addKEnv0 [(n,Star)] env))
                                      (s,pe,t,c) <- tiCmd env' c
                                      return ((TId n, tx):s, pe, R (tClass t), ETempl x (TId n) te c)
   | otherwise                   = internalError0 "Explicitly typed class expressions not yet implemented"
 
 
-tiCmd env (CRet e)              = do alpha <- newTVar Star
+tiCmd env (CRet e)              = do alpha <- newTvar Star
                                      (s,pe,e) <- tiExpT env (scheme alpha) e
                                      return (s, pe, alpha, CRet e)
-tiCmd env (CExp e)              = do alpha <- newTVar Star
+tiCmd env (CExp e)              = do alpha <- newTvar Star
                                      (s,pe,e) <- tiExpT env (scheme (tCmd (fromJust (stateT env)) alpha)) e
                                      return (s, pe, alpha, CExp e)
 tiCmd env (CGen x tx e c)       = do (s,pe,e) <- tiExpT env (scheme (tCmd (fromJust (stateT env)) tx)) e

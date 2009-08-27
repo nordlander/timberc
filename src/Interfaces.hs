@@ -184,7 +184,7 @@ instance LocalTypes Type where
   localTypes ns (TId n) 
      | n `elem` ns || not (isPrivate n) = []
      | otherwise                  = [n]
-  localTypes _ (TVar t)           = internalError0 ("Interfaces.localTypes: TVar in interface file")
+  localTypes _ (Tvar t)           = internalError0 ("Interfaces.localTypes: Tvar in interface file")
   localTypes ns (TFun ts t)       = localTypes ns (t : ts)
   localTypes ns (TAp t1 t2)       = localTypes ns [t1, t2]
 

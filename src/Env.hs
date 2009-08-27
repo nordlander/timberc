@@ -226,7 +226,7 @@ instance Subst Env TVAR Type where
                                                  skolEnv = mapSnd (substT s) (skolEnv env) }
 
 
-sapp s tvs                              = subst s (map TVar tvs)
+sapp s tvs                              = subst s (map Tvar tvs)
 
 substT s tvs                            = tvars (sapp s tvs)
 
@@ -426,21 +426,21 @@ rank info (env,TFun [l] u)              = subrank (tFlat l) (tFlat u)
     subrank (TFun _ _, _) _             = RUnif
     subrank _ (TFun _ _, _)             = RUnif
     subrank (TId i,_) (TId j,_)         = RConCon i j                -- only one choice, highest rank
-    subrank (TId i,_) (TVar n,_)
+    subrank (TId i,_) (Tvar n,_)
       | l==0 && b==0 && not (isNeg v)   = ROrd 0 Pos i               -- no embeddings, only constant bounds, right polarity
       | approx && n `notElem` vs        = ROrd l Pos i               -- approximate in right direction if n not in environment
       | otherwise                       = RInv l Pos i               -- otherwise rank below v-v unification (dir only for env lookup)
       where l                           = length (filter (==n) emb)  -- # of embeddings of n
             b                           = length (filter (==n) lb)   -- # of lower var bounds for n
             v                           = polarity pvs n             -- polarity of n in target type
-    subrank (TVar n,_) (TId i,_)
+    subrank (Tvar n,_) (TId i,_)
       | l==0 && b==0 && not (isPos v)   = ROrd 0 Neg i               -- no embeddings, only constant bounds, right polarity
       | approx && n `notElem` vs        = ROrd l Neg i               -- approximate in right direction if n not in environment
       | otherwise                       = RInv l Neg i               -- otherwise rank below v-v unification (dir only for env lookup)
       where l                           = length (filter (==n) emb)  -- # of embeddings of n
             b                           = length (filter (==n) ub)   -- # of upper var bounds for n
             v                           = polarity pvs n             -- polarity of n in target type
-    subrank (TVar n,ts) (TVar n',ts')
+    subrank (Tvar n,ts) (Tvar n',ts')
       | n == n'                         = RUnif     -- identical heads, and we only have invariant constructors
       | l==0 && b==1 && null ts && not (isPos v)
                                         = RUnif     -- no n embeddings, only one bound (here!), no variance problems, set n = upper bound
@@ -455,7 +455,7 @@ rank info (env,TFun [l] u)              = subrank (tFlat l) (tFlat u)
             b'                          = length (filter (==n') lb') -- # of lower var OR con bounds for n'
             v'                          = polarity pvs n'            -- polarity of n' in target type
 rank info (env,t)
-  | all isTVar ts && not (forced env)   = RVar         -- trivial class predicate, just leave be when not approximating        
+  | all isTvar ts && not (forced env)   = RVar         -- trivial class predicate, just leave be when not approximating        
   | otherwise                           = RClass i c   -- non-trivial class predicate, perform witness search
   where (TId c,ts)                      = tFlat t
         i                               = lookup' (dom (classEnv env) `zip` [0..]) c
@@ -467,7 +467,7 @@ rank info (env,t)
 -- n a c < T t
 -- m x < n a b, m x < T t
 {-
-instance Show ([TVar],[TVar],[TVar],[TVar],[TVar],[TVar],([TVar],[TVar])) where
+instance Show ([Tvar],[Tvar],[Tvar],[Tvar],[Tvar],[Tvar],([Tvar],[Tvar])) where
     show (emb,vs,lb,ub,lb',ub',pols)    = "emb = "  ++ show emb ++ "\n" ++
                                           "vs = "   ++ show vs   ++ "\n" ++
                                           "lb = "   ++ show lb   ++ "\n" ++
@@ -479,10 +479,10 @@ instance Show ([TVar],[TVar],[TVar],[TVar],[TVar],[TVar],([TVar],[TVar])) where
 varInfo gs                              = (emb, vs, lb, ub, lb', ub', polvs)
   where (sPreds,cPreds)                 = partition isSub (map snd gs)
         tts                             = map ((\(t1,t2) -> (tFlat t1, tFlat t2)) . subs) sPreds
-        lb                              = [ n | ((TVar _, _), (TVar n, _)) <- tts ]       -- all n with a lower var bound
-        ub                              = [ n | ((TVar n, _), (TVar _, _)) <- tts ]       -- all n with an upper var bound
-        lb'                             = [ n | (_, (TVar n, _)) <- tts ]                 -- all n with any lower bound
-        ub'                             = [ n | ((TVar n, _), _) <- tts ]                 -- all n with any upper bound
+        lb                              = [ n | ((Tvar _, _), (Tvar n, _)) <- tts ]       -- all n with a lower var bound
+        ub                              = [ n | ((Tvar n, _), (Tvar _, _)) <- tts ]       -- all n with an upper var bound
+        lb'                             = [ n | (_, (Tvar n, _)) <- tts ]                 -- all n with any lower bound
+        ub'                             = [ n | ((Tvar n, _), _) <- tts ]                 -- all n with any upper bound
         emb                             = concat (map (\((_,ts1),(_,ts2)) -> tvars (ts1++ts2)) tts) -- the vars inside type exps
         vs                              = tevars env                                      -- the vars free in the environment
         polvs                           = pnub (pols env `pcat` pdupl (vs++tvars cPreds)) -- target vars (positive & negative)
@@ -492,13 +492,13 @@ varInfo gs                              = (emb, vs, lb, ub, lb', ub', polvs)
 
 -- Instantiation & generalization ----------------------------------------------------
 
-inst (Scheme t ps ke)           = do ts <- mapM newTVar ks
+inst (Scheme t ps ke)           = do ts <- mapM newTvar ks
                                      let s = vs `zip` ts
                                      return (subst s t, subst s ps)
   where (vs,ks)                 = unzip ke
 
 
-wildify ke pe                   = do ts <- mapM newTVar ks
+wildify ke pe                   = do ts <- mapM newTvar ks
                                      return (subst (vs `zip` ts) pe)
   where (vs,ks)                 = unzip ke
 
@@ -572,7 +572,7 @@ instance Polvars (Type,[Type]) where
     polvars env (TFun ts t, [])         = polvars env t  `pcat` pswap (polvars env ts)
     polvars env (TId c, ts)             = pdupl (tvars ts)
       where k                           = findKind env c    -- Future work: let the result be determined by variances encoded in k
-    polvars env (TVar n, ts)            = ([n],[]) `pcat` pdupl (tvars ts)
+    polvars env (Tvar n, ts)            = ([n],[]) `pcat` pdupl (tvars ts)
         
 instance Polvars Scheme where
     polvars env (Scheme t ps ke)        = polvars env t `pcat` pdupl (tvars ps)

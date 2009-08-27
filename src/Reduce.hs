@@ -142,7 +142,7 @@ simplify env pe                         = do cs <- newNames skolemSym (length tv
                                              case r of
                                                Right (env',qe,eq) -> return (nullSubst, pe', eLet' (subst s bss))
                                                  where (pe',bss) = preferLocals env' pe qe eq
-                                                       s = cs `zip` map TVar tvs
+                                                       s = cs `zip` map Tvar tvs
                                                Left s -> case decodeError s of
                                                  Nothing -> fail (typeError Other env s)
                                                  Just (m,ids) | m == circularSubMsg -> 
@@ -153,8 +153,8 @@ simplify env pe                         = do cs <- newNames skolemSym (length tv
                                                            (s',pe',f) <- norm (subst s env) (subst s pe)
                                                            return (s'@@s, pe', f)
                                                      where tvs' = [ tv | (tv,c) <- tvs `zip` cs, c `elem` ids ]
-                                                           sat tv = do ts <- mapM newTVar (kArgs (tvKind tv))
-                                                                       return (tAp (TVar tv) ts)
+                                                           sat tv = do ts <- mapM newTvar (kArgs (tvKind tv))
+                                                                       return (tAp (Tvar tv) ts)
                                                  Just (m,ids) | m `elem` [ambigSubMsg, ambigInstMsg] ->
                                                         do -- tr ("Ambiguous: " ++ showids ids)
                                                            -- tr (render (nest 8 (vpr (t:ts))))
@@ -335,14 +335,14 @@ redf gs env (F ts t) (F ts' t') ps      = do te1' <- newEnv assumptionSym ts1'
         (ts1',ts2')                     = splitAt (length ts ) ts'
 redf gs env (R (TFun ts t)) b ps        = redf gs env (F (map scheme ts) (R t)) b ps
 redf gs env a (R (TFun ts t)) ps        = redf gs env a (F (map scheme ts) (R t)) ps
-redf gs env (R a@(TVar n)) b@(F ts _) ps
+redf gs env (R a@(Tvar n)) b@(F ts _) ps
   | n `elem` tvars b                    = fail (typeError Other env "Infinite function type")
-  | otherwise                           = do (t:ts') <- mapM newTVar (replicate (length ts + 1) Star)
+  | otherwise                           = do (t:ts') <- mapM newTvar (replicate (length ts + 1) Star)
                                              s <- unify env [(a, TFun ts' t)]
                                              redf2 s gs env (F (map scheme ts') (R t)) b ps 
-redf gs env a@(F ts _) (R b@(TVar n)) ps
+redf gs env a@(F ts _) (R b@(Tvar n)) ps
   | n `elem`tvars a                     = fail (typeError Other env "Infinite function type")
-  | otherwise                           = do (t:ts') <- mapM newTVar (replicate (length ts + 1) Star)
+  | otherwise                           = do (t:ts') <- mapM newTvar (replicate (length ts + 1) Star)
                                              s <- unify env [(TFun ts' t, b)]
                                              redf2 s gs env a (F (map scheme ts') (R t)) ps 
 redf gs env (R a) (R b) ps              = do (s,q,e:es,es') <- red ((tick env True, a `sub` b) : gs) ps
@@ -446,7 +446,7 @@ auSubst env ((v1,t1):s1) s2             = case lookup v1 s2 of
   where auType t1 t2
           | h1 == h2                    = do ts <- auTypes ts1 ts2
                                              return (tAp h1 ts)
-          | otherwise                   = newTVar (kindOfType env t1)
+          | otherwise                   = newTvar (kindOfType env t1)
           where (h1,ts1)                = tFlat t1
                 (h2,ts2)                = tFlat t2
         auTypes ts1 ts2                 = sequence (zipWith auType ts1 ts2)
@@ -502,9 +502,9 @@ newHyp (env,c)                          = do v <- newName (sym env)
 -- Unification ----------------------------------------------------------
 
 unify env []                            = return nullSubst
-unify env ((TVar n,t):eqs)
+unify env ((Tvar n,t):eqs)
   | mayBind env n                       = tvarBind env n t eqs
-unify env ((t,TVar n):eqs)
+unify env ((t,Tvar n):eqs)
   | mayBind env n                       = tvarBind env n t eqs
 unify env ((TAp t u,TAp t' u'):eqs)     = unify env ((t,t'):(u,u'):eqs)
 unify env ((TId c,TId c'):eqs)
@@ -514,7 +514,7 @@ unify env ((TFun ts t, TFun ts' t'):eqs)
 unify env ((t1,t2):_)                   = fail (typeError Unify env ("Cannot unify " ++ render(pr t1) ++ " with " ++ render(pr t2)))
 
 tvarBind env n t eqs
-  | t == TVar n                         = unify env eqs
+  | t == Tvar n                         = unify env eqs
   | tvKind n /= kindOfType env t        = fail (typeError Other env ("Kind mismatch in unify: "  ++ show (tvKind n) ++ 
                                                 " and " ++ show (kindOfType env t)))
   | n `elem` tvars t                    = fail (typeError Other env "Occurs check failed in unify")

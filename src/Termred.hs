@@ -150,7 +150,7 @@ redBinds env (Binds r te eqns)  = do eqns <- redEqns env eqns
 staticDelayRule env bs@(Binds rec te eqs)
   | not rec                     = return bs
   | rec                         = do (eqs',eqs1) <- walkEqs env te (dom eqs) eqs
-                                     ts <- mapM (const (newTVar Star)) eqs1
+                                     ts <- mapM (const (newTvar Star)) eqs1
                                      return (Binds rec (te ++ (dom eqs1 `zip` map scheme ts)) (eqs'++eqs1))
 
       

@@ -149,14 +149,14 @@ t2Exp env (EAp e es)            = do (s,rh,e) <- t2Exp env e
 t2Exp env (ELet bs e)           = do (s1,bs) <- t2Binds env bs
                                      (s2,rh,e) <- t2Exp (addTEnv (subst s1 (tsigsOf bs)) env) e
                                      return (mergeSubsts [s1,s2], rh, ELet bs e)
-t2Exp env (ERec c eqs)          = do alphas <- mapM newTVar (kArgs (findKind env c))
+t2Exp env (ERec c eqs)          = do alphas <- mapM newTvar (kArgs (findKind env c))
                                      (t,scs) <- t2Lhs env (foldl TAp (TId c) alphas) t2Sel ls
                                      (s,es) <- t2ExpTs env scs es
                                      e <- encodeTApp (snd (tFlat t)) (ERec c (ls `zip` es))
                                      return (s, R (subst s t), e)
   where (ls,es)                 = unzip eqs
         t2Sel env x l           = t2Exp env (ESel (EVar x) l)
-t2Exp env (ECase e alts)        = do alpha <- newTVar Star
+t2Exp env (ECase e alts)        = do alpha <- newTvar Star
                                      (TFun [t0] t1,scs) <- t2Lhs env alpha t2Pat ps
                                      (s0,e) <- t2ExpT env (scheme t0) e
                                      (s1,es) <- t2ExpTs env scs es
@@ -168,16 +168,16 @@ t2Exp env (ECase e alts)        = do alpha <- newTVar Star
                                      te <- newEnv paramSym (funArgs rh)
                                      t2Exp env (eLam te (EAp (EVar x) [eAp (ECon k) (map EVar (dom te))]))
         t2Pat env x (PWild)     = do y <- newName tempSym
-                                     t <- newTVar Star
+                                     t <- newTvar Star
                                      t2Exp (addTEnv [(y,scheme t)] env) (EAp (EVar x) [EVar y])
-t2Exp env (EReq e1 e2)          = do alpha <- newTVar Star
-                                     beta <- newTVar Star
+t2Exp env (EReq e1 e2)          = do alpha <- newTvar Star
+                                     beta <- newTvar Star
                                      (s1,e1) <- t2ExpT env (scheme (tRef alpha)) e1
                                      (s2,e2) <- t2ExpT env (scheme (tCmd alpha beta)) e2
                                      let s = mergeSubsts [s1,s2]
                                      return (s, R (tRequest (subst s beta)), EReq e1 e2)
-t2Exp env (EAct e1 e2)          = do alpha <- newTVar Star
-                                     beta <- newTVar Star
+t2Exp env (EAct e1 e2)          = do alpha <- newTvar Star
+                                     beta <- newTvar Star
                                      (s1,e1) <- t2ExpT env (scheme (tRef alpha)) e1
                                      (s2,e2) <- t2ExpT env (scheme (tCmd alpha beta)) e2
                                      let s = mergeSubsts [s1,s2]
@@ -190,10 +190,10 @@ t2Exp env (ETempl x tx te c)    = do (s,t,c) <- t2Cmd (setSelf x tx (addTEnv te 
                                      return (s, R (tClass t), ETempl x tx te c)
 
         
-t2Cmd env (CRet e)              = do alpha <- newTVar Star
+t2Cmd env (CRet e)              = do alpha <- newTvar Star
                                      (s,e) <- t2ExpT env (scheme alpha) e
                                      return (s, subst s alpha, CRet e)
-t2Cmd env (CExp e)              = do alpha <- newTVar Star
+t2Cmd env (CExp e)              = do alpha <- newTvar Star
                                      (s,e) <- t2ExpT env (scheme (tCmd (fromJust (stateT env)) alpha)) e
                                      return (s, subst s alpha, CExp e)
 t2Cmd env (CGen x tx e c)       = do (s1,e) <- t2ExpT env (scheme (tCmd (fromJust (stateT env)) tx)) e
@@ -215,7 +215,7 @@ t2Ap env s1 (F scs rh) e es     = do (s2,es) <- t2ExpTs env scs es
                                      let s = mergeSubsts [s1,s2]
                                      return (s, subst s rh, EAp e es)
 t2Ap env s1 rh e es             = do (s2,rhs,es) <- t2Exps env es
-                                     t <- newTVar Star
+                                     t <- newTvar Star
                                      s3 <- mgi rh (F (map scheme' rhs) (R t))
                                      let s = mergeSubsts [s1,s2,s3]
                                      return (s, R (subst s t), EAp e es)
@@ -233,7 +233,7 @@ t2Lhs env alpha t2X xs          = do x <- newName tempSym
           where tvs             = nub (filter (`notElem` tvs0) (tvars rh))
     
 
-t2Inst (Scheme rh ps ke)        = do ts <- mapM newTVar ks
+t2Inst (Scheme rh ps ke)        = do ts <- mapM newTvar ks
                                      return (subst (vs `zip` ts) (tFun ps rh), ts)
   where (vs,ks)                 = unzip ke
 
@@ -249,11 +249,11 @@ mgi (F ts t) (F us u)           = do s <- mgi t u
                                      return (mergeSubsts (s:ss))
 mgi (R (TFun ts t)) rh          = mgi (F (map scheme ts) (R t)) rh
 mgi rh (R (TFun us u))          = mgi rh (F (map scheme us) (R u))
-mgi (R t) (F us u)              = do (t':ts) <- mapM newTVar (replicate (length us + 1) Star)
+mgi (R t) (F us u)              = do (t':ts) <- mapM newTvar (replicate (length us + 1) Star)
                                      let s1 = unif [(t,TFun ts t')]
                                      s2 <- mgi (R (subst s1 t)) (F us u)
                                      return (s2@@s1)
-mgi (F ts t) (R u)              = do (u':us) <- mapM newTVar (replicate (length ts + 1) Star)
+mgi (F ts t) (R u)              = do (u':us) <- mapM newTvar (replicate (length ts + 1) Star)
                                      let s1 = unif [(u,TFun us u')]
                                      s2 <- mgi (F ts t) (R (subst s1 u))
                                      return (s2@@s1)
@@ -266,10 +266,10 @@ mgiSc (sc, sc')                 = do (rh,_) <- t2Inst sc
 
 
 unif []                         = nullSubst
-unif ((TVar n,t):eqs)
-  | t == TVar n                 = unif eqs
+unif ((Tvar n,t):eqs)
+  | t == Tvar n                 = unif eqs
   | otherwise                   = let s = n +-> t; s' = unif (subst s eqs) in s' @@ s
-unif ((t,TVar n):eqs)           = let s = n +-> t; s' = unif (subst s eqs) in s' @@ s
+unif ((t,Tvar n):eqs)           = let s = n +-> t; s' = unif (subst s eqs) in s' @@ s
 unif ((TAp t u, TAp t' u'):eqs) = unif ((t,t'):(u,u'):eqs)
 unif ((TId c, TId c'):eqs)
   | c == c'                     = unif eqs
@@ -278,4 +278,4 @@ unif ((TFun ts t, TFun us u):eqs)
 unif eqs                        = internalError0 ("Type2.unif\n" ++ render (nest 4 (vpr eqs)))
 
 
-mergeSubsts ss                  = unif (mapFst TVar (concat ss))
+mergeSubsts ss                  = unif (mapFst Tvar (concat ss))

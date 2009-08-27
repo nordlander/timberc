@@ -156,14 +156,14 @@ drive env (EAp (EVar (Prim LazyAnd a)) [ECon (Prim TRUE annot), e2]) =
   drive (env {ctxt = emptyContext}) (ctxt env $ e2)
 drive env (EAp (EVar (Prim LazyAnd a)) [ECon (Prim FALSE annot), e2]) = do
   n <- newName "x"
-  t <- newTVar Star
+  t <- newTvar Star
   let body = ELet (Binds False [(n, scheme t)] [(n, e2)]) (eBool False)
   drive (env {ctxt = emptyContext}) (ctxt env $ body)
 drive env (EAp (EVar (Prim LazyAnd a)) [e1, ECon (Prim TRUE _)]) =
   drive (env {ctxt = emptyContext}) (ctxt env $ e1)
 drive env (EAp (EVar (Prim LazyAnd a)) [e1, ECon (Prim FALSE _)]) = do
   n <- newName "x"
-  t <- newTVar Star
+  t <- newTvar Star
   let body = ELet (Binds False [(n, scheme t)] [(n, e1)]) (eBool False)
   tr ("New lazyAnd body:" ++ show' body)
   drive (env {ctxt = emptyContext}) (ctxt env $ body)
@@ -266,7 +266,7 @@ drive env t@(ECase (EAp (ECon n) args) legs)
     in drive (env {ctxt = emptyContext}) (ctxt env $ e')
   | e <- findCon n legs = do
     vs <- newNames "x" (length args)
-    ts <- newTVars Star (length args)
+    ts <- newTvars Star (length args)
     let e' = ELet (Binds False (zip vs (map scheme ts)) (zip vs args)) e
     drive (env {ctxt = emptyContext}) (ctxt env $ e')
 drive env e@(ECase (ELit l@(LStr _ _)) legs) = do
@@ -358,7 +358,7 @@ driveApp env (EVar n) args
                     then do
                       let fvs = fv env l'
                           bodyfvs = fv env e' \\ fvs
-                      t <- newTVar Star
+                      t <- newTvar Star
                       xs <- newNames "x" (length fvs)
                       schemes <- constructTypes env fvs
                       let fscheme = case null fvs of
@@ -421,7 +421,7 @@ maybeFold env (EVar n) args = do
 
 gen env e1 e2 = do
 --  tr ("Generalize : \n" ++ show' e1 ++ " vs\n" ++ show' e2)
-  t <- newTVar Star
+  t <- newTvar Star
   res@(ground, s, ts) <- msg env (e1, e2, scheme t)
   (term, s', ts') <- case ground of
                    EVar n -> split' e1
@@ -444,32 +444,32 @@ gen env e1 e2 = do
 split' c@(ECon {}) = return (c, nullSubst, [])
 split' (ESel e n) = do
   x <- newName "intermediate_name"
-  t <- newTVar Star
+  t <- newTvar Star
   return (ESel (EVar x) n, [(x, e)], [scheme t])
 split' c@(EVar {}) = return (c, nullSubst, [])
 split' (ELam te e) = do
   x <- newName "intermediate_name"
-  t <- newTVar Star
+  t <- newTvar Star
   return (ELam te (EVar x), [(x, e)], [scheme t])
 split' (EAp e args) = do
   -- XXXpj: Kolla upp typinfo om e = g.
   x <- newName "intermediate_name"
-  t <- newTVar Star
+  t <- newTvar Star
   xs <- newNames "intermediate_name" (length args)
-  ts <- newTVars Star (length args)
+  ts <- newTvars Star (length args)
   return (EAp (EVar x) (map EVar xs), (x, e):zip xs args, (scheme t):map scheme ts)
 split' (ELet (Binds rec te eq) e) = do
   x <- newName "intermediate_name"
   xs <- newNames "intermediate_name" (length eq)
-  t <- newTVar Star
-  ts <- newTVars Star (length eq)
+  t <- newTvar Star
+  ts <- newTvars Star (length eq)
   let (ns, args) = unzip eq
   return (ELet (Binds rec te (zip ns (map EVar xs))) (EVar x), (x, e):zip xs args, map scheme (t:ts))
 split' (ECase e alts) = do
   x <- newName "intermediate_name"
   xs <- newNames "intermediate_name" (length alts)
-  t <- newTVar Star
-  ts <- newTVars Star (length alts)
+  t <- newTvar Star
+  ts <- newTvars Star (length alts)
   let p = map separatePat alts
       (pats, legs) = unzip p
       alts' = zipWith mergePat p (map EVar xs)
@@ -480,19 +480,19 @@ split' (ECase e alts) = do
         mergePat ((k, Nothing), e) x = (k, x)
 split' (ERec n eqns) = do
   xs <- newNames "intermediate_name" (length eqns)
-  t <- newTVar Star
+  t <- newTvar Star
   let (ns, exps) = unzip eqns
   return (ERec n (zip ns (map EVar xs)), zip xs exps, [scheme t])
 split' l@(ELit {}) = return (l, nullSubst, [])
 split' (EAct e1 e2) = do
   x1 <- newName "intermediate_name"
   x2 <- newName "intermediate_name"
-  ts <- newTVars Star 2
+  ts <- newTvars Star 2
   return (EAct (EVar x1) (EVar x2), [(x1, e1), (x2, e2)], map scheme ts)
 split' (EReq  e1 e2) = do
   x1 <- newName "intermediate_name"
   x2 <- newName "intermediate_name"
-  ts <- newTVars Star 2
+  ts <- newTvars Star 2
   return (EReq (EVar x1) (EVar x2), [(x1, e1), (x2, e2)], map scheme ts)
 split' t@(ETempl {}) = return (t, nullSubst, [])
 split' d@(EDo {}) = return (d, nullSubst, [])
@@ -622,7 +622,7 @@ msg env (EVar n1, EVar n2, s)
     return (EVar n, [(n, EVar n1)], [s])
 msg env (ELam te1 e1, ELam te2 e2, s) 
   | length te1 == length te2 && dom te1 == dom te2 = do
-       t <- newTVar Star
+       t <- newTvar Star
        (e', s1, t1) <- msg env (e1, e2, scheme t)
        return (ELam te1 e', s1, t1)
   | otherwise = do
@@ -637,7 +637,7 @@ msg env (EAp (EVar n1) args1, EAp (EVar n2) args2, s)
     let (args, s2, t2) = unzip3 tmp
     return (EAp (EVar n1) args, concat s2, concat t2)
   | n1 == n2 && length args1 == length args2 = do
-    ts <- newTVars Star (length args1)
+    ts <- newTvars Star (length args1)
     tmp <- mapM (msg env) (zip3 args1 args2 (map scheme ts))
     let (args, s2, t2) = unzip3 tmp
     return (EAp (EVar n1) args, concat s2, concat t2)
@@ -648,8 +648,8 @@ msg env (EAp e1 args1, EAp e2 args2, s)
 --   | length args1 == length args2 = do
 --     tr ("msg, eap: " ++ show' (EAp e1 args1) ++ " : " ++ show' (EAp e2 args2))
 --     -- XXXpj: msg, kolla upp typ i locEqns for e1/e2
---     t <- newTVar Star
---     ts <- newTVars Star (length args1)
+--     t <- newTvar Star
+--     ts <- newTvars Star (length args1)
 --     (e1', s1, t1) <- msg env (e1, e2, scheme t)
 --     tmp <- mapM (msg env) (zip3 args1 args2 (map scheme ts))
 --     let (args, s2, t2) = unzip3 tmp
@@ -661,9 +661,9 @@ msg env (ELet (Binds r1 te1 eq1) e1, ELet (Binds r2 te2 eq2) e2, s) = error "msg
 -- XXXpj FIXME Bleh. [(p, e)]
 msg env (ECase c1 legs1, ECase c2 legs2, s) 
   | map fst legs1 == map fst legs2 = do
-    t <- newTVar Star
+    t <- newTvar Star
     (c', s1, t1) <- msg env (c1, c2, scheme t)
-    ts <- newTVars Star (length legs1)
+    ts <- newTvars Star (length legs1)
     let (legs1', legs2') = unzip (zipWith separatePats legs1 legs2)
     tmp <- mapM (msg env) (zip3 legs1' legs2' (map scheme ts))
     let (legs', s2, t2) = unzip3 tmp
@@ -697,21 +697,21 @@ msg env (ELit l1, ELit l2, s)
     n <- newName "tmp"
     return (EVar n, [(n, ELit l1)], [s])
 msg env (EAct e1 e2, EAct e1' e2', s) = do
-  t1 <- newTVar Star
-  t2 <- newTVar Star
+  t1 <- newTvar Star
+  t2 <- newTvar Star
   (e', s1, t1') <- msg env (e1, e1', scheme t1)
   (e'', s2, t2') <- msg env (e2, e2', scheme t2)
   return (EAct e' e'', s1 ++ s2, t1' ++ t2')
 msg env (EReq e1 e2, EReq e1' e2', s) = do
-  t1 <- newTVar Star
-  t2 <- newTVar Star
+  t1 <- newTvar Star
+  t2 <- newTvar Star
   (e', s1, t1') <- msg env (e1, e1', scheme t1)
   (e'', s2, t2') <- msg env (e2, e2', scheme t2)
   return (EReq e' e'', s1 ++ s2, t1' ++ t2')
 msg env (ETempl n1 t1 te1 c1, ETempl n2 t2 te2 c2, s) = error "msg, Etempl"
 msg env (EDo n1 t1 c1, EDo n2 t2 c2, s) 
  | n1 == n2 = do
-   t1' <- newTVar Star
+   t1' <- newTvar Star
    (c1', s1', t1'') <- msgCmd env (c1, c2, scheme t1')
    return (EDo n1 t1 c1', s1', t1'')
  | otherwise = error "msg, edo"
@@ -722,27 +722,27 @@ msg env (e1, e2, s) = do
 
 msgCmd env (CGen n1 t1 e1 c1, CGen n2 t2 e2 c2, s) 
  | n1 == n2 = do
-   t1' <- newTVar Star
-   t2' <- newTVar Star
+   t1' <- newTvar Star
+   t2' <- newTvar Star
    (e1', s1', t1'') <- msg env (e1, e2, scheme t1')
    (c1', s2', t2'') <- msgCmd env (c1, c2, scheme t2')
    return (CGen n1 t1 e1' c1', s1' ++ s2', t1'' ++ t2'')
  | otherwise = error "msgCmd, Cgen"
 msgCmd env (CAss n1 e1 c1, CAss n2 e2 c2, s) 
  | n1 == n2 = do
-   t1' <- newTVar Star
-   t2' <- newTVar Star
+   t1' <- newTvar Star
+   t2' <- newTvar Star
    (e1', s1', t1'') <- msg env (e1, e2, scheme t1')
    (c1', s2', t2'') <- msgCmd env (c1, c2, scheme t2')
    return (CAss n1 e1' c1', s1' ++ s2', t1'' ++ t2'')
  | otherwise = error "msgCmd, Cgen"
 msgCmd env (CLet bs1 c1, CLet bs2 c2, s) = error "msgCmd: CLet"
 msgCmd env (CRet e1, CRet e2, s) = do
-  t <- newTVar Star
+  t <- newTvar Star
   (e', s', t') <- msg env (e1, e2, scheme t)
   return (CRet e', s', t')
 msgCmd env (CExp e1, CExp e2, s) = do
-  t <- newTVar Star
+  t <- newTvar Star
   (e', s', t') <- msg env (e1, e2, scheme t)
   return (CExp e', s', t')
 msgCmd env (e1, e2, s) = error "msgCmd, e1 e2"

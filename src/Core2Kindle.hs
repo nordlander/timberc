@@ -198,8 +198,8 @@ cType' (TId (Prim Cmd _), [s,t])        = ([Kindle.tRef (cAType s)], cAType t)
 cType' (TId (Prim PMC _), [t])          = ([], cAType t)
 cType' (TId n, ts) | isVar n            = ([], Kindle.TVar n (map cAType ts))
 cType' (TId n, ts)                      = ([], Kindle.TCon n (map cAType ts))
-cType' (TVar n, [])                     = ([], Kindle.tInt)
-cType' (TVar n, ts)                     = ([], Kindle.TCon (tuple (length ts)) (map cAType ts))
+cType' (Tvar n, [])                     = ([], Kindle.tInt)
+cType' (Tvar n, ts)                     = ([], Kindle.TCon (tuple (length ts)) (map cAType ts))
 cType' (t, _)                           = ([], cAType t)
 
 

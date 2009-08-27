@@ -81,7 +81,7 @@ data Rho        = R       Type
                 deriving (Eq,Show,Typeable)
 
 data Type       = TId     Name
-                | TVar    TVAR
+                | Tvar    TVAR
                 | TFun    [Type] Type
                 | TAp     Type Type
                 deriving  (Eq,Show,Typeable)
@@ -134,16 +134,18 @@ instance Binary TVAR where
   get = get >>= \a -> return (TV a)
 
 
-newTV k                         = do n <- newNum
-                                     return (TV (n,k))
+newTvar k                       = do n <- newNum
+                                     return (Tvar (TV (n,k)))
+
+newTvars k n                    = mapM (const (newTvar k)) [1..n]
 
 tvKind (TV (n,k))               = k
 
 
-litType (LInt _ i)              = TId (prim Int)
-litType (LRat _ r)              = TId (prim Float)
-litType (LChr _ c)              = TId (prim Char)
-litType (LStr _ s)              = TAp (TId (prim LIST)) (TId (prim Char)) --internalError0 "Core.litType LStr"
+litType (LInt _ i)              = tInt
+litType (LRat _ r)              = tFloat
+litType (LChr _ c)              = tChar
+litType (LStr _ s)              = tList tChar
 
 tAction                         = TId (prim Action)
 tRequest a                      = TAp (TId (prim Request)) a
@@ -195,9 +197,6 @@ tupleType n                     = Scheme (tFun' (map scheme ts) t) [] (vs `zip` 
         ts                      = map TId vs
         t                       = tAp (TId (tuple n)) ts
 
-
-newTVar k                       = fmap TVar (newTV k)
-newTVars s n                    = mapM (const (newTVar s)) [1..n]
 
 nullCon                         = Constr [] [] []
 
@@ -260,8 +259,8 @@ tHead t                         = t
 tId (TId i)                     = i
 
 
-isTVar (TVar _)                 = True
-isTVar _                        = False
+isTvar (Tvar _)                 = True
+isTvar _                        = False
 
 
 a `sub` b                       = TFun [a] b
@@ -349,7 +348,7 @@ oplus eqs eqs'                  = filter ((`notElem` vs) . fst) eqs ++ eqs'
 
 
 matchTs []                              = nullSubst
-matchTs ((t,TVar n):eqs)                = matchTs (subst s eqs) @@ s
+matchTs ((t,Tvar n):eqs)                = matchTs (subst s eqs) @@ s
   where s                               = n +-> t
 matchTs ((TAp t u,TAp t' u'):eqs)       = matchTs ((t,t'):(u,u'):eqs)
 matchTs ((TId c,TId c'):eqs)            = matchTs eqs
@@ -360,7 +359,7 @@ matchTs _                               = internalError0 "Core.match"
 -- Equality up to renaming ----------------------------------------------
 
 equalTs []                              = True
-equalTs ((TVar n, t@(TVar n')):eqs)
+equalTs ((Tvar n, t@(Tvar n')):eqs)
   | n == n'                             = equalTs eqs
   | otherwise                           = equalTs (subst (n +-> t) eqs)
 equalTs ((TAp t u, TAp t' u'):eqs)      = equalTs ((t,t'):(u,u'):eqs)
@@ -524,7 +523,7 @@ instance Subst Type Name Name  where
                                     Nothing -> TId c
     subst s (TAp t t')          = TAp (subst s t) (subst s t')
     subst s (TFun ts t)         = TFun (subst s ts) (subst s t)
-    subst s (TVar n)            = TVar n
+    subst s (Tvar n)            = Tvar n
     
 
 -- Type identifiers ---------------------------------------------------------
@@ -539,7 +538,7 @@ instance Ids Constr where
 
 instance Ids Type where
     idents (TId c)              = [c]
-    idents (TVar _)             = []
+    idents (Tvar _)             = []
     idents (TAp t t')           = idents t ++ idents t'
     idents (TFun ts t)          = idents ts ++ idents t
 
@@ -554,7 +553,7 @@ instance Subst Type Name Type where
     subst s (TId c)             = case lookup c s of
                                     Just t -> t
                                     Nothing -> TId c
-    subst s (TVar n)            = TVar n
+    subst s (Tvar n)            = Tvar n
     subst s (TAp t t')          = TAp (subst s t) (subst s t')
     subst s (TFun ts t)         = TFun (subst s ts) (subst s t)
 
@@ -574,35 +573,35 @@ instance Subst (Scheme,Scheme) Name Type where
 
 -- Type variables --------------------------------------------------------------
 
-class TVars a where
+class Tvars a where
     tvars                       :: a -> [TVAR]
 
-instance TVars a => TVars [a] where
+instance Tvars a => Tvars [a] where
     tvars xs                    = concatMap tvars xs
 
-instance TVars a => TVars (Name,a) where
+instance Tvars a => Tvars (Name,a) where
     tvars (v,a)                 = tvars a
 
 
-instance TVars Type where
+instance Tvars Type where
     tvars (TId c)               = []
-    tvars (TVar n)              = [n]
+    tvars (Tvar n)              = [n]
     tvars (TAp t t')            = tvars t ++ tvars t'
     tvars (TFun ts t)           = tvars ts ++ tvars t
 
-instance TVars Scheme where
+instance Tvars Scheme where
     tvars (Scheme t ps ke)      = tvars t ++ tvars ps
 
-instance TVars Rho where
+instance Tvars Rho where
     tvars (R t)                 = tvars t
     tvars (F scs rh)            = tvars scs ++ tvars rh
 
 instance Subst Type TVAR Type where
     subst [] t                  = t
     subst s (TId c)             = TId c
-    subst s (TVar n)            = case lookup n s of
+    subst s (Tvar n)            = case lookup n s of
                                     Just t -> t
-                                    Nothing -> TVar n
+                                    Nothing -> Tvar n
     subst s (TAp t t')          = TAp (subst s t) (subst s t')
     subst s (TFun ts t)         = TFun (subst s ts) (subst s t)
 
@@ -644,7 +643,7 @@ instance Subst Type Int Kind where
     subst s (TAp t t')          = TAp (subst s t) (subst s t')
     subst s (TFun ts t)         = TFun (subst s ts) (subst s t)
     subst s (TId c)             = TId c
-    subst s (TVar (TV (n,k)))   = TVar (TV (n, subst s k))
+    subst s (Tvar (TV (n,k)))   = Tvar (TV (n, subst s k))
     
 
 -- Alpha conversion -------------------------------------------------------------
@@ -717,12 +716,12 @@ instance AlphaConv Cmd where
 instance AlphaConv Type where
     ac s (TId n)                = case lookup n s of
                                     Just n'       -> return (TId n')
-                                    _ | isVar n   -> newTVar Star   -- not quite correct, really need an env to find kind of n
+                                    _ | isVar n   -> newTvar Star   -- not quite correct, really need an env to find kind of n
                                                                     -- But we're past kind errors anyway when we alphaconvert...
                                       | otherwise -> return (TId n)
     ac s (TFun t ts)            = liftM2 TFun (ac s t) (ac s ts)
     ac s (TAp t u)              = liftM2 TAp (ac s t) (ac s u)
-    ac s (TVar n)               = newTVar (tvKind n)
+    ac s (Tvar n)               = newTvar (tvKind n)
 
 
 instance AlphaConv Rho where
@@ -752,7 +751,7 @@ instance Refresh a => Refresh [a] where
     refresh xs                  = mapM refresh xs
     
 instance Refresh Type where
-    refresh (TVar (TV (_,k)))   = newTVar k
+    refresh (Tvar (TV (_,k)))   = newTvar k
     refresh (TFun t ts)         = liftM2 TFun (refresh t) (refresh ts)
     refresh (TAp t u)           = liftM2 TAp (refresh t) (refresh u)
     refresh t                   = return t
@@ -842,7 +841,7 @@ instance Erase Type where
     erase (TAp t t')            = TAp (erase t) (erase t')
     erase (TFun ts t)           = TFun (erase ts) (erase t)
     erase (TId n)               = TId n
-    erase (TVar _)              = TId (prim Int)
+    erase (Tvar _)              = TId (prim Int)
 
 instance Erase Rho where
     erase (F ts t)              = F (erase ts) (erase t)
@@ -989,8 +988,8 @@ instance Pr Type where
     prn 1 t                     = prn 2 t
 
     prn 2 (TId c)               = prId c
---    prn 2 (TVar _)              = text "_"
-    prn 2 (TVar n)              = text "_" <> pr n
+--    prn 2 (Tvar _)              = text "_"
+    prn 2 (Tvar n)              = text "_" <> pr n
 
     prn 2 t                     = parens (prn 0 t)
 
@@ -1015,7 +1014,7 @@ instance Pr Pat where
 
 -- Expressions -------------------------------------------------------------
 
-prParam (x,Scheme (R (TVar _)) [] [])
+prParam (x,Scheme (R (Tvar _)) [] [])
                                 = prId x
 prParam (x,sc)                  = parens (pr (x,sc))
 
@@ -1093,7 +1092,7 @@ instance HasPos Rho where
 
 instance HasPos Type where
   posInfo (TId n)               = posInfo n
-  posInfo (TVar _)              = Unknown
+  posInfo (Tvar _)              = Unknown
   posInfo (TFun ts t)           = posInfo (t : ts)
   posInfo (TAp t t')            = between (posInfo t) (posInfo t')
 
@@ -1171,14 +1170,14 @@ instance Binary Rho where
 
 instance Binary Type where
   put (TId a) = putWord8 0 >> put a
-  put (TVar a) = putWord8 1 >> put a
+  put (Tvar a) = putWord8 1 >> put a
   put (TFun a b) = putWord8 2 >> put a >> put b
   put (TAp a b) = putWord8 3 >> put a >> put b
   get = do
     tag_ <- getWord8
     case tag_ of
       0 -> get >>= \a -> return (TId a)
-      1 -> get >>= \a -> return (TVar a)
+      1 -> get >>= \a -> return (Tvar a)
       2 -> get >>= \a -> get >>= \b -> return (TFun a b)
       3 -> get >>= \a -> get >>= \b -> return (TAp a b)
       _ -> fail "no parse"

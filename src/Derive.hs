@@ -102,7 +102,7 @@ expand a from to e sc                 = exp0 to (e,scheme2Type sc)
                                            return (ECase e [(PCon (tuple n), lam)])
         expTup (e,_)                  = return e
 
-eLam' xs e                            = do ts <- mapM (\_ -> newTVar Star) xs
+eLam' xs e                            = do ts <- mapM (\_ -> newTvar Star) xs
                                            return (ELam (zipWith (\x t -> (x,scheme t)) xs ts) e)
                                            
 mkFunPair (nm,DData _ (_:_) _)        = errorIds "Not yet implemented: default instances for data type with subtypes" [nm]

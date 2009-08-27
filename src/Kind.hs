@@ -94,7 +94,7 @@ kiTExp env (TFun ts t)                  = do css <- mapM (kiType env) ts
                                              cs  <- kiType env t
                                              return (cs ++ concat css, Star)
 kiTExp env (TId c)                      = return ([], findKind env c)
-kiTExp env (TVar n)                     = return ([], tvKind n)
+kiTExp env (Tvar n)                     = return ([], tvKind n)
 kiTExp env (TAp t t')                   = do (cs,k) <- kiTExp env t
                                              (cs',k') <- kiTExp env t'
                                              kv <- newKVar
@@ -224,7 +224,7 @@ kiCmd env (CExp e)                      = do e <- kiExp env e
 -- Compute kind of general type expression -------------------------------------
 
 kindOfType env (TFun _ _)               = Star
-kindOfType env (TVar n)                 = tvKind n
+kindOfType env (Tvar n)                 = tvKind n
 kindOfType env (TId c)                  = findKind env c
 kindOfType env (TAp t t')               = k
   where KFun k' k                       = kindOfType env t

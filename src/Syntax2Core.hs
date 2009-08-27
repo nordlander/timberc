@@ -171,7 +171,7 @@ s2cType (TAp t t')              = liftM2 Core.TAp (s2cType t) (s2cType t')
 s2cType (TCon c)                = return (Core.TId c)
 s2cType (TVar v)                = return (Core.TId v)
 s2cType (TWild)                 = do k <- newKVar
-                                     Core.newTVar k
+                                     Core.newTvar k
 
 
 -- translate qualifiers, separating predicates from kind signatures along the way
