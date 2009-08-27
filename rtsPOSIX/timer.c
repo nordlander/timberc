@@ -46,7 +46,7 @@ typedef struct T_Timer *T_Timer;
 
 struct T_Timer {
     WORD *GCINFO;
-    UNITTYPE (*reset) (T_Timer, Int);
+    UNIT (*reset) (T_Timer, Int);
     Time (*sample) (T_Timer, Int);
     Ref self;
 };
@@ -262,11 +262,11 @@ Bool primTimeGE(Time t1, Time t2) {
     return primTimeLE(t2,t1);
 }
 
-static UNITTYPE reset_fun(Ref self, Int x) {
+static UNIT reset_fun(Ref self, Int x) {
     self = (Ref)LOCK((OID)self);
     ((S_Timer)STATEOF(self))->start = CURRENT()->msg->baseline;
     UNLOCK((OID)self);
-    return (UNITTYPE)0;
+    return (UNIT)0;
 }
 
 static Time sample_fun(Ref self, Int x) {
@@ -283,7 +283,7 @@ static Time sample_fun(Ref self, Int x) {
     return res;
 }
 
-static UNITTYPE reset_sel(T_Timer this,Int x) {
+static UNIT reset_sel(T_Timer this,Int x) {
     return reset_fun(this->self,x);
 }
 

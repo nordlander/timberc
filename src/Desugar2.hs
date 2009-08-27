@@ -212,7 +212,7 @@ zipSigs _      _                = []
 
 rh2exp (RExp e)                 = e
 rh2exp (RWhere rh bs)           = ELet bs (rh2exp rh)
-rh2exp rh                       = ECase (ECon (prim UNITTERM)) [Alt (ECon (prim UNITTERM)) rh]
+rh2exp rh                       = ECase unit [Alt unit rh]
 
 selectFrom e0 s p e             = ECase e0 [Alt (subst s p) (RExp (subst s e))]
 

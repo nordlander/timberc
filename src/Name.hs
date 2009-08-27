@@ -96,14 +96,12 @@ data Prim                       =
                                 -- Constructor symbols (special syntax)
 
                                 | LIST                  -- Type
-                                | UNITTYPE              -- Type
                                 | TIMERTYPE             
 
                                 | MAX____TYPE
                                 
                                 | MIN____CONS
                                 
-                                | UNITTERM              -- Term
                                 | NIL                   -- Term
                                 | CONS                  -- Term
 
@@ -360,8 +358,6 @@ lowPrims                        = [New,Sec,Millisec,Microsec,Nanosec,Raise,Catch
 
 strRep LIST                     = "[]"
 strRep EITHER                   = "Either"
-strRep UNITTYPE                 = "()"
-strRep UNITTERM                 = "()"
 strRep NIL                      = "[]"
 strRep CONS                     = ":"
 strRep TRUE                     = "True"

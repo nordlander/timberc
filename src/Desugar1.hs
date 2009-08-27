@@ -310,7 +310,7 @@ instance Desugar1 Field where
     ds1 env (Field l e)          = Field l (ds1 env e)
 
 
-ds1S env []                      = [SRet (ECon (prim UNITTERM))]
+ds1S env []                      = [SRet unit]
 ds1S env [SRet e]                = [SRet (ds1 env e)]
 --ds1S env [SExp e]                = [SExp (ds1 env e)]
 ds1S env (SExp e : ss)           = SGen EWild (ds1 env e) : ds1S env ss

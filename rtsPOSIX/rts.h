@@ -51,8 +51,9 @@ typedef WORD *ADDR;
 #define Bool char
 #define FALSE char          // alias for singleton type
 #define TRUE char           // alias for singleton type
-#define UNITTYPE char
-#define UNITTERM char       // alias for singleton type
+#define TUP0 char
+
+#define UNIT TUP0
 #define POLY ADDR
 
 #define OID ADDR

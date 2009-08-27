@@ -121,7 +121,7 @@ mkFunPair (nm,DData vs ss cs)         = do [from,to] <- mapM newName ["from"++st
         toType                        = Scheme (F [scheme ot] (R dt)) [] (map (\n -> (n,Star)) vs)
 
         prefixLR fs e                 = foldr (\f e -> EAp (ECon f) [e]) e (map prim fs)
-        mkAlt fs (nm,Constr [] _ _)   = return (PCon nm,prefixLR fs (ECon (prim UNITTERM)))
+        mkAlt fs (nm,Constr [] _ _)   = return (PCon nm,prefixLR fs eUnit)
         mkAlt fs (nm,Constr ss _ _)   = do ns <- newNames tempSym (length ss)
                                            lam <- eLam' ns  (prefixLR fs (foldr1 (etup2) (map EVar ns)))
                                            return (PCon nm,lam)
@@ -146,9 +146,9 @@ mkFunPair (nm,DData vs ss cs)         = do [from,to] <- mapM newName ["from"++st
                                            r <- mkCase b cs (z:y:xs)
                                            lam <- eLam' [y,z] r
                                            return (ECase (EVar x) [(PCon (tuple 2),lam)])
-        mkCase (TId (Prim UNITTYPE _)) (c:_) xs             
-                                      = return (ECon c)
-        mkCase t (c:_) xs             = return (EAp (ECon c) (map EVar (reverse xs)))
+        mkCase t (c:_) xs
+          | t == tUnit                = return (ECon c)
+          | otherwise                 = return (EAp (ECon c) (map EVar (reverse xs)))
         toRHS                         = do x <- newName paramSym
                                            r <- mkCase ot (map fst cs) [x] 
                                            eLam' [x] r

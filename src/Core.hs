@@ -122,6 +122,29 @@ litType (LRat _ r)              = TId (prim Float)
 litType (LChr _ c)              = TId (prim Char)
 litType (LStr _ s)              = TAp (TId (prim LIST)) (TId (prim Char)) --internalError0 "Core.litType LStr"
 
+tAction                         = TId (prim Action)
+tRequest a                      = TAp (TId (prim Request)) a
+tClass a                        = TAp (TId (prim Class)) a
+tCmd a b                        = TAp (TAp (TId (prim Cmd)) a) b
+tTime                           = TId (prim Time)
+tMsg                            = TId (prim Msg)
+tRef a                          = TAp (TId (prim Ref)) a
+tOID                            = TId (prim OID)
+tPMC a                          = TAp (TId (prim PMC)) a
+tInt                            = TId (prim Int)
+tFloat                          = TId (prim Float)
+tChar                           = TId (prim Char)
+tBool                           = TId (prim Bool)
+tArray a                        = TAp (TId (prim Array)) a
+tList a                         = TAp (TId (prim LIST)) a
+tUnit                           = TId (tuple 0)
+tEither a b                     = TAp (TAp (TId (prim EITHER)) a) b
+tTimer                          = TId (prim TIMERTYPE)
+tBITS8                          = TId (prim BITS8)
+tBITS16                         = TId (prim BITS16)
+tBITS32                         = TId (prim BITS32)
+
+eUnit                           = ECon (tuple 0)
 
 monoRestrict rec sc (ELet bs e)
   | isEncoding bs               = monoRestrict rec sc e
@@ -212,6 +235,7 @@ tHead (TAp t t')                = tHead t
 tHead t                         = t
 
 tId (TId i)                     = i
+
 
 isTVar (TVar _)                 = True
 isTVar _                        = False
@@ -733,7 +757,7 @@ tAppTypes (Binds _ te _)        = map body (rng te)
 -- Encode a System F type abstraction term
 encodeTAbs [] e                 = return e
 encodeTAbs ke e                 = do x <- newName tabsSym
-                                     let te = [(x,Scheme (R (TId (prim UNITTYPE))) [] ke)]
+                                     let te = [(x,Scheme (R tUnit) [] ke)]
                                      return (ELet (Binds True te [(x,EVar x)]) e)
 
 isTAbsEncoding (Binds r te _)   = r && isTAbs (head (dom te))

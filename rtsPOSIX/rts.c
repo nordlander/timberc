@@ -202,7 +202,7 @@ Msg dequeue(Msg *queue) {
         return m;
 }
 
-UNITTYPE ABORT(BITS32 polytag, Msg m, Ref dummy){
+UNIT ABORT(BITS32 polytag, Msg m, Ref dummy){
     m->Code = NULL;
     ADDR info;
     do {
@@ -210,7 +210,7 @@ UNITTYPE ABORT(BITS32 polytag, Msg m, Ref dummy){
         if (ISFORWARD(info))
             ((Msg)info)->Code = NULL;
     } while (info != IND0((ADDR)m));
-    return (UNITTYPE)0;
+    return (UNIT)0;
 }
 
 
@@ -333,7 +333,7 @@ void *run(void *arg) {
 
 // Major primitives ---------------------------------------------------------------------
 
-UNITTYPE ASYNC( Msg m, Time bl, Time dl ) {
+UNIT ASYNC( Msg m, Time bl, Time dl ) {
     DISABLE(rts);
 
     AbsTime now;
@@ -374,7 +374,7 @@ UNITTYPE ASYNC( Msg m, Time bl, Time dl ) {
         enqueueByDeadline(m, &msgQ);
 
     ENABLE(rts);
-    return (UNITTYPE)0;
+    return (UNIT)0;
 }
 
 
@@ -395,10 +395,10 @@ OID LOCK( OID to ) {
     return to;
 }
 
-UNITTYPE UNLOCK( OID to ) {
+UNIT UNLOCK( OID to ) {
     GC_EPILOGUE(to);
     pthread_mutex_unlock(&(((Ref)to)->mut));
-    return (UNITTYPE)0;
+    return (UNIT)0;
 }
 
 

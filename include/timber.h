@@ -181,16 +181,16 @@ typedef struct Timer *TIMERTYPE;
 
 struct Timer {
   WORD *GCINFO;
-  UNITTYPE (*reset) (TIMERTYPE, Int);
+  UNIT (*reset) (TIMERTYPE, Int);
   Time (*sample) (TIMERTYPE, Int);
 };
 
 extern WORD __GC__Timer[];
 
-UNITTYPE ASYNC(Msg, Time, Time);
-OID      LOCK(OID);
-UNITTYPE UNLOCK(OID);
-void     RAISE(Int);
+UNIT ASYNC(Msg, Time, Time);
+OID  LOCK(OID);
+UNIT UNLOCK(OID);
+void RAISE(Int);
 
 POLY     Raise(BITS32, Int);
 
@@ -207,7 +207,7 @@ void  CYCLIC_END(Array, ADDR stop);
 POLY primRefl(BITS32,POLY);
 
 TIMERTYPE primTIMERTERM(Int x);
-UNITTYPE ABORT(BITS32,Msg msg,Ref x);
+UNIT      ABORT(BITS32,Msg msg,Ref x);
 
 LIST primShowFloat(Float x);
 LIST getStr(char *p) ;

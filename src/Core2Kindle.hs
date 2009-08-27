@@ -656,8 +656,8 @@ cCmd env (CGen x tx (ECase e alts) c)
                                              (t,c2) <- cCmd env c
                                              return (t, Kindle.CSeq (Kindle.cMap (\_ -> Kindle.CBreak) c1) c2)
   where alts'                           = filter useful alts
-        useful (_,EDo _ _ (CRet (ECon (Prim UNITTERM _))))  = False
-        useful _                                            = True
+        useful (_,EDo _ _ (CRet e))     = e /= eUnit
+        useful _                        = True
 cCmd env (CGen x tx0 e c)               = do (bf,te,e) <- freezeState env e
                                              tx <- cAType env tx0
                                              (bf',e) <- cValExpT (addTEnv te env) tx (EAp e [EVar (self env)])

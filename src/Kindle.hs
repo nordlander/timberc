@@ -171,10 +171,11 @@ tVar n                                  = TVar n []
 tPOLY                                   = tId POLY
 tWORD                                   = tId WORD
 
+tUNIT                                   = tCon (tuple 0)
+
 tTime                                   = tId Time
 tMsg                                    = tId Msg
 tOID                                    = tId OID
-tUNIT                                   = tId UNITTYPE
 tInt                                    = tId Int
 tFloat                                  = tId Float
 tChar                                   = tId Char
@@ -238,7 +239,7 @@ equants _                               = []
 litType (LInt _ _)                      = tInt
 litType (LRat _ _)                      = tFloat
 litType (LChr _ _)                      = tChar
-litType (LStr _ _)                      = tLIST tChar --internalError0 "Kindle.litType LStr"
+litType (LStr _ _)                      = tLIST tChar
 
 a                                       = name0 "a"
 b                                       = name0 "b"
@@ -252,8 +253,6 @@ td                                      = TVar d []
 primDecls                               = (prim Bool,      Struct []    []                      Union) :
                                           (prim FALSE,     Struct []    []                      (Extends (prim Bool) [] [])) :
                                           (prim TRUE,      Struct []    []                      (Extends (prim Bool) [] [])) :
-                                          (prim UNITTYPE,  Struct []    []                      Union) :
-                                          (prim UNITTERM,  Struct []    []                      (Extends (prim UNITTYPE) [] [])) :
                                           (prim LIST,      Struct [a]   []                      Union) :
                                           (prim NIL,       Struct [a]   []                      (Extends (prim LIST) [ta] [])) :
                                           (prim CONS,      Struct [a]   [(a, ValT ta), 
@@ -315,15 +314,15 @@ primTEnv0                               = (prim TIMERTERM,  FunT []  [tInt] (tId
                                           []
 
 okRec (ValT t)                          = okRec' t
-okRec (FunT vs ts t)                    = True                            -- Good: recursive function
-okRec' (TVar _ _)                       = False                           -- Bad: statically unknown representation
-okRec' (TThis _)                        = False                           -- Bad: statically unknown representation
-okRec' (TCon (Prim p _) _)              = p `notElem` Kindle.scalarPrims  -- Bad: type that can't fit placeholder
-okRec' (TCon n _)                       = True                            -- Good: heap allocated data
+okRec (FunT vs ts t)                    = True          -- Good: recursive function
+okRec' (TVar _ _)                       = False         -- Bad: statically unknown representation
+okRec' (TThis _)                        = False         -- Bad: statically unknown representation
+okRec' (TCon n _) | n `elem` scalars    = False         -- Bad: type that can't fit placeholder
+                  | otherwise           = True          -- Good: heap allocated data
 
-scalarPrims                             = [Int, Float, Char, Bool, UNITTYPE, BITS8, BITS16, BITS32, AbsTime]
+scalars                                 = tuple 0 : map prim [Int, Float, Char, Bool, BITS8, BITS16, BITS32, AbsTime]
 
-smallPrims                              = [Char, Bool, UNITTYPE, BITS8, BITS16]
+smallTypes                              = tuple 0 : map prim [Char, Bool, BITS8, BITS16]
 
 isVal (_, Val _ _)                      = True
 isVal (_, Fun _ _ _ _)                  = False
@@ -356,7 +355,7 @@ variants ds n0                          = [ n | (n,Struct _ _ (Extends n' _ _)) 
 
 typeOfSel ds l                          = head [ (k,vs,t) | (k,Struct vs te _) <- ds, (l',t) <- te, l'==l ]
 
-unit                                    = ECast tUNIT (ENew (prim UNITTERM) [] [])
+unit                                    = ENew (tuple 0) [] []
 
 cBind [] c                              = c
 cBind bs c                              = CBind False bs c

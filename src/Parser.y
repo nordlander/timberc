@@ -339,7 +339,7 @@ atype   :: { Type }
         | '[' ']'				{ TCon (prim LIST) }
 --	| '(' '->' ')'	                	{ TCon (prim ARROW) }
 	| '(' commas ')'			{ TCon (tuple ($2+1)) }
-        | '(' ')'				{ TCon (prim UNITTYPE) }
+        | '(' ')'				{ TCon (tuple 0) }
         | '(' type ')'                          { $2 }
 	| '(' types ')'				{ TTup (reverse $2) }
 	| '[' type ']'				{ TList $2 }
@@ -448,7 +448,6 @@ bexp    :: { Exp }
         | '_'                                   { EWild }
         | con                                   { ECon $1 }
         | lit                                   { ELit $1 }
-        | '(' ')'                               { ECon (prim UNITTERM) }
         | '(' '.' var ')'                       { ESel $3 }
         | '(' exp ')'                           { $2 }
         | '(' exps ')'                          { ETup (reverse $2) } 
@@ -456,6 +455,7 @@ bexp    :: { Exp }
         | '(' exp10a op ')'                     { ESectR $2 $3 }
         | '(' op0 fexp ')'                      { ESectL $2 $3 }
         | '(' commas ')'                        { ECon (tuple ($2+1)) }
+        | '(' ')'                               { ECon (tuple 0) }
 
 lit     :: { Lit }
 : loc INT                                   { LInt (Just $1) (readInteger $2) }

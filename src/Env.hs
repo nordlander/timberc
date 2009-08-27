@@ -654,12 +654,10 @@ primKindEnv             = [ (prim Action,       Star),
 
                             (prim LIST,         KFun Star Star),
                             (prim EITHER,       KFun Star (KFun Star Star)),
-                            (prim UNITTYPE,     Star),
                             (prim TIMERTYPE,    Star) ]
 
 
-primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
-                            (prim NIL,          scheme1 [] (tList a)),
+primTypeEnv             = [ (prim NIL,          scheme1 [] (tList a)),
                             (prim CONS,         scheme1 [a,tList a] (tList a)),
 
                             (prim FALSE,        scheme0 [] tBool),
@@ -818,28 +816,6 @@ primTypeEnv             = [ (prim UNITTERM,     scheme0 [] tUnit),
                           ]
 
 primTypeEnv1            =   (prim Inherit,      scheme0 [] tTime) : primTypeEnv
-
-tAction                 = TId (prim Action)
-tRequest a              = TAp (TId (prim Request)) a
-tClass a                = TAp (TId (prim Class)) a
-tCmd a b                = TAp (TAp (TId (prim Cmd)) a) b
-tTime                   = TId (prim Time)
-tMsg                    = TId (prim Msg)
-tRef a                  = TAp (TId (prim Ref)) a
-tOID                    = TId (prim OID)
-tPMC a                  = TAp (TId (prim PMC)) a
-tInt                    = TId (prim Int)
-tFloat                  = TId (prim Float)
-tChar                   = TId (prim Char)
-tBool                   = TId (prim Bool)
-tArray a                = TAp (TId (prim Array)) a
-tList a                 = TAp (TId (prim LIST)) a
-tUnit                   = TId (prim UNITTYPE)
-tEither a b             = TAp (TAp (TId (prim EITHER)) a) b
-tTimer                  = TId (prim TIMERTYPE)
-tBITS8                  = TId (prim BITS8)
-tBITS16                 = TId (prim BITS16)
-tBITS32                 = TId (prim BITS32)
         
 a                       = TId (name0 "a")
 b                       = TId (name0 "b")

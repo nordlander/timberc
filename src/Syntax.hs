@@ -162,7 +162,7 @@ cons x xs                       = EAp (EAp (ECon (prim CONS)) x) xs
 nil                             = ECon (prim NIL)
 true                            = ECon (prim TRUE)
 false                           = ECon (prim FALSE)
-
+unit                            = ECon (tuple 0)
 
 -- Helper functions ----------------------------------------------------------------
 

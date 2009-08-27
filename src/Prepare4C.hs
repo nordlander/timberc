@@ -202,8 +202,8 @@ polyTagArgs env ts              = args (length ts) ts
             e                   = ESel (EVar (fromJust (this env))) (_abcSupply !! i)
     arg k (TVar n _ : ts)       = bor (arg (k+1) ts) (shift (band e (mask j)) j k)
       where (e,j)               = findPolyTag "YY" env n
-    arg k (TCon (Prim p _) _ : ts)
-      | p `elem` scalarPrims    = bor (mask k) (arg (k+1) ts)
+    arg k (TCon n _ : ts)
+      | n `elem` scalars        = bor (mask k) (arg (k+1) ts)
     arg k (_ : ts)              = arg (k+1) ts
 
 
@@ -280,10 +280,8 @@ sampleSpaces (v:vs)             = [ vs1 ++ vs2 | vs1 <- [[],[v]], vs2 <- sampleS
 isPtr vs (n,FunT _ _ _)         = False
 isPtr vs (n,ValT (TVar v _))    = v `notElem` vs
 isPtr vs (Prim Next _, _)       = False         -- the next field in Msg and its subtypes is custom handled during timerQ scanning.
-isPtr vs (n,ValT (TCon k _))    = not (isScalar k)
+isPtr vs (n,ValT (TCon k _))    = k `notElem` scalars
 
-isScalar (Prim p _)             = p `elem` scalarPrims
-isScalar n                      = False
 
 varFields te                    = [ (n,v) | (n,ValT (TVar v _)) <- te ]
 
@@ -473,6 +471,7 @@ pRhsExp env e                   = pExp env e
 
 
 pNewExp env n ts bs
+  | n == tuple 0                = return (id, t0, cast t0 tWORD (ELit (lInt 0)))
   | n `elem` nulls env          = return (id, t0, cast t0 tWORD (ELit (conLit env n)))
   | otherwise                   = do (bf,bs) <- pBinds (pSBind t0 te0) env bs
                                      return (bf, t0, ENew n [] (bs''++bs'++bs))
@@ -502,7 +501,7 @@ cast t0 t1 e
   where u0                      = pAType t0
         u1                      = pAType t1
 
-smallPrim (TCon (Prim p _) _)   = p `elem` smallPrims
+smallPrim (TCon n _)            = n `elem` smallTypes
 smallPrim _                     = False
 
 
@@ -539,6 +538,7 @@ pExp env (EEnter e f ts es)         = do (bf1,t1,e) <- pRhsExp env e
 pExp env (ECast t e)                = do (bf,t',e) <- pExp env e
                                          return (bf, t, cast t t' e)
 pExp env (ENew n ts bs)
+  | n == tuple 0                    = return (id, tWORD, ELit (lInt 0))
   | n `elem` nulls env              = return (id, tWORD, ELit (conLit env n))
   | otherwise                       = do (bf,t,e) <- pNewExp env n ts bs
                                          x <- newName tempSym

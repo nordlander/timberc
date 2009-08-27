@@ -296,7 +296,7 @@ s2cE env e                              = internalError "s2cE: did not expect" e
 -- Statements ==================================================================================
 
 -- translate a statement list
-s2cS env []                             = return (Core.CRet (Core.ECon (prim UNITTERM)))
+s2cS env []                             = return (Core.CRet (Core.eUnit))
 s2cS env [SRet e]                       = do (t,e') <- s2cEi env e
                                              return (Core.CRet e')
 s2cS env [SExp e]                       = do (t,e') <- s2cEi env e

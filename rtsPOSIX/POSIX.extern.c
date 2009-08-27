@@ -136,7 +136,7 @@ void netError(Int sock,char *message);
 
 struct DescClosable {
   WORD *GCINFO;
-  UNITTYPE (*close_POSIX) (Closable_POSIX, Int);
+  UNIT (*close_POSIX) (Closable_POSIX, Int);
 //  Msg (*close_POSIX) (Closable_POSIX, Time, Time);
   int descriptor;
 //  DescState self;
@@ -151,7 +151,7 @@ typedef struct CloseMsg *CloseMsg;
 
 struct CloseMsg {
   WORD *GCINFO;
-  UNITTYPE (*Code)(CloseMsg);
+  UNIT (*Code)(CloseMsg);
   AbsTime baseline;
   AbsTime deadline;
   Msg next;
@@ -162,7 +162,7 @@ struct CloseMsg {
 WORD __GC__CloseMsg[] = { WORDS(sizeof(struct CloseMsg)), GC_STD, 0 };   // Field "next" is custom handled by the GC
 
 
-UNITTYPE close_fun (Closable_POSIX this, Int dummy) {
+UNIT close_fun (Closable_POSIX this, Int dummy) {
   DISABLE(envmut);
   int desc = ((DescClosable)this)->descriptor;
   close(desc);
@@ -171,7 +171,7 @@ UNITTYPE close_fun (Closable_POSIX this, Int dummy) {
   sockTable[desc] = NULL;
   pthread_kill(thread0.id, SIGSELECT);
   ENABLE(envmut);
-  return (UNITTYPE)0;
+  return (UNIT)0;
 }
 
 Closable_POSIX new_Closable (int desc) {
@@ -245,14 +245,14 @@ LIST read_fun (RFile_POSIX this, Int dummy) {
   return read_descr(((DescClosable)this->RFILE2FILE->FILE2CLOSABLE)->descriptor);
 }
 
-UNITTYPE installR_fun (RFile_POSIX this, HANDLER hand, Int dummy) {
+UNIT installR_fun (RFile_POSIX this, HANDLER hand, Int dummy) {
   DISABLE(envmut);
   Int desc = ((DescClosable)this->RFILE2FILE->FILE2CLOSABLE)->descriptor;
   ADD_RDTABLE(desc,hand);
   maxDesc = desc > maxDesc ? desc : maxDesc;  
   pthread_kill(thread0.id, SIGSELECT);
   ENABLE(envmut);
-  return (UNITTYPE)0;
+  return (UNIT)0;
 }
 
 RFile_POSIX new_RFile(int desc) {
@@ -283,7 +283,7 @@ int write_fun (WFile_POSIX this, LIST xs, Int dummy) {
   return res;
 }
 
-UNITTYPE installW_fun (WFile_POSIX this, ACTION act, Int dummy) {
+UNIT installW_fun (WFile_POSIX this, ACTION act, Int dummy) {
   DISABLE(envmut);
   Int desc = ((DescClosable)this->WFILE2FILE->FILE2CLOSABLE)->descriptor;
   ADD_WRTABLE(desc,act);
@@ -291,7 +291,7 @@ UNITTYPE installW_fun (WFile_POSIX this, ACTION act, Int dummy) {
   maxDesc = desc > maxDesc ? desc : maxDesc;  
   pthread_kill(thread0.id, SIGSELECT);
   ENABLE(envmut);
-  return (UNITTYPE)0;
+  return (UNIT)0;
 }
 
 WFile_POSIX new_WFile(int desc) {
@@ -305,7 +305,7 @@ WFile_POSIX new_WFile(int desc) {
 
 // ------------ Env ------------------------------------------------------------
 
-UNITTYPE exit_fun (Env_POSIX this, Int n, Int dummy) {
+UNIT exit_fun (Env_POSIX this, Int n, Int dummy) {
   DISABLE(envmut);
   DISABLE(rts);
   exit(n);
@@ -427,7 +427,7 @@ int mkAddr (Int sock, Host_POSIX host, struct in_addr *addr) {
   }
 }
 
-UNITTYPE connect_fun (Sockets_POSIX this, Host_POSIX host, Port_POSIX port, SOCKHANDLER handler, Int dummy) {
+UNIT connect_fun (Sockets_POSIX this, Host_POSIX host, Port_POSIX port, SOCKHANDLER handler, Int dummy) {
   DISABLE(envmut);
   struct sockaddr_in addr;
   struct in_addr iaddr;
@@ -449,7 +449,7 @@ UNITTYPE connect_fun (Sockets_POSIX this, Host_POSIX host, Port_POSIX port, SOCK
     pthread_kill(thread0.id, SIGSELECT);
   }
   ENABLE(envmut);
-  return (UNITTYPE)0;
+  return (UNIT)0;
 }
 
 
