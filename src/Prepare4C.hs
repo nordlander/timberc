@@ -527,7 +527,7 @@ pExp env (EThis)                    = return (id, findValT (tenv env) x, EVar x)
 pExp env (ESel e l)                 = do (bf,t1,e) <- pExp env e
                                          let (s,te) = findStructTEnv env t1
                                              t = findValT te l
-                                         specialize s t bf (ESel e l)
+                                         specialize s t bf (ESel (castIfBigTuple t1 e) l)
 pExp env (ECall f ts es)            = do (bf,es) <- pExpTs env ts0 es
                                          specialize s t bf (ECall f [] (polyTagArgs env ts ++ es))
   where (s,ts0,t)                   = findFunT (tenv env) f ts
@@ -553,7 +553,11 @@ pExp env (ENew n ts bs)
 
 specialize s t bf e                 = return (bf, t', cast t' t e)
   where t'                          = subst s t
-  
+
+castIfBigTuple t@(TCon (Tuple n _) _) e
+  | n > 4                           = ECast (pAType t) e
+castIfBigTuple _ e                  = e
+
 castIfClos (TCon (Prim CLOS _) ts0) x
                                     = ECast (TCon (prim CLOS) (polyTagTypes (length vs) ++ map pAType (t:ts))) (EVar x)
   where (vs,ts,t)                   = decodeCLOS ts0

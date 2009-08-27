@@ -41,6 +41,8 @@ struct TUP3;
 typedef struct TUP3 *TUP3;
 struct TUP4;
 typedef struct TUP4 *TUP4;
+struct TUPLE;
+typedef struct TUPLE *TUPLE;
 
 struct CLOS1;
 typedef struct CLOS1 *CLOS1;
@@ -68,28 +70,35 @@ struct World;
 typedef struct World *World;
 
 struct TUP2 {
-  WORD *GCINFO;
-  POLY a;
-  POLY b;
+    WORD *GCINFO;
+    POLY a;
+    POLY b;
 };
 extern WORD __GC__TUP2[];
 
 struct TUP3 {
-  WORD *GCINFO;
-  POLY a;
-  POLY b;
-  POLY c;
+    WORD *GCINFO;
+    POLY a;
+    POLY b;
+    POLY c;
 };
 extern WORD __GC__TUP3[];
 
 struct TUP4 {
-  WORD *GCINFO;
-  POLY a;
-  POLY b;
-  POLY c;
-  POLY d;
+    WORD *GCINFO;
+    POLY a;
+    POLY b;
+    POLY c;
+    POLY d;
 };
 extern WORD __GC__TUP4[];
+
+struct TUPLE {
+    WORD *GCINFO;
+    WORD size;
+    POLY elems[];
+};
+extern WORD __GC__TUPLE[];
 
 struct CLOS1 {
     POLY GCINFO;

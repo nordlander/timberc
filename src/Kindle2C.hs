@@ -193,9 +193,9 @@ k2cValBinds (rec,bs)
   where f (x, Val t (ENew (Prim Ref _) _ _))
                                 = internalError0 "new Ref in k2cValBinds"
         f (x, Val t (ENew n [] bs)) 
-                                = newCall t x (k2cSize n)
+                                = newCall t x [n]
         f (x, Val t (ECast _ (ENew n [] bs)))
-                                = newCall t x (k2cSize n)
+                                = newCall t x [n]
         f (x, Val t e)          = k2cName x <+> text "=" <+> k2cExp e <> text ";"
         f _                     = empty
         g (x, Val t (ENew n [] bs)) 
@@ -221,12 +221,12 @@ k2cValBinds (_,bs)              = text ("{   Array roots = CYCLIC_BEGIN(" ++ sho
         f i (x, Val t _)        = k2cName x <+> text "=" <+> k2cExp (rootInd' t i) <> text ";"
         g i u (x, Val t (ENew n [] bs'))
                                 = update u i $$
-                                  newCall t x (k2cSize n) $$
+                                  newCall t x [n] $$
                                   k2cExp (rootInd i) <+> text "=" <+> k2cExp (ECast tPOLY (EVar x)) <> text ";" $$
                                   k2cStructBinds (rootInd' t i) n bs'
         g i u (x, Val t (ECast _ (ENew n [] bs')))
                                 = update u i $$
-                                  newCall t x (k2cSize n) $$
+                                  newCall t x [n] $$
                                   k2cExp (rootInd i) <+> text "=" <+> k2cExp (ECast tPOLY (EVar x)) <> text ";" $$
                                   k2cStructBinds (ECast (tCon n) (rootInd' t i)) n bs'
         g i u (x, Val t e)      = update u i $$
@@ -264,12 +264,21 @@ updates prev ((x,Val _ e):bs)   = mustUpdate : updates ((x,fwrefs):prev') bs
         
 
 
-newCall t x size                = text "NEW" <+> parens (k2cType t <> text "," <+> 
+newCall t x [n] | isBigTuple n  = text "NEW" <+> parens (k2cType t <> text "," <+> 
                                                          k2cName x <> text "," <+> 
-                                                         size) <> text ";"
+                                                         k2cSize n <> text ("+" ++ show (widthInclTags n))) <> text ";"
+newCall t x ns                  = text "NEW" <+> parens (k2cType t <> text "," <+> 
+                                                         k2cName x <> text "," <+> 
+                                                         sep (punctuate (text "+") (map k2cSize ns))) <> text ";"
 
 
-
+k2cStructBinds e0 n bs
+  | isBigTuple n                = k2cExp2 e0 <> text "->size = " <+> pr (widthInclTags n) <> text ";" $$
+                                  vcat (map f bs)
+  where f (Prim GCINFO _, _)    = k2cExp (ESel e0 (prim GCINFO)) <+> text ("= " ++ gcinfoSym ++ "TUPLE;")
+        f (x, Val t e)
+          | t == tPOLY          = k2cBigSel e0 x <+> text "=" <+> k2cExp e <> text ";"
+          | otherwise           = k2cBigSel e0 x <+> text "=" <+> k2cExp (ECast tPOLY e) <> text ";"
 k2cStructBinds e0 n bs          = vcat (map f bs)
   where f (Prim GCINFO _, Val _ (ECall x [] es))
                                 = k2cExp (ESel e0 (prim GCINFO)) <+> text "=" <+> k2cName x <> off <> text ";"
@@ -288,7 +297,7 @@ k2cCmd (CRun e c)               = k2cExp e <> text ";" $$
                                   k2cCmd c
 k2cCmd (CBind False [(x,Val t (ENew n [] bs))] (CBind False [(y,Val tref (ENew (Prim Ref _) [] bs'))] c))
   | st == ECast tPOLY (EVar x)  = k2cType tref <+> k2cName y <> text ";" $$
-                                  newCall (tref) y (k2cSize (prim Ref) <> text "+" <> k2cSize n) $$
+                                  newCall (tref) y [prim Ref, n] $$
                                   text "INITREF" <> parens (k2cName y) <> text ";" $$
                                   k2cStructBinds (ECast t (ESel (EVar y) (prim STATE))) n bs $$
                                   k2cCmd c
@@ -408,6 +417,8 @@ k2cExp2 (ELit (LStr _ str))     = text "getStr(\"" <> hcat (map k2cChar str) <> 
 k2cExp2 (ELit (LChr _ c))       = text "\'" <> k2cChar c <> text "\'"
 k2cExp2 (ELit l)                = pr l
 k2cExp2 (ESel e (Prim STATE _)) = text "STATEOF" <> parens (k2cExp e)
+k2cExp2 (ESel (ECast (TCon n _) e) l)
+  | isBigTuple n                = k2cBigSel e l
 k2cExp2 (ESel e l)              = k2cExp2 e <> text "->" <> k2cName l
 k2cExp2 (EEnter (ECast (TCon (Prim CLOS _) (t:ts)) (EVar x)) (Prim Code _) [] es)
                                 = parens (parens (ftype) <> parens (k2cName x <> text "->Code"))
@@ -425,8 +436,21 @@ k2cExp2 EThis                   = internalError0 "k2cExp'"
 k2cExp2 e                       = parens (k2cExp e)
 
 
+isBigTuple n                    = isTuple n && width n > 4
+
+k2cBigSel e l                   = k2cExp2 e <> text "->elems[" <> pr (lookup' bigLabelDict l) <> text "]"
+
+bigLabelDict                    :: [(Name,Int)]
+bigLabelDict                    = f _ABCSupply abcSupply `zip` [0..]
+  where f (x:xs) ys             = let (ys1,ys2) = splitAt 32 ys in x : ys1 ++ f xs ys2
+
+widthInclTags n                 = w + ((w+31) `div` 32)
+  where w                       = width n
+
+
 k2cName (Prim p _)              = k2cPrim p
-k2cName n                       = prId3 n
+k2cName n | isBigTuple n        = text "TUPLE"
+          | otherwise           = prId3 n
 
 
 k2cPrim IntPlus                 = text "+"

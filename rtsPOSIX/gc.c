@@ -252,7 +252,7 @@ ADDR scan(ADDR obj) {
                         return obj + size;
                 }
                 case GC_ARRAY: {
-                        WORD size = STATIC_SIZE(info) + obj[1], offset = 2;     // find size of dynamic part in second slot of obj, add static size
+                        WORD size = STATIC_SIZE(info) + obj[1], offset = 2;     // size of dynamic part in snd slot, add static size
                         if (info[2])
                                 return obj + size;                              // return immediately if array contains only scalars
                         while (offset<size) {
@@ -262,17 +262,16 @@ ADDR scan(ADDR obj) {
                         return obj + size;
                 }
                 case GC_TUPLE: {
-                        WORD width = obj[1], offset = 1 + POLYTAGS(width), i = 1, j, tags;
-                        while (width > 32) {
-                                for (j = 0, tags = obj[i++]; j < 32; j++, offset++, tags = tags >> 1)
-                                        if (!(tags & 1))
-                                                obj[offset] = (WORD)copy((ADDR)obj[offset]);
-                                width -= 32;
-                        }
-                        for (tags = obj[i]; width > 0; width--, offset++, tags = tags >> 1) 
+                        WORD size = STATIC_SIZE(info) + obj[1], offset = 2, tags, j; // size of dynamic part in snd slot, add static size
+                        while (offset + 33 < size) {                                 // each sequence of 32 fields is prefixed by a polytag word
+                            for (j = 0, tags = obj[offset++]; j < 32; j++, offset++, tags = tags >> 1)
                                 if (!(tags & 1))
-                                        obj[offset] = (WORD)copy((ADDR)obj[offset]);
-                        return obj + STATIC_SIZE(info) + width + POLYTAGS(width);
+                                    obj[offset] = (WORD)copy((ADDR)obj[offset]);
+                        }
+                        for (tags = obj[offset++]; offset < size; offset++, tags = tags >> 1)
+                            if (!(tags & 1))
+                                obj[offset] = (WORD)copy((ADDR)obj[offset]);
+                        return obj + size;
                 }
                 case GC_BIG: {
                         WORD size = STATIC_SIZE(info), i = 2, offset = info[i];

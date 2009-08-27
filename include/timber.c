@@ -74,11 +74,13 @@ WORD __GC__TUP4[]       =
         HEAD(TUP4),                                                                     0,0,0,0,0
         };
 
-WORD __GC__CLOS1[] = {WORDS(sizeof(struct CLOS1)),0,0};
-WORD __GC__CLOS2[] = {WORDS(sizeof(struct CLOS2)),0,0};
-WORD __GC__CLOS3[] = {WORDS(sizeof(struct CLOS3)),0,0};
+WORD __GC__TUPLE[] = {WORDS(sizeof(struct TUPLE)),GC_TUPLE,0};
 
-WORD __GC__CLOS[]  = {WORDS(sizeof(struct CLOS)),0,0};
+WORD __GC__CLOS1[] = {WORDS(sizeof(struct CLOS1)),GC_STD,0};
+WORD __GC__CLOS2[] = {WORDS(sizeof(struct CLOS2)),GC_STD,0};
+WORD __GC__CLOS3[] = {WORDS(sizeof(struct CLOS3)),GC_STD,0};
+
+WORD __GC__CLOS[]  = {WORDS(sizeof(struct CLOS)),GC_STD,0};
 
 WORD __GC__CONS[]       = {
         HEAD(CONS),     OFF(CONS, a),   OFF(CONS, b),   0,
