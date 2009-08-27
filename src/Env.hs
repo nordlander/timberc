@@ -59,8 +59,8 @@ data Env = Env { kindEnv0      :: KEnv,              -- Kind for each global tyc
                  predEnv0      :: PEnv,              -- Predicate scheme for each global witness def (no free tyvars)
                  predEnv       :: PEnv,              -- Predicate scheme for each local witness abstraction
 
-                 tevars        :: [TVar],            -- The tvars free in typeEnv (cached)
-                 pevars        :: [TVar],            -- The tvars free in predEnv (cached)
+                 tevars        :: [TVAR],            -- The tvars free in typeEnv (cached)
+                 pevars        :: [TVAR],            -- The tvars free in predEnv (cached)
                  stateT        :: Maybe Type,        -- Type of current state scope (invariant: included in typeEnv as well)
                  
                  coercions     :: Eqns,              -- Defs of top-level subtype coercions
@@ -72,8 +72,8 @@ data Env = Env { kindEnv0      :: KEnv,              -- Kind for each global tyc
                  modName       :: Maybe String, 
                  -- The following fields are only used during constraint reduction:
                  history       :: [Pred],            -- Stack of predicates currently being reduced
-                 skolEnv       :: Map Name [TVar],   -- For each skolemized tyvar T: a list of free tvars not unifiable with T
-                 pols          :: ([TVar],[TVar]),   -- Pair of tvars occurring in (positive,negative) position in reduction target
+                 skolEnv       :: Map Name [TVAR],   -- For each skolemized tyvar T: a list of free tvars not unifiable with T
+                 pols          :: ([TVAR],[TVAR]),   -- Pair of tvars occurring in (positive,negative) position in reduction target
                  equalities    :: [(Name,Name)],     -- List of witness names that must be equivalent
 
                  errPos        :: PosInfo, 
@@ -202,15 +202,15 @@ insertSubPred n@(w,p) env               = env { aboveEnv = insert a wg_a (aboveE
                 post                    = [ w | (w,c) <- syms, hasCoercion env c a ]
         
 
-instance Subst WGraph TVar Type where
+instance Subst WGraph TVAR Type where
     subst s (WG ns as)                  = WG (subst s ns) as
 
 
-instance Subst a TVar Type => Subst (Env,a) TVar Type where
+instance Subst a TVAR Type => Subst (Env,a) TVAR Type where
     subst s (env,p)                     = (subst s env, subst s p)
 
 
-instance Subst Env TVar Type where
+instance Subst Env TVAR Type where
     subst [] env                        = env
     subst s env
       | null (pevars env)               = env'
@@ -555,7 +555,7 @@ pnub (p,n)                              = (nub p, nub n)
 
 
 class Polvars a where
-    polvars :: Env -> a -> ([TVar],[TVar])
+    polvars :: Env -> a -> ([TVAR],[TVAR])
 
 instance Polvars a => Polvars [a] where
     polvars env []                      = ([],[])

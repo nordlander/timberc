@@ -81,7 +81,7 @@ data Rho        = R       Type
                 deriving (Eq,Show,Typeable)
 
 data Type       = TId     Name
-                | TVar    TVar
+                | TVar    TVAR
                 | TFun    [Type] Type
                 | TAp     Type Type
                 deriving  (Eq,Show,Typeable)
@@ -115,6 +115,29 @@ data Cmd        = CGen    Name Type Exp Cmd
                 | CRet    Exp
                 | CExp    Exp
                 deriving (Eq,Show)
+
+
+newtype TVAR                    = TV (Int,Kind)
+                                deriving (Typeable)
+
+instance Eq TVAR where
+    TV (n,k) == TV (n',k')      = n == n'
+
+instance Show TVAR where
+    show (TV (n,k))             = show n
+
+instance Pr TVAR where
+    pr (TV (n,k))               = pr n
+
+instance Binary TVAR where
+  put (TV a) = put a
+  get = get >>= \a -> return (TV a)
+
+
+newTV k                         = do n <- newNum
+                                     return (TV (n,k))
+
+tvKind (TV (n,k))               = k
 
 
 litType (LInt _ i)              = TId (prim Int)
@@ -435,10 +458,10 @@ instance Subst (Exp, Exp) Name Exp where
     subst s (e,e')              = (subst s e, subst s e')
 
 
-instance Subst Binds TVar Type where
+instance Subst Binds TVAR Type where
     subst s (Binds r te eqns)   = Binds r (subst s te) (subst s eqns)
 
-instance Subst Exp TVar Type where
+instance Subst Exp TVAR Type where
     subst [] e                  = e
     subst s (ESel e l)          = ESel (subst s e) l
     subst s (ELam te e)         = ELam (subst s te) (subst s e)
@@ -452,7 +475,7 @@ instance Subst Exp TVar Type where
     subst s (EDo x t c)         = EDo x (subst s t) (subst s c)
     subst s e                   = e
 
-instance Subst Cmd TVar Type where
+instance Subst Cmd TVAR Type where
     subst s (CLet bs c)         = CLet (subst s bs) (subst s c)
     subst s (CAss x e c)        = CAss x (subst s e) (subst s c)
     subst s (CGen x t e c)      = CGen x (subst s t) (subst s e) (subst s c)
@@ -551,6 +574,16 @@ instance Subst (Scheme,Scheme) Name Type where
 
 -- Type variables --------------------------------------------------------------
 
+class TVars a where
+    tvars                       :: a -> [TVAR]
+
+instance TVars a => TVars [a] where
+    tvars xs                    = concatMap tvars xs
+
+instance TVars a => TVars (Name,a) where
+    tvars (v,a)                 = tvars a
+
+
 instance TVars Type where
     tvars (TId c)               = []
     tvars (TVar n)              = [n]
@@ -564,7 +597,7 @@ instance TVars Rho where
     tvars (R t)                 = tvars t
     tvars (F scs rh)            = tvars scs ++ tvars rh
 
-instance Subst Type TVar Type where
+instance Subst Type TVAR Type where
     subst [] t                  = t
     subst s (TId c)             = TId c
     subst s (TVar n)            = case lookup n s of
@@ -573,20 +606,20 @@ instance Subst Type TVar Type where
     subst s (TAp t t')          = TAp (subst s t) (subst s t')
     subst s (TFun ts t)         = TFun (subst s ts) (subst s t)
 
-instance Subst Scheme TVar Type where
+instance Subst Scheme TVAR Type where
     subst [] sc                 = sc
     subst s sc@(Scheme t ps ke) = Scheme (subst s t) (subst s ps) ke
   
 
-instance Subst Rho TVar Type where
+instance Subst Rho TVAR Type where
     subst s (R t)               = R (subst s t)
     subst s (F scs rh)          = F (subst s scs) (subst s rh)
 
-instance Subst (Type,Type) TVar Type where
+instance Subst (Type,Type) TVAR Type where
     subst s (t,t')              = (subst s t, subst s t')
 
 
-instance Subst (Scheme,Scheme) TVar Type where
+instance Subst (Scheme,Scheme) TVAR Type where
     subst s (sc,sc')            = (subst s sc, subst s sc')
     
     

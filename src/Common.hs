@@ -535,31 +535,13 @@ data Kind                       = Star
                                 | KVar    Int
                                 deriving (Eq,Show)
 
+type KEnv                       = Map Name Kind
+
 instance HasPos Kind where
   posInfo _                     = Unknown
 
-newtype TVar                    = TV (Int,Kind)
-                                deriving (Typeable)
-
-type KEnv                       = Map Name Kind
-
-instance Eq TVar where
-    TV (n,k) == TV (n',k')      = n == n'
-
-instance Show TVar where
-    show (TV (n,k))             = show n
-
-instance Pr TVar where
-    pr (TV (n,k))               = pr n
-
-
-newTV k                         = do n <- newNum
-                                     return (TV (n,k))
-
 newKVar                         = do n <- newNum
                                      return (KVar n)
-
-tvKind (TV (n,k))               = k
 
 kvars Star                      = []
 kvars (KVar n)                  = [n]
@@ -594,16 +576,6 @@ instance Pr Kind where
     prn 1 (KVar n)              = text ('_':show n)
     prn 1 KWild                 = text "_"
     prn 1 k                     = parens (prn 0 k)
-
-
-class TVars a where
-    tvars                       :: a -> [TVar]
-
-instance TVars a => TVars [a] where
-    tvars xs                    = concatMap tvars xs
-
-instance TVars a => TVars (Name,a) where
-    tvars (v,a)                 = tvars a
 
 
 -- Defaults ------------------------------------------
@@ -667,10 +639,6 @@ instance Binary Kind where
       2 -> return KWild
       3 -> get >>= \a -> return (KVar a)
       _ -> fail "no parse"
-
-instance Binary TVar where
-  put (TV a) = put a
-  get = get >>= \a -> return (TV a)
 
 instance Binary a => Binary (Default a) where
   put (Default a b c) = putWord8 0 >> put a >> put b >> put c

@@ -46,7 +46,7 @@ import qualified Control.Exception as Exception
 
 
 
-type TSubst                             = Map TVar Type
+type TSubst                             = Map TVAR Type
 
 type TEqs                               = [(Type,Type)]
 
