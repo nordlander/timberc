@@ -311,14 +311,16 @@ instance monadClass :: Monad Class where
 
 forallList f []       = do result ()
 forallList f (x : xs) = do f x
-                           forallList f xs
+                           r <- forallList f xs
+                           result r
 
 forallSeq :: (a -> Cmd b c) -> a -> a -> Cmd b () \\ Enum a
 forallSeq f a b = fS (fromEnum a) (fromEnum b)
   where fS ai bi
          | ai>bi = do result ()
          | otherwise = do f (toEnum ai)
-                          fS (ai+1) bi
+                          r <- fS (ai+1) bi
+                          result r
 
 forallSeq1 :: (a -> Cmd b c) -> a -> a -> a -> Cmd b () \\ Enum a
 forallSeq1 f a b c = fE ai (bi-ai) ci
@@ -328,7 +330,8 @@ forallSeq1 f a b c = fE ai (bi-ai) ci
         fE ai bi ci 
           | (if bi > 0 then ai > ci else ai < ci) = do result ()
           | otherwise = do f (toEnum ai)
-                           fE (ai+bi) bi ci
+                           r <- fE (ai+bi) bi ci
+                           result r
 
 -- Prelude support for arithmetic sequences ----------------
 
