@@ -6,7 +6,7 @@ import POSIX
 
 {-
 Standard Mastermind, where the program does the guessing. Answers are given as two integers (separated by space(s)) on 
-one row, indicating number of bulls and cows. Command line argument acts as seed for random number generation.
+one row, indicating number of bulls and cows. 
 -}
 
 data Colour = Red | Blue | Green | Yellow | Black | White
