@@ -1,6 +1,6 @@
 TIMBERC=timberc
 
-EXAMPLES = Hello Echo Echo2 Echo3 EchoServer EchoServer2 MasterMind Primes Reflex TCPClient PingTimeServers SantaProblem2
+EXAMPLES = HelloWorld Echo Echo2 Echo3 EchoServer EchoServer2 MasterMind Primes Reflex TCPClient PingTimeServers SantaProblem2
 
 examples: 
 	@for ex in $(EXAMPLES); do \
