@@ -50,7 +50,6 @@
 #define CONN2CLOSABLE l_Connection_POSIX_Closable_POSIX_POSIX
 #define SOCK2CLOSABLE l_Socket_POSIX_Closable_POSIX_POSIX
 
-
 #define ADD_RDTABLE(desc,act) {rdTable[desc] = act; FD_SET(desc,&readUsed); }
 #define ADD_WRTABLE(desc,act) {wrTable[desc] = act; FD_SET(desc,&writeUsed); }
 
@@ -65,6 +64,7 @@ struct SockData {
   WORD *GCINFO;
   struct sockaddr_in addr;              // address of remote peer
   SOCKHANDLER handler;      
+  Connection_POSIX conn;                // open connection; needed when closing.
 };
 
 WORD __GC__SockData[] = { WORDS(sizeof(struct SockData)), GC_STD, WORDS(offsetof(struct SockData,handler)), 0 };  
@@ -109,10 +109,13 @@ struct Msg msg0 = { NULL, 0, { 0, 0 }, { INF, 0 }, NULL };
 
 struct Thread thread0 = { NULL, &msg0, 0,  };
 
+Thread eventThread = NULL; 
+
 pthread_mutex_t envmut;
 
 int maxDesc = 2;
 
+void startLoop();
 
 //---------- Utilities ---------------------------------------------------------
 
@@ -137,9 +140,7 @@ void netError(Int sock,char *message);
 struct DescClosable {
   WORD *GCINFO;
   UNIT (*close_POSIX) (Closable_POSIX, Int);
-//  Msg (*close_POSIX) (Closable_POSIX, Time, Time);
   int descriptor;
-//  DescState self;
 };
  
 WORD __GC__DescClosable[] = { WORDS(sizeof(struct DescClosable)), GC_STD, 0 };
@@ -156,7 +157,6 @@ struct CloseMsg {
   AbsTime deadline;
   Msg next;
   int descriptor;
-//  DescState self;
 };
 
 WORD __GC__CloseMsg[] = { WORDS(sizeof(struct CloseMsg)), GC_STD, 0 };   // Field "next" is custom handled by the GC
@@ -169,7 +169,7 @@ UNIT close_fun (Closable_POSIX this, Int dummy) {
   CLR_RDTABLE(desc);
   CLR_WRTABLE(desc);
   sockTable[desc] = NULL;
-  pthread_kill(thread0.id, SIGSELECT);
+  pthread_kill(eventThread->id, SIGSELECT);
   ENABLE(envmut);
   return (UNIT)0;
 }
@@ -250,7 +250,8 @@ UNIT installR_fun (RFile_POSIX this, HANDLER hand, Int dummy) {
   Int desc = ((DescClosable)this->RFILE2FILE->FILE2CLOSABLE)->descriptor;
   ADD_RDTABLE(desc,hand);
   maxDesc = desc > maxDesc ? desc : maxDesc;  
-  pthread_kill(thread0.id, SIGSELECT);
+  if (!eventThread) startLoop();
+  else pthread_kill(eventThread->id, SIGSELECT);
   ENABLE(envmut);
   return (UNIT)0;
 }
@@ -289,7 +290,8 @@ UNIT installW_fun (WFile_POSIX this, ACTION act, Int dummy) {
   ADD_WRTABLE(desc,act);
   envRootsDirty = 1;
   maxDesc = desc > maxDesc ? desc : maxDesc;  
-  pthread_kill(thread0.id, SIGSELECT);
+  if (!eventThread) startLoop();
+  else pthread_kill(eventThread->id, SIGSELECT);
   ENABLE(envmut);
   return (UNIT)0;
 }
@@ -390,7 +392,6 @@ Int new_socket (SOCKHANDLER handler) {
 void netError (Int sock, char *message) {
   SOCKHANDLER handler = sockTable[sock]->handler;
   Connection_POSIX conn = (Connection_POSIX)handler->Code(handler,(POLY)new_Socket(sock),(POLY)0);
-  //ADD_RDTABLE(sock,mkHandler(conn));
   envRootsDirty = 1;
   conn->neterror_POSIX(conn,getStr(message),Inherit,Inherit);
 }
@@ -398,7 +399,7 @@ void netError (Int sock, char *message) {
 void setupConnection (Int sock) {
   SOCKHANDLER handler = sockTable[sock]->handler;
   Connection_POSIX conn = (Connection_POSIX)handler->Code(handler,(POLY)new_Socket(sock),(POLY)0);
-  //ADD_RDTABLE(sock,mkHandler(conn));
+  sockTable[sock]->conn = conn;
   envRootsDirty = 1;
   conn->established_POSIX(conn,Inherit,Inherit);
 }
@@ -446,7 +447,8 @@ UNIT connect_fun (Sockets_POSIX this, Host_POSIX host, Port_POSIX port, SOCKHAND
     else {
       setupConnection(sock);
     }
-    pthread_kill(thread0.id, SIGSELECT);
+    if (!eventThread) startLoop();
+    else pthread_kill(eventThread->id, SIGSELECT);
   }
   ENABLE(envmut);
   return (UNIT)0;
@@ -464,7 +466,8 @@ Closable_POSIX listen_fun (Sockets_POSIX this, Port_POSIX port, SOCKHANDLER hand
     perror("bind failed");
   listen(sock,5);
   FD_SET(sock,&readUsed);
-  pthread_kill(thread0.id, SIGSELECT);
+  if (!eventThread) startLoop();
+  else pthread_kill(eventThread->id, SIGSELECT);
   ENABLE(envmut);
   return new_Closable(sock);
 }
@@ -492,9 +495,11 @@ struct Env_POSIX env_struct     = { 0, exit_fun,  NULL, &stdin_rfile, &stdout_wf
                                     openR_fun, openW_fun, &startTime, &inet };
 
 
-Env_POSIX posix_POSIX(World w, Int dummy) {
-  return &env_struct;
+void kill_handler () {
+    return;
 }
+
+
 
 Env_POSIX env                   = &env_struct;
 
@@ -516,13 +521,16 @@ void scanEnvRoots () {
 
 struct FunList scanner = {scanEnvRoots, NULL};
 
+
 // --------- Event loop ----------------------------------------------
 
-void kill_handler () {
-    return;
-}
+void *eventLoop (void *arg) {
+    Thread current_thread = (Thread)arg;
+    pthread_setspecific(current_key, current_thread);
+    struct sched_param param;
+    param.sched_priority = current_thread->prio;
+    pthread_setschedparam(current_thread->id, SCHED_RR, &param);
 
-void eventLoop (void) {
     sigset_t one_sig;
     sigemptyset(&one_sig);
     sigaddset(&one_sig, SIGSELECT);
@@ -547,9 +555,7 @@ void eventLoop (void) {
 	                        rdTable[i]->Code(rdTable[i],(POLY)inp,(POLY)Inherit,(POLY)Inherit);
 	                    }
 	                    else if (sockTable[i]) { //we got a close message from peer on connected socket
-	                        SOCKHANDLER handler = sockTable[i]->handler;
-	                        Connection_POSIX conn = (Connection_POSIX)handler->Code(handler,(POLY)new_Socket(i),(POLY)0);
-                            Closable_POSIX cl = conn->CONN2CLOSABLE;
+                                Closable_POSIX cl = sockTable[i]->conn->CONN2CLOSABLE;
 	                        cl->close_POSIX(cl,0);
 	                        close(i);
 	                        CLR_RDTABLE(i);
@@ -588,12 +594,11 @@ void eventLoop (void) {
     }
 }
 
-struct FunList loop          = {eventLoop, NULL};
-
 // --------- Initialization ----------------------------------------------------
 
-void envInit (int argc, char **argv) {
-  
+
+Env_POSIX posix_POSIX(World w, Int dummy) {
+  if (!env->argv_POSIX) {
     pthread_setspecific(current_key, &thread0);
     pthread_mutex_init(&envmut, &glob_mutexattr);
   
@@ -605,6 +610,9 @@ void envInit (int argc, char **argv) {
     sigemptyset( &act.sa_mask );
     act.sa_handler = kill_handler;
     sigaction( SIGSELECT, &act, NULL );
+
+    int argc = getArgc();
+    char **argv = getArgv();
   
     Array arr; NEW(Array,arr,WORDS(sizeof(struct Array))+argc);
     arr->GCINFO = __GC__Array0;
@@ -624,6 +632,14 @@ void envInit (int argc, char **argv) {
     thread0.msg = &msg0;
     thread0.id = pthread_self();
 
-    addEventLoop(&loop,0);
     addRootScanner(&scanner);
+  }
+  return env;
+}
+
+// --------- Start event loop ----------------------------------------------------
+
+void startLoop () {
+
+    eventThread = newThread(&msg0,sched_get_priority_max(SCHED_RR),eventLoop,0);
 }

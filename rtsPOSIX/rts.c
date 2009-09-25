@@ -44,8 +44,6 @@
 
 #define MAXTHREADS      12          // Static maximum
 
-#define SLEEP()         sigsuspend(&enabled_mask)
-
 #define TDELTA          1
 #define TIMERSET(x,now) { struct itimerval t; \
                           t.it_value = (x); \
@@ -421,11 +419,6 @@ POLY Raise(BITS32 polyTag, Int err) {
 
 #include "timer.c"
 
-// Environment object ---------------------------------------------------------------------------------
-
-//void init_rts(void);
-
-// #include "env.c"
 
 // timerQ handling ------------------------------------------------------------------------------------
 
@@ -479,34 +472,6 @@ void scanTimerQ() {
         }
         ENABLE(rts);
 }
-// Event loops etc ------------------------------------------------------------------------------------
-
-FunList loops = NULL;
-
-FunList last = NULL;
-
-void addEventLoop(FunList ls, Bool mustBeLast) {
-  if (mustBeLast) {
-    if (last) 
-      panic("More than one event loop requests to be last");
-    else {
-      last = ls;
-      if (loops) {
-         FunList tmp = loops;
-         while (tmp->next) tmp = tmp->next;
-         tmp->next = ls;
-      } else loops = ls;
-    }
-  } else {
-    ls->next = loops;
-    loops = ls;
-  }
-}
-
-void startLoops() {
-  // Here we should run through the list loops, forking processes with event loops.
-  loops->f();
-}
 
 // Scanning roots -------------------------------------------------------------------------------------
 
@@ -535,6 +500,29 @@ void scanRoots() {
 
 #include "float.c"
 
+// Command line args ----------------------------------------------------------------------------------
+
+int argc0;
+
+char **argv0;
+
+int getArgc() {
+  return argc0;
+}
+
+char **getArgv() {
+  return argv0;
+}
+// Main thread handling -------------------------------------------------------------------------------
+
+pthread_cond_t sleepVar;
+
+int sleep_rts() {
+  DISABLE(rts);
+  pthread_cond_wait(&sleepVar,&rts);
+  return 0;
+}
+
 // Initialization -------------------------------------------------------------------------------------
 
 Int getNumberOfProcessors() {
@@ -546,7 +534,10 @@ Int getNumberOfProcessors() {
     return 1;
 }
 
-void init_rts(void) {
+void init_rts(int argc, char **argv) {
+    argc0 = argc;
+    argv0 = argv;
+
     pthread_mutexattr_init(&glob_mutexattr);
     pthread_mutexattr_settype(&glob_mutexattr, PTHREAD_MUTEX_NORMAL);
     pthread_mutexattr_setprotocol(&glob_mutexattr, PTHREAD_PRIO_INHERIT);
@@ -564,6 +555,8 @@ void init_rts(void) {
     sigaddset(&all_sigs, SIGSELECT);
     pthread_sigmask(SIG_BLOCK, &all_sigs, NULL);
     
+    pthread_cond_init(&sleepVar, NULL);
+
     DISABLE(rts);
     
     NCORES = getNumberOfProcessors();

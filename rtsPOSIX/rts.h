@@ -208,8 +208,9 @@ struct FunList {
   FunList next;
 };
 
-void addEventLoop(FunList ls, Bool mustBeLast);
 void addRootScanner(FunList ls);
-
+int getArgc();
+char **getArgv();
+Thread newThread(Msg m, int prio, void *(*fun)(void *), int stacksize) ;
 
 #endif
