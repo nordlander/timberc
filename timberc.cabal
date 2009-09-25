@@ -34,6 +34,8 @@ data-files:          examples/Counter.t,
                      lib/Data.Objects.Dictionary.t,
                      lib/Data.Objects.Stack.t, 
                      lib/POSIX.t,
+                     lib/POSIX.extern.c,
+                     lib/POSIX.extern.h,
                      lib/Prelude.t,
                      lib/RandomGenerator.t
 
