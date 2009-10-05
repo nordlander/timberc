@@ -115,6 +115,12 @@ instance eqPair :: Eq (a,b) \\ Eq a, Eq b where
   (a,b) == (c,d) = a==c && b==d
   x /= y = not (x==y)
 
+instance eqBool :: Eq Bool where
+  False == False = True
+  True  == True  = True
+  _     == _     = False
+  x     /= y     = not (x==y)
+
 -- Ord -----------------------------------------------------
 
 typeclass Ord a < Eq a where
