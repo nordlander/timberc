@@ -459,7 +459,7 @@ renameS env (SAss p e : ss)
   | not (null illegal)             = errorIds "Unknown state variables" illegal
   | otherwise                      = liftM2 (:) (liftM2 SAss (rename (unvoidAll env) p) (rename env e)) (renameS (unvoid (pvars p) env) ss)
   where illegal                    = pvars p \\ stateVars env
-
+renameS env s                      = internalError0 (show s)
 
 
 -- Signature shuffling -------------------------------------------------------------------------

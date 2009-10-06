@@ -416,8 +416,8 @@ exp10as :: { Exp }
         | loc 'class' stmtlist                  { ETempl Nothing Nothing (checkClass $3) }
         | loc 'action' stmtlist                 { EAct Nothing (checkStmts $3) }
         | loc 'request' stmtlist                { EReq Nothing (checkStmts $3) }
---        | 'forall' quals 'do' stmtlist          { EDo Nothing Nothing (checkStmts $4) }
---        | 'forall' quals 'class' stmtlist       { ETempl Nothing Nothing (checkClass $4) }
+        | 'forall' quals 'do' stmtlist          { EForall (reverse $2) (checkStmts $4) }
+        | 'forall' quals 'class' stmtlist       { forallClass (reverse $2) (ETempl Nothing Nothing (checkClass $4)) }
         | con '{'  layout_off recbinds '}'      { ERec (Just ($1,True)) (reverse $4) } 
         | con '{'  layout_off recbinds '..' '}' { ERec (Just ($1,False)) (reverse $4) } 
         | con '{'  layout_off recbinds ',' '..' '}' { ERec (Just ($1,False)) (reverse $4) } 
@@ -561,9 +561,9 @@ stmt    :: { Stmt }
         | vars '::' type                        { SBind [BSig $1 $3] }
         | lhs rhs                               { SBind [BEqn $1 $2] }
         | lhs '=' 'new' exp                     { SBind [BEqn $1 (RExp (EAp (EVar (prim New)) $4))] }
+        | lhs '=' 'forall' quals 'new' exp10as  { SBind [BEqn $1 (RExp (EAp (EVar (prim New)) (forallClass $4 $6)))] }
         | pat ':=' exp                          { SAss $1 $3 }
         | 'result' exp                          { SRet $2 }
-        | 'forall' quals 'do' stmtlist          { SForall (reverse $2) $4 }
         | 'if' exp 'then' stmtlist              { SIf $2 $4 }
         | 'elsif' exp 'then' stmtlist           { SElsif $2 $4 }
         | 'else' stmtlist                       { SElse $2 }

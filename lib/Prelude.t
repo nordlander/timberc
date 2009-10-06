@@ -315,29 +315,54 @@ instance monadClass :: Monad Class where
 
 -- Prelude support for forall statement --------------------
 
-forallList f []       = do result ()
-forallList f (x : xs) = do f x
-                           r <- forallList f xs
-                           result r
+forallList f []       = do result []
+forallList f (x : xs) = do r <- f x
+                           rs <- forallList f xs
+                           result (r : rs)
 
-forallSeq :: (a -> Cmd b c) -> a -> a -> Cmd b () \\ Enum a
+forallSeq :: (a -> Cmd b c) -> a -> a -> Cmd b [c] \\ Enum a
 forallSeq f a b = fS (fromEnum a) (fromEnum b)
+  where fS ai bi
+         | ai>bi = do result []
+         | otherwise = do r <- f (toEnum ai)
+                          rs <- fS (ai+1) bi
+                          result (r : rs)
+
+forallSeq1 :: (a -> Cmd b c) -> a -> a -> a -> Cmd b [c] \\ Enum a
+forallSeq1 f a b c = fE ai (bi-ai) ci
+  where ai = fromEnum a
+        bi = fromEnum b
+        ci = fromEnum c
+        fE ai bi ci 
+          | (if bi > 0 then ai > ci else ai < ci) = do result []
+          | otherwise = do r <- f (toEnum ai)
+                           rs <- fE (ai+bi) bi ci
+                           result (r : rs)
+
+forallListUnit f [] = do result ()
+forallListUnit f (x : xs) = do f x
+                               rs <- forallListUnit f xs
+                               result rs
+
+forallSeqUnit :: (a -> Cmd b c) -> a -> a -> Cmd b () \\ Enum a
+forallSeqUnit f a b = fS (fromEnum a) (fromEnum b)
   where fS ai bi
          | ai>bi = do result ()
          | otherwise = do f (toEnum ai)
-                          r <- fS (ai+1) bi
-                          result r
+                          rs <- fS (ai+1)  bi
+                          result rs
 
-forallSeq1 :: (a -> Cmd b c) -> a -> a -> a -> Cmd b () \\ Enum a
-forallSeq1 f a b c = fE ai (bi-ai) ci
+forallSeq1Unit :: (a -> Cmd b c) -> a -> a -> a -> Cmd b () \\ Enum a
+forallSeq1Unit f a b c = fE ai (bi-ai) ci
   where ai = fromEnum a
         bi = fromEnum b
         ci = fromEnum c
         fE ai bi ci 
           | (if bi > 0 then ai > ci else ai < ci) = do result ()
           | otherwise = do f (toEnum ai)
-                           r <- fE (ai+bi) bi ci
-                           result r
+                           rs <- fE (ai+bi) bi ci
+                           result rs
+
 
 -- Prelude support for arithmetic sequences ----------------
 

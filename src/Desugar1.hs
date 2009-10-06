@@ -43,8 +43,8 @@ import Depend
 import PP
 
 desugar1 e0 (Module c is ds ps)  = do let (env,expInfo) = mkEnv c (ds ++ ps) e0
-                                      ds' <- dsDecls env ds
-                                      ps' <- dsDecls env {isPublic = False} ps
+                                          ds' = dsDecls env ds
+                                          ps' = dsDecls env {isPublic = False} ps
                                       return (Module c is ds' ps',expInfo)
 
 {-
@@ -148,19 +148,17 @@ sortFields fs                   = sortBy cmp fs
 
 -- Desugaring -------------------------------------------------------------------------------------------
 
-dsDecls env (DType c vs t : ds) = liftM (DType c vs (ds1 env t) :) (dsDecls env ds)
-dsDecls env (DData c vs ss cs : ds) = liftM (DData c vs (ds1 env ss) (ds1 env cs) :) (dsDecls env ds)
-dsDecls env (DRec b c vs ss ss' : ds) = liftM (DRec b c vs (ds1 env ss) (ds1 env ss') :) (dsDecls env ds)
-dsDecls env (DPSig n t : ds)    = liftM (\ds -> DInstance [n] : DBind [BSig [n] (ds1 env t)] : ds) (dsDecls env ds)
-dsDecls env (DInstance ws : ds) = liftM (DInstance ws :) (dsDecls env ds)
-dsDecls env (DTClass ts : ds)   = liftM (DTClass ts :) (dsDecls env ds)
-dsDecls env (DDefault ts : ds)  = liftM (DDefault (ds1 env ts) :) (dsDecls env ds)
+dsDecls env (DType c vs t : ds) = DType c vs (ds1 env t) : dsDecls env ds
+dsDecls env (DData c vs ss cs : ds) = DData c vs (ds1 env ss) (ds1 env cs) : dsDecls env ds
+dsDecls env (DRec b c vs ss ss' : ds) = DRec b c vs (ds1 env ss) (ds1 env ss') :dsDecls env ds
+dsDecls env (DPSig n t : ds)    = DInstance [n] : DBind [BSig [n] (ds1 env t)] : dsDecls env ds
+dsDecls env (DDefault ts : ds)  = DDefault (ds1 env ts) : dsDecls env ds
 dsDecls env ds@(DBind _ : _)    = dsDs [] ds
   where dsDs bs (DBind bs':ds)  = dsDs (bs++bs') ds
-        dsDs bs ds              = liftM (DBind (ds1 env bs) :) (dsDecls env ds)
-dsDecls env (DExtern es : ds)   = liftM (DExtern (ds1 env es) :) (dsDecls env ds)
-dsDecls env (d : ds)            = liftM (d :) (dsDecls env ds)
-dsDecls env []                  = return []
+        dsDs bs ds              = DBind (ds1 env bs) : dsDecls env ds
+dsDecls env (DExtern es : ds)   = DExtern (ds1 env es) : dsDecls env ds
+dsDecls env (d : ds)            = d : dsDecls env ds
+dsDecls env []                  = []
 
 
 class Desugar1 a where
@@ -292,7 +290,8 @@ instance Desugar1 Exp where
     ds1 env (EReq v ss)          = EReq v [SExp (EDo v Nothing (ds1S env ss))]
 
     ds1 env (EAfter e1 e2)       = EAfter (ds1 env e1) (ds1 env e2)
-    ds1 env (EBefore e1 e2)      = EBefore (ds1 env e1) (ds1 env e2) 
+    ds1 env (EBefore e1 e2)      = EBefore (ds1 env e1) (ds1 env e2)
+    ds1 env (EForall qs ss)      = ds1Forall False env qs ss
 
     ds1 env e                    = e
 
@@ -313,6 +312,8 @@ instance Desugar1 Field where
 ds1S env []                      = [SRet unit]
 ds1S env [SRet e]                = [SRet (ds1 env e)]
 --ds1S env [SExp e]                = [SExp (ds1 env e)]
+ds1S env (SExp (EForall qs ss') : ss)  =
+                                 SGen EWild (ds1Forall True env qs ss') : ds1S env ss 
 ds1S env (SExp e : ss)           = SGen EWild (ds1 env e) : ds1S env ss
 ds1S env (s@(SRet _) : ss)       = errorTree "Result statement must be last in sequence" s
 ds1S env (SGen p e : ss)         = SGen (ds1 (patEnv env) p) (ds1 env e) : ds1S env ss
@@ -341,19 +342,26 @@ ds1S env (SIf e ss' : ss)        = doIf (EIf e (eDo env ss')) ss
         doIf f ss                = doIf f (SElse [] : ss)
 ds1S env (s@(SElsif _ _) : _)    = errorTree "elsif without corresponding if" s
 ds1S env (s@(SElse _) : _)       = errorTree "else without corresponding if" s
-ds1S env (SForall q ss' : ss)    = ds1S env (SExp (ds1Forall env q ss') : ss)
 
 ds1S' env [SExp e]               = [SExp (ds1 env e)]
 ds1S' env ss                     = ds1S env ss
 
-ds1Forall env [] ss              = eDo env ss
-ds1Forall env (QLet bs : qs) ss  = ELet bs (eDo env [SForall qs ss])
-ds1Forall env (QGen p (ESeq e1 Nothing e3) : qs) ss
-                                 = EAp (EAp (EAp (EVar (name' "forallSeq" p)) (ELam [p] (ds1Forall env qs ss))) e1) e3
-ds1Forall env (QGen p (ESeq e1 (Just e2) e3) : qs) ss
-                                 = EAp (EAp (EAp (EAp (EVar (name' "forallSeq1" p)) (ELam [p] (ds1Forall env qs ss))) e1) e2) e3
-ds1Forall env (QGen p e : qs) ss = EAp (EAp (EVar (name' "forallList" p)) (ELam [p] (ds1Forall env qs ss))) e
-ds1Forall env (QExp e : qs) ss   = EIf e (eDo env [])  (ds1Forall env qs ss)
+-- We translate forall constructions to calls of Prelude support functions. Unfortunately, we
+-- need six such functions for efficiency:
+-- forallList for the general case
+-- forallSeq when the list in the generator is a sequence [a..b] (to avoid building a list)
+-- forallSeq1 when the list in the generator is a sequence [a,c..b] (to avoid building a list)
+-- All three come in a variant with name suffix Unit when they execute for side effect only (to allow for 
+-- tail call elimination).
+
+ds1Forall _ env [] ss              = eDo env ss --(ds1S env ss)
+ds1Forall _ env (QLet bs : qs) ss  = ds1 env (ELet bs (EForall qs ss))
+ds1Forall b env (QGen p (ESeq e1 Nothing e3) : qs) ss
+                                 = EAp (EAp (EAp (EVar (name' (forallSeq b) p)) (ELam [p] (ds1Forall b env qs ss))) e1) e3
+ds1Forall b env (QGen p (ESeq e1 (Just e2) e3) : qs) ss
+                                 = EAp (EAp (EAp (EAp (EVar (name' (forallSeq1 b) p)) (ELam [p] (ds1Forall b env qs ss))) e1) e2) e3
+ds1Forall b env (QGen p e : qs) ss = EAp (EAp (EVar (name' (forallList b) p)) (ELam [p] (ds1Forall b env qs ss))) e
+ds1Forall b env (QExp e : qs) ss   = EIf e (eDo env [])  (ds1Forall b env qs ss)
 
 ds1T env []  asg [SRet e]        = reverse asg ++ [SRet (ds1 env e)]
 ds1T env bss asg [SRet e]        = SBind (ds1 env (concat (reverse bss))) : reverse asg ++ [SRet (ds1 env e)]
@@ -361,14 +369,29 @@ ds1T env bss asg [s]             = errorTree "Last statement in class must be re
 ds1T env bss asg (s@(SRet _):_)  = errorTree "Result statement must be last in sequence" s
 ds1T env bss asg (SBind bs : ss) = ds1T env (bs:bss) asg ss
 ds1T env bss asg (SAss p e : ss) = ds1T env bss (SAss (ds1 (patEnv env) p) (ds1 env e) : asg) ss
+ds1T env bss asg (SGen (EVar x) e : ss)
+   | isGenerated x               = SGen (EVar x)  (ds1 env e) : ds1T env bss asg ss
 ds1T env bss asg (s : _)         = errorTree "Illegal statement in class: " s
 
 
-eDo env ss                       = EDo (self env) Nothing ss
+eDo env ss                       = EDo (self env) Nothing (ds1S env ss)
 
 name' s  e                       = Name s 0 Nothing (noAnnot {location = loc (posInfo e)})
   where loc Unknown              = Nothing
         loc (Between p _)        = Just p
+
+
+forallSeq True = "forallSeqUnit"
+forallSeq False = "forallSeq"
+
+forallSeq1 True = "forallSeq1Unit"
+forallSeq1 False = "forallSeq1"
+
+forallList True = "forallListUnit"
+forallList False = "forallList"
+
+
+
 
 -- Printing --------
 

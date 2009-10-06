@@ -9,13 +9,13 @@ module SantaProblem2 where
        rand = new baseGen (microsecOf env.startTime)
        santa = new santaClaus env
        secretary = new semaphore santa.announce santa.confirm
-       shepherdRin  = new batch 9 (\es -> secretary.lock (Reindeer es))
-       shepherdRout = new batch 9 (\es -> secretary.unlock (Reindeer es))
-       shepherdEin  = new batch 3 (\rs -> secretary.lock (Elves rs))
-       shepherdEout = new batch 3 (\rs -> secretary.unlock (Elves rs))
-       reindeer = new mapM (\n -> helper env rand shepherdRin shepherdRout (rMsg n)) [1..10]
-       elves    = new mapM (\n -> helper env rand shepherdEin shepherdEout (eMsg n)) [1..9]
-       mapM (.doSomethingElse) (elves ++ reindeer)
+       shepherdRin  = new batch 9 (secretary.lock @ Reindeer)
+       shepherdRout = new batch 9 (secretary.unlock @ Reindeer)
+       shepherdEin  = new batch 3 (secretary.lock @ Elves)
+       shepherdEout = new batch 3 (secretary.unlock @ Elves)
+       reindeer = forall n <- [1..10] new helper env rand shepherdRin shepherdRout (rMsg n)
+       elves    = forall n <- [1..9] new helper env rand shepherdEin shepherdEout (eMsg n)
+       forall x <- elves ++ reindeer do x.doSomethingElse
 
 private
 

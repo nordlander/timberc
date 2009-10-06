@@ -122,6 +122,7 @@ data Exp    = EVar    Name
             | EReq    (Maybe Name) [Stmt] 
             | EAfter  Exp Exp
             | EBefore Exp Exp
+            | EForall [Qual] [Stmt]
             deriving  (Eq,Show)
 
 data Field  = Field   Name Exp
@@ -148,7 +149,6 @@ data Stmt   = SExp    Exp
             | SGen    Pat Exp
             | SBind   [Bind]
             | SAss    Pat Exp
-            | SForall [Qual] [Stmt]
             | SIf     Exp [Stmt]
             | SElsif  Exp [Stmt]
             | SElse   [Stmt]
@@ -290,6 +290,22 @@ tyCons (TList t)                = tyCons t
 tyCons (TTup ts)                = nub (concatMap tyCons ts)
 tyCons (TFun ts t)              = nub (concatMap tyCons (t : ts))
 
+{-
+forallClass qs e = class 
+                    os <- forall x <- xs do
+                             o = new e
+                             result o
+                    result os
+
+We cannot generate unique names here, but this is only called before renaming.
+-}
+
+forallClass qs e                = ETempl Nothing Nothing [ SGen os (EForall qs 
+                                                                      [SBind [BEqn (LPat o) (RExp (EAp (EVar (prim New)) e))], 
+                                                                       SRet o]),
+                                                           SRet os ]
+                                    where o  = EVar (name0 "___x")
+                                          os = EVar (name0 "___xs")
 
 -- Checking syntax of statement lists ----------------------------------------
 
@@ -323,9 +339,9 @@ isResult (s@(SIf e c) : ss)
         branch (SElse c)        = c
 isResult (s@(SElsif e c) : ss)  = errorTree "'elsif' without preceeding 'if'" s
 isResult (s@(SElse c) : ss)     = errorTree "'else' without preceeding 'if'" s
-isResult (s@(SForall q c) : ss)
-  | isResult c                  = errorTree "Illegal result in 'forall' body" c
-  | otherwise                   = isResult ss
+-- isResult (s@(SForall q c) : ss)
+--   | isResult c                  = errorTree "Illegal result in 'forall' body" c
+--   | otherwise                   = isResult ss
 isResult (s : ss)               = isResult ss
 
 
@@ -386,7 +402,7 @@ instance Subst Exp Name Exp where
     subst s (EReq v st)         = EReq v (subst s st)
     subst s (EAfter e e')       = EAfter (subst s e) (subst s e')
     subst s (EBefore e e')      = EBefore (subst s e) (subst s e')
-
+    subst s (EForall qs st)     = EForall (subst s qs) (subst s st)
 
 instance Subst Field Name Exp where
     subst s (Field l e)         = Field l (subst s e)
@@ -419,7 +435,7 @@ instance Subst Stmt Name Exp where
     subst s (SGen p e)          = SGen p (subst s e)
     subst s (SBind bs)          = SBind (subst s bs)
     subst s (SAss p e)          = SAss p (subst s e)
-    subst s (SForall qs st)     = SForall (subst s qs) (subst s st)
+--    subst s (SForall qs st)     = SForall (subst s qs) (subst s st)
     subst s (SIf e st)          = SIf (subst s e) (subst s st)
     subst s (SElsif e st)       = SElsif (subst s e) (subst s st)
     subst s (SElse st)          = SElse (subst s st)
@@ -616,6 +632,7 @@ instance Pr Exp where
     prn 13 (ESeq e (Just by) to) 
                                 = brackets (pr e <> comma <> pr by <> text ".." <> pr to)
     prn 13 (EComp e qs)         = brackets (empty <+> pr e <+> char '|' <+> hpr ',' qs)
+    prn 13 (EForall qs ss)      = text "forall" <+> hpr ',' qs <+> text "do" $$ nest 4 (pr ss)
     prn 13 e                    = parens (prn 0 e)
 
     prn n e                     = prn 11 e
@@ -648,7 +665,7 @@ instance Pr Stmt where
     pr (SIf e ss)               = text "if" <+> pr e <+> text "then" $$ nest 4 (pr ss)
     pr (SElsif e ss)            = text "elsif" <+> pr e <+> text "then" $$ nest 4 (pr ss)
     pr (SElse ss)               = text "else" $$ nest 4 (pr ss)
-    pr (SForall qs ss)          = text "forall" <+> hpr ',' qs <+> text "do" $$ nest 4 (pr ss)
+--    pr (SForall qs ss)          = text "forall" <+> hpr ',' qs <+> text "do" $$ nest 4 (pr ss)
     pr (SCase e alts)           = text "case" <+> pr e <+> text "of" $$ nest 4 (vpr alts)
 
 
@@ -684,6 +701,7 @@ instance Ids Exp where
     idents (EReq _ ss)          = identStmts ss 
     idents (EAfter e e')        = idents e ++ idents e'
     idents (EBefore e e')       = idents e ++ idents e'
+    idents (EForall qs ss)      = identQuals qs ++ (identStmts ss \\ bvars qs)
     idents _                    = []
 
 instance Ids Field where
@@ -724,7 +742,7 @@ identStmts (SRet e : ss)        = idents e ++ identStmts ss
 identStmts (SGen p e : ss)      = idents e ++ (identStmts ss \\ pvars p)
 identStmts (SBind bs : ss)      = identSBind bs ss
 identStmts (SAss p e : ss)      = idents e ++ (identStmts ss \\ pvars p)
-identStmts (SForall qs ss' : ss)= identQuals qs ++ (identStmts ss' \\ bvars qs) ++ identStmts ss
+--identStmts (SForall qs ss' : ss)= identQuals qs ++ (identStmts ss' \\ bvars qs) ++ identStmts ss
 identStmts (SIf e ss' : ss)     = idents e ++ identStmts ss' ++ identStmts ss
 identStmts (SElsif e ss' : ss)  = idents e ++ identStmts ss' ++ identStmts ss
 identStmts (SElse ss' : ss)     = identStmts ss' ++ identStmts ss
@@ -841,6 +859,7 @@ instance HasPos Exp where
   posInfo (EAfter e e')         = between (posInfo e) (posInfo e')
   posInfo (EBefore e e')        = between (posInfo e) (posInfo e')
   posInfo (ELit l)              = posInfo l
+  posInfo (EForall qs ss)       = between (posInfo qs) (posInfo ss)  
   posInfo _                     = Unknown
 
 instance HasPos Field where
@@ -868,7 +887,7 @@ instance HasPos Stmt where
   posInfo (SGen p e)            = between (posInfo p) (posInfo e)
   posInfo (SBind b)             = posInfo b
   posInfo (SAss p e)            = between (posInfo p) (posInfo e)
-  posInfo (SForall qs ss)       = between (posInfo qs) (posInfo ss)
+--  posInfo (SForall qs ss)       = between (posInfo qs) (posInfo ss)
   posInfo (SIf e ss)            = between (posInfo e) (posInfo ss)
   posInfo (SElsif e ss)         = between (posInfo e) (posInfo ss)
   posInfo (SElse ss)            = posInfo ss
@@ -1011,6 +1030,8 @@ instance Binary Exp where
   put (EAfter a b) = putWord8 25 >> put a >> put b
   put (EBefore a b) = putWord8 26 >> put a >> put b
   put (EBStruct a b c) = putWord8 27 >> put a >> put b >> put c
+  put (EForall a b) = putWord8 28 >> put a >> put b  
+
   get = do
     tag_ <- getWord8
     case tag_ of
@@ -1041,6 +1062,7 @@ instance Binary Exp where
       25 -> get >>= \a -> get >>= \b -> return (EAfter a b)
       26 -> get >>= \a -> get >>= \b -> return (EBefore a b)
       27 -> get >>= \a -> get >>= \b -> get >>= \c -> return (EBStruct a b c)
+      28 -> get >>= \a -> get >>= \b -> return (EForall a b)
       _ -> fail "no parse"
 
 instance Binary Field where
@@ -1085,7 +1107,7 @@ instance Binary Stmt where
   put (SGen a b) = putWord8 2 >> put a >> put b
   put (SBind a) = putWord8 3 >> put a
   put (SAss a b) = putWord8 4 >> put a >> put b
-  put (SForall a b) = putWord8 5 >> put a >> put b
+--  put (SForall a b) = putWord8 5 >> put a >> put b
   put (SIf a b) = putWord8 7 >> put a >> put b
   put (SElsif a b) = putWord8 8 >> put a >> put b
   put (SElse a) = putWord8 9 >> put a
@@ -1098,7 +1120,7 @@ instance Binary Stmt where
       2 -> get >>= \a -> get >>= \b -> return (SGen a b)
       3 -> get >>= \a -> return (SBind a)
       4 -> get >>= \a -> get >>= \b -> return (SAss a b)
-      5 -> get >>= \a -> get >>= \b -> return (SForall a b)
+--      5 -> get >>= \a -> get >>= \b -> return (SForall a b)
       7 -> get >>= \a -> get >>= \b -> return (SIf a b)
       8 -> get >>= \a -> get >>= \b -> return (SElsif a b)
       9 -> get >>= \a -> return (SElse a)
