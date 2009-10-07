@@ -75,7 +75,7 @@ match0 e alts
   | otherwise                   = do w <- newNamePos tempSym e
                                      e' <- match0 (EVar w) alts
                                      return (ELet [BEqn (LFun w []) (RExp e)] e')
-  where isTriv (Alt (ECon _) (RExp _))  = True
+  where isTriv (Alt (PCon _) (RExp _))  = True
         isTriv _                        = False
 
 
@@ -85,7 +85,7 @@ match1 ws []                    = []
 match1 [] (([],rhs):eqs)        = matchRhs rhs : match1 [] eqs
 match1 (w:ws) eqs
   | all isVarEq eqs             = match1 ws (map f eqs)
-  where f (EVar v : ps, rh)     = (ps, subst (v +-> EVar w) rh)
+  where f (PVar v : ps, rh)     = (ps, subst (v +-> EVar w) rh)
 match1 ws (eq:eqs)
   | isSigVarEq eq               = matchVar ws eq : match1 ws eqs
   | isLitEq eq                  = matchLits ws [eq] eqs
@@ -93,20 +93,20 @@ match1 ws (eq:eqs)
   | otherwise                   = matchCons ws [prepConEq eq] eqs
 
 
-isLitEq (p:ps,rh)               = isELit p
+isLitEq (p:ps,rh)               = isPLit p
 
-isVarEq (p:ps,rh)               = isEVar p
+isVarEq (p:ps,rh)               = isPVar p
 
-isSigVarEq (p:ps,rh)            = isESigVar p
+isSigVarEq (p:ps,rh)            = isPSigVar p
 
-isERecEq (p:ps,rh)              = isERec p
+isERecEq (p:ps,rh)              = isPRec p
 
-isConEq (p:ps,rh)               = isEConApp p
+isConEq (p:ps,rh)               = isPConApp p
 
 
 
-matchVar (w:ws) (EVar v:ps, rh) = match ws [(ps, subst (v +-> EVar w) rh)]
-matchVar (w:ws) (ESig (EVar v) t : ps, rh)
+matchVar (w:ws) (PVar v:ps, rh) = match ws [(ps, subst (v +-> EVar w) rh)]
+matchVar (w:ws) (PSig (PVar v) t : ps, rh)
                                 = match ws [(ps, RWhere rh bs)]
   where bs                      = [BSig [v] t, BEqn (LFun v []) (RExp (EVar w))]
 
@@ -118,10 +118,10 @@ matchLits ws eqs eqs'           = matchLit ws (reverse eqs) : match1 ws eqs'
 
 matchLit (w:ws) eqs             = do alts <- mapM matchAlt lits
                                      return (ECase (EVar w) alts)
-  where lits                    = nub [ l | (ELit l : ps, rhs) <- eqs ]
+  where lits                    = nub [ l | (PLit l : ps, rhs) <- eqs ]
         matchAlt l              = do e' <- match ws eqs'
-                                     return (Alt (ELit l) (RExp e'))
-          where eqs'            = [ (ps,rhs) | (ELit l' : ps, rhs) <- eqs, l'==l ]
+                                     return (Alt (PLit l) (RExp e'))
+          where eqs'            = [ (ps,rhs) | (PLit l' : ps, rhs) <- eqs, l'==l ]
 
 matchRecs ws eqs (eq:eqs')
   | isERecEq eq                 = matchRecs ws (eq:eqs) eqs'
@@ -130,14 +130,14 @@ matchRecs ws eqs eqs'           = matchRec ws (reverse eqs) : match1 ws eqs'
 matchRec (w:ws) eqs             = do vs <- newNamesPos tempSym fs
                                      e <- match (vs ++ ws) (map matchAlt eqs)
                                      return (foldr ELet e (zipWith mkEqn vs fs))
-  where ERec _ fs               = head (fst (head eqs))
-        mkEqn v (Field l _)     = [BEqn (LFun v []) (RExp (ESelect (EVar w) l))]
-        matchAlt (ERec _ fs:ps,rh)
+  where PRec _ fs               = head (fst (head eqs))
+        mkEqn v (Field l _)    = [BEqn (LFun v []) (RExp (ESelect (EVar w) l))]
+        matchAlt (PRec _ fs:ps,rh)
                                 = (map patOf fs++ps,rh)
-        patOf (Field _ p)       = p
+        patOf (Field _ p)      = p
  
 prepConEq (p:ps,rhs)            = (c, ps', ps, rhs)
-  where (ECon c, ps')           = eFlat p
+  where (PCon c, ps')           = pFlat p
 
 
 matchCons ws ceqs (eq:eqs')
@@ -150,15 +150,15 @@ matchCon (w:ws) ceqs            = do alts <- mapM matchAlt cs
   where cs                      = nub [ c | (c,_,_,_) <- ceqs ]
         matchAlt c              = do vs <- newNamesPos tempSym (maxPat [] 0 eqs_c)
                                      e  <- match (vs++ws) (map (mkeq vs) eqs_c)
-                                     return (Alt (ECon c) (RExp (eLam (map EVar vs) e)))
+                                     return (Alt (PCon c) (RExp (eLam (map PVar vs) e)))
           where eqs_c           = [ (ps', ps, rhs) | (c',ps',ps,rhs) <- ceqs, c==c' ]
                 maxPat ps _ []  = ps
                 maxPat ps n ((ps',_,_) : ceqs)
                    |length ps' > n = maxPat ps' (length ps') ceqs
                    |otherwise      = maxPat ps n ceqs
 --                arity_c         = maximum [ length ps' | (ps', ps, rhs) <- eqs_c ]
-        mkeq vs (ps',ps,rhs)    = (ps'++vs' ++ ps, rAp rhs vs')
-          where vs'             = map EVar (drop (length ps') vs)
+        mkeq vs (ps',ps,rhs)    = (ps'++map PVar vs' ++ ps, rAp rhs (map EVar vs'))
+          where vs'             = drop (length ps') vs
 
 
 matchRhs (RExp e)               = return (eCommit e)
@@ -171,5 +171,5 @@ matchQuals [] e                 = return (eCommit e)
 matchQuals (QGen p e' : qs) e   = match0 e' [Alt p (RGrd [GExp qs e])]
 matchQuals (QLet bs : qs) e     = do e' <- matchQuals qs e
                                      return (ELet bs e')
-matchQuals (QExp e' : qs) e     = matchQuals (QGen true e' : qs) e
+matchQuals (QExp e' : qs) e     = matchQuals (QGen trueP e' : qs) e
 

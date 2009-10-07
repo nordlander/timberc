@@ -163,8 +163,8 @@ oloadBinds xs ds                    = f te
         f []                        = []
         f (sig:te)                  = mkSig sig : mkEqn sig : f te
         mkSig (s,t)                 = BSig [s] t
-        mkEqn (s,TQual t ps)        = BEqn (LFun s' (w:ws)) (RExp (foldl EAp (ESelect w s') ws))
-          where w:ws                = map EVar (take (length ps) abcSupply)
+        mkEqn (s,TQual t ps)        = BEqn (LFun s' (map PVar (w:ws))) (RExp (foldl EAp (ESelect (EVar w) s') (map EVar ws)))
+          where w:ws                = take (length ps) abcSupply
                 s'                  = annotExplicit s
 
 
@@ -348,6 +348,21 @@ instance Rename Bind where
                                         liftM (BEqn (LPat p')) (rename env rh)
   rename env (BSig vs t)           = liftM (BSig (map (renE env) vs)) (renameQT env t)
 
+instance Rename Pat where
+  rename env (PVar v)
+    | v `elem` void env            = errorIds"Uninitialized state variable" [v]
+    | v `elem` stateVars env       = return (PVar (renS env v))
+    | otherwise                    = return (PVar (renE env v))
+  rename env (PCon c)              = return (PCon (renE env c))
+  rename env (PAp e1 e2)           = liftM2 PAp (rename env e1) (rename env e2)
+  rename env (PLit l)              = return (PLit l)
+  rename env (PNeg l)              = return (PNeg l)
+  rename env (PTup ps)             = liftM PTup (rename env ps)
+  rename env (PList es)            = liftM PList (rename env es)
+  rename env PWild                 = return PWild
+  rename env (PSig e t)            = liftM2 PSig (rename env e) (renameQT env t)
+  rename env (PRec m fs)           = liftM (PRec (renRec env m)) (rename env fs)
+
 instance Rename Exp where
   rename env (EVar v)
     | v `elem` void env            = errorIds"Uninitialized state variable" [v]
@@ -408,7 +423,7 @@ renSBind envL envR (BEqn (LPat p) rh)       = do p' <- rename envL p
                                                  return (BEqn (LPat p') rh')
 renSBind _ _ s@(BSig vs t)                  = errorTree "Signature in struct value" s 
 
-instance Rename Field where
+instance Rename a => Rename (Field a) where
   rename env (Field l e)           = liftM (Field (renL env l)) (rename env e)
 
 instance Rename (Rhs Exp) where
@@ -505,18 +520,18 @@ shuffle' sigs (s : ss)             = s : shuffle' sigs ss
 
 
 
-attach sigs e@(ESig (EVar v) t)
+attach sigs e@(PSig (PVar v) t)
   | v `elem` dom sigs              = errorIds "Conflicting signatures for" [v]
   | otherwise                      = (sigs, e)
-attach sigs (EVar v)               = case lookup v sigs of
-                                       Nothing -> (sigs, EVar v)
-                                       Just t  -> (prune sigs [v], ESig (EVar v) t)
-attach sigs (EAp p1 p2)            = (sigs2, EAp p1' p2')
+attach sigs (PVar v)               = case lookup v sigs of
+                                       Nothing -> (sigs, PVar v)
+                                       Just t  -> (prune sigs [v], PSig (PVar v) t)
+attach sigs (PAp p1 p2)            = (sigs2, PAp p1' p2')
   where (sigs1,p1')                = attach sigs p1
         (sigs2,p2')                = attach sigs1 p2
-attach sigs (ETup ps)              = (sigs', ETup ps')
+attach sigs (PTup ps)              = (sigs', PTup ps')
   where (sigs',ps')                = attachList sigs ps
-attach sigs (EList ps)             = (sigs', EList ps')
+attach sigs (PList ps)             = (sigs', PList ps')
   where (sigs',ps')                = attachList sigs ps
 attach sigs p                      = (sigs, p)
 

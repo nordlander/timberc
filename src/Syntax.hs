@@ -39,6 +39,7 @@ import Common
 import Lexer
 import PP
 import Data.Binary
+import Monad(liftM2)
 
 data Module = Module Name [Import] [Decl] [Decl]
             deriving  (Show)
@@ -91,7 +92,19 @@ data Lhs    = LFun Name [Pat]
             | LPat Pat
             deriving (Eq,Show)
 
-type Pat    = Exp
+data Pat    = PVar    Name
+            | PAp     Pat Pat
+            | PCon    Name
+        --  | PSel    Name
+            | PLit    Lit
+            | PNeg    Lit -- only numeric literals can be negated
+        --  | PNeg    Pat -- only numeric literals can be negated
+            | PTup    [Pat]
+            | PList   [Pat]
+            | PWild
+            | PSig    Pat Type
+            | PRec    (Maybe (Name,Bool)) [PField]
+            deriving  (Eq,Show)
 
 data Exp    = EVar    Name
             | EAp     Exp Exp
@@ -102,7 +115,7 @@ data Exp    = EVar    Name
             | EList   [Exp]
             | EWild
             | ESig    Exp Type
-            | ERec    (Maybe (Name,Bool)) [Field]
+            | ERec    (Maybe (Name,Bool)) [EField]
             -- pattern syntax ends here
             | EBStruct (Maybe Name) [Name] [Bind]  -- struct value in bindlist syntax
             | ELam    [Pat] Exp
@@ -125,8 +138,11 @@ data Exp    = EVar    Name
             | EForall [Qual] [Stmt]
             deriving  (Eq,Show)
 
-data Field  = Field   Name Exp
-            deriving (Eq,Show)
+data Field a = Field   Name a
+             deriving (Eq,Show)
+
+type EField = Field Exp
+type PField = Field Pat
     
 data Rhs a  = RExp    a
             | RGrd    [GExp a]
@@ -164,6 +180,12 @@ true                            = ECon (prim TRUE)
 false                           = ECon (prim FALSE)
 unit                            = ECon (tuple 0)
 
+consP x xs                      = PAp (PAp (PCon (prim CONS)) x) xs
+nilP                            = PCon (prim NIL)
+trueP                           = PCon (prim TRUE)
+falseP                          = PCon (prim FALSE)
+unitP                           = PCon (tuple 0)
+
 -- Helper functions ----------------------------------------------------------------
 
 imports c is 
@@ -172,8 +194,8 @@ imports c is
 
 mkModule c (is,ds,ps)           = Module c (imports c is) ds ps
 
-newEVarPos v p                  = do i <- newNamePos v p
-                                     return (EVar i)
+newEVarPos v p                  = fmap EVar (newNamePos v p)
+newPVarPos v p                  = fmap PVar (newNamePos v p)
 
 op2exp c                        = if isCon c then ECon c else EVar c
 
@@ -181,21 +203,41 @@ isEVar (EVar _)                 = True
 isEVar (EWild)                  = True
 isEVar _                        = False
 
+isPVar (PVar _)                 = True
+isPVar (PWild)                  = True
+isPVar _                        = False
+
 isEConApp (EAp e es)            = isEConApp e
 isEConApp (ECon _)              = True
 isEConApp _                     = False
 
+isPConApp (PAp e es)            = isPConApp e
+isPConApp (PCon _)              = True
+isPConApp _                     = False
+
 isELit (ELit _)                 = True
 isELit _                        = False
+
+isPLit (PLit _)                 = True
+isPLit _                        = False
 
 isERec (ERec _ _)               = True
 isERec _                        = False
 
+isPRec (PRec _ _)               = True
+isPRec _                        = False
+
 isESigVar (ESig e _)            = isEVar e
 isESigVar e                     = isEVar e
 
+isPSigVar (PSig e _)            = isPVar e
+isPSigVar e                     = isPVar e
+
 isETup (ETup _)                 = True
 isETup _                        = False
+
+isPTup (PTup _)                 = True
+isPTup _                        = False
 
 isSAss (SAss _ _)               = True
 isSAss _                        = False
@@ -224,9 +266,16 @@ isLPatEqn _                     = False
 tupSize (ETup es)               = length es
 tupSize _                       = -1
 
+ptupSize (PTup es)              = length es
+ptupSize _                      = -1
+
 
 eFlat e                         = flat e []
   where flat (EAp e e') es      = flat e (e':es)
+        flat e es               = (e,es)
+
+pFlat e                         = flat e []
+  where flat (PAp e e') es      = flat e (e':es)
         flat e es               = (e,es)
 
 eLam [] e                       = e
@@ -245,11 +294,40 @@ eLet bs e                       = ELet bs e
 simpleEqn x e                   = BEqn (LFun x []) (RExp e)
 
 
+var2lhs v                       = LPat (PVar v)
+
 exp2lhs e                       = case eFlat e of
                                        (EVar v, ps)
-                                         |not(null ps) -> LFun v ps
-                                       _               -> LPat e
+                                         |not(null ps) -> LFun v (map exp2pat ps)
+                                       _               -> LPat (exp2pat e)
 
+exp2pat :: Exp -> Pat
+exp2pat e                       = case e of
+                                    EVar x        -> PVar x
+                                    EAp p1 p2     -> PAp (exp2pat p1) (exp2pat p2)
+                                    ECon c        -> PCon c
+                                    ELit l        -> PLit l
+                                    ENeg (ELit l) -> PNeg l
+                                    ETup ps       -> PTup (map exp2pat ps)
+                                    EList ps      -> PList (map exp2pat ps)
+                                    EWild         -> PWild -- hmm
+                                    ESig p t      -> PSig (exp2pat p) t
+                                    ERec m fs     -> PRec m [Field l (exp2pat p)|Field l p<-fs]
+                                    _             -> errorTree "Illegal pattern" e
+
+pat2exp :: Pat -> Exp
+pat2exp p                       = case p of
+                                    PVar x    -> EVar x
+                                    PAp p1 p2 -> EAp (pat2exp p1) (pat2exp p2)
+                                    PCon c    -> ECon c
+                                    PLit l    -> ELit l
+                                    PNeg l    -> ENeg (ELit l)
+                                    PTup ps   -> ETup (map pat2exp ps)
+                                    PList ps  -> EList (map pat2exp ps)
+                                    PWild     -> EWild -- hmm
+                                    PSig p t  -> ESig (pat2exp p) t
+                                    PRec m fs -> ERec m [Field l (pat2exp p)|Field l p<-fs]
+                   
 tFun [] t                       = t
 tFun ts t                       = TFun ts t
 
@@ -300,12 +378,16 @@ forallClass qs e = class
 We cannot generate unique names here, but this is only called before renaming.
 -}
 
-forallClass qs e                = ETempl Nothing Nothing [ SGen os (EForall qs 
-                                                                      [SBind [BEqn (LPat o) (RExp (EAp (EVar (prim New)) e))], 
-                                                                       SRet o]),
-                                                           SRet os ]
-                                    where o  = EVar (name0 "___x")
-                                          os = EVar (name0 "___xs")
+forallClass qs e                = ETempl Nothing Nothing [ SGen osp (EForall qs 
+                                                                      [SBind [BEqn (LPat op) (RExp (EAp (EVar (prim New)) e))], 
+                                                                       SRet oe]),
+                                                           SRet ose ]
+                                    where o  = name0 "___x"
+                                          os = name0 "___xs"
+                                          oe  = EVar o
+                                          ose = EVar os
+                                          op  = PVar o
+                                          osp = PVar os
 
 -- Checking syntax of statement lists ----------------------------------------
 
@@ -371,6 +453,20 @@ instance Subst Bind Name Exp where
     subst s (BEqn lhs rhs)      = BEqn lhs (subst s rhs)
 
 
+instance Subst Pat Name Pat where
+    subst s (PVar x)            = case lookup x s of
+                                    Just e  -> e
+                                    Nothing -> PVar x
+    subst s (PAp e e')          = PAp (subst s e) (subst s e')
+    subst s (PCon c)            = PCon c
+    subst s (PLit l)            = PLit l
+    subst s (PTup es)           = PTup (subst s es)
+    subst s (PList es)          = PList (subst s es)
+    subst s (PWild)             = PWild
+    subst s (PSig e t)          = PSig (subst s e) t
+    subst s (PRec m fs)         = PRec m (subst s fs)
+    subst s (PNeg l)            = PNeg l
+
 instance Subst Exp Name Exp where
     subst s (EVar x)            = case lookup x s of
                                     Just e  -> e
@@ -404,9 +500,8 @@ instance Subst Exp Name Exp where
     subst s (EBefore e e')      = EBefore (subst s e) (subst s e')
     subst s (EForall qs st)     = EForall (subst s qs) (subst s st)
 
-instance Subst Field Name Exp where
+instance Subst a Name a => Subst (Field a) Name a where
     subst s (Field l e)         = Field l (subst s e)
-
 
 instance Subst a Name Exp => Subst (Rhs a) Name Exp where
     subst s (RExp e)            = RExp (subst s e)
@@ -537,9 +632,9 @@ instance Pr Lhs where
    pr (LFun v ps)               = prId v <+> hsep (map (prn 13) ps)
    pr (LPat p)                  = pr p
 
-{-
--- Patterns --------------------------------------------------------------
 
+-- Patterns --------------------------------------------------------------
+{-
 instance Pr Pat where
 
     prn 0 (PCon c ps)           = prId c <+> hsep (map (prn 13) ps) 
@@ -553,6 +648,27 @@ instance Pr Pat where
 
     prn n p                     = prn 13 p
 -}
+
+instance Pr Pat where
+
+    prn 11 (PAp e e')           = prn 11 e <+> prn 12 e'
+    prn 11 e                    = prn 13 e
+
+    prn 12 e                    = prn 13 e
+        
+    prn 13 (PVar v)             = prId v
+    prn 13 (PCon c)             = prId c
+    prn 13 (PWild)              = text "_"
+    prn 13 (PLit l)             = pr l
+    prn 13 (PRec Nothing fs)    = text "{" <+> hpr ',' fs <+> text "}"
+    prn 13 (PRec (Just(c,b)) fs)= prId c <+> text "{" <+> hpr ',' fs <+> (if b then empty else text "..") <+> text "}"
+    prn 13 (PNeg e)             = text "-" <+> prn 0 e
+    prn 13 (PSig e qt)          = parens (pr e <+> text "::" <+> pr qt)
+    prn 13 (PTup es)            = parens (hpr ',' es)
+    prn 13 (PList es)           = brackets (hpr ',' es)
+    prn 13 e                    = parens (prn 0 e)
+
+    prn n e                     = prn 11 e
 
 -- Types -----------------------------------------------------------------
 
@@ -639,7 +755,8 @@ instance Pr Exp where
    
 prN (Just v) = text "@" <> pr v
 prN Nothing = empty 
-instance Pr Field where
+
+instance Pr a => Pr (Field a) where
     pr (Field l e)              = prId l <+> equals <+> pr e
     
 instance Pr a => Pr (Alt a) where
@@ -676,6 +793,18 @@ instance Ids Bind where
     idents (BEqn (LPat p) rh)   = idents rh \\ idents p 
     idents (BSig _ _)           = []
 
+instance Ids Pat where
+    idents (PVar v)             = [v]
+    idents (PAp e e')           = idents e ++ idents e'
+    idents (PCon _)             = []
+    idents (PLit _)             = []
+    idents (PNeg _)             = []
+    idents (PTup es)            = idents es
+    idents (PList es)           = idents es
+    idents PWild                = []
+    idents (PSig e _)           = idents e
+    idents (PRec _  fs)         = idents fs
+
 instance Ids Exp where
     idents (EVar v)             = [v]
     idents (EAp e e')           = idents e ++ idents e'
@@ -704,7 +833,7 @@ instance Ids Exp where
     idents (EForall qs ss)      = identQuals qs ++ (identStmts ss \\ bvars qs)
     idents _                    = []
 
-instance Ids Field where
+instance Ids a => Ids (Field a) where
     idents (Field _ e)          = idents e
     
 instance Ids (Rhs Exp) where
@@ -769,7 +898,7 @@ instance BVars [Bind] where
             bvars' v bs                 = v : bvars bs
     bvars (_ : bs)                      = bvars bs
 
-instance BVars [Field] where
+instance BVars [Field a] where
     bvars bs                            = [ s | Field s e <- bs ]
 
 instance BVars [Qual] where
@@ -832,6 +961,18 @@ instance HasPos Pred where
   posInfo (PType t)              = posInfo t
   posInfo (PKind n k)            = posInfo n
 
+instance HasPos Pat where
+  posInfo (PVar n)              = posInfo n
+  posInfo (PAp e e')            = between (posInfo e) (posInfo e')
+  posInfo (PCon c)              = posInfo c
+  posInfo (PLit l)              = posInfo l
+  posInfo (PNeg l)              = posInfo l
+  posInfo (PTup es)             = posInfo es
+  posInfo (PList es)            = posInfo es
+  posInfo PWild                 = Unknown
+  posInfo (PSig e t)            = between (posInfo e) (posInfo t)
+  posInfo (PRec m fs)           = between (posInfo m) (posInfo fs)
+
 instance HasPos Exp where
   posInfo (EVar n)              = posInfo n
   posInfo (ECon c)              = posInfo c
@@ -862,7 +1003,7 @@ instance HasPos Exp where
   posInfo (EForall qs ss)       = between (posInfo qs) (posInfo ss)  
   posInfo _                     = Unknown
 
-instance HasPos Field where
+instance HasPos a => HasPos (Field a) where
   posInfo (Field n e)           = between (posInfo n) (posInfo e)
 
 instance HasPos a => HasPos (Rhs a) where
@@ -1002,6 +1143,33 @@ instance Binary Lhs where
       1 -> get >>= \a -> return (LPat a)
       _ -> fail "no parse"
 
+instance Binary Pat where
+  put (PVar a) = putWord8 0 >> put a
+  put (PAp a b) = putWord8 1 >> put a >> put b
+  put (PCon a) = putWord8 2 >> put a
+  put (PLit a) = putWord8 4 >> put a
+  put (PTup a) = putWord8 5 >> put a
+  put (PList a) = putWord8 6 >> put a
+  put PWild = putWord8 7
+  put (PSig a b) = putWord8 8 >> put a >> put b
+  put (PRec a b) = putWord8 9 >> put a >> put b
+  put (PNeg a) = putWord8 14 >> put a
+
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> fmap PVar get
+      1 -> liftM2 PAp get get
+      2 -> fmap PCon get
+      4 -> fmap PLit get
+      5 -> fmap PTup get
+      6 -> fmap PList get
+      7 -> return PWild
+      8 -> liftM2 PSig get get
+      9 -> liftM2 PRec get get
+      14 -> fmap PNeg get
+      _ -> fail "no parse"
+
 instance Binary Exp where
   put (EVar a) = putWord8 0 >> put a
   put (EAp a b) = putWord8 1 >> put a >> put b
@@ -1065,7 +1233,7 @@ instance Binary Exp where
       28 -> get >>= \a -> get >>= \b -> return (EForall a b)
       _ -> fail "no parse"
 
-instance Binary Field where
+instance Binary a => Binary (Field a) where
   put (Field a b) = put a >> put b
   get = get >>= \a -> get >>= \b -> return (Field a b)
 

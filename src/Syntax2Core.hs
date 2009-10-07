@@ -201,9 +201,9 @@ dflt                                    = [(Core.PWild, Core.EVar (prim Fail))]
 
 
 -- translate a case alternative, inheriting type signature t top-down
-s2cA env t (Alt (ELit l) (RExp e))      = do e' <- s2cEc env t e
+s2cA env t (Alt (PLit l) (RExp e))      = do e' <- s2cEc env t e
                                              return (Core.PLit l, e')
-s2cA env t (Alt (ECon c) (RExp e))      = do e' <- s2cEc env (TFun ts t) e
+s2cA env t (Alt (PCon c) (RExp e))      = do e' <- s2cEc env (TFun ts t) e
                                              return (Core.PCon c, e')
   where ts                              = splitArgs (lookupT c env)
 
@@ -286,8 +286,8 @@ s2cE env (ETempl (Just x) Nothing ss)   = do c <- s2cS (addSigs te env) ss
     te                                  = sigs ss
 
     sigs []                             = []
-    sigs (SAss (ESig (EVar v) t) _ :ss) = (v,t) : sigs ss
-    sigs (SAss (EVar v) _:ss)           = (v,TWild) : sigs ss
+    sigs (SAss (PSig (PVar v) t) _ :ss) = (v,t) : sigs ss
+    sigs (SAss (PVar v) _:ss)           = (v,TWild) : sigs ss
     sigs (_ : ss)                       = sigs ss
 
 s2cE env e                              = internalError "s2cE: did not expect" e
@@ -301,16 +301,16 @@ s2cS env [SRet e]                       = do (t,e') <- s2cEi env e
                                              return (Core.CRet e')
 s2cS env [SExp e]                       = do (t,e') <- s2cEi env e
                                              return (Core.CExp e')
-s2cS env (SGen (ESig (EVar v) t) e :ss) = do t' <- s2cType t
+s2cS env (SGen (PSig (PVar v) t) e :ss) = do t' <- s2cType t
                                              e' <- s2cEc env TWild e
                                              c <- s2cS (addSigs [(v,t)] env) ss
                                              return (Core.CGen v t' e' c)
-s2cS env (SGen (EVar v) e : ss)         = do (_,e') <- s2cEi env e
+s2cS env (SGen (PVar v) e : ss)         = do (_,e') <- s2cEi env e
                                              t <- s2cType TWild
                                              c <- s2cS env ss
                                              return (Core.CGen v t e' c)
-s2cS env (SAss (ESig v t) e : ss)       = s2cS env (SAss v e : ss)
-s2cS env (SAss (EVar v) e : ss)         = do e' <- s2cEc env (lookupT v env) e
+s2cS env (SAss (PSig v t) e : ss)       = s2cS env (SAss v e : ss)
+s2cS env (SAss (PVar v) e : ss)         = do e' <- s2cEc env (lookupT v env) e
                                              c <- s2cS env ss
                                              return (Core.CAss v e' c)
 s2cS env (SBind bs : ss)                = do (te',bs') <- s2cBinds env bs
@@ -369,8 +369,8 @@ splitArgs t                     = []
 -- merge any signatures in patterns ps with domain of type t, pair with range of t
 mergeT ps t                     = (zipWith f ts ps, t')
   where (ts,t')                 = split (length ps) t
-        f t (EVar v)            = (v,t)
-        f t (ESig (EVar v) t')  = (v,t')
+        f t (PVar v)            = (v,t)
+        f t (PSig (PVar v) t')  = (v,t')
         f t e                   = internalError "mergeT: did not expect" e
         split 0 t               = ([],t)
         split n t               = (t1:ts,t')

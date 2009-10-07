@@ -172,10 +172,10 @@ topdecl :: { [Decl] }
         | 'typeclass' conid tyvars 'where' siglist         { [DRec True $2 (reverse $3) [] $5] }
         | 'typeclass' ids                                  { [DTClass $2] }
         | 'instance' var '::' type                         { [DPSig $2 $4] }  
-        | 'instance' var '::' type 'where' bindlist        { [DBind [BEqn (exp2lhs (EVar $2)) 
+        | 'instance' var '::' type 'where' bindlist        { [DBind [BEqn (var2lhs $2) 
                                                                           (RExp (EBStruct (Just (type2head $4)) [] $6))],
                                                               DPSig $2 $4] }
-        | 'instance' var '::' type rhs                     { [DBind [BEqn (exp2lhs (EVar $2)) $5], DPSig $2 $4] }
+        | 'instance' var '::' type rhs                     { [DBind [BEqn (var2lhs $2) $5], DPSig $2 $4] }
         | 'instance' ids                                   { [DInstance $2] }
         | 'default' def                                    { [DDefault (reverse $2)] }
         | 'extern' ext                                     { [DExtern (reverse $2)] }
@@ -287,11 +287,11 @@ bind    :: { Bind }
         | lhs rhs 				{ BEqn $1 $2 }
 
 
-recbinds   :: { [Field] }
+recbinds   :: { [EField] }
         : recbinds ',' recbind			{ $3 : $1 }
         | recbind				{ [$1] }
         
-recbind    :: { Field }
+recbind    :: { EField }
         : var '=' exp 				{ Field $1  $3 }
 
 vars	:: { [Name] }
@@ -605,14 +605,14 @@ opExpbs  :: { OpExp }
 -- Patterns ----------------------------------------------------------------
 
 pat     :: { Pat }
-        : exp0s                                 { $1 }
+        : exp0s                                 { exp2pat $1 }
 
 apats   :: { [Pat] }
         : apats apat                            { $2 : $1 }
         | apat                                  { [$1] }
 
 apat    :: { Pat }
-        : aexp                                  { $1 }
+        : aexp                                  { exp2pat $1 }
 
 
 -- Variables, Constructors and Operators ------------------------------------

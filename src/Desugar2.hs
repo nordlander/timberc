@@ -168,8 +168,8 @@ dsEqns ((LPat p,RExp (EVar v)):eqns)
                                      sels <- mapM (sel (EVar v)) vs
                                      dsEqns (sels ++ eqns)
   where vs                      = pvars p
-        sel e0 v                = do es <- mapM (newEVarPos paramSym) vs
-                                     return (LFun v [], RExp (selectFrom e0 (vs `zip` es) p (EVar v)))
+        sel e0 v                = do vs' <- mapM (newNamePos paramSym) vs
+                                     return (LFun v [], RExp (selectFrom e0 (zip vs vs') p (EVar v)))
 dsEqns ((LPat p,rh):eqns)       = do v <- newNamePos patSym p
                                      eqns <- dsEqns ((LPat p, RExp (EVar v)) : eqns)
                                      e <- dsExp (rh2exp rh)
@@ -189,7 +189,7 @@ dsFunBind v alts eqns
                                      alts <- mapM dsA (reverse alts)
                                      e <- pmc' ws alts
                                      eqns <- dsEqns eqns 
-                                     return ((LFun v [], RExp (eLam (map EVar ws) e)) : eqns)
+                                     return ((LFun v [], RExp (eLam (map PVar ws) e)) : eqns)
   where arities                 = nub (map (length . fst) alts)
         dsA (ps,rh)             = liftM2 (,) (mapM dsPat ps) (dsRh rh)
 
@@ -206,15 +206,15 @@ checkQual t ps
         bvs                     = bvars ps
 
 
-zipSigs (v:vs) (ESig _ t : ps)  = ESig (EVar v) t : zipSigs vs ps
-zipSigs (v:vs) (p : ps)         = EVar v : zipSigs vs ps
+zipSigs (v:vs) (PSig _ t : ps)  = PSig (PVar v) t : zipSigs vs ps
+zipSigs (v:vs) (p : ps)         = PVar v : zipSigs vs ps
 zipSigs _      _                = []
 
 rh2exp (RExp e)                 = e
 rh2exp (RWhere rh bs)           = ELet bs (rh2exp rh)
-rh2exp rh                       = ECase unit [Alt unit rh]
+rh2exp rh                       = ECase unit [Alt unitP rh]
 
-selectFrom e0 s p e             = ECase e0 [Alt (subst s p) (RExp (subst s e))]
+selectFrom e0 s p e             = ECase e0 [Alt (subst (mapSnd PVar s) p) (RExp (subst (mapSnd EVar s) e))]
 
 
 -- Expressions --------------------------------------------------------
@@ -224,7 +224,7 @@ dsExp (EAp e e')                = liftM2 EAp (dsExp e) (dsExp e')
 dsExp (ESig e qt)               = do x <- newNamePos tempSym e
                                      dsExp (ELet [BSig [x] qt, BEqn (LFun x []) (RExp e)] (EVar x))
 dsExp (ELam ps e)            
-  | all isESigVar ps            = liftM2 ELam (mapM dsPat ps) (dsExp e)
+  | all isPSigVar ps            = liftM2 ELam (mapM dsPat ps) (dsExp e)
   | otherwise                   = do ps <- mapM dsPat ps
                                      e <- dsExp e
                                      ws <- newNamesPos paramSym ps
@@ -234,17 +234,17 @@ dsExp (ELet [BEqn (LPat p) rh] e)
   | nonRecursive                = dsExp (ECase (rh2exp rh) [Alt p (RExp e)])
   where nonRecursive            = not (any (`elem` evars rh) (pvars p))
 dsExp (ELet bs e)               = liftM2 ELet (dsBinds bs) (dsExp e)
-dsExp (EIf e e1 e2)             = dsExp (ECase e [Alt true  (RExp e1), Alt false (RExp e2)])
+dsExp (EIf e e1 e2)             = dsExp (ECase e [Alt trueP  (RExp e1), Alt falseP (RExp e2)])
 dsExp (ESectR e op)             = dsExp (EAp (op2exp op) e)
-dsExp (ESectL op e)             = do x <- newEVarPos paramSym op
-                                     dsExp (ELam [x] (EAp (EAp (op2exp op) x) e))
+dsExp (ESectL op e)             = do x <- newNamePos paramSym op
+                                     dsExp (ELam [PVar x] (EAp (EAp (op2exp op) (EVar x)) e))
 dsExp (ECase e alts)            = do e <- dsExp e
                                      alts <- mapM dsA alts
                                      pmc e alts
   where dsA (Alt p rh)          = liftM2 Alt (dsPat p) (dsRh rh)
 dsExp (ESelect e s)             = liftM (flip ESelect s) (dsExp e)
 dsExp (ESel s)                  = do x <- newNamePos paramSym s
-                                     return (ELam [EVar x] (ESelect (EVar x) s))
+                                     return (ELam [PVar x] (ESelect (EVar x) s))
 dsExp (EWild)                   = errorTree "Non-pattern use of wildcard variable" EWild
 dsExp (EVar v)                  = return (EVar v)
 dsExp (ECon c)                  = return (ECon c)
@@ -271,13 +271,13 @@ comp2exp e (QExp e' : qs) r     = do e <- comp2exp e qs r
 comp2exp e (QLet bs : qs) r     = do e <- comp2exp e qs r
                                      return (ELet bs e)
 comp2exp e (QGen p e' : qs) r   = do f <- newNamePos functionSym p
-                                     x <- newEVarPos paramSym p
-                                     e <- comp2exp e qs (EAp (EVar f) x)
+                                     x <- newNamePos paramSym p
+                                     e <- comp2exp e qs (EAp (EVar f) (EVar x))
                                      return (ELet (binds f x e) (EAp (EVar f) e'))
-  where binds f x e             = [BEqn (LFun f [nil]) (RExp r),
-                                   BEqn (LFun f [cons p x]) (RExp e)] ++ dflt f x
-        dflt f x | isEVar p     = []
-                 | otherwise    = [BEqn (LFun f [cons EWild x]) (RExp (EAp (EVar f) x))]
+  where binds f x e             = [BEqn (LFun f [nilP]) (RExp r),
+                                   BEqn (LFun f [consP p (PVar x)]) (RExp e)] ++ dflt f x
+        dflt f x | isPVar p     = []
+                 | otherwise    = [BEqn (LFun f [consP PWild (PVar x)]) (RExp (EAp (EVar f) (EVar x)))]
 
 
 -- Statements ------------------------------------------------------------
@@ -294,16 +294,16 @@ dsStmts cl [SRet e]             = do e <- dsExp e
 dsStmts cl [SExp e]             = do e <- dsExp e
                                      return [SExp e]
 dsStmts cl (SGen p e : ss)
-  | isESigVar p                 = do p <- dsInnerPat p
+  | isPSigVar p                 = do p <- dsInnerPat p
                                      e <- dsExp e
                                      ss <- dsStmts cl ss
                                      return (SGen p e : ss)
-  | otherwise                   = do v' <- newEVarPos tempSym p
-                                     dsStmts cl (SGen v' e : SBind [BEqn (LPat p) (RExp v')] : ss)
+  | otherwise                   = do v' <- newNamePos tempSym p
+                                     dsStmts cl (SGen (PVar v') e : SBind [BEqn (LPat p) (RExp (EVar v'))] : ss)
 dsStmts cl (s@(SAss p e) : ss)
   | null vs                     = errorTree "Bad assignment" s
   | not cl && p0 /= p           = errorTree "Illegal signature in assignment" s
-  | isESigVar p                 = do p <- dsPat p
+  | isPSigVar p                 = do p <- dsPat p
                                      e <- dsExp e
                                      ss <- dsStmts cl ss
                                      return (SAss p e : ss)
@@ -311,23 +311,23 @@ dsStmts cl (s@(SAss p e) : ss)
                                      assigns <- mapM (assign (EVar v0)) ps
                                      dsStmts cl (SBind [BEqn (LFun v0 []) (RExp e)] : assigns ++ ss)
   where assign e0 p             = do vs' <- newNamesPos paramSym vs
-                                     return (SAss p (selectFrom e0 (vs `zip` map EVar vs') p0 (unsig p)))
+                                     return (SAss p (selectFrom e0 (zip vs vs') p0 (pat2exp (unsig p))))
         p0                      = unsig p
         ps                      = sigvars p
         vs                      = pvars ps
 dsStmts cl ss                   = internalError ("dsStmts; did not expect") ss
 
-unsig (ESig p _)                = unsig p
-unsig (ETup ps)                 = ETup (map unsig ps)
-unsig (EList ps)                = EList (map unsig ps)
-unsig (ERec m fs)               = ERec m [ Field l (unsig p) | Field l p <- fs ]
+unsig (PSig p _)                = unsig p
+unsig (PTup ps)                 = PTup (map unsig ps)
+unsig (PList ps)                = PList (map unsig ps)
+unsig (PRec m fs)               = PRec m [ Field l (unsig p) | Field l p <- fs ]
 unsig p                         = p
 
-sigvars (ETup ps)               = concatMap sigvars ps
-sigvars (EList ps)              = concatMap sigvars ps
-sigvars (ERec m fs)             = concat [ sigvars p | Field l p <- fs ]
+sigvars (PTup ps)               = concatMap sigvars ps
+sigvars (PList ps)              = concatMap sigvars ps
+sigvars (PRec m fs)             = concat [ sigvars p | Field l p <- fs ]
 sigvars p
-  | isESigVar p                 = [p]
+  | isPSigVar p                 = [p]
   | otherwise                   = []
 
 
@@ -345,7 +345,7 @@ dsGrd (GExp qs e)               = do qs <- mapM dsEQual qs
                                      return (GExp qs e)
 
 dsEQual (QExp e)                = do e <- dsExp e
-                                     return (QGen true e)
+                                     return (QGen trueP e)
 dsEQual (QGen p e)              = do p <- dsPat p
                                      e <- dsExp e
                                      return (QGen p e)
@@ -359,30 +359,30 @@ dsEQual (QLet bs)               = liftM QLet (dsBinds bs)
 
 -- Patterns ----------------------------------------------------------------------------
 
-dsPat (ESig p qt)
-  | isEVar p                    = do p <- dsPat p
-                                     return (ESig p (dsQualWildType qt))
-dsPat (EVar v)                  = return (EVar v)
-dsPat (EWild)                   = do v <- newName dummySym
-                                     return (EVar v)
-dsPat (ENeg (ELit (LInt p i)))  = return (ELit (LInt p (-i)))
-dsPat (ENeg (ELit (LRat p r)))  = return (ELit (LRat p (-r)))
-dsPat (ELit l)                  = return (ELit l)
-dsPat (ETup ps)                 = dsPat (foldl EAp (ECon (tuple (length ps))) ps)
-dsPat (EList ps)                = dsPat (foldr cons nil ps)
-dsPat (ERec m fs)               = liftM (ERec m) (mapM dsField fs)
+dsPat (PSig p qt)
+  | isPVar p                    = do p <- dsPat p
+                                     return (PSig p (dsQualWildType qt))
+dsPat (PVar v)                  = return (PVar v)
+dsPat (PWild)                   = do v <- newName dummySym
+                                     return (PVar v)
+dsPat (PNeg (LInt p i))         = return (PLit (LInt p (-i)))
+dsPat (PNeg (LRat p r))         = return (PLit (LRat p (-r)))
+dsPat (PLit l)                  = return (PLit l)
+dsPat (PTup ps)                 = dsPat (foldl PAp (PCon (tuple (length ps))) ps)
+dsPat (PList ps)                = dsPat (foldr consP nilP ps)
+dsPat (PRec m fs)               = liftM (PRec m) (mapM dsField fs)
 dsPat p                         = dsConPat p
 
-dsField (Field l p)             = liftM (Field l) (dsPat p)
+dsField (Field l p)            = liftM (Field l) (dsPat p)
 
 
-dsConPat (EAp p p')             = liftM2 EAp (dsConPat p) (dsInnerPat p')
-dsConPat (ECon c)               = return (ECon c)
+dsConPat (PAp p p')             = liftM2 PAp (dsConPat p) (dsInnerPat p')
+dsConPat (PCon c)               = return (PCon c)
 dsConPat p                      = errorTree "Illegal pattern" p
 
-dsInnerPat (ESig p t)
-  | isEVar p                    = do p <- dsPat p
-                                     return (ESig p (dsWildType t))
+dsInnerPat (PSig p t)
+  | isPVar p                    = do p <- dsPat p
+                                     return (PSig p (dsWildType t))
 dsInnerPat p                    = dsPat p
 
 

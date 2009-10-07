@@ -66,13 +66,14 @@ data Env                        = Env { sels :: Map Name [Name],
                                         self :: Maybe Name , 
                                         selSubst :: Map Name Name,
                                         modName :: Maybe String,
-                                        isPat :: Bool,
+                                      --isPat :: Bool,
                                         isPublic :: Bool,
                                         tsyns :: Map Name ([Name],Type)
                                   } deriving Show
 
 
-env0 ss                       = Env { sels = [], self = Nothing, selSubst = [], modName = Nothing, isPat = False, 
+env0 ss                       = Env { sels = [], self = Nothing, selSubst = [], modName = Nothing,
+                                    --isPat = False, 
                                       isPublic = True, tsyns = ss }
 
 
@@ -141,7 +142,10 @@ ren env cs                      = map ren' cs
                                      Nothing -> errorIds "Unknown struct selector" [c]
                                      Just c' -> c'
 
-patEnv env                      = env {isPat = True}
+-- Check that patEnv is only used with patterns before removing the isPat flag (transitional)
+ds1pat  env p                   = ds1 (patEnv env) (p::Pat)
+ds1pats env ps                  = ds1 (patEnv env) (ps::[Pat])
+patEnv env                      = env -- {isPat = True}
 
 sortFields fs                   = sortBy cmp fs
   where cmp (Field l1 _) (Field l2 _) = compare (str l1) (str l2)
@@ -208,9 +212,9 @@ instance Desugar1 Bind where
     ds1 env (BSig vs t)         = BSig vs (ds1 env t)
 
 instance Desugar1 Lhs where
-    ds1 env (LFun v ps)         = LFun v (ds1 (patEnv env) ps)
-    ds1 env (LPat (EVar x))     = LFun x []
-    ds1 env (LPat p)            = LPat (ds1 (patEnv env) p)
+    ds1 env (LFun v ps)         = LFun v (ds1pats env ps)
+    ds1 env (LPat (PVar x))     = LFun x []
+    ds1 env (LPat p)            = LPat (ds1pat env p)
 
 instance Desugar1 (Rhs Exp) where
     ds1 env (RExp e)            = RExp (ds1 env e)
@@ -222,8 +226,39 @@ instance Desugar1 (GExp Exp) where
 
 instance Desugar1 Qual where
     ds1 env (QExp e)            = QExp (ds1 env e)
-    ds1 env (QGen p e)          = QGen (ds1 (patEnv env) p) (ds1 env e)
+    ds1 env (QGen p e)          = QGen (ds1pat env p) (ds1 env e)
     ds1 env (QLet bs)           = QLet (ds1 env bs)
+
+
+instance Desugar1 Pat where
+    ds1 env (PRec Nothing fs)
+      | not (null dups)            = errorIds "Duplicate field definitions in struct" dups
+      | otherwise                  = PRec (Just (c,True)) (sortFields (ds1 env fs))
+      where c                      = typeFromSels env (sort (ren env sels))
+            dups                   = duplicates sels
+            sels                   = bvars fs
+    ds1 env (PRec (Just (c,all)) fs)
+      | not (null dups)            = errorIds "Duplicate field definitions in struct" dups
+      | all && not (null miss)     = errorIds "Missing selectors in struct" miss
+      | otherwise                  = PRec (Just (c,True)) (sortFields (fs' ++ ds1 env fs))
+      where miss                   = ren env (selsFromType env c) \\ ren env (bvars fs)
+            dups                   = duplicates (ren env (bvars fs))
+            fs'                    = map (\s -> Field (tag0 (mkLocal s)) (PVar (dropMod (tag0 s)))) miss
+            mkLocal s
+              | fromMod s == modName env = dropMod s
+              | otherwise          = s
+    ds1 env (PAp e1 e2)            = PAp (ds1 env e1) (ds1 env e2)
+    ds1 env (PTup es)              = PTup (ds1 env es)
+    ds1 env (PList es)             = PList (ds1 env es)
+    ds1 env (PSig e t)             = PSig (ds1 env e) (ds1 env t)
+    ds1 env (PNeg (LInt p i))      = PLit (LInt p (-i))
+    ds1 env (PNeg (LRat p r))      = PLit (LRat p (-r))
+{-
+    ds1 env e@(PLit (LInt _ n))
+      | isPat env                  = e
+      | otherwise                  = PAp (PVar (name' "fromInt" e)) e 
+-}
+    ds1 env e                    = e
 
 instance Desugar1 Exp where
 --    ds1 env e@(EVar _)             = e
@@ -256,7 +291,7 @@ instance Desugar1 Exp where
     ds1 env (ETup es)              = ETup (ds1 env es)
     ds1 env (EList es)             = EList (ds1 env es)
     ds1 env (ESig e t)             = ESig (ds1 env e) (ds1 env t)
-    ds1 env (ELam ps e)            = ELam (ds1 (patEnv env) ps) (ds1 env e)
+    ds1 env (ELam ps e)            = ELam (ds1pats env ps) (ds1 env e)
     ds1 env (ECase e as)           = ECase (ds1 env e) (ds1 env as)
     ds1 env (EIf e1 e2 e3)         = EIf (ds1 env e1) (ds1 env e2) (ds1 env e3)
     ds1 env (ENeg (ELit (LInt p i))) = ELit (LInt p (-i))
@@ -269,8 +304,8 @@ instance Desugar1 Exp where
     ds1 env (ESectL op e)          = ESectL op (ds1 env e)
     ds1 env (ESelect e s)          = ESelect (ds1 env e) s
     ds1 env e@(ELit (LInt _ n))
-      | isPat env                  = e
-      | otherwise                  = EAp (EVar (name' "fromInt" e)) e 
+  {-  | isPat env                  = e
+      | otherwise               -} = EAp (EVar (name' "fromInt" e)) e 
 
     ds1 env (ETempl Nothing t ss)  = ds1 env (ETempl (Just (name0 "self")) (ds1 env t) ss)
     ds1 env (EDo Nothing t ss)
@@ -295,34 +330,33 @@ instance Desugar1 Exp where
 
     ds1 env e                    = e
 
-stuffedCons (ERec (Just (c,False)) fs)
+stuffedCons (PRec (Just (c,False)) fs)
                                  = (c,bvars fs) : concat [ stuffedCons p | Field _ p <- fs ]
-stuffedCons (ETup ps)            = concatMap stuffedCons ps
-stuffedCons (EList ps)           = concatMap stuffedCons ps
-stuffedCons (EAp p p')           = stuffedCons p ++ stuffedCons p'
+stuffedCons (PTup ps)            = concatMap stuffedCons ps
+stuffedCons (PList ps)           = concatMap stuffedCons ps
+stuffedCons (PAp p p')           = stuffedCons p ++ stuffedCons p'
 stuffedCons _                    = []
 
 instance Desugar1 (Alt Exp) where
-    ds1 env (Alt p rh)           = Alt (ds1 (patEnv env) p) (ds1 env rh)
+    ds1 env (Alt p rh)           = Alt (ds1pat env p) (ds1 env rh)
 
-instance Desugar1 Field where
+instance Desugar1 a => Desugar1 (Field a) where
     ds1 env (Field l e)          = Field l (ds1 env e)
-
 
 ds1S env []                      = [SRet unit]
 ds1S env [SRet e]                = [SRet (ds1 env e)]
 --ds1S env [SExp e]                = [SExp (ds1 env e)]
 ds1S env (SExp (EForall qs ss') : ss)  =
-                                 SGen EWild (ds1Forall True env qs ss') : ds1S env ss 
-ds1S env (SExp e : ss)           = SGen EWild (ds1 env e) : ds1S env ss
+                                 SGen PWild (ds1Forall True env qs ss') : ds1S env ss 
+ds1S env (SExp e : ss)           = SGen PWild (ds1 env e) : ds1S env ss
 ds1S env (s@(SRet _) : ss)       = errorTree "Result statement must be last in sequence" s
-ds1S env (SGen p e : ss)         = SGen (ds1 (patEnv env) p) (ds1 env e) : ds1S env ss
+ds1S env (SGen p e : ss)         = SGen (ds1pat env p) (ds1 env e) : ds1S env ss
 ds1S env ss@(SBind _ : _)        = dsBs [] ss
   where dsBs bs (SBind bs' : ss) = dsBs (bs++bs') ss
         dsBs bs ss               = SBind (ds1 env bs) : ds1S env ss
 ds1S env (SAss p e : ss)         = dsAss p e : ds1S env ss
-  where dsAss (EAp (EAp (EVar (Prim IndexArray _)) a) i) e
-                                 = dsAss a (EAp (EAp (EAp (EVar (prim UpdateArray)) a) i) e)
+  where dsAss (PAp (PAp (PVar (Prim IndexArray _)) a) i) e
+                                 = dsAss a (EAp (EAp (EAp (EVar (prim UpdateArray)) (pat2exp a)) (pat2exp i)) e)
         dsAss p e                = SAss (ds1 env p) (ds1 env e)
         {-
             a|x|y|z := e
@@ -331,7 +365,7 @@ ds1S env (SAss p e : ss)         = dsAss p e : ds1S env ss
             a       := a \\ (x, a|x \\ (y, a|x|y \\ (z,e)))
         -}
 ds1S env (SCase e as : ss)       = ds1S' env (SExp (ECase e (map doAlt as)) : ss)
-  where doAlt (Alt p r)          = Alt (ds1 (patEnv env) p) (doRhs r)
+  where doAlt (Alt p r)          = Alt (ds1pat env p) (doRhs r)
         doRhs (RExp ss)          = RExp (eDo env ss)
         doRhs (RGrd gs)          = RGrd (map doGrd gs)
         doRhs (RWhere r bs)      = RWhere (doRhs r) bs
@@ -368,9 +402,9 @@ ds1T env bss asg [SRet e]        = SBind (ds1 env (concat (reverse bss))) : reve
 ds1T env bss asg [s]             = errorTree "Last statement in class must be result, not" s
 ds1T env bss asg (s@(SRet _):_)  = errorTree "Result statement must be last in sequence" s
 ds1T env bss asg (SBind bs : ss) = ds1T env (bs:bss) asg ss
-ds1T env bss asg (SAss p e : ss) = ds1T env bss (SAss (ds1 (patEnv env) p) (ds1 env e) : asg) ss
-ds1T env bss asg (SGen (EVar x) e : ss)
-   | isGenerated x               = SGen (EVar x)  (ds1 env e) : ds1T env bss asg ss
+ds1T env bss asg (SAss p e : ss) = ds1T env bss (SAss (ds1pat env p) (ds1 env e) : asg) ss
+ds1T env bss asg (SGen (PVar x) e : ss)
+   | isGenerated x               = SGen (PVar x)  (ds1 env e) : ds1T env bss asg ss
 ds1T env bss asg (s : _)         = errorTree "Illegal statement in class: " s
 
 
