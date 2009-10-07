@@ -99,7 +99,7 @@ Rename:
 - Checks for duplicate selectors and constructors, and overlaps with class members
 - Checks for duplicate equations and type signatures
 - Checks for duplicated variables in patterns and templates
-- Checks for duplication and dandling abstractions in type predicates
+- Checks for duplication and dangling abstractions in type predicates
 - Checks for unbound variables (not yet implemented -- what to do with globals?)
 
 - Makes every type variable binding explicit in signatures and constructor declarations
