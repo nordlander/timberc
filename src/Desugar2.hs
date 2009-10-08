@@ -365,8 +365,6 @@ dsPat (PSig p qt)
 dsPat (PVar v)                  = return (PVar v)
 dsPat (PWild)                   = do v <- newName dummySym
                                      return (PVar v)
-dsPat (PNeg (LInt p i))         = return (PLit (LInt p (-i)))
-dsPat (PNeg (LRat p r))         = return (PLit (LRat p (-r)))
 dsPat (PLit l)                  = return (PLit l)
 dsPat (PTup ps)                 = dsPat (foldl PAp (PCon (tuple (length ps))) ps)
 dsPat (PList ps)                = dsPat (foldr consP nilP ps)

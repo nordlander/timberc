@@ -251,13 +251,6 @@ instance Desugar1 Pat where
     ds1 env (PTup es)              = PTup (ds1 env es)
     ds1 env (PList es)             = PList (ds1 env es)
     ds1 env (PSig e t)             = PSig (ds1 env e) (ds1 env t)
-    ds1 env (PNeg (LInt p i))      = PLit (LInt p (-i))
-    ds1 env (PNeg (LRat p r))      = PLit (LRat p (-r))
-{-
-    ds1 env e@(PLit (LInt _ n))
-      | isPat env                  = e
-      | otherwise                  = PAp (PVar (name' "fromInt" e)) e 
--}
     ds1 env e                    = e
 
 instance Desugar1 Exp where

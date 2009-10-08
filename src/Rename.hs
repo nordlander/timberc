@@ -356,7 +356,6 @@ instance Rename Pat where
   rename env (PCon c)              = return (PCon (renE env c))
   rename env (PAp e1 e2)           = liftM2 PAp (rename env e1) (rename env e2)
   rename env (PLit l)              = return (PLit l)
-  rename env (PNeg l)              = return (PNeg l)
   rename env (PTup ps)             = liftM PTup (rename env ps)
   rename env (PList es)            = liftM PList (rename env es)
   rename env PWild                 = return PWild

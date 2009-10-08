@@ -95,10 +95,8 @@ data Lhs    = LFun Name [Pat]
 data Pat    = PVar    Name
             | PAp     Pat Pat
             | PCon    Name
-        --  | PSel    Name
             | PLit    Lit
-            | PNeg    Lit -- only numeric literals can be negated
-        --  | PNeg    Pat -- only numeric literals can be negated
+        --  | PNeg    Lit -- only numeric literals can be negated
             | PTup    [Pat]
             | PList   [Pat]
             | PWild
@@ -307,7 +305,8 @@ exp2pat e                       = case e of
                                     EAp p1 p2     -> PAp (exp2pat p1) (exp2pat p2)
                                     ECon c        -> PCon c
                                     ELit l        -> PLit l
-                                    ENeg (ELit l) -> PNeg l
+                                    ENeg (ELit (LInt p i)) -> PLit (LInt p (-i))
+                                    ENeg (ELit (LRat p r)) -> PLit (LRat p (-r))
                                     ETup ps       -> PTup (map exp2pat ps)
                                     EList ps      -> PList (map exp2pat ps)
                                     EWild         -> PWild -- hmm
@@ -321,7 +320,6 @@ pat2exp p                       = case p of
                                     PAp p1 p2 -> EAp (pat2exp p1) (pat2exp p2)
                                     PCon c    -> ECon c
                                     PLit l    -> ELit l
-                                    PNeg l    -> ENeg (ELit l)
                                     PTup ps   -> ETup (map pat2exp ps)
                                     PList ps  -> EList (map pat2exp ps)
                                     PWild     -> EWild -- hmm
@@ -465,7 +463,6 @@ instance Subst Pat Name Pat where
     subst s (PWild)             = PWild
     subst s (PSig e t)          = PSig (subst s e) t
     subst s (PRec m fs)         = PRec m (subst s fs)
-    subst s (PNeg l)            = PNeg l
 
 instance Subst Exp Name Exp where
     subst s (EVar x)            = case lookup x s of
@@ -662,7 +659,6 @@ instance Pr Pat where
     prn 13 (PLit l)             = pr l
     prn 13 (PRec Nothing fs)    = text "{" <+> hpr ',' fs <+> text "}"
     prn 13 (PRec (Just(c,b)) fs)= prId c <+> text "{" <+> hpr ',' fs <+> (if b then empty else text "..") <+> text "}"
-    prn 13 (PNeg e)             = text "-" <+> prn 0 e
     prn 13 (PSig e qt)          = parens (pr e <+> text "::" <+> pr qt)
     prn 13 (PTup es)            = parens (hpr ',' es)
     prn 13 (PList es)           = brackets (hpr ',' es)
@@ -798,7 +794,6 @@ instance Ids Pat where
     idents (PAp e e')           = idents e ++ idents e'
     idents (PCon _)             = []
     idents (PLit _)             = []
-    idents (PNeg _)             = []
     idents (PTup es)            = idents es
     idents (PList es)           = idents es
     idents PWild                = []
@@ -966,7 +961,6 @@ instance HasPos Pat where
   posInfo (PAp e e')            = between (posInfo e) (posInfo e')
   posInfo (PCon c)              = posInfo c
   posInfo (PLit l)              = posInfo l
-  posInfo (PNeg l)              = posInfo l
   posInfo (PTup es)             = posInfo es
   posInfo (PList es)            = posInfo es
   posInfo PWild                 = Unknown
@@ -1153,7 +1147,6 @@ instance Binary Pat where
   put PWild = putWord8 7
   put (PSig a b) = putWord8 8 >> put a >> put b
   put (PRec a b) = putWord8 9 >> put a >> put b
-  put (PNeg a) = putWord8 14 >> put a
 
   get = do
     tag_ <- getWord8
@@ -1167,7 +1160,6 @@ instance Binary Pat where
       7 -> return PWild
       8 -> liftM2 PSig get get
       9 -> liftM2 PRec get get
-      14 -> fmap PNeg get
       _ -> fail "no parse"
 
 instance Binary Exp where
