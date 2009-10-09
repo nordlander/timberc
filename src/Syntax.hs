@@ -178,7 +178,9 @@ true                            = ECon (prim TRUE)
 false                           = ECon (prim FALSE)
 unit                            = ECon (tuple 0)
 
-consP x xs                      = PAp (PAp (PCon (prim CONS)) x) xs
+conP c ps                       = foldl PAp (PCon c) ps
+
+consP x xs                      = conP (prim CONS) [x,xs]
 nilP                            = PCon (prim NIL)
 trueP                           = PCon (prim TRUE)
 falseP                          = PCon (prim FALSE)
@@ -280,9 +282,11 @@ eLam [] e                       = e
 eLam ps (ELam ps' e)            = ELam (ps++ps') e
 eLam ps e                       = ELam ps e
 
-rAp (RExp e) es                 = RExp (foldl EAp e es)
+eAp                             = foldl EAp
+
+rAp (RExp e) es                 = RExp (eAp e es)
 rAp (RWhere rhs bs) es          = RWhere (rAp rhs es) bs
-rAp (RGrd gs) es                = RGrd [ GExp qs (foldl EAp e es) | GExp qs e <- gs ]
+rAp (RGrd gs) es                = RGrd [ GExp qs (eAp e es) | GExp qs e <- gs ]
 
 
 eLet [] e                       = e
