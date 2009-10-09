@@ -674,6 +674,8 @@ instance Pr Pat where
 
     prn n e                     = prn 11 e
 
+instance Pr [Pat] where pr = vpr
+
 -- Types -----------------------------------------------------------------
 
 instance Pr Type where

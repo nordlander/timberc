@@ -60,8 +60,8 @@ class (Show r, Subst r Name Exp) => Match r where
   -- New functions:
   eCase :: Exp -> [Alt r] -> r
   eLet :: [Bind] -> r -> r
-  eLam :: [Pat] -> r -> r
-  rAp :: Rhs r -> [Exp] -> Rhs r
+--eLam :: [Pat] -> r -> r
+--rAp :: Rhs r -> [Exp] -> Rhs r
 
 instance Match Exp where
   -- Same as before introduction of class Match
@@ -76,9 +76,9 @@ instance Match Exp where
                                       _  -> EAp (EVar (prim Match)) e
   -- New functions:
   eCase = ECase
-  eLam  = Syntax.eLam
   eLet  = Syntax.eLet
-  rAp   = Syntax.rAp
+--eLam  = Syntax.eLam
+--rAp   = Syntax.rAp
 
 fat []                          = return eFail
 fat [m]                         = m
@@ -145,8 +145,7 @@ matchRec (w:ws) eqs             = do vs <- newNamesPos tempSym ls
                                      e <- match (vs ++ ws) (map matchAlt eqs)
                                      return (foldr eLet e (zipWith mkEqn vs ls))
   where PRec _ fs               = head (fst (head eqs))
-        ls                      = nub [ l | (PRec _ fs:_,_) <- eqs, Field l p <- fs, not (isWildPat p) ]
-        mkEqn v l               = [BEqn (LFun v []) (RExp (ESelect (EVar w) l))]
+        mkEqn v (Field l _)    = [BEqn (LFun v []) (RExp (ESelect (EVar w) l))]
         matchAlt (PRec _ fs:ps,rh)
                                 = ([ p | Field l p <- fs, l `elem` ls ] ++ ps, rh)
 
@@ -163,17 +162,18 @@ matchCon  :: Match r => [Name] -> [(Name, [Pat], [Pat], Rhs r)] -> M s r
 matchCon (w:ws) ceqs            = do alts <- mapM matchAlt cs
                                      return (eCase (EVar w) alts)
   where cs                      = nub [ c | (c,_,_,_) <- ceqs ]
-        matchAlt c              = do vs <- newNamesPos tempSym (maxPat [] 0 eqs_c)
-                                     e  <- match (vs++ws) (map (mkeq vs) eqs_c)
-                                     return (Alt (PCon c) (RExp (eLam (map PVar vs) e)))
+        matchAlt c              = do vs <- newNamesPos tempSym (arity_check (map fst3 eqs_c))
+                                     e  <- match (vs++ws) (map mkeq eqs_c)
+                                     return (Alt (conP c (map PVar vs)) (RExp e))
           where eqs_c           = [ (ps', ps, rhs) | (c',ps',ps,rhs) <- ceqs, c==c' ]
-                maxPat ps _ []  = ps
-                maxPat ps n ((ps',_,_) : ceqs)
-                   |length ps' > n = maxPat ps' (length ps') ceqs
-                   |otherwise      = maxPat ps n ceqs
---                arity_c         = maximum [ length ps' | (ps', ps, rhs) <- eqs_c ]
-        mkeq vs (ps',ps,rhs)    = (ps'++map PVar vs' ++ ps, rAp rhs (map EVar vs'))
-          where vs'             = drop (length ps') vs
+                arity_check (ps':pss') =
+                      if all ((==n).length) pss'
+                      then ps'
+                      else errorTree "Inconsistent number of constructor arguments in patterns"
+                                     (map (conP c) (ps':pss'))
+                    where
+                      n=length ps'
+        mkeq (ps',ps,rhs)    = (ps'++ps, rhs)
 
 
 matchRhs (RExp e)               = return (eCommit e)

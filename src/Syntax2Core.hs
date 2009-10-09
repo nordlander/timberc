@@ -206,7 +206,8 @@ s2cA env t (Alt (PLit l) (RExp e))      = do e' <- s2cEc env t e
 s2cA env t (Alt (PCon c) (RExp e))      = do e' <- s2cEc env (TFun ts t) e
                                              return (Core.PCon c, e')
   where ts                              = splitArgs (lookupT c env)
-
+s2cA env t (Alt p        (RExp e))      =  s2cA env t (Alt p1 (RExp (eLam ps e)))
+  where (p1,ps) = pFlat p 
 
 -- translate a record field
 s2cF env (Field s e)                    = do e <- s2cEc env (snd (splitT (lookupT s env))) e
