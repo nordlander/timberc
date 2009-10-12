@@ -204,7 +204,7 @@ dflt                                    = [(Core.PWild, Core.EVar (prim Fail))]
 s2cA env t (Alt (PLit l) (RExp e))      = do e' <- s2cEc env t e
                                              return (Core.PLit l, e')
 s2cA env t (Alt (PCon c) (RExp e))      = do e' <- s2cEc env (TFun ts t) e
-                                             return (Core.PCon c, e')
+                                             return (Core.pCon0 c, e')
   where ts                              = splitArgs (lookupT c env)
 s2cA env t (Alt p        (RExp e))      =  s2cA env t (Alt p1 (RExp (eLam ps e)))
   where (p1,ps) = pFlat p 
@@ -271,9 +271,9 @@ s2cEc env _ e                   = s2cE env e
 -- (i.e., no point inheriting nor synthesizing signatures)
 s2cE env (ERec (Just (c,_)) eqs)        = do eqs <- mapM (s2cF env) eqs
                                              return (Core.ERec c eqs)
-s2cE env (EAct (Just x) [SExp e])       = do (_,e) <- s2cEi env e
+s2cE env (EAct (Just x) (Stmts[SExp e]))= do (_,e) <- s2cEi env e
                                              return (Core.EAct (Core.EVar x) e)
-s2cE env (EReq (Just x) [SExp e])       = do (_,e) <- s2cEi env e
+s2cE env (EReq (Just x) (Stmts[SExp e]))= do (_,e) <- s2cEi env e
                                              return (Core.EReq (Core.EVar x) e)
 s2cE env (EDo (Just x) Nothing ss)      = do c <- s2cS env ss
                                              t <- s2cType TWild
@@ -284,8 +284,9 @@ s2cE env (ETempl (Just x) Nothing ss)   = do c <- s2cS (addSigs te env) ss
                                              return (Core.ETempl x t te' c)
   where 
     vs                                  = assignedVars ss
-    te                                  = sigs ss
+    te                                  = sigs' ss
 
+    sigs' (Stmts ss)                    = sigs ss
     sigs []                             = []
     sigs (SAss (PSig (PVar v) t) _ :ss) = (v,t) : sigs ss
     sigs (SAss (PVar v) _:ss)           = (v,TWild) : sigs ss
@@ -297,26 +298,44 @@ s2cE env e                              = internalError "s2cE: did not expect" e
 -- Statements ==================================================================================
 
 -- translate a statement list
-s2cS env []                             = return (Core.CRet (Core.eUnit))
-s2cS env [SRet e]                       = do (t,e') <- s2cEi env e
+s2cS env (Stmts ss)                     = s2cSs env ss
+
+s2cSs env []                            = return (Core.CRet (Core.eUnit))
+s2cSs env [SRet e]                      = do (t,e') <- s2cEi env e
                                              return (Core.CRet e')
-s2cS env [SExp e]                       = do (t,e') <- s2cEi env e
+s2cSs env [SExp e]                      = do (t,e') <- s2cEi env e
                                              return (Core.CExp e')
-s2cS env (SGen (PSig (PVar v) t) e :ss) = do t' <- s2cType t
+s2cSs env [SCase e alts]                = do e <- s2cEc env TWild e
+                                             alts <- mapM s2cA alts
+                                             return (Core.CCase e alts)
+  where
+    -- translate a case alternative
+    s2cA (Alt (PLit l) (RExp ss))     = do e' <- s2cS env ss
+                                           return (Core.PLit l, e')
+    s2cA (Alt (PCon c) (RExp ss))     = do e' <- s2cS env ss
+                                           return (Core.pCon0 c, e')
+      where ts                        = splitArgs (lookupT c env)
+    {-
+    s2cA (Alt p        (RExp ss))     =  s2cA (Alt p1 (RExp (eLam ps e)))
+      where (p1,ps) = pFlat p 
+    -}
+
+s2cSs env (SGen (PSig (PVar v) t) e :ss)= do t' <- s2cType t
                                              e' <- s2cEc env TWild e
-                                             c <- s2cS (addSigs [(v,t)] env) ss
+                                             c <- s2cSs (addSigs [(v,t)] env) ss
                                              return (Core.CGen v t' e' c)
-s2cS env (SGen (PVar v) e : ss)         = do (_,e') <- s2cEi env e
+s2cSs env (SGen (PVar v) e : ss)        = do (_,e') <- s2cEi env e
                                              t <- s2cType TWild
-                                             c <- s2cS env ss
+                                             c <- s2cSs env ss
                                              return (Core.CGen v t e' c)
-s2cS env (SAss (PSig v t) e : ss)       = s2cS env (SAss v e : ss)
-s2cS env (SAss (PVar v) e : ss)         = do e' <- s2cEc env (lookupT v env) e
-                                             c <- s2cS env ss
+s2cSs env (SAss (PSig v t) e : ss)      = s2cSs env (SAss v e : ss)
+s2cSs env (SAss (PVar v) e : ss)        = do e' <- s2cEc env (lookupT v env) e
+                                             c <- s2cSs env ss
                                              return (Core.CAss v e' c)
-s2cS env (SBind bs : ss)                = do (te',bs') <- s2cBinds env bs
-                                             c <- s2cS (addSigs te' env) ss
+s2cSs env (SBind bs : ss)               = do (te',bs') <- s2cBinds env bs
+                                             c <- s2cSs (addSigs te' env) ss
                                              return (Core.CLet bs' c)
+s2cSs env ss                              = internalError "s2cSs: did not expect" (Stmts ss)
 
 
 -- Expressions, synthesize mode ================================================================

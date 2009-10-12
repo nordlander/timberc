@@ -109,11 +109,14 @@ data Exp        = ECon    Name
                 | EDo     Name Type Cmd
                 deriving (Eq,Show)
 
+type CAlt       = (Pat,Cmd)
+
 data Cmd        = CGen    Name Type Exp Cmd
                 | CAss    Name Exp Cmd
                 | CLet    Binds Cmd
                 | CRet    Exp
                 | CExp    Exp
+                | CCase   Exp [CAlt]  -- preliminary, don't use yet
                 deriving (Eq,Show)
 
 
@@ -206,6 +209,8 @@ isLitPat _                      = False
 
 isConPat (PCon _)               = True
 isConPat _                      = False
+
+pCon0 c                         = PCon c
 
 eLet [] [] e                    = e
 eLet te eq e                    = ELet (Binds False te eq) e
@@ -1189,7 +1194,7 @@ instance Binary Pat where
   get = do
     tag_ <- getWord8
     case tag_ of
-      0 -> get >>= \a -> return (PCon a)
+      0 -> get >>= \a -> return (pCon0 a)
       1 -> get >>= \a -> return (PLit a)
       2 -> return PWild
       _ -> fail "no parse"

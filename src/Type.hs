@@ -353,7 +353,7 @@ mkCaseTerm env e0 c pats0 es0
         mkAlt0 (k,c)            = do x <- newName tempSym
                                      (F [sc] _, _) <- inst (findType env k)
                                      e <- mkOne (EVar x) c
-                                     return (PCon k, ELam [(x,sc)] e)
+                                     return (pCon0 k, ELam [(x,sc)] e)
 
         
 

@@ -216,12 +216,12 @@ instance Desugar1 Lhs where
     ds1 env (LPat (PVar x))     = LFun x []
     ds1 env (LPat p)            = LPat (ds1pat env p)
 
-instance Desugar1 (Rhs Exp) where
+instance Desugar1 a => Desugar1 (Rhs a) where
     ds1 env (RExp e)            = RExp (ds1 env e)
     ds1 env (RGrd gs)           = RGrd (ds1 env gs)
     ds1 env (RWhere e bs)       = RWhere (ds1 env e) (ds1 env bs)
 
-instance Desugar1 (GExp Exp) where
+instance Desugar1 a => Desugar1 (GExp a) where
     ds1 env (GExp qs e)         = GExp (ds1 env qs) (ds1 env e)
 
 instance Desugar1 Qual where
@@ -311,11 +311,11 @@ instance Desugar1 Exp where
       | haveSelf env               = ds1 env (EReq (self env) ss)
       | otherwise                  = errorTree "Request outside class" e
 
-    ds1 env (ETempl v t [])      = errorTree "Class with empty statement list" (ETempl Nothing t [])
-    ds1 env (ETempl v t ss)      = ETempl v t (ds1T (env{self=v}) [] [] ss)
-    ds1 env (EDo v t ss)         = EDo v t (ds1S (env { self=v }) ss)
-    ds1 env (EAct v ss)          = EAct v [SExp (EDo v Nothing (ds1S env ss))]
-    ds1 env (EReq v ss)          = EReq v [SExp (EDo v Nothing (ds1S env ss))]
+    ds1 env (ETempl v t (Stmts []))= errorTree "Class with empty statement list" (ETempl Nothing t (Stmts []))
+    ds1 env (ETempl v t ss)      = ETempl v t (ds1Templ (env{self=v}) [] [] ss)
+    ds1 env (EDo v t ss)         = EDo v t (ds1 (env { self=v }) ss)
+    ds1 env (EAct v ss)          = EAct v (Stmts [SExp (EDo v Nothing (ds1 env ss))])
+    ds1 env (EReq v ss)          = EReq v (Stmts [SExp (EDo v Nothing (ds1 env ss))])
 
     ds1 env (EAfter e1 e2)       = EAfter (ds1 env e1) (ds1 env e2)
     ds1 env (EBefore e1 e2)      = EBefore (ds1 env e1) (ds1 env e2)
@@ -330,48 +330,54 @@ stuffedCons (PList ps)           = concatMap stuffedCons ps
 stuffedCons (PAp p p')           = stuffedCons p ++ stuffedCons p'
 stuffedCons _                    = []
 
-instance Desugar1 (Alt Exp) where
+instance Desugar1 a => Desugar1 (Alt a) where
     ds1 env (Alt p rh)           = Alt (ds1pat env p) (ds1 env rh)
 
 instance Desugar1 a => Desugar1 (Field a) where
     ds1 env (Field l e)          = Field l (ds1 env e)
 
-ds1S env []                      = [SRet unit]
-ds1S env [SRet e]                = [SRet (ds1 env e)]
---ds1S env [SExp e]                = [SExp (ds1 env e)]
-ds1S env (SExp (EForall qs ss') : ss)  =
-                                 SGen PWild (ds1Forall True env qs ss') : ds1S env ss 
-ds1S env (SExp e : ss)           = SGen PWild (ds1 env e) : ds1S env ss
-ds1S env (s@(SRet _) : ss)       = errorTree "Result statement must be last in sequence" s
-ds1S env (SGen p e : ss)         = SGen (ds1pat env p) (ds1 env e) : ds1S env ss
-ds1S env ss@(SBind _ : _)        = dsBs [] ss
-  where dsBs bs (SBind bs' : ss) = dsBs (bs++bs') ss
-        dsBs bs ss               = SBind (ds1 env bs) : ds1S env ss
-ds1S env (SAss p e : ss)         = dsAss p e : ds1S env ss
-  where dsAss (PAp (PAp (PVar (Prim IndexArray _)) a) i) e
-                                 = dsAss a (EAp (EAp (EAp (EVar (prim UpdateArray)) (pat2exp a)) (pat2exp i)) e)
-        dsAss p e                = SAss (ds1 env p) (ds1 env e)
-        {-
-            a|x|y|z := e
-            a|x|y   := a|x|y \\ (z,e)
-            a|x     := a|x \\ (y, a|x|y \\ (z,e))
-            a       := a \\ (x, a|x \\ (y, a|x|y \\ (z,e)))
-        -}
-ds1S env (SCase e as : ss)       = ds1S' env (SExp (ECase e (map doAlt as)) : ss)
-  where doAlt (Alt p r)          = Alt (ds1pat env p) (doRhs r)
-        doRhs (RExp ss)          = RExp (eDo env ss)
-        doRhs (RGrd gs)          = RGrd (map doGrd gs)
-        doRhs (RWhere r bs)      = RWhere (doRhs r) bs
-        doGrd (GExp qs ss)       = GExp qs (eDo env ss)
-ds1S env (SIf e ss' : ss)        = doIf (EIf e (eDo env ss')) ss
-  where doIf f (SElsif e ss':ss) = doIf (f . EIf e (eDo env ss')) ss
-        doIf f (SElse ss':ss)    = ds1S' env (SExp (f (eDo env ss')) : ss)
-        doIf f ss                = doIf f (SElse [] : ss)
-ds1S env (s@(SElsif _ _) : _)    = errorTree "elsif without corresponding if" s
-ds1S env (s@(SElse _) : _)       = errorTree "else without corresponding if" s
+instance Desugar1 Stmts where
+    ds1 env (Stmts ss) = Stmts (ds1S env ss)
+      where
+        ds1S env []                  = [SRet unit]
+        ds1S env [SRet e]            = [SRet (ds1 env e)]
+      --ds1S env [SExp e]            = [SExp (ds1 env e)]
+        ds1S env (SExp (EForall qs ss') : ss) =
+                                       SGen PWild (ds1Forall True env qs ss') : ds1S env ss 
+        ds1S env (SExp e : ss)       = SGen PWild (ds1 env e) : ds1S env ss
+        ds1S env (s@(SRet _) : ss)   = errorTree "Result statement must be last in sequence" s
+        ds1S env (SGen p e : ss)     = SGen (ds1pat env p) (ds1 env e) : ds1S env ss
+        ds1S env ss@(SBind _ : _)    = dsBs [] ss
+          where dsBs bs (SBind bs' : ss) = dsBs (bs++bs') ss
+                dsBs bs ss               = SBind (ds1 env bs) : ds1S env ss
+        ds1S env (SAss p e : ss)     = dsAss p e : ds1S env ss
+          where dsAss (PAp (PAp (PVar (Prim IndexArray _)) a) i) e
+                                     = dsAss a (EAp (EAp (EAp (EVar (prim UpdateArray)) (pat2exp a)) (pat2exp i)) e)
+                dsAss p e            = SAss (ds1 env p) (ds1 env e)
+                {-
+                    a|x|y|z := e
+                    a|x|y   := a|x|y \\ (z,e)
+                    a|x     := a|x \\ (y, a|x|y \\ (z,e))
+                    a       := a \\ (x, a|x \\ (y, a|x|y \\ (z,e)))
+                -}
+        -- New: keep SCase in tail position
+        --ds1S env [SCase e as]        = [SCase (ds1 env e) (ds1 env as)]
+        --(Old) eliminate SCase in other places
+        ds1S env (SCase e as : ss)   = ds1S' env (SExp (ECase e (map doAlt as)) : ss)
+          where doAlt (Alt p r)      = Alt (ds1pat env p) (doRhs r)
+                doRhs (RExp ss)      = RExp (eDo env ss)
+                doRhs (RGrd gs)      = RGrd (map doGrd gs)
+                doRhs (RWhere r bs)  = RWhere (doRhs r) bs
+                doGrd (GExp qs ss)   = GExp qs (eDo env ss)
+        ds1S env (SIf e ss' : ss)    = doIf (EIf e (eDo env ss')) ss
+          where doIf f (SElsif e ss':ss) = doIf (f . EIf e (eDo env ss')) ss
+                doIf f (SElse ss':ss)    = ds1S' env (SExp (f (eDo env ss')) : ss)
+                doIf f ss                = doIf f (SElse (Stmts []) : ss)
+        ds1S env (s@(SElsif _ _) : _)= errorTree "elsif without corresponding if" s
+        ds1S env (s@(SElse _) : _)   = errorTree "else without corresponding if" s
 
-ds1S' env [SExp e]               = [SExp (ds1 env e)]
-ds1S' env ss                     = ds1S env ss
+        ds1S' env [SExp e]           = [SExp (ds1 env e)]
+        ds1S' env ss                 = ds1S env ss
 
 -- We translate forall constructions to calls of Prelude support functions. Unfortunately, we
 -- need six such functions for efficiency:
@@ -388,20 +394,22 @@ ds1Forall b env (QGen p (ESeq e1 Nothing e3) : qs) ss
 ds1Forall b env (QGen p (ESeq e1 (Just e2) e3) : qs) ss
                                  = EAp (EAp (EAp (EAp (EVar (name' (forallSeq1 b) p)) (ELam [p] (ds1Forall b env qs ss))) e1) e2) e3
 ds1Forall b env (QGen p e : qs) ss = EAp (EAp (EVar (name' (forallList b) p)) (ELam [p] (ds1Forall b env qs ss))) e
-ds1Forall b env (QExp e : qs) ss   = EIf e (eDo env [])  (ds1Forall b env qs ss)
+ds1Forall b env (QExp e : qs) ss   = EIf e (eDo env (Stmts [])) (ds1Forall b env qs ss)
 
-ds1T env []  asg [SRet e]        = reverse asg ++ [SRet (ds1 env e)]
-ds1T env bss asg [SRet e]        = SBind (ds1 env (concat (reverse bss))) : reverse asg ++ [SRet (ds1 env e)]
-ds1T env bss asg [s]             = errorTree "Last statement in class must be result, not" s
-ds1T env bss asg (s@(SRet _):_)  = errorTree "Result statement must be last in sequence" s
-ds1T env bss asg (SBind bs : ss) = ds1T env (bs:bss) asg ss
-ds1T env bss asg (SAss p e : ss) = ds1T env bss (SAss (ds1pat env p) (ds1 env e) : asg) ss
-ds1T env bss asg (SGen (PVar x) e : ss)
-   | isGenerated x               = SGen (PVar x)  (ds1 env e) : ds1T env bss asg ss
-ds1T env bss asg (s : _)         = errorTree "Illegal statement in class: " s
+ds1Templ env bss asg (Stmts ss)  = Stmts (ds1T env bss asg ss)
+  where
+    ds1T env []  asg [SRet e]        = reverse asg ++ [SRet (ds1 env e)]
+    ds1T env bss asg [SRet e]        = SBind (ds1 env (concat (reverse bss))) : reverse asg ++ [SRet (ds1 env e)]
+    ds1T env bss asg [s]             = errorTree "Last statement in class must be result, not" s
+    ds1T env bss asg (s@(SRet _):_)  = errorTree "Result statement must be last in sequence" s
+    ds1T env bss asg (SBind bs : ss) = ds1T env (bs:bss) asg ss
+    ds1T env bss asg (SAss p e : ss) = ds1T env bss (SAss (ds1pat env p) (ds1 env e) : asg) ss
+    ds1T env bss asg (SGen (PVar x) e : ss)
+       | isGenerated x               = SGen (PVar x)  (ds1 env e) : ds1T env bss asg ss
+    ds1T env bss asg (s : _)         = errorTree "Illegal statement in class: " s
 
 
-eDo env ss                       = EDo (self env) Nothing (ds1S env ss)
+eDo env ss                       = EDo (self env) Nothing (ds1 env ss)
 
 name' s  e                       = Name s 0 Nothing (noAnnot {location = loc (posInfo e)})
   where loc Unknown              = Nothing

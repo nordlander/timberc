@@ -32,7 +32,7 @@
 -- POSSIBILITY OF SUCH DAMAGE.
 
 {-# LANGUAGE FlexibleContexts #-}
-module Match(pmc,pmc') where
+module Match(pmc,pmc',eCase) where
 
 import Common
 import PP
@@ -79,6 +79,15 @@ instance Match Exp where
   eLet  = Syntax.eLet
 --eLam  = Syntax.eLam
 --rAp   = Syntax.rAp
+
+instance Match Stmts where
+  eFatbar (Stmts ss1) (Stmts ss2) = Stmts (ss1++ss2)
+  eFail                           = Stmts [SExp eFail]
+  eCommit ss                      = ss
+  eMatch ss                       = ss
+  --
+  eCase e as                      = Stmts [SCase e as]
+  eLet bs (Stmts ss)              = Stmts (SBind bs:ss)
 
 fat []                          = return eFail
 fat [m]                         = m

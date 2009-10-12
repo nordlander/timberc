@@ -391,15 +391,15 @@ instance Rename Exp where
   rename env (ESectR e op)         = liftM (flip ESectR (renE env op)) (rename env e) 
   rename env (ESectL op e)         = liftM (ESectL (renE env op)) (rename env e)
   rename env (ESelect e l)         = liftM (flip ESelect (renL env l)) (rename env e) 
-  rename env (EAct v ss)           = liftM (EAct (fmap (renE env) v)) (renameS (unvoidAll env) (shuffleS ss))
-  rename env (EReq v ss)           = liftM (EReq (fmap (renE env) v)) (renameS (unvoidAll env) (shuffleS ss))
+  rename env (EAct v ss)           = liftM (EAct (fmap (renE env) v)) (rename (unvoidAll env) (shuffleS ss))
+  rename env (EReq v ss)           = liftM (EReq (fmap (renE env) v)) (rename (unvoidAll env) (shuffleS ss))
   rename env (EDo (Just v) Nothing ss)
                                    = do env1 <- extRenSelf env v
-                                        liftM (EDo (Just (renE env1 v)) Nothing) (renameS (unvoidAll env1) (shuffleS ss))
+                                        liftM (EDo (Just (renE env1 v)) Nothing) (rename (unvoidAll env1) (shuffleS ss))
   rename env (ETempl (Just v) Nothing ss)
                                    = do env1 <- extRenSelf env v
                                         env2 <- setRenS env1 st
-                                        liftM (ETempl (Just (renE env2 v)) Nothing) (renameS env2 (shuffleS ss))
+                                        liftM (ETempl (Just (renE env2 v)) Nothing) (rename env2 (shuffleS ss))
     where st                       = assignedVars ss
   rename env (EAfter e1 e2)        = liftM2 EAfter (rename env e1) (rename env e2)
   rename env (EBefore e1 e2)       = liftM2 EBefore (rename env e1) (rename env e2)
@@ -425,7 +425,7 @@ renSBind _ _ s@(BSig vs t)                  = errorTree "Signature in struct val
 instance Rename a => Rename (Field a) where
   rename env (Field l e)           = liftM (Field (renL env l)) (rename env e)
 
-instance Rename (Rhs Exp) where
+instance Rename a => Rename (Rhs a) where
   rename env (RExp e)              = liftM RExp (rename env e)
   rename env (RGrd gs)             = liftM RGrd (rename env gs)
   rename env (RWhere e bs)         = do env' <- extRenE env (bvars bs)
@@ -434,7 +434,7 @@ instance Rename (Rhs Exp) where
                                         return (foldr (flip RWhere) e' (groupBindsS bs'))
 
 
-instance Rename (GExp Exp) where
+instance Rename a => Rename (GExp a) where
   rename env (GExp qs e)           = do (qs,e) <- renameQ env qs e
                                         return (GExp qs e)
 
@@ -455,25 +455,31 @@ renameQ env (QLet bs : qs) e0      = do env' <- extRenE env (bvars bs)
                                         return (map QLet (groupBindsS bs) ++ qs, e0)
 
 
-instance Rename (Alt Exp) where
+instance Rename a => Rename (Alt a) where
   rename env (Alt  p rh)           = do env' <- extRenE env (pvars p)
                                         liftM2 Alt (rename env' p) (rename env' rh) 
 
-
-renameS env []                     = return []
-renameS env [SRet e]               = liftM (:[]) (liftM SRet (rename env e))
-renameS env (SExp e : ss)          = liftM2 (:) (liftM SExp (rename env e)) (renameS env ss)
-renameS env (SGen p e : ss)        = do env' <- extRenE env (pvars p)
+instance Rename Stmts where
+  rename env (Stmts ss) = fmap Stmts (renameS env ss)
+    where
+      renameS env []               = return []
+      renameS env [SRet e]         = liftM (:[]) (liftM SRet (rename env e))
+      renameS env (SExp e : ss)    = liftM2 (:) (liftM SExp (rename env e)) (renameS env ss)
+      renameS env (SGen p e : ss)  = do env' <- extRenE env (pvars p)
                                         liftM2 (:) (liftM2 SGen (rename env' p) (rename env e)) (renameS env' ss)
-renameS env (SBind bs : ss)        = do env' <- extRenE env (bvars bs)
+      renameS env (SBind bs : ss)  = do env' <- extRenE env (bvars bs)
                                         bs' <- rename env' bs
                                         ss' <- renameS env' ss
                                         return (map SBind (groupBindsS bs') ++ ss')
-renameS env (SAss p e : ss)
-  | not (null illegal)             = errorIds "Unknown state variables" illegal
-  | otherwise                      = liftM2 (:) (liftM2 SAss (rename (unvoidAll env) p) (rename env e)) (renameS (unvoid (pvars p) env) ss)
-  where illegal                    = pvars p \\ stateVars env
-renameS env s                      = internalError0 (show s)
+      renameS env (SAss p e : ss)
+        | not (null illegal)       = errorIds "Unknown state variables" illegal
+        | otherwise                = liftM2 (:) (liftM2 SAss (rename (unvoidAll env) p) (rename env e)) (renameS (unvoid (pvars p) env) ss)
+        where illegal              = pvars p \\ stateVars env
+      renameS env (SCase e as:ss)  = do e' <- rename env e
+                                        as' <- rename env as
+                                        ss' <- renameS env ss
+                                        return (SCase e' as':ss')
+      renameS env s                = internalError0 ("renameS "++show s)
 
 
 -- Signature shuffling -------------------------------------------------------------------------
@@ -497,7 +503,7 @@ shuffle sigs (BEqn (LPat p) rh : bs)
 
 
 
-shuffleS ss                        = shuffle' [] ss
+shuffleS (Stmts ss)                = Stmts (shuffle' [] ss)
 
 shuffle' [] []                     = []
 shuffle' sigs []                   = errorIds "Dangling type signatures for" (dom sigs)

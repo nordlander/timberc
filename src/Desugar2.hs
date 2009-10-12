@@ -240,9 +240,8 @@ dsExp (ESectR e op)             = dsExp (EAp (op2exp op) e)
 dsExp (ESectL op e)             = do x <- newNamePos paramSym op
                                      dsExp (ELam [PVar x] (EAp (EAp (op2exp op) (EVar x)) e))
 dsExp (ECase e alts)            = do e <- dsExp e
-                                     alts <- mapM dsA alts
+                                     alts <- dsAlts dsExp alts
                                      pmc e alts
-  where dsA (Alt p rh)          = liftM2 Alt (dsPat p) (dsRh rh)
 dsExp (ESelect e s)             = liftM (flip ESelect s) (dsExp e)
 dsExp (ESel s)                  = do x <- newNamePos paramSym s
                                      return (ELam [PVar x] (ESelect (EVar x) s))
@@ -263,6 +262,9 @@ dsExp (EList es)                = dsExp (foldr cons nil es)
 dsExp (EComp e qs)              = do e <- comp2exp e qs nil
                                      dsExp e
 
+dsAlts :: (a->M s a) -> [Alt a] -> M s [Alt a]
+dsAlts dsE as = mapM dsAlt as
+  where dsAlt (Alt p rh)          = liftM2 Alt (dsPat p) (dsRhs dsE rh)
 
 -- List comprehensions --------------------------------------------------
 
@@ -282,35 +284,36 @@ comp2exp e (QGen p e' : qs) r   = do f <- newNamePos functionSym p
 
 
 -- Statements ------------------------------------------------------------
+dsStmts cl (Stmts ss)           = Stmts `fmap` dsSs cl ss
 
-dsStmts cl []                   = return []
-dsStmts cl (SBind [BEqn (LPat p) rh] : ss)
+dsSs cl []                      = return []
+dsSs cl (SBind [BEqn (LPat p) rh] : ss)
   | not cl && nonRecursive      = do x <- newName tempSym
-                                     dsStmts cl [SExp (ECase (rh2exp rh) [Alt p (RExp (EDo (Just x) Nothing ss))])]
+                                     dsSs cl [SExp (ECase (rh2exp rh) [Alt p (RExp (EDo (Just x) Nothing (Stmts ss)))])]
   where nonRecursive            = not (any (`elem` evars rh) (pvars p))
-dsStmts cl (SBind bs : ss)      = do bs <- dsBinds bs
-                                     liftM (SBind bs :) (dsStmts cl ss)
-dsStmts cl [SRet e]             = do e <- dsExp e
+dsSs cl (SBind bs : ss)         = do bs <- dsBinds bs
+                                     liftM (SBind bs :) (dsSs cl ss)
+dsSs cl [SRet e]                = do e <- dsExp e
                                      return [SRet e]
-dsStmts cl [SExp e]             = do e <- dsExp e
+dsSs cl [SExp e]                = do e <- dsExp e
                                      return [SExp e]
-dsStmts cl (SGen p e : ss)
+dsSs cl (SGen p e : ss)
   | isPSigVar p                 = do p <- dsInnerPat p
                                      e <- dsExp e
-                                     ss <- dsStmts cl ss
+                                     ss <- dsSs cl ss
                                      return (SGen p e : ss)
   | otherwise                   = do v' <- newNamePos tempSym p
-                                     dsStmts cl (SGen (PVar v') e : SBind [BEqn (LPat p) (RExp (EVar v'))] : ss)
-dsStmts cl (s@(SAss p e) : ss)
+                                     dsSs cl (SGen (PVar v') e : SBind [BEqn (LPat p) (RExp (EVar v'))] : ss)
+dsSs cl (s@(SAss p e) : ss)
   | null vs                     = errorTree "Bad assignment" s
   | not cl && p0 /= p           = errorTree "Illegal signature in assignment" s
   | isPSigVar p                 = do p <- dsPat p
                                      e <- dsExp e
-                                     ss <- dsStmts cl ss
+                                     ss <- dsSs cl ss
                                      return (SAss p e : ss)
   | otherwise                   = do v0 <- newNamePos tempSym p
                                      assigns <- mapM (assign (EVar v0)) sigvs
-                                     dsStmts cl (SBind [BEqn (LFun v0 []) (RExp e)] : assigns ++ ss)
+                                     dsSs cl (SBind [BEqn (LFun v0 []) (RExp e)] : assigns ++ ss)
   where assign e0 sigv          = do let PVar v = unsig sigv
                                      vs' <- newNamesPos dummySym vs
                                      v' <- newNamePos paramSym v
@@ -318,7 +321,12 @@ dsStmts cl (s@(SAss p e) : ss)
         p0                      = unsig p
         sigvs                   = sigvars p
         vs                      = pvars sigvs
-dsStmts cl ss                   = internalError ("dsStmts; did not expect") ss
+dsSs cl (SCase e as : ss)       = do e <- dsExp e
+                                     as <- dsAlts (dsStmts cl) as
+                                     Stmts css <- pmc e as
+                                     ss <- dsSs cl ss
+                                     return (css ++ ss)
+dsSs cl ss                      = internalError ("dsSs; did not expect") (Stmts ss)
 
 unsig (PSig p _)                = unsig p
 unsig (PAp p1 p2)               = PAp (unsig p1) (unsig p2)
@@ -338,16 +346,28 @@ sigvars p
 
 -- Alternatives -----------------------------------------------------------------------
 
-dsRh (RExp e)                   = liftM RExp (dsExp e)
-dsRh (RGrd gs)                  = liftM RGrd (mapM dsGrd gs)
+dsRh (RExp e)              = liftM RExp (dsExp e)
+dsRh (RGrd gs)             = liftM RGrd (mapM dsGrd gs)
+  where
+    dsGrd (GExp qs e)           = do qs <- mapM dsEQual qs
+                                     e <- dsExp e
+                                     return (GExp qs e)
 dsRh (RWhere rh [BEqn (LPat p) rh'])
   | nonRecursive                = liftM RExp (dsExp (ECase (rh2exp rh') [Alt p (RExp (rh2exp rh))]))
   where nonRecursive            = not (any (`elem` evars rh') (pvars p))  
-dsRh (RWhere rh bs)             = liftM2 RWhere (dsRh rh) (dsBinds bs)
+dsRh (RWhere rh bs)        = liftM2 RWhere (dsRh rh) (dsBinds bs)
 
-dsGrd (GExp qs e)               = do qs <- mapM dsEQual qs
-                                     e <- dsExp e
+
+-- Generalized version of dsRh, without where->case transformation
+dsRhs :: (a -> M s a) -> Rhs a -> M s (Rhs a)
+dsRhs dsE (RExp e)              = liftM RExp (dsE e)
+dsRhs dsE (RGrd gs)             = liftM RGrd (mapM dsGrd gs)
+  where
+    dsGrd (GExp qs e)           = do qs <- mapM dsEQual qs
+                                     e <- dsE e
                                      return (GExp qs e)
+dsRhs dsE (RWhere rh bs)        = liftM2 RWhere (dsRhs dsE rh) (dsBinds bs)
+
 
 dsEQual (QExp e)                = do e <- dsExp e
                                      return (QGen trueP e)

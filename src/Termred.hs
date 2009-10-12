@@ -271,7 +271,7 @@ redApp env e es                 = return (EAp e es)
 
 
 appAlt env es (PCon c,e)        = case skipLambda (conArity env c) e es of
-                                    Just e' -> Just (PCon c, e')
+                                    Just e' -> Just (pCon0 c, e')
                                     _       -> Nothing
 appAlt env es a                 = Just a
 
@@ -350,7 +350,7 @@ redCase env e alts              = case eFlat e of
 
 redAlts env alts
   | complete (cons env) cs      = do es <- mapM (redRhs env) es
-                                     return (map PCon cs `zip` es)
+                                     return (map pCon0 cs `zip` es)
   | otherwise                   = do es0 <- mapM (redRhs env) es0
                                      return (ps `zip` es0)
   where (cs,es)                 = unzip [ (c,e) | (PCon c, e) <- alts ]

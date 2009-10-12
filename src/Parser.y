@@ -519,36 +519,36 @@ gdcaserhs :: { GExp Exp }
 
 -- Case statement alternatives ------------------------------------------------------------
 
-saltslist :: { [Alt [Stmt]] }
+saltslist :: { [Alt Stmts] }
         : '{' layout_off salts  '}'             { reverse $3 }
         |     layout_on  salts close            { reverse $2 }
 
 
-salts   :: { [Alt [Stmt]] }
+salts   :: { [Alt Stmts] }
         : salts ';' salt                        { $3 : $1 }
         | salt                                  { [$1] }
 
-salt    :: { Alt [Stmt] }
+salt    :: { Alt Stmts }
         : pat srhscasealts                      { Alt $1 $2 }
 
-srhscasealts :: { Rhs [Stmt] }
+srhscasealts :: { Rhs Stmts }
         : '->' stmtlist                         { RExp $2 }
         | sgdcaserhss                           { RGrd (reverse $1) }
         | srhscasealts 'where' bindlist         { RWhere $1 $3 }
 
-sgdcaserhss :: { [GExp [Stmt]] }
+sgdcaserhss :: { [GExp Stmts] }
         : sgdcaserhss sgdcaserhs                { $2 : $1 }
         | sgdcaserhs                            { [$1] }
 
-sgdcaserhs :: { GExp [Stmt] }
+sgdcaserhs :: { GExp Stmts }
         : '|' quals  '->' stmtlist              { GExp (reverse $2) $4 }
 
 
 -- Statement sequences -----------------------------------------------------------
 
-stmtlist :: { [Stmt] }
-        : '{' layout_off stmts '}'              { $3 }
-        | layout_on stmts close                 { $2 }
+stmtlist :: { Stmts }
+        : '{' layout_off stmts '}'              { Stmts $3 }
+        | layout_on stmts close                 { Stmts $2 }
 
 stmts   :: { [Stmt] }
         : stmt ';' stmts                        { $1 : $3 }

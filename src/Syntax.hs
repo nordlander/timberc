@@ -1,4 +1,5 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, FlexibleContexts,
+             GeneralizedNewtypeDeriving #-}
 
 -- The Timber compiler <timber-lang.org>
 --
@@ -127,13 +128,13 @@ data Exp    = EVar    Name
             | ESectR  Exp Name
             | ESectL  Name Exp
             | ESelect Exp Name
-            | EDo     (Maybe Name) (Maybe Type) [Stmt] 
-            | ETempl  (Maybe Name) (Maybe Type) [Stmt]
-            | EAct    (Maybe Name) [Stmt] 
-            | EReq    (Maybe Name) [Stmt] 
+            | EDo     (Maybe Name) (Maybe Type) Stmts 
+            | ETempl  (Maybe Name) (Maybe Type) Stmts
+            | EAct    (Maybe Name) Stmts 
+            | EReq    (Maybe Name) Stmts 
             | EAfter  Exp Exp
             | EBefore Exp Exp
-            | EForall [Qual] [Stmt]
+            | EForall [Qual] Stmts
             deriving  (Eq,Show)
 
 data Field a = Field   Name a
@@ -158,15 +159,18 @@ data Qual   = QExp    Exp
             | QLet    [Bind]
             deriving  (Eq,Show)
 
+newtype Stmts = Stmts [Stmt]
+              deriving (Eq,Show,Binary,HasPos)
+
 data Stmt   = SExp    Exp
             | SRet    Exp
             | SGen    Pat Exp
             | SBind   [Bind]
             | SAss    Pat Exp
-            | SIf     Exp [Stmt]
-            | SElsif  Exp [Stmt]
-            | SElse   [Stmt]
-            | SCase   Exp [Alt [Stmt]]
+            | SIf     Exp Stmts
+            | SElsif  Exp Stmts
+            | SElse   Stmts
+            | SCase   Exp [Alt Stmts]
             deriving  (Eq,Show)
 
 
@@ -384,10 +388,11 @@ forallClass qs e = class
 We cannot generate unique names here, but this is only called before renaming.
 -}
 
-forallClass qs e                = ETempl Nothing Nothing [ SGen osp (EForall qs 
-                                                                      [SBind [BEqn (LPat op) (RExp (EAp (EVar (prim New)) e))], 
-                                                                       SRet oe]),
-                                                           SRet ose ]
+forallClass qs e                = ETempl Nothing Nothing
+                                         (Stmts [ SGen osp (EForall qs 
+                                                            (Stmts [SBind [BEqn (LPat op) (RExp (EAp (EVar (prim New)) e))], 
+                                                                    SRet oe])),
+                                                  SRet ose ])
                                     where o  = name0 "___x"
                                           os = name0 "___xs"
                                           oe  = EVar o
@@ -397,40 +402,42 @@ forallClass qs e                = ETempl Nothing Nothing [ SGen osp (EForall qs
 
 -- Checking syntax of statement lists ----------------------------------------
 
+checkStmts :: Stmts -> Stmts
 checkStmts ss
   | isResult ss                 = ss
   | otherwise                   = ss
 
-
-isResult []                     = False
---isResult [SExp e]               = tr' ("######## Suspicious tail: " ++ render (pr e)) False
-isResult (SRet e : ss)
-  | null ss                     = True
-  | otherwise                   = errorTree "Illegal continuation after result" ss
-isResult (s@(SCase e alts) : ss)
-  | and rs && null ss           = True
-  | and rs                      = errorTree "Illegal continuation after final 'case'" ss
-  | all not rs                  = isResult ss
-  | otherwise                   = errorTree "Inconsistent alternatives in 'case'" s
-  where rs                      = map isResult (concat [ cmds rh | Alt p rh <- alts ])
-        cmds (RExp c)           = [c]
-        cmds (RGrd gs)          = [ c | GExp qs c <- gs ]
-        cmds (RWhere rh bs)     = cmds rh
-isResult (s@(SIf e c) : ss)
-  | and rs && null ss2          = True
-  | and rs                      = errorTree "Illegal continuation after final 'if'" ss2
-  | all not rs                  = isResult ss2
-  | otherwise                   = errorTree "Inconsistent branches in 'if'" (s:ss1)
-  where (ss1,ss2)               = ifTail ss
-        rs                      = map isResult (c : map branch ss1)
-        branch (SElsif e c)     = c
-        branch (SElse c)        = c
-isResult (s@(SElsif e c) : ss)  = errorTree "'elsif' without preceeding 'if'" s
-isResult (s@(SElse c) : ss)     = errorTree "'else' without preceeding 'if'" s
--- isResult (s@(SForall q c) : ss)
---   | isResult c                  = errorTree "Illegal result in 'forall' body" c
---   | otherwise                   = isResult ss
-isResult (s : ss)               = isResult ss
+isResult (Stmts ss)             = isRes ss
+  where
+    isRes []                    = False
+  --isRes [SExp e]              = tr' ("######## Suspicious tail: " ++ render (pr e)) False
+    isRes (SRet e : ss)
+      | null ss                 = True
+      | otherwise               = errorTree "Illegal continuation after result" (Stmts ss)
+    isRes (s@(SCase e alts) : ss)
+      | and rs && null ss       = True
+      | and rs                  = errorTree "Illegal continuation after final 'case'" (Stmts ss)
+      | all not rs              = isRes ss
+      | otherwise               = errorTree "Inconsistent alternatives in 'case'" s
+      where rs                  = map isResult (concat [ cmds rh | Alt p rh <- alts ])
+            cmds (RExp c)       = [c]
+            cmds (RGrd gs)      = [ c | GExp qs c <- gs ]
+            cmds (RWhere rh bs) = cmds rh
+    isRes (s@(SIf e c) : ss)
+      | and rs && null ss2      = True
+      | and rs                  = errorTree "Illegal continuation after final 'if'" (Stmts ss2)
+      | all not rs              = isRes ss2
+      | otherwise               = errorTree "Inconsistent branches in 'if'" (Stmts (s:ss1))
+      where (ss1,ss2)           = ifTail ss
+            rs                  = map isResult (c : map branch ss1)
+            branch (SElsif e c) = c
+            branch (SElse c)    = c
+    isRes (s@(SElsif e c) : ss) = errorTree "'elsif' without preceeding 'if'" s
+    isRes (s@(SElse c) : ss)    = errorTree "'else' without preceeding 'if'" s
+ -- isRes (s@(SForall q c) : ss)
+ --   | isRes c                 = errorTree "Illegal result in 'forall' body" c
+ --   | otherwise               = isRes ss
+    isRes (s : ss)              = isRes ss
 
 
 ifTail (SElsif e s : ss)        = (SElsif e s : ss1, ss2)
@@ -439,14 +446,14 @@ ifTail (SElse s : ss)           = ([SElse s], ss)
 ifTail ss                       = ([], ss)
 
 
-checkClass ss
-  | okClass ss                  = ss
+checkClass ss@(Stmts sss)
+  | okClass sss                 = ss
   | otherwise                   = errorTree "Missing result in class" ss
 
 okClass []                      = False
 okClass (SRet e : ss)
   | null ss                     = True
-  | otherwise                   = errorTree "Illegal continuation after result" ss
+  | otherwise                   = errorTree "Illegal continuation after result" (Stmts ss)
 okClass (SBind bs : ss)         = okClass ss
 okClass (SAss p e : ss)         = okClass ss
 okClass (s : ss)                = errorTree "Illegal command in class" s
@@ -528,6 +535,8 @@ instance Subst Qual Name Exp where
     subst s (QLet bs)           = QLet (subst s bs)
 
 
+instance Subst Stmts Name Exp where
+    subst s (Stmts ss) = Stmts (subst s ss)
             
 instance Subst Stmt Name Exp where
     subst s (SExp e)            = SExp (subst s e)
@@ -721,10 +730,10 @@ instance Pr Exp where
                                     nest 3 (text "then" <+> pr e1 $$
                                             text "else" <+> pr e2)
     prn 0 (ECase e alts)        = text "case" <+> pr e <+> text "of" $$ nest 2 (vpr alts)
-    prn 0 (EDo v t ss)          = text "do"<>prN v <+> vpr ss 
-    prn 0 (ETempl v t ss)       = text "class"<>prN v $$ nest 4 (vpr ss)
-    prn 0 (EAct v ss)           = text "action"<>prN v $$ nest 4 (vpr ss) 
-    prn 0 (EReq v ss)           = text "request"<>prN v $$ nest 4 (vpr ss) 
+    prn 0 (EDo v t ss)          = text "do"<>prN v <+> pr ss 
+    prn 0 (ETempl v t ss)       = text "class"<>prN v $$ nest 4 (pr ss)
+    prn 0 (EAct v ss)           = text "action"<>prN v $$ nest 4 (pr ss) 
+    prn 0 (EReq v ss)           = text "request"<>prN v $$ nest 4 (pr ss) 
     prn 0 (EAfter e e')         = text "after" <+> prn 12 e <+> pr e'
     prn 0 (EBefore e e')        = text "before" <+> prn 12 e <+> pr e'
     prn 0 e                     = prn 1 e
@@ -776,8 +785,8 @@ instance Pr Qual where
 
 -- Statements --------------------------------------------------------------
 
-instance Pr [Stmt] where
-    pr ss                       = vpr ss
+instance Pr Stmts where
+    pr (Stmts ss)               = vpr ss
 
 instance Pr Stmt where
     pr (SExp e)                 = pr e
@@ -829,19 +838,27 @@ instance Ids Exp where
     idents (ESectR e v)         = v : idents e
     idents (ESectL v e)         = v : idents e
     idents (ESelect e _)        = idents e
-    idents (EDo _ _ ss)         = identStmts ss
-    idents (ETempl _ _ ss)      = identStmts ss
-    idents (EAct _ ss)          = identStmts ss 
-    idents (EReq _ ss)          = identStmts ss 
+    idents (EDo _ _ ss)         = idents ss
+    idents (ETempl _ _ ss)      = idents ss
+    idents (EAct _ ss)          = idents ss 
+    idents (EReq _ ss)          = idents ss 
     idents (EAfter e e')        = idents e ++ idents e'
     idents (EBefore e e')       = idents e ++ idents e'
-    idents (EForall qs ss)      = identQuals qs ++ (identStmts ss \\ bvars qs)
+    idents (EForall qs ss)      = identQuals qs ++ (idents ss \\ bvars qs)
     idents _                    = []
 
 instance Ids a => Ids (Field a) where
     idents (Field _ e)          = idents e
     
-instance Ids (Rhs Exp) where
+instance Ids a => Ids (Rhs a) where
+    idents (RExp a)             = idents a
+    idents (RGrd gs)            = idents gs
+    idents (RWhere a bs)        = idents bs ++ (idents a \\ bvars bs)
+
+instance Ids a => Ids (Alt a) where
+    idents (Alt p a)            = idents a \\ idents p     
+{-
+instance Ids (Rhs Stmts) where
     idents (RExp a)             = idents a
     idents (RGrd gs)            = idents gs
     idents (RWhere a bs)        = idents bs ++ (idents a \\ bvars bs)
@@ -849,19 +866,11 @@ instance Ids (Rhs Exp) where
 instance Ids (GExp Exp) where
     idents (GExp qs a)          = identQuals qs ++ idents a
     
-instance Ids (Alt Exp) where
+instance Ids (Alt Stmts) where
     idents (Alt p a)            = idents a \\ idents p     
-
-instance Ids (Rhs [Stmt]) where
-    idents (RExp a)             = identStmts a
-    idents (RGrd gs)            = idents gs
-    idents (RWhere a bs)        = idents bs ++ (idents a \\ bvars bs)
-
-instance Ids (GExp [Stmt]) where
-    idents (GExp qs a)          = identQuals qs ++ identStmts a
-    
-instance Ids (Alt [Stmt]) where
-    idents (Alt p a)            = idents a \\ idents p     
+-}    
+instance Ids a => Ids (GExp a) where
+    idents (GExp qs a)          = identQuals qs ++ idents a
 
 
 identQuals []                   = []
@@ -870,6 +879,9 @@ identQuals (QGen p e : qs)      = idents e ++ (identQuals qs \\ pvars p)
 identQuals (QLet bs : qs)       = idents bs ++ (identQuals qs \\ bvars bs)
 
 
+instance Ids Stmts where
+    idents (Stmts ss) = identStmts ss
+
 identStmts []                   = []
 identStmts (SExp e : ss)        = idents e ++ identStmts ss
 identStmts (SRet e : ss)        = idents e ++ identStmts ss
@@ -877,9 +889,9 @@ identStmts (SGen p e : ss)      = idents e ++ (identStmts ss \\ pvars p)
 identStmts (SBind bs : ss)      = identSBind bs ss
 identStmts (SAss p e : ss)      = idents e ++ (identStmts ss \\ pvars p)
 --identStmts (SForall qs ss' : ss)= identQuals qs ++ (identStmts ss' \\ bvars qs) ++ identStmts ss
-identStmts (SIf e ss' : ss)     = idents e ++ identStmts ss' ++ identStmts ss
-identStmts (SElsif e ss' : ss)  = idents e ++ identStmts ss' ++ identStmts ss
-identStmts (SElse ss' : ss)     = identStmts ss' ++ identStmts ss
+identStmts (SIf e ss' : ss)     = idents e ++ idents ss' ++ identStmts ss
+identStmts (SElsif e ss' : ss)  = idents e ++ idents ss' ++ identStmts ss
+identStmts (SElse ss' : ss)     = idents ss' ++ identStmts ss
 identStmts (SCase e as : ss)    = idents e ++ idents as ++ identStmts ss
 
 identSBind bs (SBind bs' : ss ) = identSBind (bs++bs') ss
@@ -888,7 +900,7 @@ identSBind bs ss                = idents bs ++ (identStmts ss \\ bvars bs)
 
 pvars p                         = evars p
 
-assignedVars ss                 = concat [ pvars p | SAss p _ <- ss ]
+assignedVars (Stmts ss)         = concat [ pvars p | SAss p _ <- ss ]
 
 
 -- Bound variables ----------------------------------------------------------
@@ -911,13 +923,13 @@ instance BVars [Qual] where
     bvars (QGen p _ : qs)               = pvars p ++ bvars qs
     bvars (QLet bs : qs)                = bvars bs ++ bvars qs
     bvars (_ : qs)                      = bvars qs
-
+{-
 instance BVars [Stmt] where
     bvars []                            = []
     bvars (SGen p e : ss)               = pvars p ++ bvars ss
     bvars (SBind bs : ss)               = bvars bs ++ bvars ss
     bvars (_ : ss)                      = bvars ss
-  
+-}
 
 instance BVars Lhs where
     bvars (LFun v ps)           = pvars ps
