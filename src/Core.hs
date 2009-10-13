@@ -212,6 +212,18 @@ isConPat _                      = False
 
 pCon0 c                         = PCon c
 
+-- Pattern matching primitives --------------------
+eMatch, eCommit :: Exp -> Exp
+eMatch e = EAp (EVar (prim Match)) [e]
+eCommit e = EAp (EVar (prim Commit)) [e]
+
+eFatbar :: Exp -> Exp -> Exp
+eFatbar e1 e2 = EAp (EVar (prim Fatbar)) [e1,e2]
+
+eFail :: Exp
+eFail = EVar (prim Fail)
+--------------------------------------------------
+
 eLet [] [] e                    = e
 eLet te eq e                    = ELet (Binds False te eq) e
 

@@ -185,11 +185,9 @@ mkParseInstance n eq sc s (nm, DData vs [] cs)
   where DRec _ _ _ [(n',_)]           = snd s
         mkParse                       = do x <- newName paramSym
                                            as <- mapM (mkParseAlt x) cs
-                                           eLam' [x] (EAp (EVar (prim Match)) [foldr (\x y -> EAp (EVar (prim Fatbar)) [x,y]) 
-                                                                              (EAp (EVar (prim Commit)) [EAp (ECon (prim LEFT)) [mkList "no Parse"]]) 
-                                                                              as]) 
+                                           eLam' [x] (eMatch (foldr eFatbar (eCommit (EAp (ECon (prim LEFT)) [mkList "no Parse"])) as))
         mkParseAlt x (nm,Constr [] _ _) = return (ECase (EAp eq [EVar x, mkList (str nm)])
-                                                  [(pCon0 (prim TRUE),EAp (EVar (prim Commit)) [EAp (ECon (prim RIGHT)) [ECon nm]]),(PWild,EVar (prim Fail))])
+                                                  [(pCon0 (prim TRUE),eCommit (EAp (ECon (prim RIGHT)) [ECon nm])),(PWild,eFail)])
         mkParseAlt x (nm,_)           = errorIds "Sorry, as yet only default Parse for enumeration types, without constructors as" [nm]
 --        cons                          = ECon (prim CONS)
 --        nil                           = ECon (prim NIL)
