@@ -207,6 +207,10 @@ isPVar (PVar _)                 = True
 isPVar (PWild)                  = True
 isPVar _                        = False
 
+isWildPat (PWild)               = True
+isWildPat (PVar x)              = isDummy x
+isWildPat _                     = False
+
 isEConApp (EAp e es)            = isEConApp e
 isEConApp (ECon _)              = True
 isEConApp _                     = False

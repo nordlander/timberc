@@ -35,6 +35,7 @@
 module Match(pmc,pmc') where
 
 import Common
+import PP
 import Syntax hiding (eLam,eLet,rAp)
 import qualified Syntax
 import Monad
@@ -51,7 +52,7 @@ pmc' ws eqs                     = do e <- match ws eqs
 
 -- The primitive pmc constants -----------------------------------------------------------
 
-class Subst r Name Exp => Match r where
+class (Show r, Subst r Name Exp) => Match r where
   -- Same as before introduction of class Match:
   eFail :: r
   eMatch, eCommit :: r -> r
@@ -140,14 +141,15 @@ matchRecs ws eqs (eq:eqs')
   | isERecEq eq                 = matchRecs ws (eq:eqs) eqs'
 matchRecs ws eqs eqs'           = matchRec ws (reverse eqs) : match1 ws eqs'
 
-matchRec (w:ws) eqs             = do vs <- newNamesPos tempSym fs
+matchRec (w:ws) eqs             = do vs <- newNamesPos tempSym ls
                                      e <- match (vs ++ ws) (map matchAlt eqs)
-                                     return (foldr eLet e (zipWith mkEqn vs fs))
+                                     return (foldr eLet e (zipWith mkEqn vs ls))
   where PRec _ fs               = head (fst (head eqs))
-        mkEqn v (Field l _)    = [BEqn (LFun v []) (RExp (ESelect (EVar w) l))]
+        ls                      = nub [ l | (PRec _ fs:_,_) <- eqs, Field l p <- fs, not (isWildPat p) ]
+        mkEqn v l               = [BEqn (LFun v []) (RExp (ESelect (EVar w) l))]
         matchAlt (PRec _ fs:ps,rh)
-                                = (map patOf fs++ps,rh)
-        patOf (Field _ p)      = p
+                                = ([ p | Field l p <- fs, l `elem` ls ] ++ ps, rh)
+
 
 prepConEq (p:ps,rhs)            = (c, ps', ps, rhs)
   where (PCon c, ps')           = pFlat p

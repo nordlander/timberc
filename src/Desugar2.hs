@@ -168,8 +168,9 @@ dsEqns ((LPat p,RExp (EVar v)):eqns)
                                      sels <- mapM (sel (EVar v)) vs
                                      dsEqns (sels ++ eqns)
   where vs                      = pvars p
-        sel e0 v                = do vs' <- mapM (newNamePos paramSym) vs
-                                     return (LFun v [], RExp (selectFrom e0 (zip vs vs') p (EVar v)))
+        sel e0 v                = do vs' <- newNamesPos dummySym vs
+                                     v' <- newNamePos paramSym v
+                                     return (LFun v [], RExp (selectFrom e0 (zip (v:vs) (v':vs')) p (EVar v)))
 dsEqns ((LPat p,rh):eqns)       = do v <- newNamePos patSym p
                                      eqns <- dsEqns ((LPat p, RExp (EVar v)) : eqns)
                                      e <- dsExp (rh2exp rh)
@@ -308,21 +309,25 @@ dsStmts cl (s@(SAss p e) : ss)
                                      ss <- dsStmts cl ss
                                      return (SAss p e : ss)
   | otherwise                   = do v0 <- newNamePos tempSym p
-                                     assigns <- mapM (assign (EVar v0)) ps
+                                     assigns <- mapM (assign (EVar v0)) sigvs
                                      dsStmts cl (SBind [BEqn (LFun v0 []) (RExp e)] : assigns ++ ss)
-  where assign e0 p             = do vs' <- newNamesPos paramSym vs
-                                     return (SAss p (selectFrom e0 (zip vs vs') p0 (pat2exp (unsig p))))
+  where assign e0 sigv          = do let PVar v = unsig sigv
+                                     vs' <- newNamesPos dummySym vs
+                                     v' <- newNamePos paramSym v
+                                     return (SAss sigv (selectFrom e0 (zip (v:vs) (v':vs')) p0 (pat2exp (unsig sigv))))
         p0                      = unsig p
-        ps                      = sigvars p
-        vs                      = pvars ps
+        sigvs                   = sigvars p
+        vs                      = pvars sigvs
 dsStmts cl ss                   = internalError ("dsStmts; did not expect") ss
 
 unsig (PSig p _)                = unsig p
+unsig (PAp p1 p2)               = PAp (unsig p1) (unsig p2)
 unsig (PTup ps)                 = PTup (map unsig ps)
 unsig (PList ps)                = PList (map unsig ps)
 unsig (PRec m fs)               = PRec m [ Field l (unsig p) | Field l p <- fs ]
 unsig p                         = p
 
+sigvars (PAp p1 p2)             = sigvars p1 ++ sigvars p2
 sigvars (PTup ps)               = concatMap sigvars ps
 sigvars (PList ps)              = concatMap sigvars ps
 sigvars (PRec m fs)             = concat [ sigvars p | Field l p <- fs ]
