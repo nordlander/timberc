@@ -154,7 +154,8 @@ matchRec (w:ws) eqs             = do vs <- newNamesPos tempSym ls
                                      e <- match (vs ++ ws) (map matchAlt eqs)
                                      return (foldr eLet e (zipWith mkEqn vs ls))
   where PRec _ fs               = head (fst (head eqs))
-        mkEqn v (Field l _)    = [BEqn (LFun v []) (RExp (ESelect (EVar w) l))]
+        ls                      = nub [ l | (PRec _ fs:_,_) <- eqs, Field l p <- fs, not (isWildPat p) ]
+        mkEqn v l               = [simpleEqn v (ESelect (EVar w) l)]
         matchAlt (PRec _ fs:ps,rh)
                                 = ([ p | Field l p <- fs, l `elem` ls ] ++ ps, rh)
 
