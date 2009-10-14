@@ -193,9 +193,13 @@ kiExp env (EDo x t c)                   = do t <- kiType' env t
 kiExp env e                             = return e
 
 
-kiAlt env (p,e)                         = do e <- kiExp env e
+kiAlt env (p,e)                         = do p <- kiPat env p
+                                             e <- kiExp env e
                                              return (p,e)
 
+kiPat env (PCon c te)                   = do te <- kiTEnv env te
+                                             return (PCon c te)
+kiPat env p                             = return p
 
 kiEqn env (v,e)                         = do e <- kiExp env e
                                              return (v,e)

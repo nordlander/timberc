@@ -297,16 +297,18 @@ drive env e@(EDo n t cmd) = do
 drive env e = error ("No matching rule " ++ show' e)
 
 
-driveLegCtxtDown env (PCon n', ELam te e) = do
+driveLegCtxtDown env (PCon n' te, e) = do
   let freshE = ctxt env $ e
 --  tr ("Leg: " ++ show' freshE)
   (e', used) <- drive (env {ctxt = emptyContext, inSet = te ++ inSet env}) freshE
-  return ((pCon0 n', ELam te e'), used)
+  return ((PCon n' te, e'), used)
+{-
 driveLegCtxtDown env (PCon n', e) = do
   let freshE = ctxt env $ e
 --  tr ("Leg: " ++ show' freshE)
   (e', used) <- drive (env {ctxt = emptyContext}) freshE
   return ((pCon0 n', e'), used)
+-}
 driveLegCtxtDown env (PLit l, e) = do
   let freshE = ctxt env $ e
 --  tr ("Leg: " ++ show' freshE)
@@ -474,9 +476,10 @@ split' (ECase e alts) = do
       (pats, legs) = unzip p
       alts' = zipWith mergePat p (map EVar xs)
   return (ECase (EVar x) alts', (x, e):zip xs legs, map scheme (t:ts))
-  where separatePat (PCon k, ELam te e) = ((pCon0 k, Just te), e)
+  where --separatePat (PCon k, ELam te e) = ((pCon0 k, Just te), e)
+        separatePat (PCon k te, e) = ((pCon0 k, Just te), e)
         separatePat (k, e) = ((k, Nothing), e)
-        mergePat ((PCon k, Just te), e) x = (pCon0 k, ELam te x)
+        mergePat ((PCon k [], Just te), e) x = (pCon0 k, ELam te x)
         mergePat ((k, Nothing), e) x = (k, x)
 split' (ERec n eqns) = do
   xs <- newNames "intermediate_name" (length eqns)
@@ -673,7 +676,8 @@ msg env (ECase c1 legs1, ECase c2 legs2, s)
   | otherwise = do
     n <- newName "tmp"
     return (EVar n, [(n, ECase c1 legs1)], [s])
-    where separatePats (PCon k, ELam te1 e1) (PCon _, ELam te2 e2) = (e1, e2)
+    where --separatePats (PCon k, ELam te1 e1) (PCon _, ELam te2 e2) = (e1, e2)
+          separatePats (PCon k te1, e1) (PCon _ te2, e2) = (e1, e2)
           separatePats (k, e1) (_, e2) = (e1, e2)
           mergePats s (p, Just (ELam te1 e1)) e = tr' ("mPats: " ++ show te1') $ (p, ELam te1' e)
               where te1' = updateTe s te1 
@@ -684,7 +688,8 @@ msg env (ECase c1 legs1, ECase c2 legs2, s)
                     updateTe' x x' ((n, v):t) | x == n = (x', v):updateTe' x x' t
                                               | otherwise = (n, v):updateTe' x x' t
           mergePats s (p, Nothing) e = (p, e)
-          collectLambdas (PCon k, ELam te1 e1) = (pCon0 k, Just (ELam te1 e1))
+          --collectLambdas (PCon k, ELam te1 e1) = (pCon0 k, Just (ELam te1 e1))
+          collectLambdas (PCon k te1, e1) = (pCon0 k, Just (ELam te1 e1))
           collectLambdas (k, e) = (k, Nothing)
 msg env (ERec n1 eq1, ERec n2 eq2, s)
   | n1 == n2 = return (ERec n1 eq1, [], [])
@@ -967,7 +972,7 @@ eBool False = ECon (prim FALSE)
 
 
 findCon k ((PWild,e):_)  = e
-findCon k ((PCon k',e):_)
+findCon k ((PCon k' _,e):_)
   | k == k'                     = e
 findCon k (_:alts)       = findCon k alts
 
@@ -981,8 +986,8 @@ findLit _ p = error (show p)
 driveCaseStrLit env l ((PWild, e):_) = drive (env {ctxt = emptyContext}) (ctxt env $ e)
 driveCaseStrLit env l ((PLit l',e):_)
   | l == l'                     = drive (env {ctxt = emptyContext}) (ctxt env $ e)
-driveCaseStrLit env (LStr _ "") ((PCon (Prim NIL _),e):alts) = drive (env {ctxt = emptyContext}) (ctxt env $ e)
-driveCaseStrLit env (LStr _ str) alts@((PCon (Prim CONS _),e):_) = do
+driveCaseStrLit env (LStr _ "") ((PCon (Prim NIL _) [],e):alts) = drive (env {ctxt = emptyContext}) (ctxt env $ e)
+driveCaseStrLit env (LStr _ str) alts@((PCon (Prim CONS _) _,e):_) = do
   let nil = ECon (prim NIL)
       cons = ECon (prim CONS)
       chr x = ELit (LChr Nothing x)

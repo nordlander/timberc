@@ -88,7 +88,7 @@ data Type       = TId     Name
 
 type Alt        = (Pat, Exp)
 
-data Pat        = PCon    Name
+data Pat        = PCon    Name TEnv
                 | PLit    Lit
                 | PWild
                 deriving (Eq,Show)
@@ -207,10 +207,10 @@ nullCon                         = Constr [] [] []
 isLitPat (PLit _)               = True
 isLitPat _                      = False
 
-isConPat (PCon _)               = True
+isConPat (PCon _ [])            = True
 isConPat _                      = False
 
-pCon0 c                         = PCon c
+pCon0 c                         = PCon c []
 
 -- Pattern matching primitives --------------------
 eMatch, eCommit :: Exp -> Exp
@@ -1024,7 +1024,7 @@ instance Pr a => Pr (a, Type) where
 -- Patterns ----------------------------------------------------------------
 
 instance Pr Pat where
-    pr (PCon k)                 = prId k
+    pr (PCon k te)              = prId k <+> pr te
     pr (PLit l)                 = pr l
     pr (PWild)                  = text "_"
     
@@ -1114,7 +1114,7 @@ instance HasPos Type where
   posInfo (TAp t t')            = between (posInfo t) (posInfo t')
 
 instance HasPos Pat where
-  posInfo (PCon n)              = posInfo n
+  posInfo (PCon n te)           = posInfo (n,te)
   posInfo (PLit l)              = posInfo l
   posInfo (PWild)               = Unknown
 
@@ -1200,13 +1200,13 @@ instance Binary Type where
       _ -> fail "no parse"
 
 instance Binary Pat where
-  put (PCon a) = putWord8 0 >> put a
-  put (PLit a) = putWord8 1 >> put a
-  put (PWild)  = putWord8 2
+  put (PCon a te) = putWord8 0 >> put a >> put te
+  put (PLit a)    = putWord8 1 >> put a
+  put (PWild)     = putWord8 2
   get = do
     tag_ <- getWord8
     case tag_ of
-      0 -> get >>= \a -> return (pCon0 a)
+      0 -> liftM2 PCon get get
       1 -> get >>= \a -> return (PLit a)
       2 -> return PWild
       _ -> fail "no parse"

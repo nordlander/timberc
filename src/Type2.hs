@@ -164,7 +164,7 @@ t2Exp env (ECase e alts)        = do alpha <- newTvar Star
                                      return (s, R (subst s t1), ECase e (ps `zip` es))
   where (ps,es)                 = unzip alts
         t2Pat env x (PLit l)    = t2Exp env (EAp (EVar x) [ELit l])
-        t2Pat env x (PCon k)    = do (rh,_) <- t2Inst (findType env k)
+        t2Pat env x (PCon k []) = do (rh,_) <- t2Inst (findType env k)
                                      te <- newEnv paramSym (funArgs rh)
                                      t2Exp env (eLam te (EAp (EVar x) [eAp (ECon k) (map EVar (dom te))]))
         t2Pat env x (PWild)     = do y <- newName tempSym

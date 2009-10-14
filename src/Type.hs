@@ -254,9 +254,11 @@ tiExp env (ECase e alts)        = do alpha <- newTvar Star
                                      (s1,pe1,e')  <- tiExpT env (scheme t0) e
                                      e <- mkCaseTerm env e' (tId (tHead t0)) pats es'
                                      return (s++s1, pe++pe1, R t1, e)
-  where (pats,es)               = unzip alts
+  where (pats,es)               = unzip (map argsToRhs alts)
+        argsToRhs (PCon k te,e) = (PCon k [],eLam te e)
+        argsToRhs alt           = alt
         tiPat env x (PLit l)    = tiExp env (EAp (EVar x) [ELit l])
-        tiPat env x (PCon k)    = do (t,_) <- inst (findType env k)
+        tiPat env x (PCon k []) = do (t,_) <- inst (findType env k)
                                      te <- newEnv paramSym (funArgs t)
                                      tiExp env (eLam te (EAp (EVar x) [eAp (ECon k) (map EVar (dom te))]))
         tiPat env x (PWild)     = do y <- newName tempSym
@@ -347,7 +349,7 @@ mkCaseTerm env e0 c pats0 es0
                 con w           = ff (lookup' (coercions env) w)
                 wg              = findBelow env c
         ff (ELam _ (EAp (ECon k) _)) = k
-        ptype (PCon k)          = tId (tHead (body (findType env k)))
+        ptype (PCon k _)        = tId (tHead (body (findType env k)))
         mkOne e0 c              = do alts0 <- mapM mkAlt0 (lookup' graph c)
                                      return (ECase e0 (alts0 ++ (case lookup c groups of Just alts -> alts; Nothing -> []) ++ altsW))
         mkAlt0 (k,c)            = do x <- newName tempSym

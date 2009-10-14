@@ -270,8 +270,8 @@ redApp env (ELet bs e) es       = liftM (ELet bs) (redApp env e es)
 redApp env e es                 = return (EAp e es)
 
 
-appAlt env es (PCon c,e)        = case skipLambda (conArity env c) e es of
-                                    Just e' -> Just (pCon0 c, e')
+appAlt env es (PCon c te,e)     = case skipLambda (conArity env c-length te) e es of
+                                    Just e' -> Just (PCon c te, e')
                                     _       -> Nothing
 appAlt env es a                 = Just a
 
@@ -350,11 +350,11 @@ redCase env e alts              = case eFlat e of
 
 redAlts env alts
   | complete (cons env) cs      = do es <- mapM (redRhs env) es
-                                     return (map pCon0 cs `zip` es)
+                                     return (ps `zip` es)
   | otherwise                   = do es0 <- mapM (redRhs env) es0
-                                     return (ps `zip` es0)
-  where (cs,es)                 = unzip [ (c,e) | (PCon c, e) <- alts ]
-        (ps,es0)                = unzip alts
+                                     return (ps0 `zip` es0)
+  where (cs,ps,es)               = unzip3 [ (c,p,e) | (p@(PCon c _), e) <- alts ]
+        (ps0,es0)                = unzip alts
   
 redRhs env (ELam te e)          = do e <- redRhs (addArgs env (dom te)) e
                                      return (ELam te e)
@@ -362,8 +362,8 @@ redRhs env e                    = redExp env e
 
 
 findCon env k es ((PWild,e):_)  = redExp env e
-findCon env k es ((PCon k',e):_)
-  | k == k'                     = redExp env (eAp e es)
+findCon env k es ((PCon k' te,e):_)
+  | k == k'                     = redExp env (eAp (eLam te e) es)
 findCon env k es (_:alts)       = findCon env k es alts
 
 
@@ -376,8 +376,8 @@ findLit env l (_:alts)          = findLit env l alts
 redCaseStrLit env l ((PWild,e):_) = redExp env e
 redCaseStrLit env l ((PLit l',e):_)
  | l == l'                      = redExp env e
-redCaseStrLit env (LStr _ "") ((PCon (Prim NIL _),e):alts) = redExp env e
-redCaseStrLit env l@(LStr _ str) alts@((PCon (Prim CONS _),e):_)
+redCaseStrLit env (LStr _ "") ((PCon (Prim NIL _) [],e):alts) = redExp env e
+redCaseStrLit env l@(LStr _ str) alts@((PCon (Prim CONS _) _,e):_)
                                 = redCase env (foldr (\x y -> EAp cons [chr x,y]) nil str) alts
    where chr x = ELit (LChr Nothing x)
          cons = ECon (prim CONS)

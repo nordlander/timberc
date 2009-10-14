@@ -467,7 +467,7 @@ cAlt cBdy env (PLit l, e)               = do (t1,r) <- cBdy env e
                                              return (t1, rcomp (Kindle.ALit l) r)
 cAlt cBdy env (PWild, e)                = do (t1,r) <- cBdy env e
                                              return (t1, rcomp Kindle.AWild r)
-cAlt cBdy env (PCon k, e)               = do (vs,te,t,r) <- cRhs0 cBdy env (length te0) e
+cAlt cBdy env (PCon k te, e)            = do (vs,te,t,r) <- cRhs0 cBdy env (length te0) (eLam te e)
                                              return (t, rcomp (Kindle.ACon (injectCon k) vs te) r)
   where Kindle.Struct _ te0 _           = findDecl env k
 
@@ -551,9 +551,9 @@ cCmdFail env e0                         = do [t] <- cTArgs env e0
                                              return (t', ValR Kindle.CBreak)
 
 -- Translate the parts of a case expression into a Kindle.Cmd result
-cCase cE env e ((PCon k,e'):_)
+cCase cE env e ((PCon k te,e'):_)
   | isTuple k                           = do (bf,_,e) <- cValExp env e
-                                             (te,t1,r) <- cRhs cE env (width k) [] e'
+                                             (te,t1,r) <- cRhs cE env (width k) [] (eLam te e')
                                              let (xs,ts) = unzip te
                                                  bs = mkBinds xs ts (map (Kindle.ESel e) (take (width k) abcSupply))
                                              return (t1, rcomp (bf . Kindle.cBind bs) r)

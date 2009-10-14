@@ -201,13 +201,23 @@ dflt                                    = [(Core.PWild, Core.EVar (prim Fail))]
 
 
 -- translate a case alternative, inheriting type signature t top-down
-s2cA env t (Alt (PLit l) (RExp e))      = do e' <- s2cEc env t e
+s2cA env t (Alt p (RExp e))             = s2cA' (pFlat p) e
+  where
+    s2cA' (PLit l,[]) e                 = do e' <- s2cEc env t e
                                              return (Core.PLit l, e')
-s2cA env t (Alt (PCon c) (RExp e))      = do e' <- s2cEc env (TFun ts t) e
-                                             return (Core.pCon0 c, e')
-  where ts                              = splitArgs (lookupT c env)
-s2cA env t (Alt p        (RExp e))      =  s2cA env t (Alt p1 (RExp (eLam ps e)))
-  where (p1,ps) = pFlat p 
+    s2cA' (PCon c,ps) e                 = do e' <- s2cEc (addSigs te env) t e
+                                             te' <- s2cTE te
+                                           --return (Core.PCon c [], Core.eLam te' e') -- old
+                                             return (Core.PCon c te', e') -- new
+      where (te,t')                     = mergeT ps (lookupT c env)
+
+s2cP p = case pFlat p of
+           (PLit l,[]) -> return (Core.PLit l)
+           (PCon c,ps) -> Core.PCon c `fmap` s2cTE (map sig ps)
+  where
+    sig (PSig (PVar v) t) = (v,t)
+    sig (PVar v)          = (v,TWild)
+    sig p                 = internalError "s2cP: did not expect" p
 
 -- translate a record field
 s2cF env (Field s e)                    = do e <- s2cEc env (snd (splitT (lookupT s env))) e
