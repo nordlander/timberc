@@ -390,11 +390,11 @@ instance Desugar1 Stmts where
 ds1Forall _ env [] ss              = eDo env ss --(ds1S env ss)
 ds1Forall _ env (QLet bs : qs) ss  = ds1 env (ELet bs (EForall qs ss))
 ds1Forall b env (QGen p (ESeq e1 Nothing e3) : qs) ss
-                                 = EAp (EAp (EAp (EVar (name' (forallSeq b) p)) (ELam [p] (ds1Forall b env qs ss))) e1) e3
+                                   = eFAp env (name' (forallSeq b) p) p (ds1Forall b env qs ss) [e1,e3]
 ds1Forall b env (QGen p (ESeq e1 (Just e2) e3) : qs) ss
-                                 = EAp (EAp (EAp (EAp (EVar (name' (forallSeq1 b) p)) (ELam [p] (ds1Forall b env qs ss))) e1) e2) e3
-ds1Forall b env (QGen p e : qs) ss = EAp (EAp (EVar (name' (forallList b) p)) (ELam [p] (ds1Forall b env qs ss))) e
-ds1Forall b env (QExp e : qs) ss   = EIf e (eDo env (Stmts [])) (ds1Forall b env qs ss)
+                                   = eFAp env (name' (forallSeq1 b) p) p (ds1Forall b env qs ss) [e1,e2,e3]
+ds1Forall b env (QGen p e : qs) ss = eFAp env (name' (forallList b) p) p (ds1Forall b env qs ss) [e]
+ds1Forall b env (QExp e : qs) ss   = EIf (ds1 env e) (eDo env (Stmts [])) (ds1Forall b env qs ss)
 
 ds1Templ env bss asg (Stmts ss)  = Stmts (ds1T env bss asg ss)
   where
@@ -408,6 +408,7 @@ ds1Templ env bss asg (Stmts ss)  = Stmts (ds1T env bss asg ss)
        | isGenerated x               = SGen (PVar x)  (ds1 env e) : ds1T env bss asg ss
     ds1T env bss asg (s : _)         = errorTree "Illegal statement in class: " s
 
+eFAp env n p e es                = eAp (EAp (EVar n) (ELam [ds1 env p] e)) (map (ds1 env) es)
 
 eDo env ss                       = EDo (self env) Nothing (ds1 env ss)
 
