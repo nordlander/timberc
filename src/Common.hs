@@ -610,6 +610,52 @@ instance Binary a => Binary (Extern a) where
 
 extsMap es = map (\(Extern v t) -> (v,t)) es
 
+
+-- Pattern matching ---------------------------------------------------------------
+
+ -- The M prefix allows coexistence with older PMC primites
+data Match p e bs r = MCommit r
+                    | MFail
+                    | MFatbar (Match p e bs r) (Match p e bs r)
+                    | Case e [(p,Match p e bs r)]
+                    | Let bs (Match p e bs r)
+                    deriving (Eq,Show)
+
+alt p rhs = (p,rhs)
+
+instance (Subst e n e,Subst bs n e,Subst r n e) => Subst (Match p e bs r) n e where
+  subst s m =
+    case m of
+      MCommit r     -> MCommit (subst s r)
+      MFail         -> MFail
+      MFatbar m1 m2 -> MFatbar (subst s m1) (subst s m2)
+      Case e alts   -> Case (subst s e) [(p,subst s m)|(p,m)<-alts]
+      Let bs m      -> Let (subst s bs) (subst s m)
+
+instance (Pr p, Pr e,Pr bs,Pr r) => Pr (Match p e bs r) where
+    prn  0 (MFatbar m1 m2) = hsep [text "Fatbar",nest 2 (prn 12 m1),nest 2 (prn 12 m2)]
+    prn  0 (Case e alts)   = hsep [text "case" <+> pr e <+> text "of",
+                                   nest 2 (vcat (map pralt alts))]
+      where pralt (p,m) = hsep [pr p,text "->",nest 2 (pr m)]
+    prn  0 (Let bs m)      = hsep [text "let" <+> pr bs, text "in" <+> pr m]
+    prn  0 m               = prn 11 m
+    prn 11 (MCommit r)     = hsep [text "Commit", nest 2 (prn 12 r)]
+    prn 11 m               = prn 12 m
+    prn 12 m               = prn 13 m
+    prn 13 MFail           = text "Fail"
+    prn 13 m               = parens (prn 0 m)
+
+    prn  n e               = prn 11 e
+
+instance (HasPos p, HasPos e,HasPos bs,HasPos r) => HasPos (Match p e bs r) where
+  posInfo m =
+    case m of
+      MCommit r     -> posInfo r
+      MFail         -> Unknown
+      MFatbar m1 m2 -> posInfo (m1,m2)
+      Case e alts   -> posInfo (e,alts)
+      Let bs m      -> posInfo (bs,m)
+
 -- Binary --------------------------------------------
 
 instance Binary Lit where

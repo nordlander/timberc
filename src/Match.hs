@@ -32,7 +32,7 @@
 -- POSSIBILITY OF SUCH DAMAGE.
 
 {-# LANGUAGE FlexibleContexts #-}
-module Match(pmc,pmc',eCase) where
+module Match(pmc,pmc') where
 
 import Common
 import PP
@@ -41,19 +41,19 @@ import qualified Syntax
 import Monad
 import qualified List
 
-match0, pmc :: Match r => Exp -> [Alt r] -> M s r
+match0, pmc :: HasMatch r => Exp -> [Alt r] -> M s r
 pmc e alts                      = do e' <- match0 e alts
                                      return (eMatch e')
 
-match, pmc' :: Match r => [Name] -> [([Pat],Rhs r)] -> M s r
+match, pmc' :: HasMatch r => [Name] -> [([Pat],Rhs r)] -> M s r
 pmc' ws eqs                     = do e <- match ws eqs
                                      return (eMatch e)
 
 
 -- The primitive pmc constants -----------------------------------------------------------
 
-class (Show r, Subst r Name Exp) => Match r where
-  -- Same as before introduction of class Match:
+class (Show r, Subst r Name Exp) => HasMatch r where
+  -- Same as before introduction of class HasMatch:
   eFail :: r
   eMatch, eCommit :: r -> r
   eFatbar :: r -> r -> r
@@ -63,8 +63,8 @@ class (Show r, Subst r Name Exp) => Match r where
 --eLam :: [Pat] -> r -> r
 --rAp :: Rhs r -> [Exp] -> Rhs r
 
-instance Match Exp where
-  -- Same as before introduction of class Match
+instance HasMatch Exp where
+  -- Same as before introduction of class HasMatch
   eFatbar (EVar (Prim Fail _)) e  = e
   eFatbar e (EVar (Prim Fail _))  = e
   eFatbar e e'                    = eAp (EVar (prim Fatbar)) [e,e']
@@ -80,7 +80,7 @@ instance Match Exp where
 --eLam  = Syntax.eLam
 --rAp   = Syntax.rAp
 
-instance Match Stmts where
+instance HasMatch Stmts where
   eFatbar (Stmts ss1) (Stmts ss2) = Stmts (ss1++ss2)
   eFail                           = Stmts [SExp eFail]
   eCommit ss                      = ss
@@ -168,7 +168,7 @@ matchCons ws ceqs (eq:eqs')
 matchCons ws ceqs eqs'          = matchCon ws (reverse ceqs) : match1 ws eqs'
 
 
-matchCon  :: Match r => [Name] -> [(Name, [Pat], [Pat], Rhs r)] -> M s r
+matchCon  :: HasMatch r => [Name] -> [(Name, [Pat], [Pat], Rhs r)] -> M s r
 matchCon (w:ws) ceqs            = do alts <- mapM matchAlt cs
                                      return (eCase (EVar w) alts)
   where cs                      = nub [ c | (c,_,_,_) <- ceqs ]

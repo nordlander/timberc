@@ -119,8 +119,9 @@ data Exp    = EVar    Name
             | EBStruct (Maybe Name) [Name] [Bind]  -- struct value in bindlist syntax
             | ELam    [Pat] Exp
             | ELet    [Bind] Exp
-            | ECase   Exp [Alt Exp]
+            | EMatch  (Match Pat Exp [Bind] Exp)
 -- the following and ETup, EList removed in desugaring
+            | ECase   Exp [Alt Exp]
             | EIf     Exp Exp Exp
             | ENeg    Exp
             | ESeq    Exp (Maybe Exp) Exp
@@ -171,6 +172,7 @@ data Stmt   = SExp    Exp
             | SElsif  Exp Stmts
             | SElse   Stmts
             | SCase   Exp [Alt Stmts]
+            | SMatch  (Match Pat Exp [Bind] Stmts)
             deriving  (Eq,Show)
 
 
@@ -299,7 +301,6 @@ rAp (RGrd gs) es                = RGrd [ GExp qs (eAp e es) | GExp qs e <- gs ]
 
 eLet [] e                       = e
 eLet bs e                       = ELet bs e
-
 
 simpleEqn x e                   = BEqn (LFun x []) (RExp e)
 
@@ -493,6 +494,7 @@ instance Subst Exp Name Exp where
     subst s (ELam ps e)         = ELam ps (subst s e)
     subst s (ELet bs e)         = ELet (subst s bs) (subst s e)
     subst s (ECase e alts)      = ECase (subst s e) (subst s alts)
+    subst s (EMatch m)          = EMatch (subst s m)
     subst s (ERec m fs)         = ERec m (subst s fs)
     subst s (EBStruct c ls bs)  = EBStruct c ls (subst s bs)
     subst s (EIf e1 e2 e3)      = EIf (subst s e1) (subst s e2) (subst s e3)
@@ -684,6 +686,7 @@ instance Pr Pat where
     prn n e                     = prn 11 e
 
 instance Pr [Pat] where pr = vpr
+instance Pr [Bind] where pr = vpr
 
 -- Types -----------------------------------------------------------------
 
@@ -730,6 +733,7 @@ instance Pr Exp where
                                     nest 3 (text "then" <+> pr e1 $$
                                             text "else" <+> pr e2)
     prn 0 (ECase e alts)        = text "case" <+> pr e <+> text "of" $$ nest 2 (vpr alts)
+    prn 0 (EMatch m)            = text "Match" <+> prn 12 m
     prn 0 (EDo v t ss)          = text "do"<>prN v <+> pr ss 
     prn 0 (ETempl v t ss)       = text "class"<>prN v $$ nest 4 (pr ss)
     prn 0 (EAct v ss)           = text "action"<>prN v $$ nest 4 (pr ss) 
@@ -799,6 +803,7 @@ instance Pr Stmt where
     pr (SElse ss)               = text "else" $$ nest 4 (pr ss)
 --    pr (SForall qs ss)          = text "forall" <+> hpr ',' qs <+> text "do" $$ nest 4 (pr ss)
     pr (SCase e alts)           = text "case" <+> pr e <+> text "of" $$ nest 4 (vpr alts)
+    pr (SMatch m)               = text "Match" <+> prn 12 m
 
 
 -- Free variables ------------------------------------------------------------

@@ -201,23 +201,21 @@ dflt                                    = [(Core.PWild, Core.EVar (prim Fail))]
 
 
 -- translate a case alternative, inheriting type signature t top-down
-s2cA env t (Alt p (RExp e))             = s2cA' (pFlat p) e
+s2cAE env t alt                         = s2cA s2cEc env t alt
+s2cAS env alt                           = s2cA s2cSc env TWild alt
+
+s2cA s2cR env t (Alt p (RExp r))        = s2cA2 s2cR env t (p,r)
+
+s2cA2 s2cR env t (p,r)                  = s2cA' (pFlat p) r
   where
-    s2cA' (PLit l,[]) e                 = do e' <- s2cEc env t e
+    s2cA' (PLit l,[]) e                 = do e' <- s2cR env t e
                                              return (Core.PLit l, e')
-    s2cA' (PCon c,ps) e                 = do e' <- s2cEc (addSigs te env) t e
+    s2cA' (PCon c,ps) e                 = do e' <- s2cR (addSigs te env) t e
                                              te' <- s2cTE te
                                            --return (Core.PCon c [], Core.eLam te' e') -- old
                                              return (Core.PCon c te', e') -- new
       where (te,t')                     = mergeT ps (lookupT c env)
 
-s2cP p = case pFlat p of
-           (PLit l,[]) -> return (Core.PLit l)
-           (PCon c,ps) -> Core.PCon c `fmap` s2cTE (map sig ps)
-  where
-    sig (PSig (PVar v) t) = (v,t)
-    sig (PVar v)          = (v,TWild)
-    sig p                 = internalError "s2cP: did not expect" p
 
 -- translate a record field
 s2cF env (Field s e)                    = do e <- s2cEc env (snd (splitT (lookupT s env))) e
@@ -264,8 +262,10 @@ s2cEc env t (ELet bs e)         = do (te',bs') <- s2cBinds env bs
                                      e' <- s2cEc (addSigs te' env) t e
                                      return (Core.ELet bs' e')
 s2cEc env t (ECase e alts)      = do e <- s2cEc env TWild e
-                                     alts <- mapM (s2cA env t) alts
+                                     alts <- mapM (s2cAE env t) alts
                                      return (Core.ECase e (alts++dflt))
+--s2cEc env t (EMatch m)          = do m <- s2cMc env t m
+--                                     return (Core.EMatch m)
 s2cEc env t (ESelect e s)       = do e <- s2cEc env (peel t1) e
                                      return (Core.ESel e s)
   where (t1,_)                  = splitT (lookupT s env)
@@ -305,10 +305,29 @@ s2cE env (ETempl (Just x) Nothing ss)   = do c <- s2cS (addSigs te env) ss
 s2cE env e                              = internalError "s2cE: did not expect" e
 
 
+-- PAttern Matching ============================================================================
+
+s2cMc env t m =
+  case m of
+    MCommit r     -> MCommit `fmap` s2cEc env t r
+    MFail         -> return MFail
+    MFatbar m1 m2 -> liftM2 MFatbar (s2cMc env t m1) (s2cMc env t m2)
+    Case e alts   -> do e <- s2cEc env TWild e
+                        alts <- mapM (s2cA2 s2cMc env t) alts
+                        return (Case e (alts++dflt)) -- dflt??
+      where
+        dflt = [(Core.PWild, MFail)]
+
+    Let bs m      -> do (te',bs') <- s2cBinds env bs
+                        e' <- s2cMc (addSigs te' env) t m
+                        return (Let bs' e')
+
 -- Statements ==================================================================================
 
 -- translate a statement list
-s2cS env (Stmts ss)                     = s2cSs env ss
+s2cSc env t ss                           = s2cS env ss
+
+s2cS  env (Stmts ss)                     = s2cSs env ss
 
 s2cSs env []                            = return (Core.CRet (Core.eUnit))
 s2cSs env [SRet e]                      = do (t,e') <- s2cEi env e
@@ -316,20 +335,8 @@ s2cSs env [SRet e]                      = do (t,e') <- s2cEi env e
 s2cSs env [SExp e]                      = do (t,e') <- s2cEi env e
                                              return (Core.CExp e')
 s2cSs env [SCase e alts]                = do e <- s2cEc env TWild e
-                                             alts <- mapM s2cA alts
+                                             alts <- mapM (s2cAS env) alts
                                              return (Core.CCase e alts)
-  where
-    -- translate a case alternative
-    s2cA (Alt (PLit l) (RExp ss))     = do e' <- s2cS env ss
-                                           return (Core.PLit l, e')
-    s2cA (Alt (PCon c) (RExp ss))     = do e' <- s2cS env ss
-                                           return (Core.pCon0 c, e')
-      where ts                        = splitArgs (lookupT c env)
-    {-
-    s2cA (Alt p        (RExp ss))     =  s2cA (Alt p1 (RExp (eLam ps e)))
-      where (p1,ps) = pFlat p 
-    -}
-
 s2cSs env (SGen (PSig (PVar v) t) e :ss)= do t' <- s2cType t
                                              e' <- s2cEc env TWild e
                                              c <- s2cSs (addSigs [(v,t)] env) ss
@@ -345,7 +352,7 @@ s2cSs env (SAss (PVar v) e : ss)        = do e' <- s2cEc env (lookupT v env) e
 s2cSs env (SBind bs : ss)               = do (te',bs') <- s2cBinds env bs
                                              c <- s2cSs (addSigs te' env) ss
                                              return (Core.CLet bs' c)
-s2cSs env ss                              = internalError "s2cSs: did not expect" (Stmts ss)
+s2cSs env ss                            = internalError "s2cSs: did not expect" (Stmts ss)
 
 
 -- Expressions, synthesize mode ================================================================
@@ -363,8 +370,10 @@ s2cEi env (ELet bs e)           = do (te',bs') <- s2cBinds env bs
                                      (t,e') <- s2cEi (addSigs te' env) e
                                      return (t, Core.ELet bs' e')
 s2cEi env (ECase e alts)        = do e <- s2cEc env TWild e
-                                     alts <- mapM (s2cA env TWild) alts
+                                     alts <- mapM (s2cAE env TWild) alts
                                      return (TWild, Core.ECase e (alts++dflt))
+s2cEi env (EMatch m)            = do m <- s2cMc env TWild m
+                                     return (TWild, Core.EMatch m)
 s2cEi env (ESelect e s)         = do e <- s2cEc env (peel t1) e
                                      return (t2, Core.ESel e s)
   where (t1,t2)                 = splitT (lookupT s env)

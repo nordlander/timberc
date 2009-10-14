@@ -100,6 +100,7 @@ data Exp        = ECon    Name
                 | EAp     Exp [Exp]
                 | ELet    Binds Exp
                 | ECase   Exp [Alt]
+                | EMatch  (Match Pat Exp Binds Exp)
                 | ERec    Name Eqns
                 | ELit    Lit
 
@@ -207,7 +208,7 @@ nullCon                         = Constr [] [] []
 isLitPat (PLit _)               = True
 isLitPat _                      = False
 
-isConPat (PCon _ [])            = True
+isConPat (PCon _ _)             = True
 isConPat _                      = False
 
 pCon0 c                         = PCon c []
@@ -1045,6 +1046,7 @@ instance Pr Exp where
       | otherwise               = text "let" $$ nest 4 (pr bs) $$ text "in" <+> pr e
     prn 0 (ECase e alts)        = text "case" <+> pr e <+> text "of" $$ 
                                        nest 2 (vpr alts)
+    prn 0 (EMatch m)            = text "Match" <+> prn 2 m
     prn 0 (EAct e e')           = text "action@" <> prn 2 e $$
                                        nest 4 (pr e')
     prn 0 (EReq e e')           = text "request@" <> prn 2 e $$
@@ -1067,7 +1069,7 @@ instance Pr Exp where
     prn 2 (EVar v)              = prId v
     prn 2 (ELit l)              = pr l
     prn 2 (ERec c eqs)          = prId c <+> text "{" <+> hpr ',' eqs <+> text "}"
-    prn 2 e                     = parens (prn 0 e)
+    prn n e                     = parens (prn 0 e)
 
 instance Pr Alt where
     pr (p, e)                   = pr p <+> text "->" $$ nest 4 (pr e)
@@ -1126,6 +1128,7 @@ instance HasPos Exp where
   posInfo (EAp e es)            = foldr1 between (map posInfo (e : es))
   posInfo (ELet bs e)           = between (posInfo bs) (posInfo e)
   posInfo (ECase e as)          = foldr1 between [posInfo e, posInfo as]
+  posInfo (EMatch m)            = posInfo m
   posInfo (ERec n es)           = between (posInfo n) (posInfo es)
   posInfo (ELit l)              = posInfo l
   posInfo (EAct e e')           = between (posInfo e) (posInfo e')

@@ -276,7 +276,7 @@ data Prim                       =
                                 | MIN____INVISIBLE
                                 
                                 | New                   -- Encoding of the class instantiation syntax in terms of an operator
-                                
+
                                 | Fail
                                 | Commit
                                 | Match
