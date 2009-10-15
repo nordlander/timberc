@@ -38,6 +38,7 @@ module Common (module Common, module Name, isDigit) where
 import PP
 import qualified List
 import qualified Maybe
+import Monad(liftM2)
 import Control.Exception
 import Char
 import Config
@@ -623,23 +624,50 @@ data Match p e bs r = MCommit r
 
 alt p rhs = (p,rhs)
 
-instance (Subst e n e,Subst bs n e,Subst r n e) => Subst (Match p e bs r) n e where
-  subst s m =
+foldMatch commit fail fatbar mcase mlet = f
+  where f m = case m of
+                MCommit r     ->  commit r
+                MFail         ->  fail
+                MFatbar m1 m2 ->  fatbar (f m1) (f m2)
+                Case e alts   -> mcase e (mapSnd f alts)
+                Let bs m      -> mlet bs (f m)
+
+mapMatch pf ef bsf rf = foldMatch commit fail fatbar mcase mlet
+  where
+    commit r      = MCommit (rf r)
+    fail          = MFail
+    fatbar        = MFatbar
+    mcase  e alts = Case (ef e) (mapFst pf alts)
+    mlet  bs e    = Let (bsf bs) e
+
+mapMMatch pf ef bsf rf = foldMatch commit fail fatbar mcase mlet
+  where
+    commit r      = MCommit `fmap` rf r
+    fail          = return MFail
+    fatbar        = liftM2 MFatbar
+    mcase  e alts = liftM2 Case (ef e) (sequence [liftM2 (,) (pf p) m|(p,m)<-alts])
+    mlet  bs e    = liftM2 Let (bsf bs) e
+
+instance (Ids p,Ids e, Ids bs,Ids r,BVars bs) => Ids (Match p e bs r) where
+  idents m =
     case m of
-      MCommit r     -> MCommit (subst s r)
-      MFail         -> MFail
-      MFatbar m1 m2 -> MFatbar (subst s m1) (subst s m2)
-      Case e alts   -> Case (subst s e) [(p,subst s m)|(p,m)<-alts]
-      Let bs m      -> Let (subst s bs) (subst s m)
+      MCommit r     -> idents r
+      MFail         -> []
+      MFatbar m1 m2 -> idents m1 ++ idents m2
+      Case e alts   -> idents e ++ concat [idents m\\idents p|(p,m)<-alts]
+      Let bs m      -> idents bs ++ (idents m \\ bvars bs)
+
+instance (Subst e n e,Subst bs n e,Subst r n e) => Subst (Match p e bs r) n e where
+  subst s = mapMatch id (subst s) (subst s) (subst s)
 
 instance (Pr p, Pr e,Pr bs,Pr r) => Pr (Match p e bs r) where
-    prn  0 (MFatbar m1 m2) = hsep [text "Fatbar",nest 2 (prn 12 m1),nest 2 (prn 12 m2)]
-    prn  0 (Case e alts)   = hsep [text "case" <+> pr e <+> text "of",
-                                   nest 2 (vcat (map pralt alts))]
-      where pralt (p,m) = hsep [pr p,text "->",nest 2 (pr m)]
-    prn  0 (Let bs m)      = hsep [text "let" <+> pr bs, text "in" <+> pr m]
+    prn  0 (MFatbar m1 m2) = text "Fatbar" <+> prn 12 m1 <+> prn 12 m2
+    prn  0 (Case e alts)   = text "case" <+> pr e <+> text "of" $$
+                             nest 2 (vcat (map pralt alts))
+      where pralt (p,m)    = pr p <+> text "->" <+> pr m
+    prn  0 (Let bs m)      = text "let" <+> pr bs $$ text "in" <+> pr m
     prn  0 m               = prn 11 m
-    prn 11 (MCommit r)     = hsep [text "Commit", nest 2 (prn 12 r)]
+    prn 11 (MCommit r)     = text "Commit" <+> prn 12 r
     prn 11 m               = prn 12 m
     prn 12 m               = prn 13 m
     prn 13 MFail           = text "Fail"

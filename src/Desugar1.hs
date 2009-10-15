@@ -286,6 +286,7 @@ instance Desugar1 Exp where
     ds1 env (ESig e t)             = ESig (ds1 env e) (ds1 env t)
     ds1 env (ELam ps e)            = ELam (ds1pats env ps) (ds1 env e)
     ds1 env (ECase e as)           = ECase (ds1 env e) (ds1 env as)
+    ds1 env (EMatch m)             = EMatch (ds1 env m)
     ds1 env (EIf e1 e2 e3)         = EIf (ds1 env e1) (ds1 env e2) (ds1 env e3)
     ds1 env (ENeg (ELit (LInt p i))) = ELit (LInt p (-i))
     ds1 env (ENeg (ELit (LRat p r))) = ELit (LRat p (-r))
@@ -329,6 +330,9 @@ stuffedCons (PTup ps)            = concatMap stuffedCons ps
 stuffedCons (PList ps)           = concatMap stuffedCons ps
 stuffedCons (PAp p p')           = stuffedCons p ++ stuffedCons p'
 stuffedCons _                    = []
+
+instance Desugar1 (Match Pat Exp [Bind] Exp) where
+    ds1 env = mapMatch (ds1 env) (ds1 env) (ds1 env) (ds1 env)
 
 instance Desugar1 a => Desugar1 (Alt a) where
     ds1 env (Alt p rh)           = Alt (ds1pat env p) (ds1 env rh)

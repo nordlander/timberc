@@ -242,6 +242,7 @@ dsExp (ESectL op e)             = do x <- newNamePos paramSym op
 dsExp (ECase e alts)            = do e <- dsExp e
                                      alts <- dsAlts dsExp alts
                                      pmc e alts
+dsExp (EMatch m)                = EMatch `fmap` dsMatch m
 dsExp (ESelect e s)             = liftM (flip ESelect s) (dsExp e)
 dsExp (ESel s)                  = do x <- newNamePos paramSym s
                                      return (ELam [PVar x] (ESelect (EVar x) s))
@@ -265,6 +266,8 @@ dsExp (EComp e qs)              = do e <- comp2exp e qs nil
 dsAlts :: (a->M s a) -> [Alt a] -> M s [Alt a]
 dsAlts dsE as = mapM dsAlt as
   where dsAlt (Alt p rh)          = liftM2 Alt (dsPat p) (dsRhs dsE rh)
+
+dsMatch = mapMMatch dsPat dsExp dsBinds dsExp
 
 -- List comprehensions --------------------------------------------------
 

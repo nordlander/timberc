@@ -45,7 +45,7 @@ import Monad(liftM2)
 data Module = Module Name [Import] [Decl] [Decl]
             deriving  (Show)
 
-data Import = Import Bool Name 
+data Import = Import Bool Name
             deriving (Show)
             
 data Decl   = DKSig   Name Kind
@@ -835,6 +835,7 @@ instance Ids Exp where
     idents (ELam ps e)          = idents e \\ idents ps
     idents (ELet bs e)          = idents bs ++ (idents e \\ bvars bs)
     idents (ECase e as)         = idents e ++ idents as
+    idents (EMatch m)           = idents m
     idents (EIf b t e)          = idents b ++ idents t ++ idents e
     idents (ENeg e)             = idents e
     idents (ESeq f Nothing t)   = idents f ++ idents t
@@ -1007,6 +1008,7 @@ instance HasPos Exp where
   posInfo (ELam ps e)           = between (posInfo ps) (posInfo e)
   posInfo (ELet bs e)           = between (posInfo bs) (posInfo e)
   posInfo (ECase e as)          = between (posInfo e) (posInfo as)
+  posInfo (EMatch m)            = posInfo m
   posInfo (EIf e t f)           = posInfo [e,t,f]
   posInfo (ENeg e)              = posInfo e
   posInfo (ESeq e1 m e2)        = foldr1 between [posInfo e1, posInfo m, posInfo e2]

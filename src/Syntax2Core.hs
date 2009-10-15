@@ -264,8 +264,8 @@ s2cEc env t (ELet bs e)         = do (te',bs') <- s2cBinds env bs
 s2cEc env t (ECase e alts)      = do e <- s2cEc env TWild e
                                      alts <- mapM (s2cAE env t) alts
                                      return (Core.ECase e (alts++dflt))
---s2cEc env t (EMatch m)          = do m <- s2cMc env t m
---                                     return (Core.EMatch m)
+s2cEc env t (EMatch m)          = do m <- s2cMc env t m
+                                     return (eMatch m)
 s2cEc env t (ESelect e s)       = do e <- s2cEc env (peel t1) e
                                      return (Core.ESel e s)
   where (t1,_)                  = splitT (lookupT s env)
@@ -305,7 +305,12 @@ s2cE env (ETempl (Just x) Nothing ss)   = do c <- s2cS (addSigs te env) ss
 s2cE env e                              = internalError "s2cE: did not expect" e
 
 
--- PAttern Matching ============================================================================
+-- Pattern Matching ============================================================================
+
+--eMatch = Core.EMatch -- new
+eMatch = Core.eMatch . desugarMatch  -- compat
+
+desugarMatch = foldMatch Core.eCommit Core.eFail Core.eFatbar Core.ECase Core.ELet
 
 s2cMc env t m =
   case m of
@@ -373,7 +378,7 @@ s2cEi env (ECase e alts)        = do e <- s2cEc env TWild e
                                      alts <- mapM (s2cAE env TWild) alts
                                      return (TWild, Core.ECase e (alts++dflt))
 s2cEi env (EMatch m)            = do m <- s2cMc env TWild m
-                                     return (TWild, Core.EMatch m)
+                                     return (TWild, eMatch m)
 s2cEi env (ESelect e s)         = do e <- s2cEc env (peel t1) e
                                      return (t2, Core.ESel e s)
   where (t1,t2)                 = splitT (lookupT s env)

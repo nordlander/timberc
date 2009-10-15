@@ -41,66 +41,49 @@ import qualified Syntax
 import Monad
 import qualified List
 
-match0, pmc :: HasMatch r => Exp -> [Alt r] -> M s r
-pmc e alts                      = do e' <- match0 e alts
-                                     return (eMatch e')
+pmc  :: HasMatch r => Exp    -> [Alt r]         -> M s r
+pmc' :: HasMatch r => [Name] -> [([Pat],Rhs r)] -> M s r
 
-match, pmc' :: HasMatch r => [Name] -> [([Pat],Rhs r)] -> M s r
-pmc' ws eqs                     = do e <- match ws eqs
-                                     return (eMatch e)
+pmc e alts                      = eMatch `fmap` match0 e alts
+pmc' ws eqs                     = eMatch `fmap` match ws eqs
 
 
 -- The primitive pmc constants -----------------------------------------------------------
 
-class (Show r, Subst r Name Exp) => HasMatch r where
-  -- Same as before introduction of class HasMatch:
-  eFail :: r
-  eMatch, eCommit :: r -> r
-  eFatbar :: r -> r -> r
-  -- New functions:
-  eCase :: Exp -> [Alt r] -> r
-  eLet :: [Bind] -> r -> r
---eLam :: [Pat] -> r -> r
---rAp :: Rhs r -> [Exp] -> Rhs r
+class Subst r Name Exp => HasMatch r     where
+  mMatch :: Match Pat Exp [Bind] r -> r
+  mLet   :: [Bind] -> r -> r
 
-instance HasMatch Exp where
-  -- Same as before introduction of class HasMatch
-  eFatbar (EVar (Prim Fail _)) e  = e
-  eFatbar e (EVar (Prim Fail _))  = e
-  eFatbar e e'                    = eAp (EVar (prim Fatbar)) [e,e']
-  eFail                           = EVar (prim Fail)
-  eCommit e                       = EAp (EVar (prim Commit)) e
-  eMatch e                        = case e of
-                                      EAp (EVar (Prim Commit _)) e' -> e'
-                                      ELet bs (EAp (EVar (Prim Commit _)) e') -> ELet bs e'
-                                      _  -> EAp (EVar (prim Match)) e
-  -- New functions:
-  eCase = ECase
-  eLet  = Syntax.eLet
---eLam  = Syntax.eLam
---rAp   = Syntax.rAp
+instance HasMatch Exp   where
+  mMatch = EMatch
+  mLet   = Syntax.eLet
 
 instance HasMatch Stmts where
-  eFatbar (Stmts ss1) (Stmts ss2) = Stmts (ss1++ss2)
-  eFail                           = Stmts [SExp eFail]
-  eCommit ss                      = ss
-  eMatch ss                       = ss
-  --
-  eCase e as                      = Stmts [SCase e as]
-  eLet bs (Stmts ss)              = Stmts (SBind bs:ss)
+  mMatch m             = Stmts [SMatch m]
+  mLet   bs (Stmts ss) = Stmts (SBind bs:ss)
 
-fat []                          = return eFail
+eMatch (MCommit r)          = r
+eMatch (Let bs (MCommit r)) = mLet bs r
+eMatch m                    = mMatch m
+
+eCase = Case
+eLet = Let
+eCommit = MCommit
+
+mFatbar MFail m2    = m2
+mFatbar m1    MFail = m1
+mFatbar m1    m2    = MFatbar m1 m2
+
+fat []                          = return MFail
 fat [m]                         = m
-fat (m:ms)                      = do e1 <- m
-                                     e2 <- fat ms
-                                     return (eFatbar e1 e2)
+fat (m:ms)                      = liftM2 mFatbar m (fat ms)
 
 
 -- Pattern-matching compiler proper -----------------------------------------------------
 
 match0 (EVar w) alts            = match [w] [ ([p], rh) | Alt p rh <- alts ]
 match0 e alts
-  | all isTriv alts             = return (eCase e [ Alt p (RExp (eCommit r)) | Alt p (RExp r) <- alts ])
+  | all isTriv alts             = return (eCase e [ alt p (eCommit r) | Alt p (RExp r) <- alts ])
   | otherwise                   = do w <- newNamePos tempSym e
                                      e' <- match0 (EVar w) alts
                                      return (eLet [simpleEqn w e] e')
@@ -142,8 +125,8 @@ matchLits ws eqs eqs'           = matchLit ws (reverse eqs) : match1 ws eqs'
 matchLit (w:ws) eqs             = do alts <- mapM matchAlt lits
                                      return (eCase (EVar w) alts)
   where lits                    = nub [ l | (PLit l : ps, rhs) <- eqs ]
-        matchAlt l              = do e' <- match ws eqs'
-                                     return (Alt (PLit l) (RExp e'))
+        matchAlt l              = do pm <- match ws eqs'
+                                     return (PLit l,pm)
           where eqs'            = [ (ps,rhs) | (PLit l' : ps, rhs) <- eqs, l'==l ]
 
 matchRecs ws eqs (eq:eqs')
@@ -168,13 +151,12 @@ matchCons ws ceqs (eq:eqs')
 matchCons ws ceqs eqs'          = matchCon ws (reverse ceqs) : match1 ws eqs'
 
 
-matchCon  :: HasMatch r => [Name] -> [(Name, [Pat], [Pat], Rhs r)] -> M s r
 matchCon (w:ws) ceqs            = do alts <- mapM matchAlt cs
                                      return (eCase (EVar w) alts)
   where cs                      = nub [ c | (c,_,_,_) <- ceqs ]
         matchAlt c              = do vs <- newNamesPos tempSym (arity_check (map fst3 eqs_c))
-                                     e  <- match (vs++ws) (map mkeq eqs_c)
-                                     return (Alt (conP c (map PVar vs)) (RExp e))
+                                     pm  <- match (vs++ws) (map mkeq eqs_c)
+                                     return (conP c (map PVar vs),pm)
           where eqs_c           = [ (ps', ps, rhs) | (c',ps',ps,rhs) <- ceqs, c==c' ]
                 arity_check (ps':pss') =
                       if all ((==n).length) pss'

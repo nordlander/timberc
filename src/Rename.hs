@@ -383,6 +383,7 @@ instance Rename Exp where
                                         e' <- rename env' e
                                         return (foldr ELet e' (groupBindsS bs'))
   rename env (ECase e as)          = liftM2 ECase (rename env e) (rename env as)
+  rename env (EMatch m)            = liftM EMatch (rename env m)
   rename env (EIf e1 e2 e3)        = liftM3 EIf (rename env e1) (rename env e2) (rename env e3)
   rename env (ENeg e)              = liftM ENeg (rename env e)
   rename env (ESeq e1 e2 e3)       = liftM3 ESeq (rename env e1) (rename env e2) (rename env e3)
@@ -421,6 +422,9 @@ renSBind envL envR (BEqn (LPat p) rh)       = do p' <- rename envL p
                                                  rh' <- rename envR rh
                                                  return (BEqn (LPat p') rh')
 renSBind _ _ s@(BSig vs t)                  = errorTree "Signature in struct value" s 
+
+instance Rename (Match Pat Exp [Bind] Exp) where
+  rename env = mapMMatch (rename env) (rename env) (rename env) (rename env)
 
 instance Rename a => Rename (Field a) where
   rename env (Field l e)           = liftM (Field (renL env l)) (rename env e)
