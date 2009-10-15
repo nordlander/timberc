@@ -83,46 +83,51 @@ Parser:
 - Converts record labels to proper selectors (with prefix .)
 - Replaces prefix tuple constructors with primitive names
 
+[A] = static checks
+[B] = light-weight transformation (easily reversible, need to be done before type checking)
+[C] = heavy-weight transformation (delay until after all static checking, including type checking)
+[D] = unwanted transformation, propagate original form to the back-end
+
 Desugar1:
-- Checks record type acyclicity and selector consistence
-- Completes dotdot record patterns and expressions with missing fields
-- Translates instance declarations into instance signatures and named record terms
-- Checks and resolves if/elsif/else statements
-- Makes the "self" variable explicit.
-- Checks validity of return statement
-- Replaces prefix expression statement with dummy generator statement
-- Replaces if/case statements with corresponding expressions forms
-- Checks the restricted command syntax of template bodies
+- [A]  Checks record type acyclicity and selector consistence
+- [B?] Completes dotdot record patterns and expressions with missing fields
+- [B?] Translates instance declarations into instance signatures and named record terms
+- [B?] Checks and resolves if/elsif/else statements
+- [B?] Makes the "self" variable explicit.
+- [A]  Checks validity of result statement
+- [C?] Replaces prefix expression statement with dummy generator statement
+- [D]  Replaces if/case statements with corresponding expressions forms
+- [A]  Checks the restricted command syntax of template bodies
 
 Rename:
-- Checks for duplicate declarations and kind signatures
-- Checks for duplicate selectors and constructors, and overlaps with class members
-- Checks for duplicate equations and type signatures
-- Checks for duplicated variables in patterns and templates
-- Checks for duplication and dangling abstractions in type predicates
-- Checks for unbound variables (not yet implemented -- what to do with globals?)
+- [A] Checks for duplicate declarations and kind signatures
+- [A] Checks for duplicate selectors and constructors, and overlaps with class members
+- [A] Checks for duplicate equations and type signatures
+- [A] Checks for duplicated variables in patterns and templates
+- [A] Checks for duplication and dangling abstractions in type predicates
+- [A] Checks for unbound variables (not yet implemented -- what to do with globals?)
 
-- Makes every type variable binding explicit in signatures and constructor declarations
-- Shuffles signatures as close as possible to the corresponding definition (incl. inside patterns)
+- [B] Makes every type variable binding explicit in signatures and constructor declarations
+- [B] Shuffles signatures as close as possible to the corresponding definition (incl. inside patterns)
 
-- Renames local variables using unique names
-- Renames local (explicitly quantified) type variables using unique names
+- [B] Renames local variables using unique names
+- [B] Renames local (explicitly quantified) type variables using unique names
 
 Desugar2:
-- Checks validity of type and type scheme syntax in signatures and declarations
-- Checks qualified types for syntactic ambiguity
-- Removes special syntax for list, tuple and function types, as well as subtype predicates
-- Captures single-variable predicates as short-hand for wildcard kind signature
-- Checks syntactic validity of patterns
-- Replaces after, before, [] and (:) with primitive names
-- Replaces tuple expressions with primitive constructor applications 
-- Translates if expressions, operator sections, negations
-- Collects functions defined with multiple equations while checking arities
-- Flattens pattern bindings
-- Removes non-trivial patterns in lambdas, assignments and generators
-- Translates list expressions/patterns and list comprehensions
+- [A] Checks validity of type and type scheme syntax in signatures and declarations
+- [A] Checks qualified types for syntactic ambiguity
+- [B] Removes special syntax for list, tuple and function types, as well as subtype predicates
+- [B] Captures single-variable predicates as short-hand for wildcard kind signature
+- [A] Checks syntactic validity of patterns
+- [B] Replaces after, before, [] and (:) with primitive names
+- [B] Replaces tuple expressions with primitive constructor applications 
+- [B] Translates if expressions, operator sections, negations
+- [A][B] Collects functions defined with multiple equations while checking arities
+- [C] Flattens pattern bindings
+- [C] Removes non-trivial patterns in lambdas, assignments and generators
+- [C] Translates list expressions/patterns and list comprehensions
 
-- Applies pattern-matching compiler to case expressions
+- [C] Applies pattern-matching compiler to case expressions
 
 Syntax2Core:
 - Injects instance signatures among global type signatures
