@@ -331,7 +331,7 @@ stuffedCons (PList ps)           = concatMap stuffedCons ps
 stuffedCons (PAp p p')           = stuffedCons p ++ stuffedCons p'
 stuffedCons _                    = []
 
-instance Desugar1 (Match Pat Exp [Bind] Exp) where
+instance Desugar1 r => Desugar1 (Match Pat Exp [Bind] r) where
     ds1 env = mapMatch (ds1 env) (ds1 env) (ds1 env) (ds1 env)
 
 instance Desugar1 a => Desugar1 (Alt a) where
@@ -373,6 +373,7 @@ instance Desugar1 Stmts where
                 doRhs (RGrd gs)      = RGrd (map doGrd gs)
                 doRhs (RWhere r bs)  = RWhere (doRhs r) bs
                 doGrd (GExp qs ss)   = GExp qs (eDo env ss)
+        ds1S env (SMatch m : ss)     = SMatch (ds1 env m) : ds1S env ss
         ds1S env (SIf e ss' : ss)    = doIf (EIf e (eDo env ss')) ss
           where doIf f (SElsif e ss':ss) = doIf (f . EIf e (eDo env ss')) ss
                 doIf f (SElse ss':ss)    = ds1S' env (SExp (f (eDo env ss')) : ss)

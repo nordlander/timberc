@@ -242,7 +242,7 @@ dsExp (ESectL op e)             = do x <- newNamePos paramSym op
 dsExp (ECase e alts)            = do e <- dsExp e
                                      alts <- dsAlts dsExp alts
                                      pmc e alts
-dsExp (EMatch m)                = EMatch `fmap` dsMatch m
+dsExp (EMatch m)                = EMatch `fmap` dsMatch dsExp m
 dsExp (ESelect e s)             = liftM (flip ESelect s) (dsExp e)
 dsExp (ESel s)                  = do x <- newNamePos paramSym s
                                      return (ELam [PVar x] (ESelect (EVar x) s))
@@ -267,7 +267,9 @@ dsAlts :: (a->M s a) -> [Alt a] -> M s [Alt a]
 dsAlts dsE as = mapM dsAlt as
   where dsAlt (Alt p rh)          = liftM2 Alt (dsPat p) (dsRhs dsE rh)
 
-dsMatch = mapMMatch dsPat dsExp dsBinds dsExp
+-- type signature needed because of polymorphic recursion
+dsMatch :: (r->M s r) -> Match Pat Exp [Bind] r -> M s (Match Pat Exp [Bind] r)
+dsMatch dsR = mapMMatch dsPat dsExp dsBinds dsR
 
 -- List comprehensions --------------------------------------------------
 
@@ -329,6 +331,8 @@ dsSs cl (SCase e as : ss)       = do e <- dsExp e
                                      Stmts css <- pmc e as
                                      ss <- dsSs cl ss
                                      return (css ++ ss)
+dsSs cl (SMatch m : ss)         = do m <- dsMatch (dsStmts cl) m
+                                     liftM (SMatch m :) (dsSs cl ss)
 dsSs cl ss                      = internalError ("dsSs; did not expect") (Stmts ss)
 
 unsig (PSig p _)                = unsig p

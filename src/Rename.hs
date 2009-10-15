@@ -423,7 +423,7 @@ renSBind envL envR (BEqn (LPat p) rh)       = do p' <- rename envL p
                                                  return (BEqn (LPat p') rh')
 renSBind _ _ s@(BSig vs t)                  = errorTree "Signature in struct value" s 
 
-instance Rename (Match Pat Exp [Bind] Exp) where
+instance Rename r => Rename (Match Pat Exp [Bind] r) where
   rename env = mapMMatch (rename env) (rename env) (rename env) (rename env)
 
 instance Rename a => Rename (Field a) where
@@ -483,6 +483,7 @@ instance Rename Stmts where
                                         as' <- rename env as
                                         ss' <- renameS env ss
                                         return (SCase e' as':ss')
+      renameS env (SMatch m:ss)    = liftM2 ((:) .SMatch) (rename env m) (renameS env ss)
       renameS env s                = internalError0 ("renameS "++show s)
 
 

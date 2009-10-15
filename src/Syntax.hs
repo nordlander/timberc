@@ -115,12 +115,11 @@ data Exp    = EVar    Name
             | EWild
             | ESig    Exp Type
             | ERec    (Maybe (Name,Bool)) [EField]
-            -- pattern syntax ends here
+           -- pattern syntax ends here
             | EBStruct (Maybe Name) [Name] [Bind]  -- struct value in bindlist syntax
             | ELam    [Pat] Exp
             | ELet    [Bind] Exp
-            | EMatch  (Match Pat Exp [Bind] Exp)
--- the following and ETup, EList removed in desugaring
+           -- the following and ETup, EList removed in desugaring
             | ECase   Exp [Alt Exp]
             | EIf     Exp Exp Exp
             | ENeg    Exp
@@ -136,6 +135,8 @@ data Exp    = EVar    Name
             | EAfter  Exp Exp
             | EBefore Exp Exp
             | EForall [Qual] Stmts
+           -- the following is introduced in desugaring
+            | EMatch  (Match Pat Exp [Bind] Exp)
             deriving  (Eq,Show)
 
 data Field a = Field   Name a
@@ -172,6 +173,7 @@ data Stmt   = SExp    Exp
             | SElsif  Exp Stmts
             | SElse   Stmts
             | SCase   Exp [Alt Stmts]
+           -- the following is introduced in desugaring
             | SMatch  (Match Pat Exp [Bind] Stmts)
             deriving  (Eq,Show)
 
@@ -407,9 +409,9 @@ checkStmts :: Stmts -> Stmts
 checkStmts ss
   | isResult ss                 = ss
   | otherwise                   = ss
-
-isResult (Stmts ss)             = isRes ss
   where
+    isResult (Stmts ss)             = isRes ss
+
     isRes []                    = False
   --isRes [SExp e]              = tr' ("######## Suspicious tail: " ++ render (pr e)) False
     isRes (SRet e : ss)
@@ -551,6 +553,7 @@ instance Subst Stmt Name Exp where
     subst s (SElsif e st)       = SElsif (subst s e) (subst s st)
     subst s (SElse st)          = SElse (subst s st)
     subst s (SCase e alts)      = SCase (subst s e) (subst s alts)
+    subst s (SMatch m)          = SMatch (subst s m)
 
 
 instance Subst Type Name Type where
@@ -886,22 +889,23 @@ identQuals (QLet bs : qs)       = idents bs ++ (identQuals qs \\ bvars bs)
 
 
 instance Ids Stmts where
-    idents (Stmts ss) = identStmts ss
+    idents (Stmts ss) = identSs ss
+      where
+        identSs []                      = []
+        identSs (SExp e : ss)           = idents e ++ identSs ss
+        identSs (SRet e : ss)           = idents e ++ identSs ss
+        identSs (SGen p e : ss)         = idents e ++ (identSs ss \\ pvars p)
+        identSs (SBind bs : ss)         = identSBind bs ss
+        identSs (SAss p e : ss)         = idents e ++ (identSs ss \\ pvars p)
+      --identSs (SForall qs ss' : ss)   = identQuals qs ++ (identSs ss' \\ bvars qs) ++ identSs ss
+        identSs (SIf e ss' : ss)        = idents e ++ idents ss' ++ identSs ss
+        identSs (SElsif e ss' : ss)     = idents e ++ idents ss' ++ identSs ss
+        identSs (SElse ss' : ss)        = idents ss' ++ identSs ss
+        identSs (SCase e as : ss)       = idents e ++ idents as ++ identSs ss
+        identSs (SMatch m : ss)         = idents m ++ identSs ss
 
-identStmts []                   = []
-identStmts (SExp e : ss)        = idents e ++ identStmts ss
-identStmts (SRet e : ss)        = idents e ++ identStmts ss
-identStmts (SGen p e : ss)      = idents e ++ (identStmts ss \\ pvars p)
-identStmts (SBind bs : ss)      = identSBind bs ss
-identStmts (SAss p e : ss)      = idents e ++ (identStmts ss \\ pvars p)
---identStmts (SForall qs ss' : ss)= identQuals qs ++ (identStmts ss' \\ bvars qs) ++ identStmts ss
-identStmts (SIf e ss' : ss)     = idents e ++ idents ss' ++ identStmts ss
-identStmts (SElsif e ss' : ss)  = idents e ++ idents ss' ++ identStmts ss
-identStmts (SElse ss' : ss)     = idents ss' ++ identStmts ss
-identStmts (SCase e as : ss)    = idents e ++ idents as ++ identStmts ss
-
-identSBind bs (SBind bs' : ss ) = identSBind (bs++bs') ss
-identSBind bs ss                = idents bs ++ (identStmts ss \\ bvars bs)
+        identSBind bs (SBind bs' : ss ) = identSBind (bs++bs') ss
+        identSBind bs ss                = idents bs ++ (identSs ss \\ bvars bs)
 
 
 pvars p                         = evars p
