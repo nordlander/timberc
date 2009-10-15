@@ -410,6 +410,8 @@ instance Rename Exp where
                                         r <- rename env' (ERec (Just (c,True)) (map (\(s,s') -> Field s (EVar s')) (ls `zip` ls')))
                                         bs' <- mapM (renSBind env' env) bs
                                         return (foldr ELet r (groupBindsS bs'))
+  rename env (EForall qs ss)       = do (qs,ss) <- renameQ env qs ss
+                                        return (EForall qs ss)
 
 renRec env (Just (n, t))           = Just (renT env n, t)
 renRec env Nothing                 = Nothing
