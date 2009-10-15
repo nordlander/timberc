@@ -415,7 +415,7 @@ ds1Templ env bss asg (Stmts ss)  = Stmts (ds1T env bss asg ss)
 
 eFAp env n p e es                = eAp (EAp (EVar n) (ELam [ds1 env p] e)) (map (ds1 env) es)
 
-eDo env ss                       = EDo (self env) Nothing (ds1 env ss)
+eDo env ss                       = ds1 env (EDo Nothing Nothing ss)
 
 name' s  e                       = Name s 0 Nothing (noAnnot {location = loc (posInfo e)})
   where loc Unknown              = Nothing
