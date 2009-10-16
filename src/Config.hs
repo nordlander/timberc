@@ -48,6 +48,7 @@ module Config (
                
                -- Read out configuration from file.
                readCfg,
+               parseCfg,
 
                -- Query about our options from flags.
                cmdLineOpts,
@@ -285,11 +286,11 @@ mkCmdLineOpts flags  =  CmdLineOpts { isVerbose = find Verbose,
 
 
 
--- | Reads a configuration file in the format of CfgOpts.
+-- | Read the configuration file from the standard locaton for the target.
 readCfg clo = parseCfg (rtsCfg clo)
 
 
--- | Internal help routine for readCfg.
+-- | Read the configuration at the given location.
 parseCfg file
     = do
       txt <- catch (readFile file)

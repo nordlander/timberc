@@ -58,18 +58,19 @@ import Name
 
 
 -- | Compile a C-file. 
-compileC cfg clo c_file = do
-                             let cmd = cCompiler cfg
-                                     ++ " -c " ++ compileFlags cfg
-                                     ++ " -I " ++ libDir clo ++ " " 
-                                     ++ " -I " ++ includeDir clo ++ " " 
-                                     ++ " -I " ++ rtsDir clo ++ " " 
-                                     ++ " -I . "
-                                     ++ c_file
-                                 o_file = rmSuffix ".c" (rmDirs c_file) ++ ".o"
+compileC global_cfg clo c_file
+                        = do let o_file = rmSuffix ".c" (rmDirs c_file) ++ ".o"
                              res <- checkUpToDate c_file o_file
                              if not res then do
                                 putStrLn ("[compiling "++c_file++"]")
+                                cfg <- fileCfg clo c_file global_cfg
+                                let cmd = cCompiler cfg
+                                        ++ " -c " ++ compileFlags cfg
+                                        ++ " -I " ++ libDir clo ++ " " 
+                                        ++ " -I " ++ includeDir clo ++ " " 
+                                        ++ " -I " ++ rtsDir clo ++ " " 
+                                        ++ " -I . "
+                                        ++ c_file
                                 execCmd clo cmd
                               else return ()
   where checkUpToDate c_file o_file
@@ -82,7 +83,10 @@ compileC cfg clo c_file = do
                                  return (c_time <= o_time)
 
 -- | Link together a bunch of object files.
-linkO cfg clo r o_files = do let rootId     = name2str r
+linkO global_cfg clo r o_files =
+                          do putStrLn "[linking]"
+                             cfg <- foldr ((=<<) . fileCfg clo) (return global_cfg) o_files
+                             let rootId     = name2str r
                                  Just rMod = fromMod r
                                  initId     = "_init_" ++ modToundSc rMod
                                  cmd = cCompiler cfg
@@ -98,7 +102,6 @@ linkO cfg clo r o_files = do let rootId     = name2str r
                                        ++ " -DROOTINIT=" ++ initId ++ " "
                                        ++ rtsMain clo 
                                        ++ linkLibs cfg
-                             putStrLn "[linking]"
                              execCmd clo cmd
 
 
@@ -115,3 +118,27 @@ execCmd clo cmd       = do Monad.when (isVerbose clo)
                              ExitSuccess -> return ()
                              _           -> stopCompiler
 
+
+fileCfg clo file global_cfg =
+    do b <- Directory.doesFileExist file_cfg
+       if b
+         then do Monad.when (isVerbose clo) (putStrLn ("using configuration file: " ++ file_cfg))
+                 augmentCfg `fmap` parseCfg file_cfg
+         else return global_cfg
+  where
+    file_cfg = base file ++ ".extern."++target clo++".cfg"
+
+    augmentCfg cfg =
+        global_cfg { compileFlags = join compileFlags,
+                     linkFlags    = join linkFlags,
+                     linkLibs     = join linkLibs }
+      where
+        join f = f cfg +++ f global_cfg
+
+    -- Assume each flag is a word.
+    -- Combine sequences of flags by joining them and removing duplicates.
+    fs1 +++ fs2  = ' ':unwords (nub (words fs1 ++ words fs2))
+
+    base path = case break (`elem` "/.") (reverse path) of
+                  (rext,'.':rbase) -> reverse rbase
+                  _ -> path
