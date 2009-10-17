@@ -91,7 +91,7 @@ let f = \w0 v x -> e w0 (f w0 v 7)                                            ::
 
 tiModule (Module _ _ xs' es' ds' ws' [bs']) (Module v ns xs es ds ws bss)
                                 = do env0' <- impPreds env0 pe'
-                                     (env1,ds1,bs1) <- typeDecls env0' ds
+                                     (env1,ds1,bs1) <- typeDecls env0' ps ds
                                      let env1' = addTEnv0 (tenvSelsCons ds') env1
                                      (env2,bs2) <- instancePreds env1' pe
                                      -- Here it should be checked that any coercions in weqs follow the
@@ -110,7 +110,7 @@ tiModule (Module _ _ xs' es' ds' ws' [bs']) (Module v ns xs es ds ws bss)
           pe                    = restrict (tsigsOf bs) ws
           pe'                   = restrict (tsigsOf bs') ws'
           env0                  = addTEnv0 (tsigsOf bs') (impDecls (initEnv v) ds')
-
+          ps                    = filter (isGenerated . fst) (tsigsOf bs')
 
 tiBindsList env []              = return ([], [], nullBinds)
 tiBindsList env (bs:bss)        = do (ss1, pe1, bs1) <- tiBinds env bs

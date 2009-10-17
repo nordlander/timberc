@@ -60,8 +60,8 @@ import PP
 -- Return extended environment, transformed decls and added witness bindings
 
 
-typeDecls env (Types ke ds)             = do (ds,pe1,eq1) <- desub env0 ds
-                                             (env',bs) <- instancePreds env0 pe1
+typeDecls env ps (Types ke ds)          = do (ds,pe1,eq1) <- desub env0 ds
+                                             (env',bs) <- instancePreds env0 (pe1 ++ ps)
                                              let tds = Types ke ds
                                              return (addTEnv0 (tenvSelsCons tds) env', tds, catBinds (Binds False pe1 eq1)  bs)
   where env0                            = addClasses cs (addKEnv0 ke env)
