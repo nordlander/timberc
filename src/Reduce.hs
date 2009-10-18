@@ -658,7 +658,7 @@ mkTrans env ((w1,p1), (w2,p2))          = do (pe1, R c1, e1) <- instantiate p1 (
                                              let e = ELam [(x,scheme (subst s' t))] (f (EAp e2 [EAp e1 [EVar x]]))
                                                  (e',p') = qual qe e (subst s' p)
                                              sc <- gen (tevars env) p'
-                                             w <- newNameMod (modName env) coercionSym
+                                             w <- newNameModPub (modName env) True coercionSym
                                              e' <- redTerm (coercions env) e'
                                              return ((w,sc), (w, e'))
 
@@ -682,7 +682,7 @@ mkSuper env (w1,p1) (w2,p2)             = do (pe1, R c1, e1) <- instantiate p1 (
                                              let e = f (EAp e2 [e1])
                                                  (e',p') = qual qe e (subst s' p)
                                              sc <- gen (tevars env) p'
-                                             w <- newNameMod (modName env) witnessSym
+                                             w <- newNameModPub (modName env) True witnessSym
                                              return ((w,sc), (w,e'))
                                              
 
