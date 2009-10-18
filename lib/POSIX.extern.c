@@ -248,10 +248,11 @@ LIST read_fun (RFile_POSIX this, Int dummy) {
 UNIT installR_fun (RFile_POSIX this, HANDLER hand, Int dummy) {
   DISABLE(envmut);
   Int desc = ((DescClosable)this->RFILE2FILE->FILE2CLOSABLE)->descriptor;
+  Int active = FD_ISSET(desc,&readUsed);
   ADD_RDTABLE(desc,hand);
   maxDesc = desc > maxDesc ? desc : maxDesc;  
   if (!eventThread) startLoop();
-  else pthread_kill(eventThread->id, SIGSELECT);
+  else if (!active) pthread_kill(eventThread->id, SIGSELECT);
   ENABLE(envmut);
   return (UNIT)0;
 }
@@ -287,11 +288,12 @@ int write_fun (WFile_POSIX this, LIST xs, Int dummy) {
 UNIT installW_fun (WFile_POSIX this, ACTION act, Int dummy) {
   DISABLE(envmut);
   Int desc = ((DescClosable)this->WFILE2FILE->FILE2CLOSABLE)->descriptor;
+  Int active = FD_ISSET(desc,&writeUsed);
   ADD_WRTABLE(desc,act);
   envRootsDirty = 1;
   maxDesc = desc > maxDesc ? desc : maxDesc;  
   if (!eventThread) startLoop();
-  else pthread_kill(eventThread->id, SIGSELECT);
+  else if (!active) pthread_kill(eventThread->id, SIGSELECT);
   ENABLE(envmut);
   return (UNIT)0;
 }
