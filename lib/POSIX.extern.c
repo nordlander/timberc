@@ -167,7 +167,7 @@ UNIT close_fun (Closable_POSIX this, Int dummy) {
   CLR_RDTABLE(desc);
   CLR_WRTABLE(desc);
   sockTable[desc] = NULL;
-  pthread_kill(eventThread->id, SIGSELECT);
+  if (eventThread) pthread_kill(eventThread->id, SIGSELECT);
   ENABLE(envmut);
   return (UNIT)0;
 }
