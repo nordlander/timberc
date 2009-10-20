@@ -86,6 +86,10 @@ Thread sleepQ           = NULL;
 int nactive             = 0;
 int nthreads            = 0;
 
+struct Msg msg0 = { NULL, 0, { 0, 0 }, { INF, 0 }, NULL };
+
+struct Thread thread0 = { NULL, &msg0, 0,  };
+
 struct Thread threads[MAXTHREADS];
 
 pthread_mutexattr_t obj_mutexattr;
@@ -550,6 +554,9 @@ void init_rts(int argc, char **argv) {
     prio_min = sched_get_priority_min(SCHED_RR);
     prio_max = sched_get_priority_max(SCHED_RR);
     pthread_key_create(&current_key, NULL);
+    pthread_setspecific(current_key, &thread0);
+    thread0.id = pthread_self();
+
     sigemptyset(&all_sigs);
     sigaddset(&all_sigs, SIGALRM);
     sigaddset(&all_sigs, SIGSELECT);

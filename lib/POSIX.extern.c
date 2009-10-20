@@ -105,9 +105,7 @@ SockData sockTable[FD_SETSIZE];
 
 int envRootsDirty;
 
-struct Msg msg0 = { NULL, 0, { 0, 0 }, { INF, 0 }, NULL };
-
-struct Thread thread0 = { NULL, &msg0, 0,  };
+struct Msg evMsg = { NULL, 0, { 0, 0 }, { INF, 0 }, NULL };
 
 Thread eventThread = NULL; 
 
@@ -548,7 +546,7 @@ void *eventLoop (void *arg) {
         int r = select(maxDesc+1, &readFds, &writeFds, NULL, NULL);
         DISABLE(envmut);
         if (r >= 0) {
-            TIMERGET(msg0.baseline);
+            TIMERGET(evMsg.baseline);
             for(i=0; i<maxDesc+1; i++) {
 	            if (FD_ISSET(i, &readFds)) {
 	                if (rdTable[i]) {
@@ -601,7 +599,6 @@ void *eventLoop (void *arg) {
 
 Env_POSIX posix_POSIX(World w, Int dummy) {
   if (!env->argv_POSIX) {
-    pthread_setspecific(current_key, &thread0);
     pthread_mutex_init(&envmut, &glob_mutexattr);
   
     FD_ZERO(&readUsed);
@@ -627,12 +624,9 @@ Env_POSIX posix_POSIX(World w, Int dummy) {
     fcntl(0, F_SETFL, O_NONBLOCK);
     fcntl(1, F_SETFL, O_NONBLOCK);
 
-    TIMERGET(msg0.baseline);
-    startTime.sec = msg0.baseline.tv_sec;
-    startTime.usec = msg0.baseline.tv_usec;
-
-    thread0.msg = &msg0;
-    thread0.id = pthread_self();
+    TIMERGET(evMsg.baseline);
+    startTime.sec = evMsg.baseline.tv_sec;
+    startTime.usec = evMsg.baseline.tv_usec;
 
     addRootScanner(&scanner);
   }
@@ -643,5 +637,5 @@ Env_POSIX posix_POSIX(World w, Int dummy) {
 
 void startLoop () {
 
-    eventThread = newThread(&msg0,sched_get_priority_max(SCHED_RR),eventLoop,0);
+    eventThread = newThread(&evMsg,sched_get_priority_max(SCHED_RR),eventLoop,0);
 }
