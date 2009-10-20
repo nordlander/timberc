@@ -410,6 +410,11 @@ instance Ids Binds where
       | rec                     = idents eqns \\ dom eqns
       | otherwise               = idents eqns
 
+instance Ids Pat where
+    idents (PCon k te)              = dom te
+    idents (PLit l)                 = []
+    idents (PWild)                  = []
+
 instance Ids Exp where
     idents (EVar v)             = [v]
     idents (ESel e l)           = idents e
@@ -425,7 +430,7 @@ instance Ids Exp where
     idents _                    = []
 
 instance Ids Alt where
-    idents (p,e)                = idents e
+    idents (p,e)                = idents e \\ idents p
 
 
 instance Ids Cmd where
