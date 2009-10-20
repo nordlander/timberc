@@ -3,9 +3,10 @@ module BitTest2 where
 import POSIX
 import BitOps
 
-     
-root env = class
-    result action
+root :: RootType
+root world = do
+        env = new posix world
+        
         a = 0x12345678 :: BITS32
                 
         env.stdout.write ( "a =" ++ (show a) ++ ",  " ++ (show (a `bxor` 0xFFFF)) ++ "\n")

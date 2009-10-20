@@ -25,11 +25,10 @@ objB a = class
 -- This recursive instantiation should trigger the static delay rule rewrite, because of
 -- the invisisble selection from oB caused by the subtyping coercion from BTypeExtended
 -- to B.  Execution should print "OK" on stdout.
-root env = class
+root :: RootType
+root w = do
 	oA = new objA oB
 	oB = new objB oA
-	
-	start = action
-		env.stdout.write "OK"
-	
-	result start
+	env = new posix w
+	env.stdout.write "OK\n"
+	env.exit 0

@@ -6,8 +6,13 @@ data Tree = Nil | Node Int Tree Tree
 
 minN = 4
 
+root :: RootType
+root world = do
+    env = new posix world
+    act = new main env
+    act
 
-root env = class
+main env = class
   pr s n t = env.stdout.write (s++" of depth "++show n++"\t check: "++show t++"\n")
 
   depthLoop d m long
@@ -21,10 +26,16 @@ root env = class
    where n :: Int
          n = 2 ^ (m - d + minN)
 
-  result struct
-    start = action
+  result action
+      if size env.argv < 2 then
+        env.stdout.write "Usage: BinTree2 <number>"
+        env.exit 0
+      temp = parse (env.argv!1)
+      if isLeft temp then
+        env.stdout.write "Usage: BinTree2 <number>"
+        env.exit 0      
       n :: Int
-      n = parse (head (tail env.argv))
+      n = fromRight temp
       maxN     = max (minN + 2) n
       stretchN = maxN + 1
 
@@ -37,10 +48,6 @@ root env = class
 
     -- allocate, walk, and deallocate many bottom-up binary trees
       depthLoop minN maxN long
-
-
-    io = action
-       result ()
 
 -- allocate and check lots of trees
 sumT :: Int -> Int -> Int -> Int

@@ -3,15 +3,17 @@ module HistoClient where
 import POSIX
 import Histo
 
-
-root env = class
+root :: RootType
+root w = do
+    env = new posix w
+    act = new main env
+    act
+    
+main env = class
              bds :: Array Int
              bds = array [10, 20, 30]
              h = new histo bds
-
-             start = action
-                env.stdout.write "Hej\n"
-
+             
              io d = action
                 if head d == 'q' then
                    rs <- h.getResult
@@ -31,5 +33,3 @@ root env = class
              result action
                env.stdin.installR io
                env.stdout.write "Welcome!\n"
-      
-

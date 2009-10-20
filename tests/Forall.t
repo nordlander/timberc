@@ -22,8 +22,8 @@ cell = class
 root :: World -> Cmd () ()
 root w = do
    env = new posix w
-   x : xs = forall _ <- [1..100000] new cell
-   forall (c,l) <- zip (x : xs) xs do c.setNb l 
+   x : xs = forall _ <- [1..80000] new cell 
+   forall (c,l) <- zip (x : xs) xs do c.setNb l
    d <- x.depth
    env.stdout.write (show d ++ " cells linked\n")
    zs = forall z <- [1..10] new class

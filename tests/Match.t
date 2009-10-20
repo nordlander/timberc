@@ -16,8 +16,9 @@ p 1.5 = 'a'
 p 3.2 = 'b'
 p _ = 'c'
 
-root env = class
-  result action
+root :: RootType
+root w = do
+    env = new posix w
     env.stdout.write ("f \"Ab\"="++show (f "Ab") ++"\n")
     env.stdout.write ("f \"Ac\"="++show (f "Ac") ++"\n")
     env.stdout.write ("f \"C\"="++show (f "C") ++"\n")

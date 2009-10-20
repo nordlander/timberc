@@ -31,9 +31,15 @@ check env k sock = class
     result Connection {..}
  
 
-root env = class
+root :: RootType
+root w = do
+    env = new posix w
+    act = new main env
+    act
+    
+main env = class
 
-    args = [1..parse (env.argv!1)] 
+    args = [1..fromRight$parse (env.argv!1)] 
 
     finish = action 
        env.stdout.write "Done!\n"

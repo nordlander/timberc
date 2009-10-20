@@ -23,10 +23,11 @@ c8b = 0x0F
 c8c = (c8a .|. c8b) .&. 0xF3
 c8d = c8c .>>. 1
 c8e = c8c `bsra` 1
-     
-root env = class
-    result action
-        env.stdout.write ( (show c32a) ++ " or " ++ (show c32b) ++ " & 0xFFFFFFF0 = " ++ (show c32c) ++ " >> 1 = " ++ (show c32d)  ++ " >> (arith) 1 = " ++ (show c32e)++ "\n" )
-        env.stdout.write ( (show c16a) ++ " or " ++ (show c16b) ++ " & 0xFFF0 = " ++ (show c16c) ++ " >> 1 = " ++ (show c16d)  ++ " >> (arith) 1 = " ++ (show c16e)++ "\n" )
-        env.stdout.write ( (show c8a) ++ " or " ++ (show c8b) ++ " & 0xF3 = " ++ (show c8c) ++ " >> 1 = " ++ (show c8d)  ++ " >> (arith) 1 = " ++ (show c8e)++ "\n" )
-        env.exit 0
+
+root :: RootType     
+root world = do
+    env = new posix world
+    env.stdout.write ( (show c32a) ++ " or " ++ (show c32b) ++ " & 0xFFFFFFF0 = " ++ (show c32c) ++ " >> 1 = " ++ (show c32d)  ++ " >> (arith) 1 = " ++ (show c32e)++ "\n" )
+    env.stdout.write ( (show c16a) ++ " or " ++ (show c16b) ++ " & 0xFFF0 = " ++ (show c16c) ++ " >> 1 = " ++ (show c16d)  ++ " >> (arith) 1 = " ++ (show c16e)++ "\n" )
+    env.stdout.write ( (show c8a) ++ " or " ++ (show c8b) ++ " & 0xF3 = " ++ (show c8c) ++ " >> 1 = " ++ (show c8d)  ++ " >> (arith) 1 = " ++ (show c8e)++ "\n" )
+    env.exit 0

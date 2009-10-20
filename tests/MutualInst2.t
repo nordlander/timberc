@@ -10,9 +10,10 @@ wormObj _ = class
    mem = new memoryObj "x"
    result "y"
 
-root env = class
+root :: RootType
+root w = do
+   env = new posix w
    w1 = new wormObj w2  
    w2 = new wormObj w1 
-
-   result action
-       env.stdout.write "OK!\n"
+   env.stdout.write "OK!\n"
+   env.exit 0
