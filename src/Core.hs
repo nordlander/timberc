@@ -716,15 +716,19 @@ instance AlphaConv Exp where
     ac s (ELet bs e)            = do s' <- extSubst s (bvars bs)
                                      liftM2 ELet (ac s' bs) (ac s' e)
     ac s (ERec c eqs)           = liftM (ERec c) (ac s eqs)
-    ac s (ECase e alts)         = liftM2 ECase (ac s e) (ac s alts)
+    ac s (ECase e alts)         = liftM2 ECase (ac s e) (mapM (acAlt s) alts)
     ac s (EReq e1 e2)           = liftM2 EReq (ac s e1) (ac s e2)
     ac s (EAct e1 e2)           = liftM2 EAct (ac s e1) (ac s e2)
     ac s (EDo x tx c)           = do s' <- extSubst s [x]
                                      liftM3 EDo (ac s' x) (ac s' tx) (ac s' c)
     ac s (ETempl x tx te c)     = do s' <- extSubst s (x : dom te)
                                      liftM4 ETempl (ac s' x) (ac s' tx) (ac s' te) (ac s' c)
-        
+
+acAlt s (p,e)                   = do s' <- extSubst s (idents p)
+                                     liftM2 (,) (ac s' p) (ac s' e)
+
 instance AlphaConv Pat where
+    ac s (PCon k te)            = liftM (PCon k) (ac s te)
     ac s p                      = return p
 
 instance AlphaConv Cmd where
