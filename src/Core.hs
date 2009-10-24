@@ -432,6 +432,8 @@ instance Ids Exp where
 instance Ids Alt where
     idents (p,e)                = idents e \\ idents p
 
+instance Ids e => Ids ([Exp],e) where
+    idents (es,e)               = idents es ++ idents e
 
 instance Ids Cmd where
     idents (CLet bs c)          = idents bs ++ (idents c \\ bvars bs)
@@ -441,24 +443,91 @@ instance Ids Cmd where
     idents (CExp e)             = idents e
 
 
+-- Substitutions --------------------------------------------------------------------------------
+
+-- First, some functions to avoid name capture when substituting under binders in the presence of
+-- name clashes, without using a global supply of fresh names
+
+-- (r,s') = subst_bvs' s bvs ifvs:
+-- compute a restricted substition s' and a renaming r of the bound variables bvs,
+-- that allows r and s' to be applied to the inner expression (where bvs are bound), assuming that
+-- the free variables in the inner expression are ifvs (which must not become bound if the
+-- the bound variables have to be renamed)
+subst_bvs' s bvs ifvs           = (r,s')
+  where
+    r                           = newvars (bvs++ifvs) cvs
+    cvs                         = intersect bvs ofvs -- clashing variables
+    ofvs                        = nub (idents s') --outer free variables,
+                                                  --might get captured by a clashing bound var
+    s'                          = [(x, e) | (x, e) <- s, x `notElem` bvs] --restricted substitution
+    -- more accurate, but more expensive (always computes inner free variables):
+  --s'                          = [(x, e) | (x, e) <- s, x `notElem` bvs, x `elem` ifvs]
+
+-- Given a list of names to avoid, map the names xs to fresh names
+newvars avoid xs                = zipWith new [m..] xs
+  where new i x                 = (x,x{tag=i})
+        m                       = 1+maximum [t|Name{tag=t}<-avoid]
+
+subst_bvs s bvs inner           = (r,subst (mapSnd EVar r++s') inner)
+  where (r,s')                  = subst_bvs' s bvs (idents inner)
+
+rename_dom r xs                 = mapFst (rename_var r) xs
+rename_var r x                  = maybe x id (lookup x r)
+
+-- Applying substitions under binders --------------------------------------------------------------
+
+-- These functions apply substitutions to the various syntactic forms that bind variables, taking
+-- care to alpha convert to avoid name capture. It is possible to revert to the older but more
+-- efficient implementation by reinstating the commented out definitions marked
+-- "assuming no name clashes".
+
+--subst_ELam s te e             = ELam te (subst s e)      -- assuming no name clashes
+subst_ELam s te e               = ELam (rename_dom r te) e'
+  where (r,e')                  = subst_bvs s (dom te) e
+
+--subst_let s bs e             = ELet (subst s bs) (subst s e) -- assuming no name clashes
+subst_let s (Binds True te eqns) e
+                                = (bs',e')
+  where bs'                     = Binds True (rename_dom r te) (rename_dom r (zip bvs es'))
+        (r,(es',e'))            = subst_bvs s bvs (es,e)
+        (bvs,es)                = unzip eqns
+subst_let s (Binds False te eqns) e
+                                = (bs',e')
+  where bs'                     = Binds False (rename_dom r te) (rename_dom r eqns)
+        (r,e')                  = subst_bvs s (dom eqns) e
+
+--subst_Alt s (p,e)             = (p,subst s e) -- assuming no name clashes
+subst_Alt s (p,e)               = (subst r p,e')
+  where (r,e')                  = subst_bvs s (idents p) e
+
+--subst_Gen s x e c             = (x,subst s e,subst s c) -- assuming no name clashes
+subst_Gen s x e c               = (rename_var r x,e,c')
+  where (r,c')                  = subst_bvs s [x] c
+
 -- Substitutions (Exp) --------------------------------------------------------------
 
--- Note! This substitution algorithm does not alpha convert!
--- Only use when variables are known not to clash
-
 instance Subst Binds Name Exp where
-    subst s (Binds r te eqns)   = Binds r te (subst s eqns)
-    
+    -- Only use when variables are known not to clash
+    subst s bs@(Binds rec te eqns)
+      | rec                  = -- We can not alpha convert here, since we don't have the body
+                               -- where the bindings are in scope
+                               let (r,eqns') = subst_bvs s (dom eqns) eqns'
+                               in if null r
+                                  then Binds rec te eqns'
+                                  else internalError "name clash when substituting into bindings" bs
+      | otherwise            = Binds rec te (subst s eqns)
+
+
 instance Subst Exp Name Exp where
     subst [] e                  = e
     subst s (EVar v)            = case lookup v s of
                                       Just e  -> e
                                       Nothing -> EVar v
     subst s (ESel e l)          = ESel (subst s e) l
-    subst s (ELam te e)         = ELam te (subst s e)
+    subst s (ELam te e)         = subst_ELam s te e
     subst s (EAp e es)          = EAp (subst s e) (subst s es)
-    subst s (ELet bs e)         = ELet (subst s bs) (subst s e)
-    subst s (ECase e alts)      = ECase (subst s e) (subst s alts)
+    subst s (ELet bs e)         = uncurry ELet (subst_let s bs e)
+    subst s (ECase e alts)      = ECase (subst s e) (map (subst_Alt s) alts)
     subst s (ERec c eqs)        = ERec c (subst s eqs)
     subst s (EAct e e')         = EAct (subst s e) (subst s e')
     subst s (EReq e e')         = EReq (subst s e) (subst s e')
@@ -466,18 +535,30 @@ instance Subst Exp Name Exp where
     subst s (EDo x t c)         = EDo x t (subst s c)
     subst s e                   = e
 
+-- Renaming the variables in a pattern
+instance Subst Pat Name Name where
+    subst r (PCon k te)         = PCon k (rename_dom r te)
+    subst r (PLit l)            = PLit l
+    subst r PWild               = PWild
+
 instance Subst Cmd Name Exp where
-    subst s (CLet bs c)         = CLet (subst s bs) (subst s c)
+    subst s (CLet bs c)         = uncurry CLet (subst_let s bs c)
     subst s (CAss x e c)        = CAss x (subst s e) (subst s c)
-    subst s (CGen x t e c)      = CGen x t (subst s e) (subst s c)
+    subst s (CGen x t e c)      = uncurry3 (flip CGen t) (subst_Gen s x e c)
     subst s (CRet e)            = CRet (subst s e)
     subst s (CExp e)            = CExp (subst s e)
 
-instance Subst Exp a b => Subst Alt a b where
+instance Subst Alt TVAR Type where
+    subst s (p,rh)              = (p, subst s rh)
+
+instance Subst Alt Name Type where
     subst s (p,rh)              = (p, subst s rh)
 
 instance Subst (Exp, Exp) Name Exp where
     subst s (e,e')              = (subst s e, subst s e')
+
+instance Subst e Name Exp => Subst ([Exp], e) Name Exp where
+    subst s (es,e')             = (subst s es, subst s e')
 
 
 instance Subst Binds TVAR Type where
@@ -512,7 +593,7 @@ instance Subst Binds Name Type where
 instance Subst Exp Name Type where
     subst [] e                  = e
     subst s (ESel e l)          = ESel (subst s e) l
-    subst  s (ELam te e)         = ELam (subst s te) (subst s e)
+    subst s (ELam te e)         = ELam (subst s te) (subst s e)
     subst s (EAp e es)          = EAp (subst s e) (subst s es)
     subst s (ELet bs e)         = ELet (subst s bs) (subst s e)
     subst s (ECase e alts)      = ECase (subst s e) (subst s alts)
