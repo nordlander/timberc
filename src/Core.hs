@@ -501,7 +501,7 @@ subst_let s (Binds False te eqns) e
   where bs'                     = Binds False (rename_dom r te) (rename_dom r eqns)
         (r,e')                  = subst_bvs s (dom eqns) e
 
---subst_Alt s (Alt p e)         = (p,subst s e) -- assuming no name clashes
+--subst_Alt s (Alt p e)         = Alt p (subst s e) -- assuming no name clashes
 subst_Alt s (Alt p e)           = Alt (subst r p) e'
   where (r,e')                  = subst_bvs s (idents p) e
 
@@ -773,7 +773,7 @@ mustAc (ESel e l)               = mustAc e
 mustAc (ERec c eqs)             = any mustAc (rng eqs)
 mustAc (EReq e1 e2)             = any mustAc [e1,e2]
 mustAc (EAct e1 e2)             = any mustAc [e1,e2]
-mustAc (ECase e alts)           = any mustAc (e:[e|Alt p e <-alts])
+mustAc (ECase e alts)           = any mustAc (e:altRhss alts)
 mustAc e                        = False
 
 
@@ -802,7 +802,7 @@ instance AlphaConv Exp where
     ac s (ELet bs e)            = do s' <- extSubst s (bvars bs)
                                      liftM2 ELet (ac s' bs) (ac s' e)
     ac s (ERec c eqs)           = liftM (ERec c) (ac s eqs)
-    ac s (ECase e alts)         = liftM2 ECase (ac s e) (mapM (acAlt s) alts)
+    ac s (ECase e alts)         = liftM2 ECase (ac s e) (ac s alts)
     ac s (EReq e1 e2)           = liftM2 EReq (ac s e1) (ac s e2)
     ac s (EAct e1 e2)           = liftM2 EAct (ac s e1) (ac s e2)
     ac s (EDo x tx c)           = do s' <- extSubst s [x]
@@ -810,7 +810,8 @@ instance AlphaConv Exp where
     ac s (ETempl x tx te c)     = do s' <- extSubst s (x : dom te)
                                      liftM4 ETempl (ac s' x) (ac s' tx) (ac s' te) (ac s' c)
 
-acAlt s (Alt p e)               = do s' <- extSubst s (idents p)
+instance AlphaConv r => AlphaConv (Alt r) where
+    ac s (Alt p e)              = do s' <- extSubst s (idents p)
                                      liftM2 Alt (ac s' p) (ac s' e)
 
 instance AlphaConv Pat where
