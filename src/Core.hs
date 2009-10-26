@@ -625,10 +625,7 @@ instance Subst Cmd Name Type where
     subst s (CExp e)            = CExp (subst s e)
 
 instance Subst Scheme Name Name where
-    subst s (Scheme rh ps ke)   = Scheme (subst s rh) (subst s ps) (map (subKE s) ke)
-      where subKE s (n,k)       = case lookup n s of
-                                    Just n' -> (n',k)
-                                    Nothing -> (n,k)
+    subst s (Scheme rh ps ke)   = Scheme (subst s rh) (subst s ps) (rename_dom s ke)
 
 instance Subst Rho Name Name where
     subst s (R t)               = R (subst s t)
@@ -675,7 +672,11 @@ instance Subst Type Name Type where
     subst s (TFun ts t)         = TFun (subst s ts) (subst s t)
 
 instance Subst Scheme Name Type where
-    subst s (Scheme rh ps ke)   = Scheme (subst s rh) (subst s ps) ke
+    subst s (Scheme rh ps ke)   = --Scheme (subst s rh) (subst s ps) ke -- assuming no name clashes
+                                  Scheme (subst s' rh) (subst s' ps) (rename_dom r ke)
+      where
+        s' = mapSnd TId r++rs
+        (r,rs) = subst_bvs' s (dom ke) (idents ps++idents rh)
 
 instance Subst Rho Name Type where
     subst s (R t)               = R (subst s t)
