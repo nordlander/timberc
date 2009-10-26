@@ -99,7 +99,7 @@ expand a from to e sc                 = exp0 to (e,scheme2Type sc)
                                            let xs = map EVar ns
                                            es <- mapM (exp0 to) (zip xs ts)
                                            lam <- eLam' ns (etup n es)
-                                           return (ECase e [(pCon0 (tuple n), lam)])
+                                           return (ECase e [Alt (pCon0 (tuple n)) lam])
         expTup (e,_)                  = return e
 
 eLam' xs e                            = do ts <- mapM (\_ -> newTvar Star) xs
@@ -121,10 +121,10 @@ mkFunPair (nm,DData vs ss cs)         = do [from,to] <- mapM newName ["from"++st
         toType                        = Scheme (F [scheme ot] (R dt)) [] (map (\n -> (n,Star)) vs)
 
         prefixLR fs e                 = foldr (\f e -> EAp (ECon f) [e]) e (map prim fs)
-        mkAlt fs (nm,Constr [] _ _)   = return (pCon0 nm,prefixLR fs eUnit)
+        mkAlt fs (nm,Constr [] _ _)   = return (Alt (pCon0 nm) (prefixLR fs eUnit))
         mkAlt fs (nm,Constr ss _ _)   = do ns <- newNames tempSym (length ss)
                                            lam <- eLam' ns  (prefixLR fs (foldr1 (etup2) (map EVar ns)))
-                                           return (pCon0 nm,lam)
+                                           return (Alt (pCon0 nm) lam)
         alts fs [c]                   = do a <- mkAlt fs c
                                            return [a]
         alts fs (c:cs)                = do a <- mkAlt (fs++[LEFT]) c
@@ -140,12 +140,13 @@ mkFunPair (nm,DData vs ss cs)         = do [from,to] <- mapM newName ["from"++st
                                            r <- mkCase b cs (z:xs)
                                            lam1 <- eLam' [y] l
                                            lam2 <- eLam' [z] r
-                                           return (ECase (EVar x) [(pCon0 (prim LEFT),lam1),(pCon0 (prim RIGHT),lam2)])
+                                           return (ECase (EVar x) [Alt (pCon0 (prim LEFT)) lam1,
+                                                                   Alt (pCon0 (prim RIGHT)) lam2])
         mkCase t@(TAp (TAp (TId (Tuple 2 _)) a) b) cs (x:xs)
                                       = do [y,z] <- newNames paramSym 2
                                            r <- mkCase b cs (z:y:xs)
                                            lam <- eLam' [y,z] r
-                                           return (ECase (EVar x) [(pCon0 (tuple 2),lam)])
+                                           return (ECase (EVar x) [Alt (pCon0 (tuple 2)) lam])
         mkCase t (c:_) xs
           | t == tUnit                = return (ECon c)
           | otherwise                 = return (EAp (ECon c) (map EVar (reverse xs)))
@@ -169,7 +170,7 @@ mkShowInstance n sc s (nm, DData vs [] cs)
         mkShow                        = do x <- newName paramSym
                                            as <- mapM mkShowAlt cs
                                            eLam' [x] (ECase (EVar x) as)
-        mkShowAlt (nm,Constr [] _ _)  = return (pCon0 nm,ELit (LStr Nothing (str nm)))
+        mkShowAlt (nm,Constr [] _ _)  = return (Alt (pCon0 nm) (ELit (LStr Nothing (str nm))))
         mkShowAlt (nm,_)              = errorIds "Sorry, as yet only default Show for enumeration types, without constructors as" [nm]
 --        cons                          = ECon (prim CONS)
 --        nil                           = ECon (prim NIL)
@@ -187,7 +188,7 @@ mkParseInstance n eq sc s (nm, DData vs [] cs)
                                            as <- mapM (mkParseAlt x) cs
                                            eLam' [x] (eMatch (foldr eFatbar (eCommit (EAp (ECon (prim LEFT)) [mkList "no Parse"])) as))
         mkParseAlt x (nm,Constr [] _ _) = return (ECase (EAp eq [EVar x, mkList (str nm)])
-                                                  [(pCon0 (prim TRUE),eCommit (EAp (ECon (prim RIGHT)) [ECon nm])),(PWild,eFail)])
+                                                  [Alt (pCon0 (prim TRUE)) (eCommit (EAp (ECon (prim RIGHT)) [ECon nm])),Alt PWild eFail])
         mkParseAlt x (nm,_)           = errorIds "Sorry, as yet only default Parse for enumeration types, without constructors as" [nm]
 --        cons                          = ECon (prim CONS)
 --        nil                           = ECon (prim NIL)

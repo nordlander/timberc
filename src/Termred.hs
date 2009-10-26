@@ -137,7 +137,8 @@ finite env (EAp e es)           = all (finite env) (e:es)
 finite env (ELet bs e)          = fin bs && finite (addArgs env (bvars bs)) e
   where fin (Binds True _ _)    = False
         fin (Binds _ _ eqns)    = all (finite env . snd) eqns
-finite env (ECase e alts)       = finite env e && all (finite env . snd) alts
+--finite env (ECase e alts)     = finite env e && all (finite env . snd) alts
+finite env (ECase e alts)       = finite env e && and [finite env e|Alt p e<-alts]
 finite env e                    = False
 
 
@@ -163,8 +164,8 @@ walkEqs env te fw (eq:eqs)      = do (eq,eqs1) <- doEq te eq
                                      return ((x,e), eqs)
           | otherwise           = return ((x,e), [])
           where ke              = quant (lookup' te x)
-        doAlt (p,e)             = do (e,eqs1) <- doExp e
-                                     return ((p,e), eqs1)
+        doAlt (Alt p e)         = do (e,eqs1) <- doExp e
+                                     return (Alt p e, eqs1)
         doExp (ESel e l)
           | isCoerceLabel l     = maybeDelay (\e -> ESel e l) e
           | otherwise           = do (e,eqs1) <- doExp e
@@ -270,8 +271,8 @@ redApp env (ELet bs e) es       = liftM (ELet bs) (redApp env e es)
 redApp env e es                 = return (EAp e es)
 
 
-appAlt env es (PCon c te,e)     = case skipLambda (conArity env c-length te) e es of
-                                    Just e' -> Just (PCon c te, e')
+appAlt env es (Alt(PCon c te) e)= case skipLambda (conArity env c-length te) e es of
+                                    Just e' -> Just (Alt (PCon c te) e')
                                     _       -> Nothing
 appAlt env es a                 = Just a
 
@@ -350,34 +351,34 @@ redCase env e alts              = case eFlat e of
 
 redAlts env alts
   | complete (cons env) cs      = do es <- mapM (redRhs env) es
-                                     return (ps `zip` es)
+                                     return (zipAlts ps es)
   | otherwise                   = do es0 <- mapM (redRhs env) es0
-                                     return (ps0 `zip` es0)
-  where (cs,ps,es)               = unzip3 [ (c,p,e) | (p@(PCon c _), e) <- alts ]
-        (ps0,es0)                = unzip alts
+                                     return (zipAlts ps0 es0)
+  where (cs,ps,es)               = unzip3 [ (c,p,e) | Alt p@(PCon c _) e <- alts ]
+        (ps0,es0)                = unzipAlts alts
   
 redRhs env (ELam te e)          = do e <- redRhs (addArgs env (dom te)) e
                                      return (ELam te e)
 redRhs env e                    = redExp env e
 
 
-findCon env k es ((PWild,e):_)  = redExp env e
-findCon env k es ((PCon k' te,e):_)
+findCon env k es (Alt PWild e:_)= redExp env e
+findCon env k es (Alt (PCon k' te) e:_)
   | k == k'                     = redExp env (eAp (eLam te e) es)
 findCon env k es (_:alts)       = findCon env k es alts
 
 
-findLit env l ((PWild,e):_)     = redExp env e
-findLit env l ((PLit l',e):_)
+findLit env l (Alt PWild e:_)   = redExp env e
+findLit env l (Alt (PLit l') e:_)
   | l == l'                     = redExp env e
 findLit env l (_:alts)          = findLit env l alts
 
 
-redCaseStrLit env l ((PWild,e):_) = redExp env e
-redCaseStrLit env l ((PLit l',e):_)
+redCaseStrLit env l (Alt PWild e:_) = redExp env e
+redCaseStrLit env l (Alt (PLit l') e:_)
  | l == l'                      = redExp env e
-redCaseStrLit env (LStr _ "") ((PCon (Prim NIL _) [],e):alts) = redExp env e
-redCaseStrLit env l@(LStr _ str) alts@((PCon (Prim CONS _) _,e):_)
+redCaseStrLit env (LStr _ "") (Alt (PCon (Prim NIL _) []) e:alts) = redExp env e
+redCaseStrLit env l@(LStr _ str) alts@(Alt (PCon (Prim CONS _) _) e:_)
                                 = redCase env (foldr (\x y -> EAp cons [chr x,y]) nil str) alts
    where chr x = ELit (LChr Nothing x)
          cons = ECon (prim CONS)
@@ -405,7 +406,7 @@ redPrim env p a es                          = eAp (EVar (Prim p a)) es
 redMatch env a (ELet bs e)                  = ELet bs (redMatch (addArgs env (bvars bs)) a e)
 redMatch env a (ELam te e)                  = ELam te (redMatch (addArgs env (dom te)) a e)
 redMatch env a (EAp (EVar (Prim Commit _)) [e]) = e
-redMatch env a (ECase e alts)               = ECase e (mapSnd (redMatch env a) alts)
+redMatch env a (ECase e alts)               = ECase e [Alt p (redMatch env a e)|Alt p e<-alts]
 redMatch env _ (EVar (Prim Fail a))         = EAp (EVar (Prim Raise a)) [ELit (lInt 1)]
 redMatch env _ e@(ELit _)                   = e
 redMatch env a e                            = EAp (EVar (Prim Match a)) [e]
@@ -505,8 +506,8 @@ instance Constrs Exp where
     constrs (EDo x t c)          = constrs c
     constrs _                    = []
 
-instance Constrs Alt where
-    constrs (p,e)                = constrs e
+instance Constrs e => Constrs (Alt e) where
+    constrs (Alt p e)            = constrs e
 
 
 instance Constrs Cmd where

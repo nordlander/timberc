@@ -197,7 +197,7 @@ s2cKSig (v,k)                   = do k <- s2cKind k
 -- Expressions and bindings ============================================================
 
 -- the translated default case alternative
-dflt                                    = [(Core.PWild, Core.EVar (prim Fail))]
+dflt                                    = [Core.Alt Core.PWild (Core.EVar (prim Fail))]
 
 
 -- translate a case alternative, inheriting type signature t top-down
@@ -209,11 +209,11 @@ s2cA s2cR env t (Alt p (RExp r))        = s2cA2 s2cR env t (p,r)
 s2cA2 s2cR env t (p,r)                  = s2cA' (pFlat p) r
   where
     s2cA' (PLit l,[]) e                 = do e' <- s2cR env t e
-                                             return (Core.PLit l, e')
+                                             return (Core.Alt (Core.PLit l)  e')
     s2cA' (PCon c,ps) e                 = do e' <- s2cR (addSigs te env) t e
                                              te' <- s2cTE te
-                                           --return (Core.PCon c [], Core.eLam te' e') -- old
-                                             return (Core.PCon c te', e') -- new
+                                           --return (Alt (Core.PCon c []) (Core.eLam te' e')) -- old
+                                             return (Core.Alt (Core.PCon c te') e') -- new
       where (te,t')                     = mergeT ps (lookupT c env)
 
 
@@ -310,7 +310,9 @@ s2cE env e                              = internalError "s2cE: did not expect" e
 --eMatch = Core.EMatch -- new
 eMatch = Core.eMatch . desugarMatch  -- compat
 
-desugarMatch = foldMatch Core.eCommit Core.eFail Core.eFatbar Core.ECase Core.ELet
+desugarMatch = foldMatch Core.eCommit Core.eFail Core.eFatbar eCase Core.ELet
+  where
+    eCase e = Core.ECase e . map (uncurry Core.Alt)
 
 s2cMc env t m =
   case m of
@@ -319,7 +321,7 @@ s2cMc env t m =
     MFatbar m1 m2 -> liftM2 MFatbar (s2cMc env t m1) (s2cMc env t m2)
     Case e alts   -> do e <- s2cEc env TWild e
                         alts <- mapM (s2cA2 s2cMc env t) alts
-                        return (Case e (alts++dflt)) -- dflt??
+                        return (Case e (uncurry zip (Core.unzipAlts alts)++dflt)) -- dflt??
       where
         dflt = [(Core.PWild, MFail)]
 

@@ -86,7 +86,8 @@ data Type       = TId     Name
                 | TAp     Type Type
                 deriving  (Eq,Show,Typeable)
 
-type Alt        = (Pat, Exp)
+data Alt a      = Alt Pat a
+                deriving (Eq,Show)
 
 data Pat        = PCon    Name TEnv
                 | PLit    Lit
@@ -99,7 +100,7 @@ data Exp        = ECon    Name
                 | ELam    TEnv Exp
                 | EAp     Exp [Exp]
                 | ELet    Binds Exp
-                | ECase   Exp [Alt]
+                | ECase   Exp [Alt Exp]
 --              | EMatch  (Match Pat Exp Binds Exp)
                 | ERec    Name Eqns
                 | ELit    Lit
@@ -110,7 +111,7 @@ data Exp        = ECon    Name
                 | EDo     Name Type Cmd
                 deriving (Eq,Show)
 
-type CAlt       = (Pat,Cmd)
+type CAlt       = Alt Cmd
 
 data Cmd        = CGen    Name Type Exp Cmd
                 | CAss    Name Exp Cmd
@@ -353,9 +354,13 @@ nullBinds                       = Binds True [] []
 
 clash (Binds r te es)           = not r && dom es `overlaps` evars es
 
+unzipAlts alts                  = unzip [(p,e)|Alt p e<-alts]
+zipAlts                         = zipWith Alt
 
-altPats                         = map fst
-altRhss                         = map snd
+altPat (Alt p e)                = p
+altRhs (Alt p e)                = e
+altPats                         = map altPat
+altRhss                         = map altRhs
 
 oplus eqs eqs'                  = filter ((`notElem` vs) . fst) eqs ++ eqs'
   where vs                      = dom eqs'
@@ -429,8 +434,8 @@ instance Ids Exp where
     idents (EDo x t c)          = filter (not . isState) (idents c \\ [x])
     idents _                    = []
 
-instance Ids Alt where
-    idents (p,e)                = idents e \\ idents p
+instance Ids r => Ids (Alt r) where
+    idents (Alt p r)            = idents r \\ idents p
 
 instance Ids e => Ids ([Exp],e) where
     idents (es,e)               = idents es ++ idents e
@@ -496,8 +501,8 @@ subst_let s (Binds False te eqns) e
   where bs'                     = Binds False (rename_dom r te) (rename_dom r eqns)
         (r,e')                  = subst_bvs s (dom eqns) e
 
---subst_Alt s (p,e)             = (p,subst s e) -- assuming no name clashes
-subst_Alt s (p,e)               = (subst r p,e')
+--subst_Alt s (Alt p e)         = (p,subst s e) -- assuming no name clashes
+subst_Alt s (Alt p e)           = Alt (subst r p) e'
   where (r,e')                  = subst_bvs s (idents p) e
 
 --subst_Gen s x e c             = (x,subst s e,subst s c) -- assuming no name clashes
@@ -548,11 +553,11 @@ instance Subst Cmd Name Exp where
     subst s (CRet e)            = CRet (subst s e)
     subst s (CExp e)            = CExp (subst s e)
 
-instance Subst Alt TVAR Type where
-    subst s (p,rh)              = (p, subst s rh)
+instance Subst r TVAR Type => Subst (Alt r) TVAR Type where
+    subst s (Alt p rh)          = Alt p (subst s rh)
 
-instance Subst Alt Name Type where
-    subst s (p,rh)              = (p, subst s rh)
+instance Subst r Name Type => Subst (Alt r) Name Type where
+    subst s (Alt p rh)          = Alt p (subst s rh)
 
 instance Subst (Exp, Exp) Name Exp where
     subst s (e,e')              = (subst s e, subst s e')
@@ -768,7 +773,7 @@ mustAc (ESel e l)               = mustAc e
 mustAc (ERec c eqs)             = any mustAc (rng eqs)
 mustAc (EReq e1 e2)             = any mustAc [e1,e2]
 mustAc (EAct e1 e2)             = any mustAc [e1,e2]
-mustAc (ECase e alts)           = any mustAc (e:rng alts)
+mustAc (ECase e alts)           = any mustAc (e:[e|Alt p e <-alts])
 mustAc e                        = False
 
 
@@ -805,8 +810,8 @@ instance AlphaConv Exp where
     ac s (ETempl x tx te c)     = do s' <- extSubst s (x : dom te)
                                      liftM4 ETempl (ac s' x) (ac s' tx) (ac s' te) (ac s' c)
 
-acAlt s (p,e)                   = do s' <- extSubst s (idents p)
-                                     liftM2 (,) (ac s' p) (ac s' e)
+acAlt s (Alt p e)               = do s' <- extSubst s (idents p)
+                                     liftM2 Alt (ac s' p) (ac s' e)
 
 instance AlphaConv Pat where
     ac s (PCon k te)            = liftM (PCon k) (ac s te)
@@ -932,8 +937,8 @@ instance Erase Exp where
     erase (EDo x t c)           = EDo x (erase t) (erase c)
     erase e                     = e
 
-instance Erase Alt where
-    erase (p,e)                 = (p, erase e)
+instance Erase r => Erase (Alt r) where
+    erase (Alt p e)             = Alt p (erase e)
 
 instance Erase Binds where
     erase (Binds r te es)       = Binds r (erase te) (erase es)
@@ -1161,8 +1166,8 @@ instance Pr Exp where
     prn 2 (ERec c eqs)          = prId c <+> text "{" <+> hpr ',' eqs <+> text "}"
     prn n e                     = parens (prn 0 e)
 
-instance Pr Alt where
-    pr (p, e)                   = pr p <+> text "->" $$ nest 4 (pr e)
+instance Pr r => Pr (Alt r) where
+    pr (Alt p e)                = pr p <+> text "->" $$ nest 4 (pr e)
 
 instance Pr Cmd where
     pr (CLet bs c)              = pr bs $$
@@ -1233,6 +1238,8 @@ instance HasPos Cmd where
   posInfo (CRet e)              = posInfo e
   posInfo (CExp e)              = posInfo e
 
+instance HasPos r => HasPos (Alt r) where
+  posInfo (Alt p e)             = posInfo (p,e)
   
 -- Binary --------------------------------------------------
 
@@ -1335,6 +1342,10 @@ instance Binary Exp where
       11 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (ETempl a b c d)
       12 -> get >>= \a -> get >>= \b -> get >>= \c -> return (EDo a b c)
       _ -> fail "no parse"
+
+instance Binary r => Binary (Alt r) where
+  put (Alt p e) = put (p,e)
+  get = fmap (uncurry Alt) get
 
 instance Binary Cmd where
   put (CGen a b c d) = putWord8 0 >> put a >> put b >> put c >> put d

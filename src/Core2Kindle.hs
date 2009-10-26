@@ -463,11 +463,11 @@ cAct env fa fb e                        = do (bf,t0,f,[ta,tb]) <- cFunExp env e
 -- =========================================================================================
 
 -- Translate a Core (Pat,Exp) pair into a Kindle.Alt result
-cAlt cBdy env (PLit l, e)               = do (t1,r) <- cBdy env e
+cAlt cBdy env (Alt (PLit l) e)          = do (t1,r) <- cBdy env e
                                              return (t1, rcomp (Kindle.ALit l) r)
-cAlt cBdy env (PWild, e)                = do (t1,r) <- cBdy env e
+cAlt cBdy env (Alt PWild e)             = do (t1,r) <- cBdy env e
                                              return (t1, rcomp Kindle.AWild r)
-cAlt cBdy env (PCon k te, e)            = do (vs,te,t,r) <- cRhs0 cBdy env (length te0) (eLam te e)
+cAlt cBdy env (Alt (PCon k te) e)       = do (vs,te,t,r) <- cRhs0 cBdy env (length te0) (eLam te e)
                                              return (t, rcomp (Kindle.ACon (injectCon k) vs te) r)
   where Kindle.Struct _ te0 _           = findDecl env k
 
@@ -551,7 +551,7 @@ cCmdFail env e0                         = do [t] <- cTArgs env e0
                                              return (t', ValR Kindle.CBreak)
 
 -- Translate the parts of a case expression into a Kindle.Cmd result
-cCase cE env e ((PCon k te,e'):_)
+cCase cE env e (Alt (PCon k te) e':_)
   | isTuple k                           = do (bf,_,e) <- cValExp env e
                                              (te,t1,r) <- cRhs cE env (width k) [] (eLam te e')
                                              let (xs,ts) = unzip te
@@ -632,7 +632,7 @@ cCmd env (CGen x tx (ECase e alts) c)
                                              (t,c2) <- cCmd env c
                                              return (t, Kindle.CSeq (Kindle.cMap (\_ -> Kindle.CBreak) c1) c2)
   where alts'                           = filter useful alts
-        useful (_,EDo _ _ (CRet e))     = e /= eUnit
+        useful (Alt _ (EDo _ _ (CRet e)))= e /= eUnit
         useful _                        = True
 cCmd env (CGen x tx0 e c)               = do (bf,te,e) <- freezeState env e
                                              (bf',e) <- cValExpT (addTEnv te env) tx (EAp e [EVar (self env)])
@@ -712,9 +712,9 @@ instance Fragile Exp where
     fragile (ECase e alts)              = fragile e ++ concatMap fragile alts
     fragile _                           = []
 
-instance Fragile (Pat,Exp) where
-    fragile (_,ELam te e)               = fragile e
-    fragile (_,e)                       = fragile e
+instance Fragile (Alt Exp) where
+    fragile (Alt _ (ELam te e))         = fragile e
+    fragile (Alt _ e)                   = fragile e
     
 instance Fragile Binds where
     fragile bs                          = concatMap fragile (rng (eqnsOf bs))

@@ -297,11 +297,11 @@ drive env e@(EDo n t cmd) = do
 drive env e = error ("No matching rule " ++ show' e)
 
 
-driveLegCtxtDown env (PCon n' te, e) = do
+driveLegCtxtDown env (Alt (PCon n' te) e) = do
   let freshE = ctxt env $ e
 --  tr ("Leg: " ++ show' freshE)
   (e', used) <- drive (env {ctxt = emptyContext, inSet = te ++ inSet env}) freshE
-  return ((PCon n' te, e'), used)
+  return (Alt (PCon n' te) e', used)
 {-
 driveLegCtxtDown env (PCon n', e) = do
   let freshE = ctxt env $ e
@@ -309,17 +309,17 @@ driveLegCtxtDown env (PCon n', e) = do
   (e', used) <- drive (env {ctxt = emptyContext}) freshE
   return ((pCon0 n', e'), used)
 -}
-driveLegCtxtDown env (PLit l, e) = do
+driveLegCtxtDown env (Alt (PLit l) e) = do
   let freshE = ctxt env $ e
 --  tr ("Leg: " ++ show' freshE)
   (e', used) <- drive (env {ctxt = emptyContext}) freshE
-  return ((PLit l, e'), used)
-driveLegCtxtDown env (PWild, ELam te e) = error ("PWild " ++ show' e)
-driveLegCtxtDown env (PWild, e) = do
+  return (Alt (PLit l) e', used)
+driveLegCtxtDown env (Alt PWild (ELam te e)) = error ("PWild " ++ show' e)
+driveLegCtxtDown env (Alt PWild e) = do
   let freshE = ctxt env $ e
 --   tr ("Leg: " ++ show' freshE)
   (e', used) <- drive (env {ctxt = emptyContext}) freshE
-  return ((PWild, e'), used)
+  return (Alt PWild e', used)
 
 driveApp :: ScpEnv -> Exp -> Maybe [Exp] -> M (Maybe Exp, Scheme, Name, Exp) (Exp, [(Name, Maybe Exp)])
 driveApp env (EVar n) args 
@@ -475,12 +475,13 @@ split' (ECase e alts) = do
   let p = map separatePat alts
       (pats, legs) = unzip p
       alts' = zipWith mergePat p (map EVar xs)
-  return (ECase (EVar x) alts', (x, e):zip xs legs, map scheme (t:ts))
-  where --separatePat (PCon k, ELam te e) = ((pCon0 k, Just te), e)
-        separatePat (PCon k te, e) = ((pCon0 k, Just te), e)
-        separatePat (k, e) = ((k, Nothing), e)
-        mergePat ((PCon k [], Just te), e) x = (pCon0 k, ELam te x)
-        mergePat ((k, Nothing), e) x = (k, x)
+  return (ECase (EVar x) alts', (x,e):zip xs legs, map scheme (t:ts))
+  where --separatePat (Alt (PCon k) (ELam te e)) = ((pCon0 k, Just te), e)
+        separatePat (Alt (PCon k te) e) = ((pCon0 k, Just te), e)
+        separatePat (Alt k e) = ((k, Nothing), e)
+        --mergePat ((PCon k [], Just te), e) x = Alt (pCon0 k) (ELam te x)
+        mergePat ((PCon k [], Just te), e) x = Alt (PCon k te) x
+        mergePat ((k, Nothing), e) x = Alt k x
 split' (ERec n eqns) = do
   xs <- newNames "intermediate_name" (length eqns)
   t <- newTvar Star
@@ -561,7 +562,7 @@ dive (ESel e _) = [e]
 dive (ELam _ e) = [e]
 dive (EAp e1 args) = e1:args
 dive (ELet (Binds _ _ eqs) body) = rng eqs ++ [body]
-dive (ECase cond legs) = cond:rng legs
+dive (ECase cond legs) = cond:altRhss legs
 dive (ERec _ eqs) = rng eqs
 dive (EAct e1 e2) = [e1, e2]
 dive (EReq e1 e2) = [e1, e2]
@@ -595,7 +596,7 @@ peel gf (ELet (Binds r1 te1 eq1) e1) (ELet (Binds r2 te2 eq2) e2)
   | otherwise = False
 peel gf (ECase c1 legs1) (ECase c2 legs2) 
   | length legs1 == length legs2 = isHomemb gf c1 c2 && 
-      and (zipWith (isHomemb gf) (map snd legs1) (map snd legs2))
+      and (zipWith (isHomemb gf) (altRhss legs1) (altRhss legs2))
   | otherwise = False
 -- XXXpj eqs kan vara permuterade
 peel gf (ERec n1 eqs1) (ERec n2 eqs2) = n1 == n2
@@ -663,7 +664,7 @@ msg env (EAp e1 args1, EAp e2 args2, s)
 msg env (ELet (Binds r1 te1 eq1) e1, ELet (Binds r2 te2 eq2) e2, s) = error "msg, ELet"
 -- XXXpj FIXME Bleh. [(p, e)]
 msg env (ECase c1 legs1, ECase c2 legs2, s) 
-  | map fst legs1 == map fst legs2 = do
+  | altPats legs1 == altPats legs2 = do
     t <- newTvar Star
     (c', s1, t1) <- msg env (c1, c2, scheme t)
     ts <- newTvars Star (length legs1)
@@ -676,10 +677,10 @@ msg env (ECase c1 legs1, ECase c2 legs2, s)
   | otherwise = do
     n <- newName "tmp"
     return (EVar n, [(n, ECase c1 legs1)], [s])
-    where --separatePats (PCon k, ELam te1 e1) (PCon _, ELam te2 e2) = (e1, e2)
-          separatePats (PCon k te1, e1) (PCon _ te2, e2) = (e1, e2)
-          separatePats (k, e1) (_, e2) = (e1, e2)
-          mergePats s (p, Just (ELam te1 e1)) e = tr' ("mPats: " ++ show te1') $ (p, ELam te1' e)
+    where --separatePats (Alt (PCon k) (ELam te1 e1)) (Alt (PCon _) (ELam te2 e2)) = (e1, e2)
+          separatePats (Alt (PCon k te1) e1) (Alt (PCon _ te2) e2) = (e1, e2)
+          separatePats (Alt k e1) (Alt _ e2) = (e1, e2)
+          mergePats s (p, Just (ELam te1 e1)) e = tr' ("mPats: " ++ show te1') $ (Alt p (ELam te1' e))
               where te1' = updateTe s te1 
                     updateTe [] te = te
                     updateTe ((n, EVar x):t) te = tr' ("Substar: " ++ show n ++ " for " ++ show x) $ updateTe t (updateTe' x n te)
@@ -687,10 +688,10 @@ msg env (ECase c1 legs1, ECase c2 legs2, s)
                     updateTe' _ _ [] = []
                     updateTe' x x' ((n, v):t) | x == n = (x', v):updateTe' x x' t
                                               | otherwise = (n, v):updateTe' x x' t
-          mergePats s (p, Nothing) e = (p, e)
+          mergePats s (p, Nothing) e = Alt p e
           --collectLambdas (PCon k, ELam te1 e1) = (pCon0 k, Just (ELam te1 e1))
-          collectLambdas (PCon k te1, e1) = (pCon0 k, Just (ELam te1 e1))
-          collectLambdas (k, e) = (k, Nothing)
+          collectLambdas (Alt (PCon k te1) e1) = (pCon0 k, Just (ELam te1 e1))
+          collectLambdas (Alt k e) = (k, Nothing)
 msg env (ERec n1 eq1, ERec n2 eq2, s)
   | n1 == n2 = return (ERec n1 eq1, [], [])
   | otherwise = do
@@ -791,9 +792,9 @@ isCommonExp gf ((ELet (Binds r1 te1 eq1) e1, ELet (Binds r2 te2 eq2) e2):t)
 isCommonExp gf ((ECase cond1 legs1, ECase cond2 legs2):t) 
   | p1 == p2 = isCommonExp gf ((cond1, cond2):newlegs ++ t)
   | otherwise = Nothing
-    where newlegs = zip (map snd legs1) (map snd legs2)
-          p1 = map fst legs1
-          p2 = map fst legs2
+    where newlegs = zip (altRhss legs1) (altRhss legs2)
+          p1 = altPats legs1
+          p2 = altPats legs2
 isCommonExp gf ((ERec n1 eq1, ERec n2 eq2):t) 
   | n1 == n2 && 
      length eq2 == length eq2 = isCommonExp gf (neweqs ++ t)
@@ -851,7 +852,7 @@ strict x (ELet (Binds True _ eq) body) = strict x body
 strict x (ELet (Binds False _ eq) body) = res
     where res = strict x body || any (strict x) (rng eq)
 strict x (ECase cond legs) = strict x cond || strictLegs
-   where strictLegs = all (\(_, e) -> strict x e) legs
+   where strictLegs = all (strict x . altRhs) legs
 -- XXXpj Is this right?
 strict x (ERec _ eqns) = any (strict x) (rng eqns)
 strict x (ELit _) = False
@@ -971,23 +972,23 @@ eBool True = ECon (prim TRUE)
 eBool False = ECon (prim FALSE)
 
 
-findCon k ((PWild,e):_)  = e
-findCon k ((PCon k' _,e):_)
+findCon k (Alt PWild e:_)  = e
+findCon k (Alt (PCon k' _) e:_)
   | k == k'                     = e
 findCon k (_:alts)       = findCon k alts
 
 
-findLit l ((PWild,e):_)     = e
-findLit l ((PLit l',e):_)
+findLit l (Alt PWild e:_)     = e
+findLit l (Alt (PLit l') e:_)
   | l == l'                     = e
 findLit l (_:alts)          = findLit l alts
 findLit _ p = error (show p)
 
-driveCaseStrLit env l ((PWild, e):_) = drive (env {ctxt = emptyContext}) (ctxt env $ e)
-driveCaseStrLit env l ((PLit l',e):_)
+driveCaseStrLit env l (Alt PWild e:_) = drive (env {ctxt = emptyContext}) (ctxt env $ e)
+driveCaseStrLit env l (Alt (PLit l') e:_)
   | l == l'                     = drive (env {ctxt = emptyContext}) (ctxt env $ e)
-driveCaseStrLit env (LStr _ "") ((PCon (Prim NIL _) [],e):alts) = drive (env {ctxt = emptyContext}) (ctxt env $ e)
-driveCaseStrLit env (LStr _ str) alts@((PCon (Prim CONS _) _,e):_) = do
+driveCaseStrLit env (LStr _ "") (Alt (PCon (Prim NIL _) []) e:alts) = drive (env {ctxt = emptyContext}) (ctxt env $ e)
+driveCaseStrLit env (LStr _ str) alts@(Alt (PCon (Prim CONS _) _) e:_) = do
   let nil = ECon (prim NIL)
       cons = ECon (prim CONS)
       chr x = ELit (LChr Nothing x)

@@ -254,8 +254,8 @@ tiExp env (ECase e alts)        = do alpha <- newTvar Star
                                      (s1,pe1,e')  <- tiExpT env (scheme t0) e
                                      e <- mkCaseTerm env e' (tId (tHead t0)) pats es'
                                      return (s++s1, pe++pe1, R t1, e)
-  where (pats,es)               = unzip (map argsToRhs alts)
-        argsToRhs (PCon k te,e) = (PCon k [],eLam te e)
+  where (pats,es)               = unzipAlts (map argsToRhs alts)
+        argsToRhs (Alt (PCon k te) e) = Alt (PCon k []) (eLam te e)
         argsToRhs alt           = alt
         tiPat env x (PLit l)    = tiExp env (EAp (EVar x) [ELit l])
         tiPat env x (PCon k []) = do (t,_) <- inst (findType env k)
@@ -336,12 +336,12 @@ mkRecTerm env c sels es         = return (mkOne c)
 
 -- Build a case term -------------------------------------------------------------------------------------------------------
 mkCaseTerm env e0 c pats0 es0
-  | any isLitPat pats0          = return (ECase e0 (pats0 `zip` es0))
+  | any isLitPat pats0          = return (ECase e0 (zipAlts pats0 es0))
   | otherwise                   = mkOne e0 c
-  where (altsK,altsW)           = partition (isConPat . fst) (pats0 `zip` es0)
-        (pats,es)               = unzip altsK
+  where (altsK,altsW)           = partition (isConPat . altPat) (zipAlts pats0 es0)
+        (pats,es)               = unzipAlts altsK
         cs                      = map ptype pats
-        groups                  = map (\c -> (c, [ (p,e) | (c',p,e) <- zip3 cs pats es, c == c' ])) (nub cs)
+        groups                  = map (\c -> (c, [ Alt p e | (c',p,e) <- zip3 cs pats es, c == c' ])) (nub cs)
         graph                   = nodesFrom c
         nodesFrom c             = (c,ns) : concatMap nodesFrom (rng ns)
           where ns              = [ (con w, fst (subsyms p)) | (w,p) <- nodes wg, w `notElem` indirect ]
@@ -355,7 +355,7 @@ mkCaseTerm env e0 c pats0 es0
         mkAlt0 (k,c)            = do x <- newName tempSym
                                      (F [sc] _, _) <- inst (findType env k)
                                      e <- mkOne (EVar x) c
-                                     return (pCon0 k, ELam [(x,sc)] e)
+                                     return (Alt (pCon0 k) (ELam [(x,sc)] e))
 
         
 
