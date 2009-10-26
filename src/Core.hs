@@ -468,10 +468,10 @@ subst_bvs' s bvs ifvs           = (r,s')
     -- more accurate, but more expensive (always computes inner free variables):
   --s'                          = [(x, e) | (x, e) <- s, x `notElem` bvs, x `elem` ifvs]
 
--- Given a list of names to avoid, map the names xs to fresh names
-newvars avoid xs                = zipWith new [m..] xs
-  where new i x                 = (x,x{tag=i})
-        m                       = 1+maximum [t|Name{tag=t}<-avoid]
+    -- Given a list of names to avoid, map the names xs to fresh names
+    newvars avoid xs                = zipWith new xs [m..]
+      where new x i                 = (x,x{tag=i})
+            m                       = 1+maximum [t|Name{tag=t}<-avoid]
 
 subst_bvs s bvs inner           = (r,subst (mapSnd EVar r++s') inner)
   where (r,s')                  = subst_bvs' s bvs (idents inner)
