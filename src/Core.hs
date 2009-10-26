@@ -509,6 +509,14 @@ subst_Alt s (Alt p e)           = Alt (subst r p) e'
 subst_Gen s x e c               = (rename_var r x,e,c')
   where (r,c')                  = subst_bvs s [x] c
 
+--subst_EDo s x t c             = EDo x t (subst s c) -- assuming no name clashes
+subst_EDo s x t c               = EDo (rename_var r x) t c'
+  where (r,c')                  = subst_bvs s [x] c
+
+--subst_ETempl s x t te c       = ETempl x t te (subst s c) -- assuming no name clashes
+subst_ETempl s x t te c         = ETempl (rename_var r x) t (rename_dom r te) c'
+  where (r,c')                  = subst_bvs s (x:dom te) c
+
 -- Substitutions (Exp) --------------------------------------------------------------
 
 instance Subst Binds Name Exp where
@@ -536,8 +544,8 @@ instance Subst Exp Name Exp where
     subst s (ERec c eqs)        = ERec c (subst s eqs)
     subst s (EAct e e')         = EAct (subst s e) (subst s e')
     subst s (EReq e e')         = EReq (subst s e) (subst s e')
-    subst s (ETempl x t te c)   = ETempl x t te (subst s c)
-    subst s (EDo x t c)         = EDo x t (subst s c)
+    subst s (ETempl x t te c)   = subst_ETempl s x t te c
+    subst s (EDo x t c)         = subst_EDo s x t c
     subst s e                   = e
 
 -- Renaming the variables in a pattern
