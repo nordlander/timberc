@@ -1039,17 +1039,18 @@ instance Pr Binds where
     pr (Binds _ te eqns)        = vpr te $$ vpr eqns
     
 instance Pr (Name, Scheme) where
-    pr (v, sc)                  = prId v <+> text "::" <+> pr sc
+    prn 0 (v, sc)                 = prId v <+> text "::" <+> pr sc
 --      where sc'                 = subst s sc
 --            s                   = map f (tyvars sc)
 --            f v@(Name s n m a)  = (v, Name ('_':s) n m a)
 --            f v                 = (v,v)
-                                  
+    prn _ ns                      = parens (prn 0 ns)
+
 instance Pr (Name, Exp) where
     pr (v, e)                   = prId v <+> text "=" <+> pr e
 
 instance Pr [(Name, Scheme)] where
-    pr ss                       = vpr ss
+    prn n ss                    = vcat (map (prn n) ss)
         
 
 prTop ws te                     = vcat (map pr' te)
@@ -1138,7 +1139,7 @@ instance Pr a => Pr (a, Type) where
 -- Patterns ----------------------------------------------------------------
 
 instance Pr Pat where
-    pr (PCon k te)              = prId k <+> pr te
+    pr (PCon k te)              = prId k <+> prn 2 te
     pr (PLit l)                 = pr l
     pr (PWild)                  = text "_"
     
