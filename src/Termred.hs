@@ -337,7 +337,7 @@ redCase env e alts
   | isRaise e                   = return e
 redCase env e@(EVar x) alts     = case lookup x (eqns env) of
                                     Just e' | inline (eFlat e') -> do e' <- alphaConvert e'; redCase env e' alts
-                                    Nothing -> liftM (ECase e) (redAlts env alts)
+                                    _ -> liftM (ECase e) (redAlts env alts)
   where inline (ECon _,_)       = True
         inline (ELit _,_)       = True
         inline (EVar _, [])     = True
