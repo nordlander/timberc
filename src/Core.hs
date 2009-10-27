@@ -561,11 +561,11 @@ instance Subst Cmd Name Exp where
     subst s (CRet e)            = CRet (subst s e)
     subst s (CExp e)            = CExp (subst s e)
 
-instance Subst r TVAR Type => Subst (Alt r) TVAR Type where
-    subst s (Alt p rh)          = Alt p (subst s rh)
+instance Subst r TVAR Type => Subst (Alt r) TVAR Type where subst = subst_Alt_Type
+instance Subst r Name Type => Subst (Alt r) Name Type where subst = subst_Alt_Type
 
-instance Subst r Name Type => Subst (Alt r) Name Type where
-    subst s (Alt p rh)          = Alt p (subst s rh)
+subst_Alt_Type s (Alt p rh)     = Alt (subst s p) (subst s rh)
+
 
 instance Subst (Exp, Exp) Name Exp where
     subst s (e,e')              = (subst s e, subst s e')
@@ -590,6 +590,14 @@ instance Subst Exp TVAR Type where
     subst s (ETempl x t te c)   = ETempl x (subst s t) (subst s te) (subst s c)
     subst s (EDo x t c)         = EDo x (subst s t) (subst s c)
     subst s e                   = e
+
+instance Subst Pat TVAR Type where subst = subst_Pat_Type
+instance Subst Pat Name Type where subst = subst_Pat_Type
+
+subst_Pat_Type s (PCon k te)    = PCon k (subst s te)
+subst_Pat_Type s (PLit l)       = PLit l
+subst_Pat_Type s PWild          = PWild
+
 
 instance Subst Cmd TVAR Type where
     subst s (CLet bs c)         = CLet (subst s bs) (subst s c)
