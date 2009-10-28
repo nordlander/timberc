@@ -430,18 +430,20 @@ instance Ids Pat where
     idents (PWild)                  = []
 
 instance Ids Exp where
-    idents (EVar v)             = [v]
+    idents (ECon _)             = []
     idents (ESel e l)           = idents e
+    idents (EVar v)             = [v]
     idents (ELam te e)          = idents e \\ dom te
     idents (EAp e es)           = idents e ++ idents es
     idents (ELet bs e)          = idents bs ++ (idents e \\ bvars bs)
     idents (ECase e alts)       = idents e ++ idents alts
     idents (ERec c eqs)         = idents eqs
+    idents (ELit _)             = []
     idents (EAct e e')          = idents e ++ idents e'
     idents (EReq e e')          = idents e ++ idents e'
     idents (ETempl x t te c)    = idents c \\ (x : dom te)
     idents (EDo x t c)          = filter (not . isState) (idents c \\ [x])
-    idents _                    = []
+
 
 instance Ids r => Ids (Alt r) where
     idents (Alt p r)            = idents r \\ idents p
@@ -542,20 +544,21 @@ instance Subst Binds Name Exp where
 
 instance Subst Exp Name Exp where
     subst [] e                  = e
+    subst s e@(ECon _)          = e
+    subst s (ESel e l)          = ESel (subst s e) l
     subst s (EVar v)            = case lookup v s of
                                       Just e  -> e
                                       Nothing -> EVar v
-    subst s (ESel e l)          = ESel (subst s e) l
     subst s (ELam te e)         = subst_ELam s te e
     subst s (EAp e es)          = EAp (subst s e) (subst s es)
     subst s (ELet bs e)         = uncurry ELet (subst_let s bs e)
     subst s (ECase e alts)      = ECase (subst s e) (map (subst_Alt s) alts)
     subst s (ERec c eqs)        = ERec c (subst s eqs)
+    subst s e@(ELit _)          = e
     subst s (EAct e e')         = EAct (subst s e) (subst s e')
     subst s (EReq e e')         = EReq (subst s e) (subst s e')
     subst s (ETempl x t te c)   = subst_ETempl s x t te c
     subst s (EDo x t c)         = subst_EDo s x t c
-    subst s e                   = e
 
 -- Renaming the variables in a pattern
 instance Subst Pat Name Name where
@@ -588,17 +591,19 @@ instance Subst Binds TVAR Type where
 
 instance Subst Exp TVAR Type where
     subst [] e                  = e
+    subst s e@(ECon _)          = e
     subst s (ESel e l)          = ESel (subst s e) l
+    subst s e@(EVar _)          = e
     subst s (ELam te e)         = ELam (subst s te) (subst s e)
     subst s (EAp e es)          = EAp (subst s e) (subst s es)
     subst s (ELet bs e)         = ELet (subst s bs) (subst s e)
     subst s (ECase e alts)      = ECase (subst s e) (subst s alts)
     subst s (ERec c eqs)        = ERec c (subst s eqs)
+    subst s e@(ELit _)          = e
     subst s (EAct e e')         = EAct (subst s e) (subst s e')
     subst s (EReq e e')         = EReq (subst s e) (subst s e')
     subst s (ETempl x t te c)   = ETempl x (subst s t) (subst s te) (subst s c)
     subst s (EDo x t c)         = EDo x (subst s t) (subst s c)
-    subst s e                   = e
 
 instance Subst Pat TVAR Type where subst = subst_Pat_Type
 instance Subst Pat Name Type where subst = subst_Pat_Type
@@ -622,17 +627,19 @@ instance Subst Binds Name Type where
 
 instance Subst Exp Name Type where
     subst [] e                  = e
+    subst s e@(ECon _)          = e
     subst s (ESel e l)          = ESel (subst s e) l
+    subst s e@(EVar _)          = e
     subst s (ELam te e)         = ELam (subst s te) (subst s e)
     subst s (EAp e es)          = EAp (subst s e) (subst s es)
     subst s (ELet bs e)         = ELet (subst s bs) (subst s e)
     subst s (ECase e alts)      = ECase (subst s e) (subst s alts)
     subst s (ERec c eqs)        = ERec c (subst s eqs)
+    subst s e@(ELit _)          = e
     subst s (EAct e e')         = EAct (subst s e) (subst s e')
     subst s (EReq e e')         = EReq (subst s e) (subst s e')
     subst s (ETempl x t te c)   = ETempl x (subst s t) (subst s te) (subst s c)
     subst s (EDo x t c)         = EDo x (subst s t) (subst s c)
-    subst s e                   = e
 
 instance Subst Cmd Name Type where
     subst s (CLet bs c)         = CLet (subst s bs) (subst s c)
@@ -790,17 +797,19 @@ class AlphaConv a where
 alphaConvert e | mustAc e       = ac nullSubst e
                | otherwise      = return e
 
-mustAc (ELam te e)              = True
-mustAc (ELet bs e)              = True
-mustAc (EDo x tx c)             = True
-mustAc (ETempl x tx te c)       = True
-mustAc (EAp e es)               = any mustAc (e:es)
+mustAc (ECon _)                 = False
 mustAc (ESel e l)               = mustAc e
-mustAc (ERec c eqs)             = any mustAc (rng eqs)
-mustAc (EReq e1 e2)             = any mustAc [e1,e2]
-mustAc (EAct e1 e2)             = any mustAc [e1,e2]
+mustAc (EVar _)                 = False
+mustAc (ELam te e)              = True
+mustAc (EAp e es)               = any mustAc (e:es)
+mustAc (ELet bs e)              = True
 mustAc (ECase e alts)           = any mustAc (e:altRhss alts)
-mustAc e                        = False
+mustAc (ERec c eqs)             = any mustAc (rng eqs)
+mustAc (ELit _)                 = False
+mustAc (EAct e1 e2)             = any mustAc [e1,e2]
+mustAc (EReq e1 e2)             = any mustAc [e1,e2]
+mustAc (ETempl x tx te c)       = True
+mustAc (EDo x tx c)             = True
 
 
 instance AlphaConv a => AlphaConv [a] where
@@ -950,7 +959,9 @@ instance Erase a => Erase (Name,a) where
     erase (x,e)                 = (x, erase e)
 
 instance Erase Exp where
+    erase e@(ECon _)            = e
     erase (ESel e l)            = ESel (erase e) l
+    erase e@(EVar _)            = e
     erase (ELam te e)           = ELam (erase te) (erase e)
     erase (EAp e es)            = EAp (erase e) (erase es)
     erase (ELet bs e)
@@ -958,11 +969,11 @@ instance Erase Exp where
       | otherwise               = ELet (erase bs) (erase e)
     erase (ECase e alts)        = ECase (erase e) (erase alts)
     erase (ERec c eqs)          = ERec c (erase eqs)
+    erase e@(ELit _)            = e
     erase (EAct e e')           = EAct (erase e) (erase e')
     erase (EReq e e')           = EReq (erase e) (erase e')
     erase (ETempl x t te c)     = ETempl x (erase t) (erase te) (erase c)
     erase (EDo x t c)           = EDo x (erase t) (erase c)
-    erase e                     = e
 
 instance Erase r => Erase (Alt r) where
     erase (Alt p e)             = Alt p (erase e)
