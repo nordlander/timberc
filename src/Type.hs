@@ -255,8 +255,6 @@ tiExp env (ECase e alts)        = do alpha <- newTvar Star
                                      e <- mkCaseTerm env e' (tId (tHead t0)) pats es'
                                      return (s++s1, pe++pe1, R t1, e)
   where (pats,es)               = unzipAlts (map argsToRhs alts)
-        argsToRhs (Alt (PCon k te) e) = Alt (PCon k []) (eLam te e)
-        argsToRhs alt           = alt
         tiPat env x (PLit l)    = tiExp env (EAp (EVar x) [ELit l])
         tiPat env x (PCon k []) = do (t,_) <- inst (findType env k)
                                      te <- newEnv paramSym (funArgs t)

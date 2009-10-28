@@ -351,11 +351,11 @@ redCase env e alts              = case eFlat e of
 
 redAlts env alts
   | complete (cons env) cs      = do es <- mapM (redRhs env) es
-                                     return (zipAlts ps es)
+                                     return (zipWith argsToLhs ps es)   -- normally zipAlts
   | otherwise                   = do es0 <- mapM (redRhs env) es0
-                                     return (zipAlts ps0 es0)
-  where (cs,ps,es)               = unzip3 [ (c,p,e) | Alt p@(PCon c _) e <- alts ]
-        (ps0,es0)                = unzipAlts alts
+                                     return (zipWith argsToLhs ps0 es0)  -- normally zipAlts
+  where (cs,ps,es)              = unzip3 [ (c,p,e) | Alt p@(PCon c _) e <- alts ]
+        (ps0,es0)               = unzipAlts alts
   
 redRhs env (ELam te e)          = do e <- redRhs (addArgs env (dom te)) e
                                      return (ELam te e)

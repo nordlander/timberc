@@ -357,6 +357,15 @@ clash (Binds r te es)           = not r && dom es `overlaps` evars es
 unzipAlts alts                  = unzip [(p,e)|Alt p e<-alts]
 zipAlts                         = zipWith Alt
 
+-- Move con args to rhs. Temporary fix until type checker understands con args on lhs.
+argsToRhs (Alt (PCon k te) e) = Alt (PCon k []) (eLam te e)
+argsToRhs alt           = alt
+
+-- Move con args back to lhs. Temporary fix until type checker keeps them on lhs.
+argsToLhs p@(PCon c []) (ELam te e) = Alt (PCon c te) e
+argsToLhs p e                       = Alt p e
+
+
 altPat (Alt p e)                = p
 altRhs (Alt p e)                = e
 altPats                         = map altPat

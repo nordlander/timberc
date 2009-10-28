@@ -161,8 +161,8 @@ t2Exp env (ECase e alts)        = do alpha <- newTvar Star
                                      (s0,e) <- t2ExpT env (scheme t0) e
                                      (s1,es) <- t2ExpTs env scs es
                                      let s = mergeSubsts [s0,s1]
-                                     return (s, R (subst s t1), ECase e (zipAlts ps es))
-  where (ps,es)                 = unzipAlts alts
+                                     return (s, R (subst s t1), ECase e (zipWith argsToLhs ps es))
+  where (ps,es)                 = unzipAlts (map argsToRhs alts)
         t2Pat env x (PLit l)    = t2Exp env (EAp (EVar x) [ELit l])
         t2Pat env x (PCon k []) = do (rh,_) <- t2Inst (findType env k)
                                      te <- newEnv paramSym (funArgs rh)
