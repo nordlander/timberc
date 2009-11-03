@@ -271,9 +271,9 @@ instance Desugar1 Exp where
             mkLocal s
               | fromMod s == modName env = dropMod s
               | otherwise          = s
-    ds1 env (EBStruct _ _ bs)      = EBStruct (Just c) labs (ds1 env bs)
+    ds1 env (EBStruct c0 _ bs)     = EBStruct (Just c) labs (ds1 env bs)
       where labs                   = selsFromType env c
-            c                      = typeFromSels env (sort (ren env sels))
+            c                      = case c0 of Just c -> c; _ -> typeFromSels env (sort (ren env sels))
             sels0                  = bvars bs
             cs                     = concat [ stuffedCons p | BEqn (LPat p) _ <- bs ]
             sels1                  = concatMap (boundSels env) cs \\ sels0
