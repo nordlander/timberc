@@ -571,7 +571,10 @@ prId3 n@(Name s t m a)
   | t == 0 || isCoerceLabel n || isCoerceConstr n 
                                 = text (s ++ maybe "" (('_' :) . modToundSc) m)
 prId3 (Name s t (Just _) a)
-  | not (public a)            = text (s ++ '_':show t)
+  | not (public a)            = text (id ++ '_':show t ++ suff)
+  where 
+    id                          = if okForC s then s else "_sym"
+    suff                        = if okForC s then "" else  "/* "++s++" */"
 prId3 (Name s n m a)            = text (id ++ tag ++ mod ++ suff)
   where 
     id                          = if okForC s then s else "_sym"
