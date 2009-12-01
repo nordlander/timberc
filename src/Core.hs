@@ -517,7 +517,7 @@ subst_Alt s (Alt p e)           = Alt (subst r p) e'
   where (r,e')                  = subst_bvs s (idents p) e
 
 --subst_Gen s x e c             = (x,subst s e,subst s c) -- assuming no name clashes
-subst_Gen s x e c               = (rename_var r x,e,c')
+subst_Gen s x e c               = (rename_var r x, subst s e, c')
   where (r,c')                  = subst_bvs s [x] c
 
 --subst_EDo s x t c             = EDo x t (subst s c) -- assuming no name clashes
