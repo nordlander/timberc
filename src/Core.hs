@@ -1092,7 +1092,7 @@ prConstrs []                    = empty
 prConstrs (c:cs)                = vcat (char '=' <+> pr c : map ((char '|' <+>) . pr) cs)
 
 instance Pr (Name,Constr) where
-    pr (i, Constr ts ps ke)     = prId i <+> hsep (map (prn 1) ts) <+> prContext ps ke
+    pr (i, Constr ts ps ke)     = prId i <+> hsep (map (prn 2) ts) <+> prContext ps ke
 
 
 -- Predicates --------------------------------------------------------------
