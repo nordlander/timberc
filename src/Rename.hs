@@ -277,7 +277,7 @@ renameD ks ts ss cs ws tcs is es bss []
 
 
 instance Rename Decl where
-  rename env d@(DKSig _ _)         = return d
+  rename env (DKSig c k)           = return (DKSig (renT env c) k)
   rename env (DData c vs ts cs)    = do env' <- extRenT env vs
                                         liftM2 (DData (renT env c) (map (renT env') vs)) (renameQTs env' ts) (rename env' cs)
   rename env (DRec isC c vs ts ss) = do env' <- extRenT env vs
