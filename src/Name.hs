@@ -478,7 +478,7 @@ isCoercion n                    = isGenerated n && str n == coercionSym
 isPatTemp n                     = isGenerated n && str n == patSym
 isDummy n                       = isGenerated n && str n == dummySym
 isCoerceLabel n                 = isGenerated n && isPrefixOf coerceLabelSym (str n)
-isCoerceConstr n                = isGenerated n && isPrefixOf coerceConstrSym (str n)
+isCoerceConstr n                = isGenerated n && isPrefixOf coerceConstrSym (tail(str n))
 isTApp n                        = isGenerated n && str n == tappSym
 isTAbs n                        = isGenerated n && str n == tabsSym
 isGCInfo n                      = isGenerated n && isPrefixOf gcinfoSym (str n)
