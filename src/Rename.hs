@@ -79,14 +79,7 @@ renE env n@(Tuple _ _)             = n
 renE env n@(Prim _ _)              = n
 renE env v                         = case lookup v (rE env) of
                                        Just n  -> n { annot = (annot v) {suppress = suppress (annot n), public = public (annot n)} }
-                                       Nothing -> checkQualError v (rE env)
-
-
-   where ms = [m | Name s t (Just m) _ <- dom (rE env), s == str v]
-         checkQualError v rE =  if fromMod v==Nothing && length ms > 1
-                                then errorIds ("Variable not in scope; imported from several modules (" ++ concat(intersperse ", " ms) ++")") [v]
-                                else errorIds "Undefined identifier" [v]
-                                
+                                       Nothing -> checkQualError "Variable" v (rE env)
 renS env n@(Tuple _ _)             = n
 renS env n@(Prim _ _)              = n
 renS env v                         = case lookup v (rS env) of
@@ -96,7 +89,7 @@ renS env v                         = case lookup v (rS env) of
 
 renL env v                         = case lookup v (rL env) of
                                        Just n  -> n { annot = (annot v){suppress = suppress (annot n), public = public (annot n)} }
-                                       Nothing -> errorIds "Undefined selector" [v]
+                                       Nothing -> checkQualError "Selector" v (rL  env)
 
 renT env n@(Tuple _ _)             = n
 renT env n@(Prim _ _)              = n
@@ -153,6 +146,11 @@ legalBind vs                        = map checkName vs
         checkName v
           | fromMod v == Nothing    = v
           | otherwise               = errorIds "Binding occurrence may not be qualified" [v]
+
+checkQualError mess v rX
+   | fromMod v==Nothing && length ms>1 = errorIds (mess ++ " not in scope; imported from several modules (" ++ concat(intersperse ", " ms) ++")") [v]
+   | otherwise                         = errorIds "Undefined identifier" [v]
+   where ms                            = [m | Name s t (Just m) _ <- dom rX, s == str v]
 
 
 -- Binding of overloaded names ------------------------------------------------------------------------
