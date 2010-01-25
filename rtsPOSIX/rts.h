@@ -49,8 +49,8 @@ typedef WORD *ADDR;
 #define Float float
 #define Char char
 #define Bool char
-#define FALSE char          // alias for singleton type
-#define TRUE char           // alias for singleton type
+#define FALSETYPE char          // alias for singleton type
+#define TRUETYPE char           // alias for singleton type
 #define TUP0 char
 
 #define UNIT TUP0
