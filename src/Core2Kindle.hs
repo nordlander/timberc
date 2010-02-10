@@ -431,7 +431,9 @@ cFun env e@(EAct _ _)                   = cAct env id id e
 cFun env e@(EAp e0 _) 
   | isPrim After e0 || isPrim Before e0 = cAct env id id e
 cFun env (ETempl x tx0 te0 c)           = do (t,c) <- cCmd (pushSelf x (addATEnv [(x,Kindle.tRef tx)] (addTEnv te env))) c
-                                             addToStore (n, Kindle.Struct vs te Kindle.Top)
+                                             store <- currentStore
+                                             if n `elem` dom store then return () else
+                                                addToStore (n, Kindle.Struct vs te Kindle.Top)
                                              y <- newName dummySym
                                              let e = Kindle.ENew (prim Ref) [tx] [(prim STATE, Kindle.Val tx (Kindle.ENew n ts []))]
                                              return ([(y,Kindle.tInt)], t, Kindle.cBind [(x,Kindle.Val (Kindle.tRef tx) e)] c)

@@ -885,6 +885,7 @@ instance AlphaConv Kind where
     ac s k                      = return k
     
 
+extSubst s xs  = return s
 extSubst s xs                   = do s' <- mapM ext xs
                                      return (s'++s)
   where ext x                   = do n <- newNum
@@ -1185,7 +1186,7 @@ instance Pr Exp where
                                        nest 4 (pr e')
     prn 0 (EReq e e')           = text "request@" <> prn 2 e $$
                                        nest 4 (pr e')
-    prn 0 (ETempl x t te c)     = text "class@" <> prId x $$
+    prn 0 (ETempl x t te c)     = text "class@" <> prId x <> text "::" <> pr t $$
                                        nest 4 (vpr te) $$
                                        nest 4 (pr c)
     prn 0 (EDo x t c)           = text "do@" <> prId x <> text "::" <> pr t $$
