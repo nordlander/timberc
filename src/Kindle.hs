@@ -821,7 +821,8 @@ instance Pr Alt where
 
 instance Pr Exp where
     prn 0 (ECall x [] [e1,e2])
-      | isInfix x                       = prn 0 e1 <+> prId2 x <+> prn 1 e2
+      | isInfix x && isSym x            = prn 1 e1 <+> prId2 x <+> prn 1 e2
+    prn 0 (ELit l)                      = prn 0 l
     prn 0 e                             = prn 1 e
 
 
@@ -832,7 +833,7 @@ instance Pr Exp where
 
     prn 2 (EVar x)                      = prId2 x
     prn 2 (EThis)                       = text "this"
-    prn 2 (ELit l)                      = pr l
+    prn 2 (ELit l)                      = prn 1 l
     prn 2 (ENew x ts bs)
       | all isVal bs                    = text "new" <+> prId2 x <> prTyargs ts <+> text "{" <> commasep prInit bs <> text "}"
     prn 2 (ENew x ts bs)                = text "new" <+> prId2 x <> prTyargs ts <+> text "{" $$

@@ -1191,6 +1191,7 @@ instance Pr Exp where
                                        nest 4 (pr c)
     prn 0 (EDo x t c)           = text "do@" <> prId x <> text "::" <> pr t $$
                                        nest 4 (pr c)
+    prn 0 (ELit l)              = prn 0 l
     prn 0 e                     = prn 1 e
 
     prn 1 (EAp e@(ELet bs _) es)
@@ -1202,7 +1203,7 @@ instance Pr Exp where
     prn 2 (ECon c)              = prId c
     prn 2 (ESel e s)            = prn 2 e <> text "." <> prId s
     prn 2 (EVar v)              = prId v
-    prn 2 (ELit l)              = pr l
+    prn 2 (ELit l)              = prn 1 l
     prn 2 (ERec c eqs)          = prId c <+> text "{" <+> hpr ',' eqs <+> text "}"
     prn n e                     = parens (prn 0 e)
 

@@ -234,10 +234,11 @@ instance Show Lit where
     show (LStr _ s)             = "LStr " ++ show s
     
 instance Pr Lit where
-    pr (LInt p i)                 = integer i
-    pr (LRat _ r)                 = rational r
-    pr (LChr _ c)                 = litChar c
-    pr (LStr _ s)                 = litString s
+    prn _ (LInt _ i)            = integer i
+    prn 0 (LRat _ r)            = rational r
+    prn _ (LRat _ r)            = parens (rational r)
+    prn _ (LChr _ c)            = litChar c
+    prn _ (LStr _ s)            = litString s
 
 
 instance HasPos Lit where
