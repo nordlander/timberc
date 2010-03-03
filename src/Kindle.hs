@@ -827,7 +827,7 @@ instance Pr Exp where
 
 
     prn 1 (ECall x [] [e])
-      | isUnaryOp x                     = prId2 x <> prn 1 e
+      | isUnaryOp x && isSym x          = prId2 x <> prn 1 e
     prn 1 (ECast t e)                   = parens (pr t) <> prn 1 e
     prn 1 e                             = prn 2 e
 
