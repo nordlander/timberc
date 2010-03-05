@@ -761,11 +761,20 @@ stateRef env                            = Kindle.ESel (Kindle.EVar (self env)) (
 -- Translating expressions
 -- =========================================================================================
 
+rename1 (Binds r te eqs) e              = do s <- mapM f xs
+                                             let s' = mapSnd EVar s
+                                             return (Binds r (rng s `zip` ts) (subst s ys `zip` subst s' es), subst s' e)
+  where (xs,ts)                         = unzip te
+        (ys,es)                         = unzip eqs
+        f x                             = do n <- newNum
+                                             return (x, x {tag = n})
+
 -- Translate a Core.Exp into an expression result that is either a value or a function,
 -- overflowing into a list of Kindle.Binds if necessary
 cExp env (ELet bs e)
   | isTAppEncoding bs                   = cExp (setTArgs env (map cAType (tAppTypes bs))) e
-  | not (isTAbsEncoding bs)             = do (te,bf) <- cBinds env bs
+  | not (isTAbsEncoding bs)             = do (bs,e) <- rename1 bs e
+                                             (te,bf) <- cBinds env bs
                                              (bf',t,h) <- cExp (addTEnv te env) e
                                              return (bf . bf', t, h)
 cExp env (ELit l)                       = return (id, Kindle.litType l, ValR (Kindle.ELit l))

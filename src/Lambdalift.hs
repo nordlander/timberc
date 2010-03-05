@@ -60,7 +60,8 @@ addDecls ds env                         = env { decls = ds ++ decls env }
 
 setThis vs xs env                       = env { thisSubst = vs `zip` map TThis [1..], thisVars = xs }
 
-addLocals te env                        = env { locals = te ++ locals env }
+addLocals te env                        = env { locals = te ++ prune (locals env) (dom te) }    -- prune so that shadowed variables don't
+                                                                                                -- get lifted multiple times
 
 addExpansions exps env                  = env { expansions = exps ++ expansions env }
 
