@@ -760,7 +760,7 @@ instance Pr Exp where
     prn 13 (ERec Nothing fs)    = text "{" <+> hpr ',' fs <+> text "}"
     prn 13 (ERec (Just(c,b)) fs)= prId c <+> text "{" <+> hpr ',' fs <+> (if b then empty else text "..") <+> text "}"
     prn 13 (EBStruct _ _ bs)    = text "struct" $$ nest 4 (vpr bs)
-    prn 13 (ENeg e)             = text "-" <+> prn 0 e
+    prn 13 (ENeg e)             = text "-" <> prn 0 e
     prn 13 (ESig e qt)          = parens (pr e <+> text "::" <+> pr qt)
     prn 13 (ETup es)            = parens (hpr ',' es)
     prn 13 (ESectR e op)        = parens (pr e <> prOp op)
