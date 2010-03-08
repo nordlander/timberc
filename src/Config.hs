@@ -72,9 +72,9 @@ module Config (
                ) where
 
 
-import Char
+import qualified Data.Char as Char
 import System.Console.GetOpt
-import System                 ( getArgs, getEnv, getProgName )
+import qualified System.Environment as System (getArgs, getEnv, getProgName)
 import qualified Control.Exception as Exception
 import Data.Dynamic
 
@@ -246,7 +246,7 @@ cmdLineOpts args     = do pager <- System.getEnv "PAGER" `catch` (\_ -> return "
                                   Exception.throwIO (CmdLineError (concat errs ++ msg))
 
 
-helpMsg              = do pgm <- getProgName
+helpMsg              = do pgm <- System.getProgName
                           return (usageInfo (header pgm) options)
   where header pgm   = "Usage: " ++ pgm ++ " [OPTION...] files..."
                          

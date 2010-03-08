@@ -11,7 +11,7 @@ import Config
 import Depend (groupBinds)
 
 import Debug.Trace (trace)
-import Char (ord, chr)
+import Data.Char (ord, chr)
 import Control.Monad (mapAndUnzipM)
 
 type InExp = Exp -- _Before_ transformation

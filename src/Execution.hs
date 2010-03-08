@@ -47,9 +47,10 @@ module Execution (
                   linkO,
                  ) where
     
-import System                 (system, exitWith, ExitCode(..))
-import qualified Monad
-import qualified Directory
+import System.Exit (exitWith, ExitCode(..))
+import System.Process (system)
+import qualified Control.Monad as Monad
+import qualified System.Directory as Directory
 import Common
 
 -- Timber compiler

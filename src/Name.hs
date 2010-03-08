@@ -35,11 +35,11 @@
 module Name where
 
 import Debug.Trace
-import List
+import Data.List
 import PP
 import Token
-import Char
-import Maybe
+import Data.Char
+import Data.Maybe
 import Data.Typeable
 import Data.Binary 
 
@@ -593,7 +593,7 @@ name2str n                      = render (prId3 n)
 
 modToPath m                     = m -- concat (List.intersperse "/" (splitString m))
 
-modToundSc m                    = concat (List.intersperse "_" (splitString m))
+modToundSc m                    = concat (Data.List.intersperse "_" (splitString m))
 
 packName n                      = show n
 

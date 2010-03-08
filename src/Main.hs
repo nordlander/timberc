@@ -33,14 +33,13 @@
 
 module Main where
 
--- Haskell98
-import System(getArgs)
-import List(isSuffixOf)
-import qualified Monad
-import qualified Char
+import System.Environment (getArgs)
+import Data.List (isSuffixOf)
+import qualified Control.Monad as Monad
+import qualified Data.Char as Char
 import qualified Control.Exception as Exception ( catch, catchJust )
 import System.Console.GetOpt
-import qualified Directory
+import qualified System.Directory as Directory
 
 -- Timber Compiler
 import System.FilePath

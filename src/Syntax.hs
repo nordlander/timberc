@@ -40,7 +40,7 @@ import Common
 import Lexer
 import PP
 import Data.Binary
-import Monad(liftM2)
+import Control.Monad(liftM2)
 
 data Module = Module Name [Import] [Decl] [Decl]
             deriving  (Show)

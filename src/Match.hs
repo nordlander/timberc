@@ -38,8 +38,8 @@ import Common
 import PP
 import Syntax hiding (eLam,eLet,rAp)
 import qualified Syntax
-import Monad
-import qualified List
+import Control.Monad
+import qualified Data.List as List
 
 pmc  :: HasMatch r => Exp    -> [Alt r]         -> M s r
 pmc' :: HasMatch r => [Name] -> [([Pat],Rhs r)] -> M s r

@@ -36,11 +36,11 @@
 module Common (module Common, module Name, isDigit) where
 
 import PP
-import qualified List
-import qualified Maybe
-import Monad(liftM2)
+import qualified Data.List as List
+import qualified Data.Maybe as Maybe
+import Control.Monad (liftM2)
 import Control.Exception
-import Char
+import Data.Char
 import Config
 import Name
 import Data.Typeable

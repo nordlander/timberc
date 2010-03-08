@@ -34,7 +34,7 @@
 module Interfaces where
 
 import Common
-import List (isPrefixOf)
+import Data.List (isPrefixOf)
 import Data.Binary
 import Rename 
 import Core
@@ -45,10 +45,10 @@ import qualified Core2Kindle
 import qualified Kindle 
 import Termred
 import qualified Config
-import System
+import System.Process (system)
 import Codec.Compression.BZip 
 import qualified Data.ByteString.Lazy
-import Directory
+import qualified System.Directory as Directory
 
 decodeCFile ti_file     = do str <- Data.ByteString.Lazy.readFile ti_file
                              return(decode(decompress str)) 
