@@ -95,7 +95,7 @@ data CmdLineOpts     = CmdLineOpts { isVerbose :: Bool,
                                      target    :: String,
                                      outfile   :: FilePath,
                                      root      :: String,
-                                     make      :: String,
+                                     make      :: Bool,
                                      api       :: Bool,
                                      pager     :: FilePath,
                                      shortcut  :: Bool,
@@ -142,8 +142,8 @@ options              = [ Option []
                                 "Define root of executable program",
                          Option []
                                 ["make"]
-                                (ReqArg Make "[MODULE.]NAME")
-                                "Make program with given root module",
+                                (NoArg Make)
+                                "Recursively run compiler on imported modules if necessary",
                          Option []
                                 ["api"]
                                 (NoArg Api)
@@ -194,7 +194,7 @@ data Flag            = Help
                      | Target String
                      | Outfile String
                      | Root String
-                     | Make String
+                     | Make
                      | Api
                      | Pager String
                      | ShortCut
@@ -265,8 +265,7 @@ mkCmdLineOpts flags  =  CmdLineOpts { isVerbose = find Verbose,
                                                   [ file | (Outfile file) <- flags ],
                                       root      = first "root"
                                                   [ root | (Root root) <- flags ],
-                                      make      = first ""
-                                                  [ root | Make root <- flags ],
+                                      make      = find Make,
                                       api       = find Api,
                                       pager     = first "less"
                                                   [ p | (Pager p) <- flags ],
