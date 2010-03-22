@@ -407,6 +407,10 @@ prim p                          = Prim p noAnnot
 
 tuple n                         = Tuple n noAnnot
 
+
+isModuleSyntax s                = all isConId (splitString s)
+  where isConId (x:xs)          = isUpper x && all isAlphaNum xs
+
 splitString s                   = case break (=='.') s of
                                     (local,[])  -> [local]                                 
                                     (qualStart,suf)  -> qualStart : splitString (tail suf)
