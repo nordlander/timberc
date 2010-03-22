@@ -118,10 +118,13 @@ t2ExpT env sc e                 = do (s,e) <- t2ExpTscoped env sc e
                                      return (s, e)
 
 
+--t2ExpTs' env scs es             = tr' ("#####\n" ++ render (nest 4 (vpr scs)) ++ "\n" ++ render (nest 4 (vpr es))) $ t2ExpTs env scs es
+
 t2ExpTs env [] []               = return (nullSubst, [])
 t2ExpTs env (sc:scs) (e:es)     = do (s1,e) <- t2ExpT env sc e
                                      (s2,es) <- t2ExpTs env scs es       
                                      return (mergeSubsts [s1,s2], e:es)
+t2ExpTs env scs es              = error ("#####\n" ++ render (nest 4 (vpr scs)) ++ "\n" ++ render (nest 4 (vpr es)))
 
 
 t2Exps env []                   = return (nullSubst, [], [])
@@ -165,7 +168,7 @@ t2Exp env (ECase e alts)        = do alpha <- newTvar Star
   where (ps,es)                 = unzipAlts (map argsToRhs alts)
         t2Pat env x (PLit l)    = t2Exp env (EAp (EVar x) [ELit l])
         t2Pat env x (PCon k []) = do (rh,_) <- t2Inst (findType env k)
-                                     te <- newEnv paramSym (funArgs rh)
+                                     te <- newEnv paramSym (conArgs rh)
                                      t2Exp env (eLam te (EAp (EVar x) [eAp (ECon k) (map EVar (dom te))]))
         t2Pat env x (PWild)     = do y <- newName tempSym
                                      t <- newTvar Star
@@ -234,6 +237,8 @@ t2Lhs env alpha t2X xs          = do x <- newName tempSym
     
 
 t2Inst (Scheme rh ps ke)        = do ts <- mapM newTvar ks
+--                                     tr ("Instantiating " ++ render (pr (Scheme rh ps ke)) ++ ", result: " ++ 
+--                                          render (pr (subst (vs `zip` ts) (tFun ps rh))))
                                      return (subst (vs `zip` ts) (tFun ps rh), ts)
   where (vs,ks)                 = unzip ke
 

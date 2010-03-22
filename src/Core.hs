@@ -307,9 +307,14 @@ uppersym p                      = snd (subsyms p)
 
 headsym                         = tId . tHead . body
 
-funArgs (F ts rh)               = ts
-funArgs rh                      = []
+conArgs (F ts rh)               = ts
+conArgs rh                      = []
 
+conRes (F ts (R t))             = t
+conRes (R t)                    = t
+
+isType (Scheme (R t) [] [])     = True
+isType _                        = False
 
 body (Scheme rh _ _)            = body' rh
   where body' (R c)             = c
@@ -358,12 +363,12 @@ unzipAlts alts                  = unzip [(p,e)|Alt p e<-alts]
 zipAlts                         = zipWith Alt
 
 -- Move con args to rhs. Temporary fix until type checker understands con args on lhs.
-argsToRhs (Alt (PCon k te) e) = Alt (PCon k []) (eLam te e)
-argsToRhs alt           = alt
+argsToRhs (Alt (PCon k te) e)   = Alt (PCon k []) (eLam te e)
+argsToRhs alt                   = alt
 
 -- Move con args back to lhs. Temporary fix until type checker keeps them on lhs.
-argsToLhs p@(PCon c []) (ELam te e) = Alt (PCon c te) e
-argsToLhs p e                       = Alt p e
+argsToLhs (PCon c []) (ELam te e) = Alt (PCon c te) e
+argsToLhs p e                   = Alt p e
 
 
 altPat (Alt p e)                = p
@@ -1160,7 +1165,7 @@ instance Pr a => Pr (a, Type) where
 -- Patterns ----------------------------------------------------------------
 
 instance Pr Pat where
-    pr (PCon k te)              = prId k <+> prn 2 te
+    pr (PCon k te)              = prId k <+> sep (map prParam te)
     pr (PLit l)                 = pr l
     pr (PWild)                  = text "_"
     

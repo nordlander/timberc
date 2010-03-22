@@ -342,8 +342,8 @@ redCase env e@(EVar x) alts     = case lookup x (eqns env) of
         inline (ELit _,_)       = True
         inline (EVar _, [])     = True
         inline _                = False
-redCase env (ELit l@(LStr _ _)) alts       
-                                =  redCaseStrLit env l alts
+redCase env (ELit l@(LStr _ _)) alts
+                                = redCaseStrLit env l alts
 redCase env (ELit l) alts       = findLit env l alts
 redCase env e alts              = case eFlat e of
                                     (ECon k, es) -> findCon env k es alts
@@ -356,7 +356,7 @@ redAlts env alts
                                      return (zipWith argsToLhs ps0 es0)  -- normally zipAlts
   where (cs,ps,es)              = unzip3 [ (c,p,e) | Alt p@(PCon c _) e <- alts ]
         (ps0,es0)               = unzipAlts alts
-  
+
 redRhs env (ELam te e)          = do e <- redRhs (addArgs env (dom te)) e
                                      return (ELam te e)
 redRhs env e                    = redExp env e

@@ -128,7 +128,7 @@ typeError e env msg                     = char e : "Type error " ++ (show (errPo
 -- Conservative reduction ----------------------------------------------------------------------
 
 reduce env pe                           = do -- tr ("###reduce\n" ++ render (nest 8 (vpr pe)) ) -- ++ "\n\n" ++ show (tvars (typeEnv env)))
-                                             (s,q,[],es) <- red [] (map mkGoal pe)
+                                             (s,q,es) <- red0 (map mkGoal pe)
                                              -- tr ("###result\n" ++ render (nest 8 (vpr q)))
                                              -- tr ("        " ++ show s)
                                              return (s, q, eLet pe (dom pe `zip` es))
@@ -167,31 +167,11 @@ simplify env pe                         = do cs <- newNames skolemSym (length tv
         ks                              = map tvKind tvs
 
 
-{-
-
-B x < C Int \\ x
-A x < B x \\ x, A x < C x \\ x
-
-A x < B x \\ x, A x < C x \\ x
-B x < C Int \\ x
-
-Show [a] \\ a
-Show [Char] \\
-
-E a \\ a
-E a \\ a, F a
-
-b x < c Int \\ x, a x < b x \\ x, a x < c x \\ x
-
-a x < b x \\ x, a x < c x \\ x, b x < c Int \\ x
-
--}
-
 -- Forced reduction ------------------------------------------------------------------------
 
 resolve env pe                          = do -- tr ("############### Before resolve:\n" ++ render (nest 8 (vpr pe)))
                                              -- tr ("tevars: " ++ show env_tvs ++ ",   reachable: " ++ show reachable_tvs)
-                                             (s1,q1,[],es) <- red [] (map mkGoal pe)
+                                             (s1,q1,es) <- red0 (map mkGoal pe)
                                              -- tr ("############### After resolve:\n" ++ render (nest 8 (vpr q1)))
                                              let f1 = eLet pe (dom pe `zip` es)
                                                  badq = filter badDummy q1
@@ -210,56 +190,16 @@ resolve env pe                          = do -- tr ("############### Before reso
         badDummy (v,p)                  = isDummy v && null (tvars p `intersect` env_tvs)
 
 
-{-
 
-    C1 x < C x
-    C2 x < C Y
-    C3 x < C y \\ x < y
+-- Entry point ----------------------------
 
+red0 ps                                 = do (s,q,[],es) <- red [] ps
+                                             return (s,q,es)
 
-    |- m aa < C b     |- Int < Int                              (All a . Exists b . m a < C b)
-    ------------------------------                              (All a . m a < C b)
-    |- C b -> Int  <  m aa -> Int
-    ---------------------------------------                     (All a . (All b . m a < C b) =>
-    |- (All b . C b -> Int)  <  m aa -> Int
-    ----------------------------------------------
-    |- All a . (All b . C b -> Int)  <  m a -> Int
+red0 ps                                 = do s <- imp [] ps
+                                             (q,[],es) <- rred [] (subst s ps)
+                                             return (s,q,es)
 
-
-
-    |- C1 aa < C aa     |- Int < Int                            C1 / m, aa / b
-    --------------------------------
-    |- C aa -> Int  <  C1 aa -> Int
-    ----------------------------------------
-    |- (All b . C b -> Int)  <  C1 aa -> Int
-    -----------------------------------------------
-    |- All a . (All b . C b -> Int)  <  C1 a -> Int
-
-
-
-    |- C2 aa < C Y     |- Int < Int                             C2 / m, Y / b
-    -------------------------------
-    |- C Y -> Int  <  C2 aa -> Int
-    ----------------------------------------
-    |- (All b . C b -> Int)  <  C2 aa -> Int
-    ------------------------------------------------
-    |- All a . (All b . C b -> Int)  <  C2 ab -> Int
-
-
-    All a . a < b |- aa < b                                     C3 / m
-    -----------------------
-    All a . a < b |- C3 aa < C b     |- Int < Int
-    ---------------------------------------------
-    All a . a < b |- C b -> Int  <  C3 aa -> Int
-    -----------------------------------------------------
-    All a . a < b |- (All b . C b -> Int)  <  m aa -> Int
-    ------------------------------------------------------------
-    All a . a < b |- All a . (All b . C b -> Int)  <  m a -> Int
-
-
-
-
--}
 
 -- Scheme reduction -----------------------------------------------------------------------------
 --
@@ -386,7 +326,7 @@ solve r g gs
                                              -- tr ("------ Avoiding loop: " ++ render (pr (snd g)))
                                              (s,q,es,_) <- red gs []
                                              (q',e) <- newHyp (subst s g)
-                                             return (s, q'++q, e:es)
+                                             return (prune s (tvars (snd g)), q'++q, e:es)
   | otherwise                           = do -- tr ("------ Solving " ++ render (pr (snd g)))
                                              -- tr (render (nest 4 (vpr (rng gs))))
                                              -- tr ("Witness graph: " ++ show (findWG r g))
@@ -404,10 +344,6 @@ try r accum wg g gs
   where (wit,wg1)                       = takeWG wg
         wg2 res                         = if mayPrune res r g then pruneWG (nameOf wit) wg1 else wg1
 
-mayPrune (Left _)  _          _         = False
-mayPrune (Right r) (RClass _ _) (env,c) = forced env || subst (fst3 r) c == c
-mayPrune _         _          _         = True
-
 
 hyp (w,p) (env,c) gs                    = do (R c',ps) <- inst p
                                              -- tr ("### Trying: " ++ render (pr c) ++ "  with  " ++ render (pr (w,p)))
@@ -419,10 +355,7 @@ hyp (w,p) (env,c) gs                    = do (R c',ps) <- inst p
                                              return (s'@@s, q, eAp (EVar w) es' : es)
 
 
-plus gs (Left a) (Left b)
-  |head a == '+' &&
-   head b == '-'                        = return (Left a)
-  |otherwise                            = return (Left b)
+plus gs (Left a) (Left b)               = return (Left (pickErr a b))
 plus gs (Left a) b                      = return b
 plus gs a (Left b)                      = return a
 plus gs (Right (s1,_,es1)) (Right (s2,_,es2))   
@@ -430,6 +363,295 @@ plus gs (Right (s1,_,es1)) (Right (s2,_,es2))
                                              (s',q,es) <- auTerms (subst s gs) es1 es2
                                              return (Right (s'@@s, q, es))
   where env                             = fst (head gs)
+
+
+-- Misc ----------------------------------------------------------------
+
+mayPrune (Left _)  _          _         = False
+mayPrune (Right r) (RClass _ _) (env,c) = forced env || subst (fst3 r) c == c
+mayPrune _         _          _         = True
+
+
+mayLoop (env,c)                         = any (\c' -> equalTs [(c,c')]) (history env)
+
+
+isNull (Right ([],q,es))
+  | all varTerm es                      = True
+  where varTerm (EAp e es)              = varTerm e
+        varTerm (ELam pe e)             = varTerm e
+        varTerm (EVar v)                = v `elem` vs
+        varTerm _                       = False
+        vs                              = dom q
+isNull _                                = False
+
+
+
+
+
+-- ==============================================================================================
+-- Predicate improvement ------------------------------------------------------------------------
+--
+-- If   imp gs ps == s    then   |- subst s' cs   implies   s' = s" . s
+--
+-- ----------------------------------------------------------------------------------------------
+-- ==============================================================================================
+
+
+impg r i gs                             = do s <- isolve r g (gs1++gs2)
+                                             return s
+  where (gs1, g:gs2)                    = splitAt i gs
+
+
+imp [] []                               = return nullSubst
+imp gs []                               = case unique 0 gs of
+                                             Just (r,i) -> impg r i gs   -- goal can be selected without computing costly varInfo
+                                             Nothing    -> impg r i gs   -- goal must be selected on basis of varInfo
+  where rs                              = map (rank info) gs
+        r                               = minimum rs
+        i                               = length (takeWhile (/=r) rs)
+        info                            = varInfo gs
+imp gs ((env, p@(Scheme (F [sc1] t2) ps2 ke2)):ps)
+                                        = do (t1,ps1) <- inst sc1
+                                             -- tr ("red: " ++ render (pr t1 <+> text "<" <+> pr t2))
+                                             pe <- newEnv assumptionSym ps2
+                                             v  <- newName coercionSym
+                                             (env',_,_) <- closePreds env (tvars sc1 ++ tvars t2 ++ tvars ps2) pe ke2
+                                             let ps' = repeat env' `zip` ps1
+                                             s <- impf gs env' t1 t2 (ps'++ps)
+                                             return s
+imp gs ((env, Scheme (R t) ps' ke):ps)  = do pe <- newEnv assumptionSym ps'
+                                             (env',_,_) <- closePreds env (tvars t ++ tvars ps') pe ke
+                                             s <- imp ((env',t) : gs) ps
+                                             return s
+
+
+impf gs env (F ts t) (F ts' t') ps      = do te1' <- newEnv assumptionSym ts1'
+                                             te2' <- newEnv assumptionSym ts2'
+                                             te2  <- newEnv assumptionSym ts2
+                                             v    <- newName coercionSym
+                                             s <- impf1 gs env (tFun ts2 t) (tFun ts2' t') ts1' ts1 ps
+                                             return s
+  where (ts1 ,ts2 )                     = splitAt (length ts') ts
+        (ts1',ts2')                     = splitAt (length ts ) ts'
+impf gs env (R (TFun ts t)) b ps        = impf gs env (F (map scheme ts) (R t)) b ps
+impf gs env a (R (TFun ts t)) ps        = impf gs env a (F (map scheme ts) (R t)) ps
+impf gs env (R a@(Tvar n)) b@(F ts _) ps
+  | n `elem` tvars b                    = fail (typeError Other env "Infinite function type")
+  | otherwise                           = do (t:ts') <- mapM newTvar (replicate (length ts + 1) Star)
+                                             s <- unify env [(a, TFun ts' t)]
+                                             impf2 s gs env (F (map scheme ts') (R t)) b ps 
+impf gs env a@(F ts _) (R b@(Tvar n)) ps
+  | n `elem` tvars a                    = fail (typeError Other env "Infinite function type")
+  | otherwise                           = do (t:ts') <- mapM newTvar (replicate (length ts + 1) Star)
+                                             s <- unify env [(TFun ts' t, b)]
+                                             impf2 s gs env a (F (map scheme ts') (R t)) ps 
+impf gs env (R a) (R b) ps              = do s <- imp ((tick env True, a `sub` b) : gs) ps
+                                             return s
+impf _ env t1 t2 _                        = fail (typeError Other env ("Cannot solve " ++ render (pr t1) ++ " < " ++ render (pr t2)))
+
+
+impf1 gs env a b (sc1:ts1) (sc2:ts2) ps = do s <- impf1 gs env a b ts1 ts2 ((env,sc):ps)
+                                             return s
+  where Scheme t2 ps2 ke2               = sc2
+        sc                              = Scheme (F [sc1] t2) ps2 ke2
+impf1 gs env a b [] [] ps               = do s <- impf gs env a b ps
+                                             return s
+
+
+
+impf2 s gs env a b ps                   = do s' <- impf (subst s gs) (subst s env) 
+                                                                   (subst s a) (subst s b) (subst s ps)
+                                             return (s'@@s)
+
+
+
+-- Predicate reduction ----------------------------------------------------------------------
+
+isolve RFun (env,p) gs                  = do -- tr ("------ Resubmitting: " ++ render (pr p))
+                                             s <- imp gs [(env, scheme' (F [scheme a] (R b)))]
+                                             return s
+  where (a,b)                           = subs p
+isolve RUnif (env,p) gs                 = do -- tr ("------ Unifying: " ++ render (pr p))
+                                             s <- unify env [(a,b)]
+                                             s' <- imp (subst s gs) []
+                                             return (s'@@s)
+  where (a,b)                           = subs p
+isolve RVar g gs                        = do -- tr ("------ Abstracting\n" ++ render (nest 4 (vpr (rng (g:gs)))))
+                                             return nullSubst
+isolve r g gs
+  | imayLoop g                          = do assert0 (conservative g) "Recursive constraint"
+                                             -- tr ("------ Avoiding loop: " ++ render (pr (snd g)))
+                                             s <- imp gs []
+                                             return (prune s (tvars (snd g)))
+  | otherwise                           = do -- tr ("------ Solving " ++ render (pr (snd g)))
+                                             -- tr (render (nest 4 (vpr (rng gs))))
+                                             -- tr ("Witness graph: " ++ show (findWG r g))
+                                             itry r (Left msg) (findWG r g) (logHistory g) gs
+  where msg                             = typeError Solve (fst g) ("Cannot solve typing constraint "++render(prPred (snd g)))
+
+
+itry r (Right []) wg g gs               = return []
+itry r accum wg g gs
+  | isNullWG wg                         = unexpose accum
+  | otherwise                           = do -- tr ("Trying " ++ render (pr (snd g)) ++ " with " ++ render (pr (predOf wit)))
+                                             res <- expose (ihyp wit g gs)
+                                             case (accum,res) of
+                                                 (Left a, Left b)   -> itry r (Left (pickErr a b)) (wg2 res) g gs
+                                                 (Left _, b)        -> itry r b (wg2 res) g gs
+                                                 (a, Left _)        -> itry r a (wg2 res) g gs
+                                                 (Right a, Right b) -> do s <- auSubst (fst g) a b
+                                                                          itry r (Right s) (wg2 res) g gs
+  where (wit,wg1)                       = takeWG wg
+        wg2 res                         = if imayPrune res r g then pruneWG (nameOf wit) wg1 else wg1
+
+
+ihyp (w,p) (env,c) gs                   = do (R c',ps) <- inst p
+                                             -- tr ("### Trying: " ++ render (pr c) ++ "  with  " ++ render (pr (w,p)))
+                                             s <- unify env [(c,c')]
+                                             -- tr ("    OK")
+                                             let ps' = repeat (subst s env) `zip` subst s ps
+                                             -- if not (null ps') then tr ("@@ Appending\n" ++ render (nest 4 (vpr (rng ps')))) else return ()
+                                             s' <- imp (subst s gs) ps'
+                                             return (s'@@s)
+
+
+imayPrune (Left _)  _          _         = False
+imayPrune (Right s) (RClass _ _) (env,c) = forced env || subst s c == c
+imayPrune _         _          _         = True
+
+imayLoop (env,c)                        = any (\c' -> equalTs [(c,c')]) (history env)
+
+
+-- ==============================================================================================
+-- Predicate reduction --------------------------------------------------------------------------
+--
+-- If   rred gs ps == (q,es,es')    then   q |- es :: gs   and   q |- es' :: ps
+--
+-- ----------------------------------------------------------------------------------------------
+-- ==============================================================================================
+    
+
+rred [] []                              = return ([], [], [])
+rred (g:gs) []                          = do (q,e) <- rsolve (rank info g) g
+                                             (q',es,[]) <- rred gs []
+                                             return (q++q', e:es, [])
+  where info                            = varInfo (g:gs)
+rred gs ((env, p@(Scheme (F [sc1] t2) ps2 ke2)):ps)
+                                        = do (t1,ps1) <- inst sc1
+                                             -- tr ("red: " ++ render (pr t1 <+> text "<" <+> pr t2))
+                                             pe <- newEnv assumptionSym ps2
+                                             v  <- newName coercionSym
+                                             (env',qe,eq) <- closePreds env (tvars sc1 ++ tvars t2 ++ tvars ps2) pe ke2
+                                             let ps' = repeat env' `zip` ps1
+                                             (q,es,e,es') <- rredf gs env' t1 t2 (ps'++ps)
+                                             pe1 <- wildify ke2 pe
+                                             qe1 <- wildify ke2 qe
+                                             let (es1,es2) = splitAt (length ps') es'
+                                                 bss = preferParams env' pe1 qe1 eq
+                                                 e' = eLet' bss (EAp e [eAp (EVar v) es1])
+                                             return (q, es, eLam pe1 (ELam [(v,sc1)] e') : es2)
+rred gs ((env, Scheme (R t) ps' ke):ps) = do pe <- newEnv assumptionSym ps'
+                                             (env',qe,eq) <- closePreds env (tvars t ++ tvars ps') pe ke
+                                             (q,e:es,es') <- rred ((env',t) : gs) ps
+                                             pe1 <- wildify ke pe
+                                             qe1 <- wildify ke qe
+                                             let bss = preferParams env' pe1 qe1 eq
+                                             return (q, es, eLam pe1 (eLet' bss e) : es')
+
+
+rredf gs env (F ts t) (F ts' t') ps     = do te1' <- newEnv assumptionSym ts1'
+                                             te2' <- newEnv assumptionSym ts2'
+                                             te2  <- newEnv assumptionSym ts2
+                                             v    <- newName coercionSym
+                                             (q,es,e,es1,es2) <- rredf1 gs env (tFun ts2 t) (tFun ts2' t') ts1' ts1 ps
+                                             let e0  = ELam [(v,scheme' (F ts t))] (ELam (te1'++te2') e1)
+                                                 e1  = eAp (EAp e [e2]) (map EVar (dom te2'))
+                                                 e2  = eLam te2 (EAp (EVar v) (es3 ++ map EVar (dom te2)))
+                                                 es3 = zipWith eAp1 es1 (map EVar (dom te1'))
+                                             return (q, es, e0, es2)
+  where (ts1 ,ts2 )                     = splitAt (length ts') ts
+        (ts1',ts2')                     = splitAt (length ts ) ts'
+rredf gs env (R (TFun ts t)) b ps       = rredf gs env (F (map scheme ts) (R t)) b ps
+rredf gs env a (R (TFun ts t)) ps       = rredf gs env a (F (map scheme ts) (R t)) ps
+rredf gs env (R a) (R b) ps             = do (q,e:es,es') <- rred ((tick env True, a `sub` b) : gs) ps
+                                             return (q,es,e,es')
+rredf _ env t1 t2 _                     = fail (typeError Other env ("Cannot solve " ++ render (pr t1) ++ " < " ++ render (pr t2)))
+
+
+rredf1 gs env a b (sc1:ts1) (sc2:ts2) ps= do (q,es,e,es1,e2:es2) <- rredf1 gs env a b ts1 ts2 ((env,sc):ps)
+                                             return (q, es, e, flip e2 : es1, es2)
+  where Scheme t2 ps2 ke2               = sc2
+        sc                              = Scheme (F [sc1] t2) ps2 ke2
+        flip e  | null ps2              = e
+        flip (ELam te2 (ELam te1 t))    = ELam te1 (ELam te2 t)
+rredf1 gs env a b [] [] ps              = do (q,es,e,es2) <- rredf gs env a b ps
+                                             return (q,es,e,[],es2)
+
+
+-- Predicate reduction ----------------------------------------------------------------------
+
+rsolve RFun (env,p)                     = do -- tr ("------ Resubmitting: " ++ render (pr p))
+                                             (q,[],[e]) <- rred [] [(env, scheme' (F [scheme a] (R b)))]
+                                             return (q, e)
+  where (a,b)                           = subs p
+rsolve RVar g                           = do -- tr ("------ Abstracting\n" ++ render (nest 4 (pr (rng g))))
+                                             newHyp g
+rsolve r g
+  | rmayLoop g                          = do assert0 (conservative g) "Recursive constraint"
+                                             -- tr ("------ Avoiding loop: " ++ render (pr (snd g)))
+                                             newHyp g
+  | otherwise                           = do -- tr ("------ Reducing " ++ render (pr (snd g)))
+                                             -- tr ("Witness graph: " ++ show (findWG r g))
+                                             rtry r (Left msg) (findWG r g) (logHistory g)
+  where msg                             = typeError Solve (fst g) ("Cannot solve typing constraint "++render(prPred (snd g)))
+
+
+rtry r accum wg g
+  | isNullWG wg                         = unexpose accum
+  | otherwise                           = do -- tr ("Trying " ++ render (pr (snd g)) ++ " with " ++ render (pr (predOf wit)))
+                                             res <- expose (rhyp wit g)
+                                             case (accum,res) of
+                                               (Left a, Left b)   -> rtry r (Left (pickErr a b)) (wg2 res) g
+                                               (Left _, b)        -> rtry r b (wg2 res) g
+                                               (a, Left _)        -> rtry r a (wg2 res) g
+                                               (Right _, Right _) -> newHyp g
+  where (wit,wg1)                       = takeWG wg
+        wg2 res                         = if rmayPrune res then pruneWG (nameOf wit) wg1 else wg1
+
+
+rhyp (w,p) (env,c)                      = do (R c',ps) <- inst p
+                                             -- tr ("### Trying: " ++ render (pr c) ++ "  with  " ++ render (pr (w,p)))
+                                             s <- unify env [(c,c')]
+                                             -- tr ("    OK")
+                                             let ps' = repeat env `zip` subst s ps
+                                             -- if not (null ps') then tr ("@@ Appending\n" ++ render (nest 4 (vpr (rng ps')))) else return ()
+                                             (q,[],es') <- rred [] ps'
+                                             return (q, eAp (EVar w) es')
+
+
+-- Misc ----------------------------------------------------------------
+
+
+
+rmayPrune (Left _)                      = False
+rmayPrune _                             = True
+
+
+rmayLoop (env,c)                        = any (\c' -> equalTs [(c,c')]) (history env)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 -- Anti-unification --------------------------------------------------------------------------
@@ -498,6 +720,10 @@ newHyp (env,c)                          = do v <- newName (sym env)
           | ticked env                  = coercionSym       -- originates from a coercion predicate
           | otherwise                   = assumptionSym     -- ordinary predicate
 
+pickErr a b
+  | head a == '+' && head b == '-'      = a
+  | otherwise                           = b
+
 
 -- Unification ----------------------------------------------------------
 
@@ -545,22 +771,6 @@ unifyR env (F scs r, F scs' r')
 unifyR env _                            = fail (typeError Other env "Subtype predicates not unifiable")
 
                                         
--- Misc ----------------------------------------------------------------
-
-mayLoop (env,c)                         = any (\c' -> equalTs [(c,c')]) (history env)
-
-
-isNull (Right ([],q,es))
-  | all varTerm es                      = True
-  where varTerm (EAp e es)              = varTerm e
-        varTerm (ELam pe e)             = varTerm e
-        varTerm (EVar v)                = v `elem` vs
-        varTerm _                       = False
-        vs                              = dom q
-isNull _                                = False
-
-
-
 -- Adding predicates to the environment -------------------------------------------------
 
 closePreds0 env pe                      = do (env1,pe1,eq1) <- closeTransitive env0 pe
@@ -735,6 +945,69 @@ implications env p1 p2                  = do (R c1,ps1) <- inst p1
 
 
 {-
+
+B x < C Int \\ x
+A x < B x \\ x, A x < C x \\ x
+
+A x < B x \\ x, A x < C x \\ x
+B x < C Int \\ x
+
+Show [a] \\ a
+Show [Char] \\
+
+E a \\ a
+E a \\ a, F a
+
+b x < c Int \\ x, a x < b x \\ x, a x < c x \\ x
+
+a x < b x \\ x, a x < c x \\ x, b x < c Int \\ x
+
+
+    C1 x < C x
+    C2 x < C Y
+    C3 x < C y \\ x < y
+
+
+    |- m aa < C b     |- Int < Int                              (All a . Exists b . m a < C b)
+    ------------------------------                              (All a . m a < C b)
+    |- C b -> Int  <  m aa -> Int
+    ---------------------------------------                     (All a . (All b . m a < C b) =>
+    |- (All b . C b -> Int)  <  m aa -> Int
+    ----------------------------------------------
+    |- All a . (All b . C b -> Int)  <  m a -> Int
+
+
+
+    |- C1 aa < C aa     |- Int < Int                            C1 / m, aa / b
+    --------------------------------
+    |- C aa -> Int  <  C1 aa -> Int
+    ----------------------------------------
+    |- (All b . C b -> Int)  <  C1 aa -> Int
+    -----------------------------------------------
+    |- All a . (All b . C b -> Int)  <  C1 a -> Int
+
+
+
+    |- C2 aa < C Y     |- Int < Int                             C2 / m, Y / b
+    -------------------------------
+    |- C Y -> Int  <  C2 aa -> Int
+    ----------------------------------------
+    |- (All b . C b -> Int)  <  C2 aa -> Int
+    ------------------------------------------------
+    |- All a . (All b . C b -> Int)  <  C2 ab -> Int
+
+
+    All a . a < b |- aa < b                                     C3 / m
+    -----------------------
+    All a . a < b |- C3 aa < C b     |- Int < Int
+    ---------------------------------------------
+    All a . a < b |- C b -> Int  <  C3 aa -> Int
+    -----------------------------------------------------
+    All a . a < b |- (All b . C b -> Int)  <  m aa -> Int
+    ------------------------------------------------------------
+    All a . a < b |- All a . (All b . C b -> Int)  <  m a -> Int
+
+
 
     Ord a |- Ord a
 
