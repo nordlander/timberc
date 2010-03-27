@@ -507,11 +507,15 @@ subst_ELam s te e               = ELam (rename_dom r te) e'
   where (r,e')                  = subst_bvs s (dom te) e
 
 --subst_let s bs e             = ELet (subst s bs) (subst s e) -- assuming no name clashes
-subst_let s (Binds rec te eqns) e
+subst_let s (Binds True te eqns) e
                                 = (bs',e')
-  where bs'                     = Binds rec (rename_dom r te) (rename_dom r (zip bvs es'))
+  where bs'                     = Binds True (rename_dom r te) (rename_dom r (zip bvs es'))
         (r,(es',e'))            = subst_bvs s bvs (es,e)
         (bvs,es)                = unzip eqns
+subst_let s (Binds False te eqns) e
+                                = (bs',e')
+  where bs'                     = Binds False (rename_dom r te) (rename_dom r (subst s eqns))
+        (r,e')                  = subst_bvs s (dom eqns) e
 
 --subst_Alt s (Alt p e)         = Alt p (subst s e) -- assuming no name clashes
 subst_Alt s (Alt p e)           = Alt (subst r p) e'
