@@ -1121,6 +1121,7 @@ isNum _ = False
 
 zero (LInt _ 0) = True
 zero (LRat _ 0) = True
+zero _ = False
 
 nonzero (ELit l) = not (zero l)
 nonzero _                         = False
