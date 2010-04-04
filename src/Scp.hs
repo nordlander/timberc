@@ -108,13 +108,19 @@ drive env l@(ELit _) context@((PrimOpCtxt oes []):c) | all value oes = do
     Nothing -> build env l context
     Just e -> drive env e c
 
+drive env v@(EVar (Prim _ _)) context@((AppCtxt _):_) = do
+  let (e, context') = makePrimOpCtxt v context
+  drive env e context'
+drive env e ((PrimOpCtxt [EVar (Prim Commit _)] oes):(PrimOpCtxt [EVar (Prim Match _)] ies):c) = drive env e c
+drive env e (c@(PrimOpCtxt [EVar (Prim Commit _)] oes):(PrimOpCtxt [EVar (Prim Fatbar _)] ies):t) = drive env e (c:t)
+drive env (EVar (Prim Fail _)) ((PrimOpCtxt [EVar (Prim Fatbar _)] [e2]):c) = 
+  drive env e2 c
+
+
+{- All wrong
 drive env (EVar (Prim Refl _)) ((AppCtxt [arg]):c) = drive env arg c
-drive env (EVar (Prim Match _)) ((AppCtxt [EAp (EVar (Prim Commit _)) [arg]]):c) =
-  drive env arg c
 drive env (EVar (Prim Match _)) ((AppCtxt [EVar (Prim Fail n)]):c) = 
   return (EAp (EVar (Prim Raise n)) [ELit (lInt 1)], [])
-drive env (EVar (Prim Fatbar _)) ((AppCtxt [(EVar (Prim Fail _)), e2]):c) = 
-  drive env e2 c
 drive env (EVar (Prim Fatbar _)) ((AppCtxt [e1, (EVar (Prim Fail _))]):c) = 
   drive env e1 c
 drive env (EVar (Prim Fatbar _)) ((AppCtxt [l@(EAp (EVar (Prim Commit _)) [arg]), _]):c) = 
@@ -135,9 +141,7 @@ drive env (EVar (Prim LazyAnd a)) ((AppCtxt [e1, ECon (Prim FALSE _)]):c) = do
   tr ("New lazyAnd body:" ++ show' body)
   drive env body c
 drive env (EVar (Prim LazyOr a)) ((AppCtxt [e1, e2]):c) = error ("vojne" ++ show e1 ++ show e2)
-drive env (EVar v@(Prim _ _)) context@((AppCtxt _):_) = do
-  let (e, context') = makePrimOpCtxt v context
-  drive env e context'
+-}
 drive env (EVar v) context
  | Just body <- maybeInline env v = do
   maybeFold env v context body
