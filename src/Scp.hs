@@ -103,7 +103,10 @@ drive env (ELit l@(LStr _ _)) ((CaseCtxt alts):c) = do
   driveCaseStrLit env l c alts
 drive env (ELit l) ((CaseCtxt alts):c) = do
   drive env (findLit l alts) c
-drive env l@(ELit _) context@((PrimOpCtxt oes []):c) | all value oes = do
+drive env l@(ELit _) context@((PrimOpCtxt oes []):c) 
+ | all isValue (tail oes) 
+ , not (isCommit (head oes)) = do
+  tr ("Reducing: " ++ (show' (plug [(PrimOpCtxt oes [])] l)))
   case redPrim (oes ++ [l]) of
     Nothing -> build env l context
     Just e -> drive env e c
@@ -147,7 +150,7 @@ drive env (EVar v) context
   maybeFold env v context body
  | otherwise = build env (EVar v) context
 
-drive env (ECon n) ((CaseCtxt alts):c) =  drive env (findCon n alts) c
+drive env (ECon n) ((CaseCtxt alts):c) = drive env (findCon n alts) c
 drive env (ECon n) ((AppCtxt args):(CaseCtxt alts):context)
  | (ELam te' e) <- findCon n alts = do
   let e' = ELet (Binds False te' (zip (dom te') args)) e
@@ -547,7 +550,7 @@ plug ((PrimOpCtxt oes ies):c) e = plug c (EAp (head oes) (tail oes ++ e:ies))
 plug ((CaseCtxt alts):c) e = plug c (ECase e alts)
 plug ((SelCtxt n):c) e = plug c (ESel e n)
 
-makePrimOpCtxt v ((AppCtxt args):c) = (head args, (PrimOpCtxt [EVar v] (tail args)):c)
+makePrimOpCtxt v ((AppCtxt args):c) = (head args, (PrimOpCtxt [v] (tail args)):c)
 
 {-
 splitCaseCtxt _ [] = Nothing
@@ -1120,6 +1123,21 @@ value (ETempl _ _ _ _) = True
 value (EDo n t c) = True
 value e = False
 
+
+isValue (EVar _) = False
+isValue (ECon _) = True
+isValue (ELit _) = True
+isValue (ESel e _) = value e
+isValue (EAp (EVar (Tuple _ _)) es) = all isValue es
+isValue (EAp (ECon c) es) = all isValue es
+isValue (ELam _ _) = True
+isValue (ERec _ eqs) = all (isValue . snd) eqs
+isValue (EAct e1 e2) = True
+isValue (EReq e1 e2) = True
+isValue (ETempl _ _ _ _) = True
+isValue (EDo n t c) = True
+isValue e = False
+
 isNum (ELit _) = True
 isNum _ = False
 
@@ -1193,9 +1211,37 @@ reducible IntNeg                 = True
 reducible CharToInt              = True
 reducible IntToFloat             = True
 reducible IntToChar              = True
+reducible FloatNeg               = True
+reducible FloatTimes             = True
+reducible FloatMinus             = True
+reducible FloatPlus              = True
+reducible FloatDiv               = True
+reducible FloatLE                = True
+reducible FloatToInt             = True
+reducible IntPlus                = True
+reducible IntMinus               = True
+reducible IntTimes               = True
+reducible IntDiv                 = True
+reducible Sqrt                   = False
 reducible op                     = tr' ("Not reducible: " ++ show op) False
 
-redPrim (op:t) = error ("redPrim not done:")
+redPrim ((EVar (Prim op _)):t)
+ | not (reducible op) = Nothing
+ | length t == 2
+ , (ELit (LInt _ l1)) <- (head t)
+ , (ELit (LInt _ l2)) <- (head (tail t))
+  = Just (redInt2 op l1 l2)
+ | length t == 2
+ , (ELit (LRat _ l1)) <- (head t)
+ , (ELit (LRat _ l2)) <- (head (tail t))
+  = Just (redRat2 op l1 l2)
+ | length t == 1
+ , (ELit (LRat _ l)) <- (head t)
+  = Just (redRat1 op l)
+ | length t == 1
+ , (ELit (LInt _ l)) <- (head t)
+  = Just (redInt1 op l)
+ | otherwise = error ("redPrim not done:" ++ show op ++ show t)
 
 redChar1 CharToInt x             = ELit (lInt (ord x))
 redChar1 p _                     = internalError0 ("Scp.redChar1: unknown primitive " ++ show p)
@@ -1233,3 +1279,6 @@ redRat2 FloatLE a b              = eBool (a <= b)
 redRat2 FloatGE a b              = eBool (a >= b)
 redRat2 FloatGT a b              = eBool (a > b)
 redRat2 p _ _                    = internalError0 ("Scp.redRat2 " ++ show p)
+
+isCommit (EVar (Prim Commit _)) = True
+isCommit _ = False
