@@ -1159,7 +1159,7 @@ eBool False = ECon (prim FALSE)
 
 findCon k (Alt PWild e:_)  = e
 findCon k (Alt (PCon k' te) e:_)
-  | k == k'                     = ELam te e
+  | k == k'                     = if null te then e else ELam te e
 findCon k (_:alts)       = findCon k alts
 
 
