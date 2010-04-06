@@ -5,7 +5,7 @@ module Scp (
            ) where
 
 import Core hiding (ctxt)
-import Common hiding (renaming)
+import Common hiding (renaming, delete)
 import PP
 import Config
 import Depend (groupBinds)
@@ -653,13 +653,14 @@ split' (ELet (Binds rec te eq) e) = do
   return (ELet (Binds rec te (zip ns (map EVar xs))) (EVar x), (x, e):zip xs args, map scheme (t:ts))
 split' (ECase e alts) = do
   x <- newName "intermediate_name"
-  xs <- newNames "intermediate_name" (length alts)
+--  xs <- newNames "intermediate_name" (length alts)
   t <- newTvar Star
-  ts <- newTvars Star (length alts)
-  let p = map separatePat alts
-      (pats, legs) = unzip p
-      alts' = zipWith mergePat p (map EVar xs)
-  return (ECase (EVar x) alts', (x,e):zip xs legs, map scheme (t:ts))
+--  ts <- newTvars Star (length alts)
+  let -- p = map separatePat alts
+--      (pats, legs) = unzip p
+--      alts' = zipWith mergePat p (map EVar xs)
+--  return (ECase (EVar x) alts', (x,e):zip xs legs, map scheme (t:ts))
+  return (ECase (EVar x) alts, [(x,e)], [scheme t])
   where --separatePat (Alt (PCon k) (ELam te e)) = ((pCon0 k, Just te), e)
         separatePat (Alt (PCon k te) e) = ((pCon0 k, Just te), e)
         separatePat (Alt k e) = ((k, Nothing), e)
@@ -793,153 +794,182 @@ peel gf (ETempl n1 t1 te1 c1)  (ETempl n2 t2 te2 c2) = n1 == n2
 peel gf (EDo n1 t1 c1) (EDo n2 t2 c2) = n1 == n2 
 peel _ _ _ = False
 
+msg env p@(e1, _, _) = tr' ("msg infvs: " ++ show (fv env e1) ++ show' e1) $ msg' env (fv env e1) p
+
 -- The substitution returned here has a few special properties that 
 -- are cruicial for it to work. All the names are fresh - hence we can
 -- just concatenate substitutions together. 
-msg env (ECon n1, ECon n2, s)
+msg' env infvs (ECon n1, ECon n2, s)
   | n1 == n2 = return (ECon n1, [], [])
-  | otherwise = do
-    n <- newName "tmp"
-    return (EVar n, [(n, ECon n1)], [s])
-msg env (ESel e1 n1, ESel e2 n2, s) 
+--   | otherwise = do
+--     n <- newName "tmp"
+--     return (EVar n, [(n, ECon n1)], [s])
+msg' env infvs (ESel e1 n1, ESel e2 n2, s) 
   | n1 == n2 = return (ESel e1 n1, [], [])
-  | otherwise = do
-    n <- newName "tmp"
-    return (EVar n, [(n, ESel e1 n1)], [s])
-msg env (EVar n1, EVar n2, s)
+--   | otherwise = do
+--     n <- newName "tmp"
+--     return (EVar n, [(n, ESel e1 n1)], [s])
+msg' env infvs (EVar n1, EVar n2, s)
   | n1 == n2 = return (EVar n1, [], [])
-  | otherwise = do
-    n <- newName "tmp"
-    return (EVar n, [(n, EVar n1)], [s])
-msg env (ELam te1 e1, ELam te2 e2, s) 
+--   | otherwise = do
+--     n <- newName "tmp"
+--     return (EVar n, [(n, EVar n1)], [s])
+msg' env infvs (ELam te1 e1, ELam te2 e2, s) 
   | length te1 == length te2 && dom te1 == dom te2 = do
        t <- newTvar Star
-       (e', s1, t1) <- msg env (e1, e2, scheme t)
+       let env' = env {inSet = te1 ++ inSet env }
+       (e', s1, t1) <- msg' env' infvs (e1, e2, scheme t)
        return (ELam te1 e', s1, t1)
-  | otherwise = do
-    n <- newName "tmp"
-    return (EVar n, [(n, ELam te1 e1)], [s])
-msg env (EAp (EVar n1) args1, EAp (EVar n2) args2, s)
+--   | otherwise = do
+--     n <- newName "tmp"
+--     return (EVar n, [(n, ELam te1 e1)], [s])
+msg' env infvs (EAp (EVar n1) args1, EAp (EVar n2) args2, s)
   | n1 == n2 && length args1 == length args2
   , Just (Scheme (F schemes (R t)) _ _) <- maybeTypes env n1 = do
 --  , Just e <- maybeInline env n1 = do
 --    let Just (Scheme (F schemes (R t)) _ _) = maybeTypes env n1
-    tmp <- mapM (msg env) (zip3 args1 args2 schemes)
+    tmp <- mapM (msg' env infvs) (zip3 args1 args2 schemes)
     let (args, s2, t2) = unzip3 tmp
     return (EAp (EVar n1) args, concat s2, concat t2)
   | n1 == n2 && length args1 == length args2 = do
     ts <- newTvars Star (length args1)
-    tmp <- mapM (msg env) (zip3 args1 args2 (map scheme ts))
+    tmp <- mapM (msg' env infvs) (zip3 args1 args2 (map scheme ts))
     let (args, s2, t2) = unzip3 tmp
     return (EAp (EVar n1) args, concat s2, concat t2)
-  | otherwise = do
-    n <- newName "tmp"
-    return (EVar n, [(n, EAp (EVar n1) args1)], [s])
-msg env (EAp e1 args1, EAp e2 args2, s)
+--   | otherwise = do
+--     n <- newName "tmp"
+--     return (EVar n, [(n, EAp (EVar n1) args1)], [s])
+-- msg' env infvs (EAp e1 args1, EAp e2 args2, s)
 --   | length args1 == length args2 = do
 --     tr ("msg, eap: " ++ show' (EAp e1 args1) ++ " : " ++ show' (EAp e2 args2))
 --     -- XXXpj: msg, kolla upp typ i locEqns for e1/e2
 --     t <- newTvar Star
 --     ts <- newTvars Star (length args1)
---     (e1', s1, t1) <- msg env (e1, e2, scheme t)
---     tmp <- mapM (msg env) (zip3 args1 args2 (map scheme ts))
+--     (e1', s1, t1) <- msg' env infvs (e1, e2, scheme t)
+--     tmp <- mapM (msg' env infvs) (zip3 args1 args2 (map scheme ts))
 --     let (args, s2, t2) = unzip3 tmp
 --     return (EAp e1' args, s1 ++ concat s2, t1 ++ concat t2)
-  | otherwise = do
-    n <- newName "tmp" 
-    return (EVar n, [(n, EAp e1 args1)], [s]) 
-msg env (ELet (Binds r1 te1 eq1) e1, ELet (Binds r2 te2 eq2) e2, s) = error "msg, ELet"
+--   | otherwise = do
+--     n <- newName "tmp" 
+--     return (EVar n, [(n, EAp e1 args1)], [s]) 
+msg' env infvs (ELet (Binds r1 te1 eq1) e1, ELet (Binds r2 te2 eq2) e2, s) = error "msg, ELet"
 -- XXXpj FIXME Bleh. [(p, e)]
-msg env (ECase c1 legs1, ECase c2 legs2, s) 
+msg' env infvs (ECase c1 legs1, ECase c2 legs2, s) 
   | altPats legs1 == altPats legs2 = do
     t <- newTvar Star
-    (c', s1, t1) <- msg env (c1, c2, scheme t)
+    (c', s1, t1) <- msg' env infvs (c1, c2, scheme t)
     ts <- newTvars Star (length legs1)
-    let (legs1', legs2') = unzip (zipWith separatePats legs1 legs2)
-    tmp <- mapM (msg env) (zip3 legs1' legs2' (map scheme ts))
+    let par = zip3 legs1 legs2 (map scheme ts)
+    tmp <- mapM (msgAlt env infvs) par
+--     let (legs1', legs2') = unzip (zipWith separatePats legs1 legs2)
+--     tmp <- mapM (msg' env infvs) (zip3 legs1' legs2' (map scheme ts))
     let (legs', s2, t2) = unzip3 tmp
-        tmp' = (map collectLambdas legs1)
+--         tmp' = (map collectLambdas legs1)
         s2' = concat s2
-    return (ECase c' (zipWith (mergePats s2') tmp' legs'), s1 ++ s2', t1 ++ concat t2)
-  | otherwise = do
-    n <- newName "tmp"
-    return (EVar n, [(n, ECase c1 legs1)], [s])
-    where --separatePats (Alt (PCon k) (ELam te1 e1)) (Alt (PCon _) (ELam te2 e2)) = (e1, e2)
-          separatePats (Alt (PCon k te1) e1) (Alt (PCon _ te2) e2) = (e1, e2)
-          separatePats (Alt k e1) (Alt _ e2) = (e1, e2)
-          mergePats s (p, Just (ELam te1 e1)) e = tr' ("mPats: " ++ show te1') $ (Alt p (ELam te1' e))
-              where te1' = updateTe s te1 
-                    updateTe [] te = te
-                    updateTe ((n, EVar x):t) te = tr' ("Substar: " ++ show n ++ " for " ++ show x) $ updateTe t (updateTe' x n te)
-                    updateTe (h:t) te = updateTe t te
-                    updateTe' _ _ [] = []
-                    updateTe' x x' ((n, v):t) | x == n = (x', v):updateTe' x x' t
-                                              | otherwise = (n, v):updateTe' x x' t
-          mergePats s (p, Nothing) e = Alt p e
-          --collectLambdas (PCon k, ELam te1 e1) = (pCon0 k, Just (ELam te1 e1))
-          collectLambdas (Alt (PCon k te1) e1) = (pCon0 k, Just (ELam te1 e1))
-          collectLambdas (Alt k e) = (k, Nothing)
-msg env (ERec n1 eq1, ERec n2 eq2, s)
+--    return (ECase c' (zipWith (mergePats s2') tmp' legs'), s1 ++ s2', t1 ++ concat t2)
+    return (ECase c' legs', s1 ++ s2', t1 ++ concat t2)
+--   | otherwise = do
+--     n <- newName "tmp"
+--     return (EVar n, [(n, ECase c1 legs1)], [s])
+--     where --separatePats (Alt (PCon k) (ELam te1 e1)) (Alt (PCon _) (ELam te2 e2)) = (e1, e2)
+--           separatePats (Alt (PCon k te1) e1) (Alt (PCon _ te2) e2) = (e1, e2)
+--           separatePats (Alt k e1) (Alt _ e2) = (e1, e2)
+--           mergePats s (p, Just (ELam te1 e1)) e = tr' ("mPats: " ++ show te1') $ (Alt p (ELam te1' e))
+--               where te1' = updateTe s te1 
+--                     updateTe [] te = te
+--                     updateTe ((n, EVar x):t) te = tr' ("Substar: " ++ show n ++ " for " ++ show x) $ updateTe t (updateTe' x n te)
+--                     updateTe (h:t) te = updateTe t te
+--                     updateTe' _ _ [] = []
+--                     updateTe' x x' ((n, v):t) | x == n = (x', v):updateTe' x x' t
+--                                               | otherwise = (n, v):updateTe' x x' t
+--           mergePats s (p, Nothing) e = Alt p e
+--           --collectLambdas (PCon k, ELam te1 e1) = (pCon0 k, Just (ELam te1 e1))
+--           collectLambdas (Alt (PCon k te1) e1) = (pCon0 k, Just (ELam te1 e1))
+--           collectLambdas (Alt k e) = (k, Nothing)
+msg' env infvs (ERec n1 eq1, ERec n2 eq2, s)
   | n1 == n2 = return (ERec n1 eq1, [], [])
-  | otherwise = do
-    n <- newName "tmp"
-    return (EVar n, [(n, ERec n1 eq1)], [s])
-msg env (ELit l1, ELit l2, s) 
+--   | otherwise = do
+--     n <- newName "tmp"
+--     return (EVar n, [(n, ERec n1 eq1)], [s])
+msg' env infvs (ELit l1, ELit l2, s) 
   | l1 == l2 = return (ELit l1, [], [])
-  | otherwise = do
-    n <- newName "tmp"
-    return (EVar n, [(n, ELit l1)], [s])
-msg env (EAct e1 e2, EAct e1' e2', s) = do
+--   | otherwise = do
+--     n <- newName "tmp"
+--     return (EVar n, [(n, ELit l1)], [s])
+msg' env infvs (EAct e1 e2, EAct e1' e2', s) = do
   t1 <- newTvar Star
   t2 <- newTvar Star
-  (e', s1, t1') <- msg env (e1, e1', scheme t1)
-  (e'', s2, t2') <- msg env (e2, e2', scheme t2)
+  (e', s1, t1') <- msg' env infvs (e1, e1', scheme t1)
+  (e'', s2, t2') <- msg' env infvs (e2, e2', scheme t2)
   return (EAct e' e'', s1 ++ s2, t1' ++ t2')
-msg env (EReq e1 e2, EReq e1' e2', s) = do
+msg' env infvs (EReq e1 e2, EReq e1' e2', s) = do
   t1 <- newTvar Star
   t2 <- newTvar Star
-  (e', s1, t1') <- msg env (e1, e1', scheme t1)
-  (e'', s2, t2') <- msg env (e2, e2', scheme t2)
+  (e', s1, t1') <- msg' env infvs (e1, e1', scheme t1)
+  (e'', s2, t2') <- msg' env infvs (e2, e2', scheme t2)
   return (EReq e' e'', s1 ++ s2, t1' ++ t2')
-msg env (ETempl n1 t1 te1 c1, ETempl n2 t2 te2 c2, s) = error "msg, Etempl"
-msg env (EDo n1 t1 c1, EDo n2 t2 c2, s) 
+msg' env infvs (ETempl n1 t1 te1 c1, ETempl n2 t2 te2 c2, s) = error "msg, Etempl"
+msg' env infvs (EDo n1 t1 c1, EDo n2 t2 c2, s) 
  | n1 == n2 = do
    t1' <- newTvar Star
-   (c1', s1', t1'') <- msgCmd env (c1, c2, scheme t1')
+   (c1', s1', t1'') <- msgCmd env infvs (c1, c2, scheme t1')
    return (EDo n1 t1 c1', s1', t1'')
  | otherwise = error "msg, edo"
-msg env (e1, e2, s) = do
+msg' env infvs (e1, e2, s) = do
   n <- newName "tmp"
+  let fvs' = delete infvs (fv env e1)
+  te <- findTe env fvs'
+  let lterm = mkLams te e1
+      newterm = mkApps (EVar n) (map EVar fvs')
   tr ("Msg: " ++ show' e1 ++ " and " ++ show' e2)
-  return (EVar n, [(n, e1)], [s])
+  tr ("MsgGLONK: " ++ show fvs' ++ show infvs ++ show' lterm ++ " and " ++ show' newterm)
+  return (newterm, [(n, lterm)], [s])
 
-msgCmd env (CGen n1 t1 e1 c1, CGen n2 t2 e2 c2, s) 
+findTe env [] = return []
+findTe env (h:t) 
+  | Just s <- lookup h (inSet env) = do
+   ret <- findTe env t
+   return ((h, s):ret)
+  | otherwise = error "findTe: otheriwse" -- trace ("Did not find " ++ show h) $ findTe env t
+
+msgAlt env infvs (Alt (PCon k te1) e1, Alt (PCon _ te2) e2, s) = do
+  let env' = env {inSet = te1 ++ inSet env }
+  (e1', s', t) <- msg' env' infvs (e1, e2, s)
+  return (Alt (PCon k te1) e1', s', t)
+msgAlt env infvs (Alt PWild e1, Alt PWild e2, s) = do
+  (e1', s', t) <- msg' env infvs (e1, e2, s)
+  return (Alt PWild e1', s', t)
+msgAlt env infvs (Alt (PLit l) e1, Alt (PLit l') e2, s) = do
+  (e1', s', t) <- msg' env infvs (e1, e2, s)
+  return (Alt (PLit l) e1', s', t)
+
+msgCmd env infvs (CGen n1 t1 e1 c1, CGen n2 t2 e2 c2, s) 
  | n1 == n2 = do
    t1' <- newTvar Star
    t2' <- newTvar Star
-   (e1', s1', t1'') <- msg env (e1, e2, scheme t1')
-   (c1', s2', t2'') <- msgCmd env (c1, c2, scheme t2')
+   (e1', s1', t1'') <- msg' env infvs (e1, e2, scheme t1')
+   (c1', s2', t2'') <- msgCmd env infvs (c1, c2, scheme t2')
    return (CGen n1 t1 e1' c1', s1' ++ s2', t1'' ++ t2'')
  | otherwise = error "msgCmd, Cgen"
-msgCmd env (CAss n1 e1 c1, CAss n2 e2 c2, s) 
+msgCmd env infvs (CAss n1 e1 c1, CAss n2 e2 c2, s) 
  | n1 == n2 = do
    t1' <- newTvar Star
    t2' <- newTvar Star
-   (e1', s1', t1'') <- msg env (e1, e2, scheme t1')
-   (c1', s2', t2'') <- msgCmd env (c1, c2, scheme t2')
+   (e1', s1', t1'') <- msg' env infvs (e1, e2, scheme t1')
+   (c1', s2', t2'') <- msgCmd env infvs (c1, c2, scheme t2')
    return (CAss n1 e1' c1', s1' ++ s2', t1'' ++ t2'')
  | otherwise = error "msgCmd, Cgen"
-msgCmd env (CLet bs1 c1, CLet bs2 c2, s) = error "msgCmd: CLet"
-msgCmd env (CRet e1, CRet e2, s) = do
+msgCmd env infvs (CLet bs1 c1, CLet bs2 c2, s) = error "msgCmd: CLet"
+msgCmd env infvs (CRet e1, CRet e2, s) = do
   t <- newTvar Star
-  (e', s', t') <- msg env (e1, e2, scheme t)
+  (e', s', t') <- msg' env infvs (e1, e2, scheme t)
   return (CRet e', s', t')
-msgCmd env (CExp e1, CExp e2, s) = do
+msgCmd env infvs (CExp e1, CExp e2, s) = do
   t <- newTvar Star
-  (e', s', t') <- msg env (e1, e2, scheme t)
+  (e', s', t') <- msg' env infvs (e1, e2, scheme t)
   return (CExp e', s', t')
-msgCmd env (e1, e2, s) = error "msgCmd, e1 e2"
--- msgCmd env (e1, e2, s) = do
+msgCmd env infvs (e1, e2, s) = error "msgCmd, e1 e2"
+-- msgCmd env infvs (e1, e2, s) = do
 --   n <- newName "tmp"
 --   return (EVar n, [(n, e1)], [s])
 
@@ -1282,3 +1312,14 @@ redRat2 p _ _                    = internalError0 ("Scp.redRat2 " ++ show p)
 
 isCommit (EVar (Prim Commit _)) = True
 isCommit _ = False
+
+mkLams [] e = e
+mkLams te e = ELam te e
+
+mkApps e [] = e
+mkApps e te = EAp e te
+
+delete :: Eq a => [a] -> [a] -> [a]
+delete _ [] = []
+delete es (h:t) | h `elem` es = delete es t
+                | otherwise = h:delete es t
