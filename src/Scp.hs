@@ -189,7 +189,7 @@ drive env l@(ELet (Binds False (te':te'') ((n, e):t)) b) c = do
 drive env (ELam te e) ((AppCtxt args):c) = 
   drive env (ELet (Binds False te (zip (dom te) args)) e) c
 drive env (ELam te e) c = do
-  (e', used') <- drive env e emptyContext
+  (e', used') <- drive (env {inSet = te ++ inSet env}) e emptyContext
   (e'', used'') <- build env (ELam te e') c
   return (e'', used' ++ used'')
 
