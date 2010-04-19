@@ -1341,7 +1341,7 @@ linear n e = go e <= 1
           go (ETempl _ _ te c) = goC c
           go (EDo _ _ c) = goC c
 
-          go_alts [] = []
+          go_alts [] = [0]
           go_alts ((Alt p e):t) | inPat n p = go_alts t
                                 | otherwise = go e:go_alts t
 
