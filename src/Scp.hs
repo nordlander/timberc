@@ -173,8 +173,7 @@ drive env l@(ELet b@(Binds True te eqs) body) c = tr' ("eqs: " ++ (show (dom eqs
 drive env l@(ELet (Binds False (te':te'') ((n, e):t)) b) c = do
   tr ("nonrec bind" ++ show' l)
   tr ("nonrec' bind:" ++ show' (plug c l))
-  -- XXXpj: linear 
-  if strict n b || value e || terminates env e
+  if (strict n b && linear n b) || value e || terminates env e
      then drive env (ELet (Binds False te'' t) (subst (n +-> e) b)) c
      else do
          tr ("nonval: " ++ show' l)
@@ -1323,3 +1322,37 @@ delete :: Eq a => [a] -> [a] -> [a]
 delete _ [] = []
 delete es (h:t) | h `elem` es = delete es t
                 | otherwise = h:delete es t
+
+linear n e = go e <= 1
+    where go (ECon n) = 0
+          go (ESel e _) = go e
+          go (EVar v) | v == n = 1
+                      | otherwise = 0
+          go (ELam te e) | elem n (dom te) = 0
+                         | otherwise = 2 * go e
+          go (EAp e es) = go e + sum (map go es)
+          go (ELet (Binds _ te bs) body) | elem n (dom te) = 0
+                                         | otherwise = go body + sum (map go (rng bs))
+          go (ECase e alts) = go e + maximum (go_alts alts)
+          go (ERec _ eqns) = sum (map go (rng eqns))
+          go (ELit {}) = 0
+          go (EAct e1 e2) = go e1 + go e2
+          go (EReq e1 e2) = go e1 + go e2
+          go (ETempl _ _ te c) = goC c
+          go (EDo _ _ c) = goC c
+
+          go_alts [] = []
+          go_alts ((Alt p e):t) | inPat n p = go_alts t
+                                | otherwise = go e:go_alts t
+
+          goC (CGen _ _ e c) = go e + goC c
+          goC (CAss _ e c) = go e + goC c
+          goC (CLet (Binds _ te bs) c) | elem n (dom te) = 0
+                                       | otherwise = goC c + sum (map go (rng bs))
+          goC (CRet e) = go e
+          goC (CExp e) = go e
+          goC (CCase e alts) = error "linear, goC, CCase: undefined"
+
+
+inPat n (PCon _ te) = elem n (dom te)
+inPat _ _ = False
