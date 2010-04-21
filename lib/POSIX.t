@@ -82,5 +82,11 @@ struct Sockets where
 instance showHost :: Show Host
 showHost = struct
     show (Host nm) = nm
+    
+newRoot :: (Env -> Class Action) -> (World -> Cmd () ())
+newRoot cl world = do
+    env = new posix world
+    init = new cl env
+    init
 
 extern posix :: World -> Class Env

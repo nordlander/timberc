@@ -17,7 +17,7 @@ prompt with a line number. Here is the program:
 
 <b>import</b> POSIX
 
-root env = <b>class</b>
+echo2 env = <b>class</b>
 
    count := 1
 
@@ -34,25 +34,30 @@ root env = <b>class</b>
          env.stdin.installR echo
          env.stdout.write "Welcome to Echo2!\n"
          prompt
+
+root = newRoot echo2
+
 </pre>
 <hr>
 <p>
-The root definition now has two more components:
+The class definition now has two more components:
 <ul>
   <li> The (implicit) declaration and initialisation of the state
       variable <tt>count</tt>, which will maintain line numbers.
-  <li> The auxiliary procedure <tt>prompt</tt>, which writes
-  a prompt to the user and increases the line count.
+  <li> The local procedure <tt>prompt</tt>, which expresses the common task of writing a prompt to the user and increasing the line count (used both during initialization and subsequent handling of user input).
 </ul>
 <p>
-In addition, the callback and the initial action both call
-<tt>prompt</tt>, and a greeting phrase is added.
+In addition, the interface returned upon instantiation is a dedicated method that takes care of all program-specific initialization.  Such a class allows for a particularly simple root definition, as shown in the last line of the example.  The wrapper function <tt>newRoot</tt> has the following definition in module <tt>POSIX</tt>:
+<pre>
+newRoot :: (Env -> Class Action) -> World -> Cmd () ()
+newRoot cl world = <b>do</b>
+   env = <b>new</b> posix world
+   init = <b>new</b> cl env
+   init
+</pre>
 <p>
 Some additional details:
 <ul>
-  <li> <p>The keyword <tt><b>do</b></tt> signifies the start of a,
-  typically local, procedure, that may be called from other methods
-  as above.</li>
   <li> <p><tt>show</tt> is a function that converts
   the integer value <tt>count</tt> to a string; <tt>++</tt>
   denotes string concatenation. Both these are defined in
@@ -62,16 +67,12 @@ Some additional details:
   the newline; hence so will the string echoed to <tt>stdout</tt>.
   But to write the welcome phrase on a separate line, it will have
   to end with an explicit newline.</li>
-  <li> The root object maintains  state variable
+  <li> The main object maintains state variable
   <tt>count</tt>, which is initialised to 1 and increased for each
       prompt written. Obviously, it would be possible to use
-  a <tt>counter</tt> object here, but in this simple program that
-      seems an overkill. 
-  <li> A more careful description of what the runtime system does
-  when the program is run is the following: it creates an object of type
-      <tt>Env</tt>,
-  applies function <tt>root</tt> to that object, creates an object
-  of the resulting class and invokes the resulting action.
+  a <tt>counter</tt> object here instead, but in this simple program that
+      would seem an overkill. 
 </ul>
+
 <script type="text/javascript"> var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www."); document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E")); </script> <script type="text/javascript"> try { var pageTracker = _gat._getTracker("UA-5102454-2"); pageTracker._trackPageview(); } catch(err) {}</script>
 </body> </html>

@@ -7,17 +7,15 @@ port = Port 12345
 root :: World -> Cmd () ()
 root w = do
     env = new posix w
+    env.inet.tcp.listen port (server env.stdout)
 
-    log str = action
-       env.stdout.write ('[':str ++ "]\n")
-
-    env.inet.tcp.listen port (server log)
-
-server log sock = class
+server logfile sock = class
 
    n := 1
 
    p = show sock.remoteHost
+
+   log str = logfile.write ('[':str ++ "]\n")
 
    echo str = action
       sock.outFile.write (show n ++"> "++str)
@@ -27,7 +25,7 @@ server log sock = class
       log (p ++ " closing")
       result ()
 
-   neterror str = log ("Neterror: "++str)
+   neterror str = action log ("Neterror: "++str)
 
    established = action
       log ("Connected from " ++ p)

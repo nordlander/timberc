@@ -21,24 +21,21 @@ disconnected.
 
 port = Port 12345
 
-root env = <b>class</b>
- 
+root w = <b>do</b>
+    env = <b>new</b> posix w
     clients = <b>new</b> counter
+    <b>case</b> parse (env.argv ! 1) <b>of</b>
+       Right n -> env.inet.tcp.listen port (server n clients env.stdout)
+       _ -> env.stdout.write "usage: EchoServer n, where n is number of concurrent clients\n"
+            env.exit 1
 
-    log str = <b>action</b>
-       env.stdout.write ('[':str ++ "]\n")
-
-    <b>result</b> <b>action</b>
-       <b>case</b> parse (env.argv ! 1) <b>of</b>
-         Right n -> env.inet.tcp.listen port (server n clients log)
-         _ -> env.stdout.write "usage: EchoServer n, where n is number of concurrent clients\n"
-              env.exit 1
-
-server maxClients clients log sock = <b>class</b>
+server maxClients clients logfile sock = <b>class</b>
 
    n := 1
 
    p = show sock.remoteHost
+
+   log str = logfile.write ('[':str ++ "]\n")
 
    echo str = <b>action</b>
       sock.outFile.write (show n ++"> "++str)
@@ -49,11 +46,11 @@ server maxClients clients log sock = <b>class</b>
       log (p ++ " closing")
       <b>result</b> ()
 
-   neterror str = log ("Neterror: "++str)
+   neterror str = <b>action</b> log ("Neterror: "++str)
 
    established = <b>action</b>
-      cl <- clients.value
-      <b>if</b> cl < maxClients <b>then</b>
+      cl &lt;- clients.value
+      <b>if</b> cl &lt; maxClients <b>then</b>
          clients.incr
          log ("Connected from " ++ p)
          sock.inFile.installR echo

@@ -18,7 +18,7 @@ with a return, the line typed will be the new message. Here is the program:
 
 <b>import</b> POSIX
 
-root env = <b>class</b>
+echo3 env = <b>class</b>
 
    current := "Hello!\n"
 
@@ -29,25 +29,22 @@ root env = <b>class</b>
       env.stdout.write current
       <b>after</b> (sec 1) tick
 
-   <b>result</b>
-      <b>action</b>
-         env.stdin.installR save
-         tick
+   <b>result</b> <b>action</b>
+      env.stdin.installR save
+      tick
+   
+root = newRoot echo3
+
 </pre>
 <hr>
 <ul>
   <li> The message to be printed once a second is maintained in state
       variable <tt>current</tt>.
-  <li> The callback installed with <tt>stdin</tt> changes
-      <tt>current</tt>.
-  <li> The initial action not only installs <tt>save</tt>, it also
-      invokes the auxiliary action <tt>tick</tt>, which prints
-  <tt>current</tt> and <em>schedules itself for later execution</em>.
-  
-  <p> The scheduled execution time (the <em>baseline</em>) for each instance of <tt>tick</tt> is
-  one second after the baseline of the previous instance. Thus there
-  is no accumulating drift in the program, even if a particular tick may be delayed in
-  execution.
+  <li> Method <tt>save</tt> changes <tt>current</tt>.
+  <li> Method <tt>tick</tt> prints
+  <tt>current</tt> and <em>schedules itself for later execution</em>.</li>
+  <li> The returned initialization method not only installs <tt>save</tt> as an input handler for <tt>stdin</tt>, it also makes an initial invocation of <tt>tick</tt> so that the self-triggering execution pattern can get started.</li>
+  <li> The scheduled execution time (the <em>baseline</em>) for each instance of <tt>tick</tt> is one second after the baseline of the previous instance. Thus there is no accumulating drift in the program, even if a particular tick may be delayed in execution.</li>
 </ul>
 <p>
 When running <tt>Echo3</tt> one notices a peculiarity of the standard
@@ -56,5 +53,6 @@ implementation of the <tt>POSIX</tt> environment: the screen doubles
 device <tt>stdout</tt> and as user feedback part of the input device
 <tt>stdin</tt>. Thus, output is intertwined with input characters in a
 rather unsatisfactory way.
+
 <script type="text/javascript"> var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www."); document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E")); </script> <script type="text/javascript"> try { var pageTracker = _gat._getTracker("UA-5102454-2"); pageTracker._trackPageview(); } catch(err) {}</script>
 </body> </html>

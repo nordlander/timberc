@@ -33,20 +33,18 @@ and the other a <em>client</em>. Here is a trivial server, the
 
 port = Port 12345
 
-root env = <b>class</b>
-
-    log str = <b>action</b>
-       env.stdout.write ('[':str ++ "]\n")
-
-    result <b>action</b>
-       env.inet.tcp.listen port (server log)
+root w = <b>do</b>
+    env = <b>new</b> posix w
+    env.inet.tcp.listen port (server env.stdout)
 
 
-server log sock = <b>class</b>
+server logfile sock = <b>class</b>
 
    n := 1
 
    p = show sock.remoteHost
+
+   log str = logfile.write ('[':str ++ "]\n")
 
    echo str = <b>action</b>
       sock.outFile.write (show n ++"> "++str)
@@ -56,7 +54,7 @@ server log sock = <b>class</b>
       log (p ++ " closing")
       <b>result</b> ()
 
-   neterror str = log ("Neterror: "++str)
+   neterror str = <b>action</b> log ("Neterror: "++str)
 
    established = <b>action</b>
       log ("Connected from " ++ p)
@@ -68,7 +66,7 @@ server log sock = <b>class</b>
 <p>
 Comments to the code:
 <ul>
-  <li> The result action of the root definition just installs a
+  <li> The root procedure just installs a
   listening callback in the environment. Such a callback has type
   <tt>Socket -> Class Connection</tt> where
   <ul>
@@ -89,16 +87,17 @@ Comments to the code:
     when connection is established, the
     <tt>echo</tt> method with the <tt>inFile</tt> of the socket.
     <li> Additionally, the server logs its connections and
-    errors, using the logging method
-    that it gets as parameter (which logs to <tt>stdout</tt>).
+    errors, using the file interface
+    that it gets as parameter (which leads to <tt>stdout</tt> of the environment).
 </ul>
 <p>
 In order to let you run the server, we provide a simple client,
 <tt>TCPClient</tt>. We do not list the code here; you may review
 it in <tt>TCPClient.t</tt>. The client accepts a host name and a port
 number as command line arguments and connects to a server on that
-address. When connection is established, the client accepts user input
+address. When a connection is established, the client accepts user input
 lines, sends them to the server and displays replies obtained on the
 screen.
+
 <script type="text/javascript"> var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www."); document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E")); </script> <script type="text/javascript"> try { var pageTracker = _gat._getTracker("UA-5102454-2"); pageTracker._trackPageview(); } catch(err) {}</script>
 </body> </html>

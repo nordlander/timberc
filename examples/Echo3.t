@@ -2,10 +2,6 @@ module Echo3 where
 
 import POSIX
 
-struct Echo3 where
-  save :: String -> Action
-  tick :: Action
-
 echo3 env = class
 
    current := "Hello!\n"
@@ -17,13 +13,8 @@ echo3 env = class
       env.stdout.write current
       after (sec 1) tick
 
-   result
-     Echo3 {..}
+   result action
+      env.stdin.installR save
+      tick
 
-root :: World -> Cmd () ()
-root w = do
-   env = new posix w
-   echo = new echo3 env
-
-   env.stdin.installR echo.save
-   echo.tick
+root = newRoot echo3

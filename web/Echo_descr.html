@@ -9,14 +9,9 @@
 
 <p>
 Our first example runs in a very simple setting: a computing environment
-where the interaction between the external world and the program is through a keyboard and a text screen.
-The user provides input using the keyboard and the program prints
-output on the screen.
+where the interaction between the external world and the program is through a keyboard and a text screen. The user provides input using the keyboard and the program prints output on the screen.
 <p>
-We consider a reactive program, where the user 
-input is just echoed on the screen, line by line,
-by the program. This trivial interaction, the "Hello, world" of
-reactive programs, goes on indefinitely.
+We consider a reactive program, where the user input is just echoed on the screen, line by line, by the program. This trivial interaction, the "Hello, world" of reactive programs, goes on indefinitely.
 <p>
 Here is the program:
 <hr>
@@ -25,65 +20,45 @@ Here is the program:
 
 <b>import</b> POSIX
 
-root env = <b>class</b>
+echo env = <b>class</b>
 
-   echo str = <b>action</b>
+   handler str = <b>action</b>
       env.stdout.write str
 
-   <b>result</b> 
-      <b>action</b> 
-         env.stdin.installR echo
+   <b>result</b> handler      
+
+root world = <b>do</b>
+   env = <b>new</b> posix world
+   handler = <b>new</b> echo env
+   env.stdin.installR handler
+
 </pre>
 <hr>
 <p>
 Let us explain the program:
 <ul>
-  <li> The first line just states the name of the module.</li>
-  <li> Line 3 contains an import declaration; we will use resources from
-<tt>POSIX</tt>,  a predefined library module that provides the types
-  needed to build programs for simple environment we described above.
-  <p>
-Module <tt>POSIX</tt> defines a struct type <tt>Env</tt>, with selectors
-corresponding to the resources available to the program in its interaction
-with the environment.
-Among these are <tt>stdin</tt>, which refers to the keyboard,
-and <tt>stdout</tt>, which refers to the screen.</li>
-<li>
-Module <tt>POSIX</tt> also acts as the default
-<em>target environment</em> for Timber programs.
-This target environment prescribes that a program
-must contain a <em>root definition</em>
-  <pre>
-root :: Env -> Class Action
+  <li>The first line just states the name of the module.</li>
+  <li>Line 3 contains an import declaration; we will use resources from
+<tt>POSIX</tt>, a library module that provides a view of the external world in the form of a POSIX operating system interface.</li>
+  <li>Line 5 defines our class of echoing reactive objects, whose interface consists of a single method that just writes its string argument to the <tt>stdout</tt> text stream (normally the display) of the provided POSIX environment <tt>env</tt>.</li>
+  <li>Finally, line 12 contains the <em>root</em> definition of this program: a procedure (indicated by the <tt><b>do</b></tt> keyword) that creates the desired structure of reactive objects and makes it known to the external world.  Here we want to view the external environment as a POSIX operating system, so the root procedure wraps the provided <tt>world</tt> link inside a POSIX interface, creates the echoing reactive object, and then installs the obtained handler with the <tt>stdin</tt> text stream of a POSIX environment (typically the keayboard).</li>
+</ul>
+<p>
+The root procedure is special in that it will be invoked by the run-time 
+system during startup of the corresponding Timber program.  Its type signature 
+must be
+<pre>
+root :: World -> Cmd () ()    
 </pre>
 <p>
-
-In module <tt>Echo</tt>, this definition starts on line 5 and
-makes up the rest of the program.
+where <tt>World</tt> is a primitive abstract type denoting a link to the real external world, and <tt>Cmd () ()</tt> is the type of procedures running in an empty state, returning no result.  The name <tt>root</tt> is by no means mandatory for a root procedure, but if no explicit root name is provided when a Timber executable is built, <tt>root</tt> will be used as a default.
 <p>
-<tt>root</tt> must describe the initial behaviour of the program in its
-<tt>result</tt> action, which terminates the class definition.
-<p>
-In addition, it may make auxiliary definitions; here of
-the function <tt>echo</tt>, which describes how the program
-reacts to an input string <tt>str</tt>.
-The resulting action just installs this function as
-a callback with <tt>env.stdin</tt>.
-</ul>
-<p> When executed, the runtime system invokes the
-result action of the root definition (see
-<a href="Echo2_descr.html"><tt>Echo2</tt></a> for a more careful description.)
-After that, the program is idle, waiting for user input.
-When such (line-buffered) input occurs, the runtime system
-invokes the callback with the input line as argument.
-<p>
+After program startup and execution of the root procedure, the program will be idle, waiting for user input on the <tt>stdin</tt> stream.  When such (line-buffered) input occurs, the runtime system invokes the installed handler method, with the input line as argument.
 This trivial program is typical for the Timber programming idiom;
 we describe how the program should react to external events and
-install, or register, this description with the external device.
+install, or register, this description with the external world.
 <p>
-We note, finally, that the use of <tt>stdout</tt> and
-<tt>stdin</tt> is consistent with their types as
-specified in <tt>Env</tt>:
+We remark, finally, that module <tt>POSIX</tt> declares its operating system environment as a record type <tt>Env</tt>, and that the use of <tt>stdout</tt> and <tt>stdin</tt> is consistent with their types as specified in <tt>Env</tt>:
 <ul>
   <li> <tt>stdout</tt>
 is a <tt>WFile</tt> and thus has a <tt>write</tt> method;

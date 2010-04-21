@@ -26,7 +26,11 @@ Here is the program:
 
 <b>data</b> State = Idle | Waiting Msg | Counting
 
-root env = <b>class</b>
+format t = show (secOf t) ++ '.' : fracs ++ " secs"
+  <b>where</b> n  = microsecOf t `div` 10000
+        fracs = <b>if</b> n<10 <b>then</b> '0':show n <b>else</b> show n 
+            
+reflex env = <b>class</b>
   
    print str = env.stdout.write (str ++ "\n")
 
@@ -50,18 +54,16 @@ root env = <b>class</b>
                         print "Cheat!!!"
                         state := Idle
 
-        Counting ->     t <- tmr.sample
+        Counting ->     t &lt;- tmr.sample
                         print (format t)
                         state := Idle
 
-   <b>result</b>
-     <b>action</b>
+   <b>result</b> <b>action</b>
        env.stdin.installR enter
        print "Press return to start"
 
-format t = show (secOf t) ++ '.' : fracs ++ " secs"
-  <b>where</b> n  = microsecOf t `div` 10000
-        fracs = <b>if</b> n<10 <b>then</b> '0':show n <b>else</b> show n 
+root = newRoot reflex
+
 </pre>
 <hr>
 <p>

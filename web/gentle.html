@@ -92,41 +92,23 @@ argument. Notice how each <tt>ping</tt> causes two future events to be triggered
 to <tt>stop</tt> 2 milliseconds from the current baseline, and a recursive invocation of 
 <tt>ping</tt> itself after 3 seconds to keep the periodic sonar activity alive.
 <p>
-As an example of how a sonar object might be instantiated to run on a bare-metal embedded 
-system, here follows an example of the <tt>root</tt> declaration for such a system.
-<pre>root regs = <strong>class</strong>
-    crit d = d < millisec 15
-    a = <strong>new</strong> alarm (regs!com_port_addr)
-    s = <strong>new</strong> sonar (regs!sonar_port_addr) a crit
-    <strong>result</strong> [ s.start, s.interrupt, a.ack ]
+As an example of how a sonar object might be instantiated to run on a bare-metal embedded system, here follows an example of the <em>root declaration</em> for such a system.
+<pre>root world = <strong>do</strong>
+    regs = <strong>new</strong> register_array world
+    irq = <strong>new</strong> interrupt_vector world
+    crit d = d &lt; millisec 15
+    al = <strong>new</strong> alarm (regs!com_port_addr)
+    so = <strong>new</strong> sonar (regs!sonar_port_addr) al crit
+    irq.install [so.start, so.interrupt, al.ack]
 </pre>
 <p>
-On this level, the interface to the software (as seen from the hardware) is the list 
-of interrupt handlers it provides (enclosed in square brackets).  Consequently (from the 
-software perspective), the hardware takes the shape of an array of device registers that 
-can be read or written (with ! being the indexing operator). The parametric class 
-<tt>root</tt> above is thus of a type that can be instantiated and used directly by the 
-run-time system of a typical bare-metal platform, although it should be noted that the 
-exact shape of a root definition can vary between Timber platforms -- under the POSIX 
-environment, for example, the root class returns just a startup procedure, while taking 
-a full-featured operating system interface as an argument.
+The root of a Timber system is a simple procedure that essentially creates the desired structure of reactive objects and makes it known to the external world.  The world itself is provided by the run-time system as an abstract handle, on top of which specific interfaces matching the intended working environment can be built.  For a bare metal platform this amounts to a register array (indexed using the operator <tt>!</tt>) and an interrupt vector, but the set of available world interfaces generally varies between the supported platforms.  The POSIX environment, for example, is a full-featured operating system interface, that among other things allows installation of event-handlers on arbitrary data streams.
 <p>
-The semantics of Timber allows a natural implementation in terms of an EDF scheduler, 
-where the asynchronous methods of a program correspond to tasks, objects take the role 
-of shared resources, and all methods (synchronous as well as asynchronous) simply denote 
-code sequences that require exclusive access to the owning object. Timber also relegates 
-management of its garbage-collected heap to idle time, thus facilitating direct 
-application of known schedulability and execution time analysis methods. The implementation 
-technique used furthermore allows both objects and messages to be created in large numbers 
-without incurring any run-time penalty, at the same time as the number of threads behind 
-the scenes (i.e., the number of execution contexts and stacks) can be limited to the 
-maximum preemption depth a system is expected to need.
+The semantics of Timber allows a natural implementation in terms of an EDF scheduler, where the asynchronous methods of a program correspond to tasks, objects take the role of shared resources, and all methods (synchronous as well as asynchronous) simply denote code sequences that require exclusive access to the owning object. Timber also relegates management of its garbage-collected heap to idle time, thus facilitating direct application of known schedulability and execution time analysis methods. The implementation 
+technique used furthermore allows both objects and messages to be created in large numbers without incurring any run-time penalty, at the same time as the number of threads behind the scenes (i.e., the number of execution contexts and stacks) can be limited to the maximum preemption depth a system is expected to need.
 <p>
-Additional features of Timber not covered here include a strong static type system 
-supporting subtyping, parametric polymorphism with overloading, and automatic type inference; 
-a rich set of heap-allocated immutable datatypes; first-class citizenship to all values 
-(meaning that methods as well as classes can be sent as arguments and stored inside data 
-structures); and a referentially transparent evaluation semantics in the purely functional
+Additional features of Timber not covered here include a strong static type system supporting subtyping, parametric polymorphism with overloading, and automatic type inference; a rich set of heap-allocated immutable datatypes; first-class citizenship to all values (meaning that methods as well as classes can be sent as arguments and stored inside data structures); and a referentially transparent evaluation semantics in the purely functional
 tradition.
+
 <script type="text/javascript"> var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www."); document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E")); </script> <script type="text/javascript"> try { var pageTracker = _gat._getTracker("UA-5102454-2"); pageTracker._trackPageview(); } catch(err) {}</script>
 </body> </html>

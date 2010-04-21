@@ -103,7 +103,7 @@ consistent board cs =
 
 <b>data</b> State = Idle | JustGuessed | GameOver | GetSecret
            
-root env = <b>class</b>
+mastermind env = <b>class</b>
   
   gen = <b>new</b> baseGen (microsecOf env.startTime)
 
@@ -168,22 +168,23 @@ root env = <b>class</b>
       GetSecret ->
         <b>case</b> map parse (words inp) <b>of</b>
           es | length es==4
-              && all isRight es ->
+              &amp;&amp; all isRight es ->
                   ss = map fromRight es
                   (g',r'):_ = contradictions board ss
                   env.stdout.write ("When I guessed "++show g'++ 
                   ", you answered "++show r'++".\n")
                   env.stdout.write ("Correct answer should have been "++
                                    show (answer g' ss)++".\n")
-                 checkQuit
+                  checkQuit
           _ -> env.stdout.write "Secret must be four colours separated by spaces; try again\n"
 
+  <b>result</b> <b>action</b>
+     env.stdin.installR inpHandler
+     env.stdout.write "Welcome to Mastermind!\n"
+     startGame
+         
+root = newRoot mastermind
 
-  <b>result</b>
-     <b>action</b>
-         env.stdin.installR inpHandler
-         env.stdout.write "Welcome to Mastermind!\n"
-         startGame
 </pre>
 <script type="text/javascript"> var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www."); document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E")); </script> <script type="text/javascript"> try { var pageTracker = _gat._getTracker("UA-5102454-2"); pageTracker._trackPageview(); } catch(err) {}</script>
 </body> </html>

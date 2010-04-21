@@ -11,20 +11,19 @@ root w = do
     env = new posix w
     clients = new counter
 
-    log str = action
-       env.stdout.write ('[':str ++ "]\n")
-
     case parse (env.argv!1) of
-       Right n -> env.inet.tcp.listen port (server n clients log)
+       Right n -> env.inet.tcp.listen port (server n clients env.stdout)
        _ -> env.stdout.write "usage: EchoServer n, where n is number of concurrent clients\n"
             env.exit 1
 
-server :: Int -> Counter -> (String -> Action) -> Socket -> Class Connection
-server maxClients clients log sock = class
+server :: Int -> Counter -> WFile -> Socket -> Class Connection
+server maxClients clients logfile sock = class
 
    n := 1
 
    p = show sock.remoteHost
+
+   log str = logfile.write ('[':str ++ "]\n")
 
    echo str = action
       sock.outFile.write (show n ++"> "++str)
@@ -35,7 +34,7 @@ server maxClients clients log sock = class
       log (p ++ " closing")
       result ()
 
-   neterror str = log ("Neterror: "++str)
+   neterror str = action log ("Neterror: "++str)
 
    established = action
       cl <- clients.value

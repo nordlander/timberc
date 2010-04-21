@@ -13,17 +13,9 @@ echo2 env = class
       env.stdout.write str
       prompt
 
-   init = action 
+   result action 
       env.stdin.installR echo
       env.stdout.write "Welcome to Echo2!\n"
       prompt
 
-   result init
-
-root :: World -> Cmd () ()
-root w = do
-  env  = new posix w
-  init = new echo2 env
-  init
-
-
+root = newRoot echo2
