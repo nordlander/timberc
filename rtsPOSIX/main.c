@@ -31,13 +31,15 @@
 // ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+#include "rts.h"
+
 void ROOTINIT(void);
-void ROOT(void);
+void ROOT(void *w, Ref r);
 
 int main(int argc, char **argv) {
-    init_rts(argc,argv);
+    Ref envObj = init_rts(argc,argv);
     ROOTINIT();
     pruneStaticHeap();
-    ROOT();
+    ROOT((void *)0,envObj);
     sleep_rts();
 }

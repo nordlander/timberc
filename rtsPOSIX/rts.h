@@ -209,6 +209,7 @@ struct FunList {
 };
 
 void addRootScanner(FunList ls);
+Ref init_rts(int argc, char **argv);
 int getArgc();
 char **getArgv();
 Thread newThread(Msg m, int prio, void *(*fun)(void *), int stacksize) ;

@@ -490,7 +490,7 @@ void scanRoots() {
     FunList s = scanners;
 
     envRootsDirty=0;
-    while(!s) {
+    while(s) {
       s->f();
       s = s->next;
     }
@@ -538,7 +538,8 @@ Int getNumberOfProcessors() {
     return 1;
 }
 
-void init_rts(int argc, char **argv) {
+Ref init_rts(int argc, char **argv) {
+    Ref envObj;
     argc0 = argc;
     argv0 = argv;
 
@@ -576,4 +577,7 @@ void init_rts(int argc, char **argv) {
     newThread(NULL, prio_max, timerHandler, pagesize);
     
     ENABLE(rts);
+    NEW (Ref, envObj, WORDS(sizeof(struct Ref)));
+    INITREF(envObj);
+    return envObj;
 }

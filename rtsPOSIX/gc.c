@@ -88,7 +88,7 @@ ADDR staticHeap;                        // heap (chain) containing only statical
 
 char emergency = 0;                     // flag signalling heap overflow during gc
 
-void scanEnvRoots(void);
+void scanRoots(void);
 void scanTimerQ(void);
 extern int envRootsDirty;
 extern int timerQdirty;
@@ -311,7 +311,7 @@ void gc() {
 
         while (1) {
                 if (envRootsDirty)
-                        scanEnvRoots();
+                        scanRoots();
                 if (timerQdirty)
                         scanTimerQ();
 
