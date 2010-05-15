@@ -369,6 +369,7 @@ forallSeq1Unit f a b c = fE ai (bi-ai) ci
 enumFromTo          :: a -> a -> [a] \\ Enum a
 enumFromTo a b      = map toEnum (fromToInt (fromEnum a) 1 (fromEnum b))
 
+enumFromThenTo :: a -> a -> a -> [a] \\ Enum a
 enumFromThenTo a b c = map toEnum (fromToInt ai (bi-ai) ci)
   where  ai = fromEnum a
          bi = fromEnum b
