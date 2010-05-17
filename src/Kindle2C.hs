@@ -393,30 +393,10 @@ k2cExp1 (ECast t e)             = parens (k2cType t) <> k2cExp1 e
 k2cExp1 e                       = k2cExp2 e
 
 
-k2cChar '\\'                    = text "\\\\"
-k2cChar '\''                    = text "\\'"
-k2cChar '\"'                    = text "\\\""
-k2cChar '\a'                    = text "\\a"
-k2cChar '\b'                    = text "\\b"
-k2cChar '\f'                    = text "\\f"
-k2cChar '\n'                    = text "\\n"
-k2cChar '\r'                    = text "\\r"
-k2cChar '\t'                    = text "\\t"
-k2cChar '\v'                    = text "\\v"
-k2cChar c | isPrint c           = text [c]
-          | ord c < 256         = text ("\\" ++ oct3 (ord c))
-          | otherwise           = text ("\\x" ++ hex2 (ord c `div` 256) ++ hex2 (ord c `mod` 256))
-  where hex1 n | n < 10         = chr (n + ord '0')
-               | otherwise      = chr (n - 10 + ord 'a')
-        hex2 n                  = [hex1 (n `div` 16), hex1 (n `mod` 16)]
-        oct1 n                  = chr (n + ord '0')
-        oct3 n                  = [oct1 (n `div` 64), oct1 ((n `mod` 64) `div` 8), oct1 (n `mod` 8)]
-
-
 k2cExp2 (EVar x)                = k2cName x
 k2cExp2 (ELit (LRat _ r))       = text (show (fromRational r :: Double))
-k2cExp2 (ELit (LStr _ str))     = text "getStr(\"" <> hcat (map k2cChar str) <> text "\")"
-k2cExp2 (ELit (LChr _ c))       = text "\'" <> k2cChar c <> text "\'"
+k2cExp2 (ELit (LStr _ str))     = text "getStr(\"" <> hcat (map cChar str) <> text "\")"
+k2cExp2 (ELit (LChr _ c))       = text "\'" <> cChar c <> text "\'"
 k2cExp2 (ELit l)                = pr l
 k2cExp2 (ESel e (Prim STATE _)) = text "STATEOF" <> parens (k2cExp e)
 k2cExp2 (ESel (ECast (TCon n _) e) l)
@@ -457,86 +437,14 @@ k2cName n | isBigTuple n        = text "TUPLE"
 k2cGCInfoName n                 = text gcinfoSym <> k2cName n
 
 
-k2cPrim IntPlus                 = text "+"
-k2cPrim IntMinus                = text "-"
-k2cPrim IntTimes                = text "*"
-k2cPrim IntDiv                  = text "/"
-k2cPrim IntMod                  = text "%"
-k2cPrim IntNeg                  = text "-"
-
-k2cPrim IntEQ                   = text "=="
-k2cPrim IntNE                   = text "!="
-k2cPrim IntLT                   = text "<"
-k2cPrim IntLE                   = text "<="
-k2cPrim IntGE                   = text ">="
-k2cPrim IntGT                   = text ">"
-                                
-k2cPrim FloatPlus               = text "+"
-k2cPrim FloatMinus              = text "-"
-k2cPrim FloatTimes              = text "*"
-k2cPrim FloatDiv                = text "/"
-k2cPrim FloatNeg                = text "-"
-                                
-k2cPrim FloatEQ                 = text "=="
-k2cPrim FloatNE                 = text "!="
-k2cPrim FloatLT                 = text "<"
-k2cPrim FloatLE                 = text "<="
-k2cPrim FloatGE                 = text ">="
-k2cPrim FloatGT                 = text ">"
-
-k2cPrim AND8                    = text "&"
-k2cPrim OR8                     = text "|"
-k2cPrim EXOR8                   = text "^"
-k2cPrim SHIFTL8                 = text "<<"
-k2cPrim SHIFTR8                 = text ">>"
-k2cPrim NOT8                    = text "~"
-                                
-k2cPrim AND16                   = text "&"
-k2cPrim OR16                    = text "|"
-k2cPrim EXOR16                  = text "^"
-k2cPrim SHIFTL16                = text "<<"
-k2cPrim SHIFTR16                = text ">>"
-k2cPrim NOT16                   = text "~"
-                                
-k2cPrim AND32                   = text "&"
-k2cPrim OR32                    = text "|"
-k2cPrim EXOR32                  = text "^"
-k2cPrim SHIFTL32                = text "<<"
-k2cPrim SHIFTR32                = text ">>"
-k2cPrim NOT32                   = text "~"
-
 k2cPrim IntToFloat              = text "(Float)"
 k2cPrim FloatToInt              = text "(Int)"
 
 k2cPrim CharToInt               = text "(Int)"
 k2cPrim IntToChar               = text "(Char)"
 
-k2cPrim LazyOr                  = text "||"
-k2cPrim LazyAnd                 = text "&&"
-
-k2cPrim PidEQ                   = text "=="
-k2cPrim PidNE                   = text "!="
-{-*                               
-k2cPrim Sec                     = text "SEC"
-k2cPrim Millisec                = text "MILLISEC"
-k2cPrim Microsec                = text "MICROSEC"
-k2cPrim Nanosec                 = text "NANOSEC"
--}
 k2cPrim Infinity                = text "Infinity"
 k2cPrim Raise                   = text "Raise"
---k2cPrim Catch                   = text "Catch"
-{-                           
-k2cPrim TimePlus                = text "TPLUS"
-k2cPrim TimeMinus               = text "TMINUS"
-k2cPrim TimeMin                 = text "TMIN"
-                           
-k2cPrim TimeEQ                  = text "=="
-k2cPrim TimeNE                  = text "!="
-k2cPrim TimeLT                  = text "<"
-k2cPrim TimeLE                  = text "<="
-k2cPrim TimeGE                  = text ">="
-k2cPrim TimeGT                  = text ">"
--}
 k2cPrim Abort                   = text "ABORT"
 
-k2cPrim p                       = text (strRep2 p)
+k2cPrim p                       = cSym p

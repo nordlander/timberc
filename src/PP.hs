@@ -36,7 +36,7 @@
 module PP (module PP, module Text.PrettyPrint) where
 
 import Text.PrettyPrint hiding (TextDetails(..))
-import Data.Char(showLitChar)
+import Data.Char
 
 
 class Pr a where
@@ -88,4 +88,24 @@ vshow = render . vpr
 
 showlist :: Pr a => [a] -> String
 showlist xs = render (text "(" <> hpr ',' xs <> text ")")
+
+
+cChar '\\'                      = text "\\\\"
+cChar '\''                      = text "\\'"
+cChar '\"'                      = text "\\\""
+cChar '\a'                      = text "\\a"
+cChar '\b'                      = text "\\b"
+cChar '\f'                      = text "\\f"
+cChar '\n'                      = text "\\n"
+cChar '\r'                      = text "\\r"
+cChar '\t'                      = text "\\t"
+cChar '\v'                      = text "\\v"
+cChar c | isPrint c             = text [c]
+        | ord c < 256           = text ("\\" ++ oct3 (ord c))
+        | otherwise             = text ("\\x" ++ hex2 (ord c `div` 256) ++ hex2 (ord c `mod` 256))
+  where hex1 n | n < 10         = chr (n + ord '0')
+               | otherwise      = chr (n - 10 + ord 'a')
+        hex2 n                  = [hex1 (n `div` 16), hex1 (n `mod` 16)]
+        oct1 n                  = chr (n + ord '0')
+        oct3 n                  = [oct1 (n `div` 64), oct1 ((n `mod` 64) `div` 8), oct1 (n `mod` 8)]
 

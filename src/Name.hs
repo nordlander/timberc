@@ -381,8 +381,66 @@ strRep2 p
   where s                       = show p
 
 
--- Name construction -----
--------------------------------------------------------
+-- Primitive symbol representations valid in the C language ---------------------------------------------------------
+
+cSym IntPlus                    = text "+"
+cSym IntMinus                   = text "-"
+cSym IntTimes                   = text "*"
+cSym IntDiv                     = text "/"
+cSym IntMod                     = text "%"
+cSym IntNeg                     = text "-"
+
+cSym IntEQ                      = text "=="
+cSym IntNE                      = text "!="
+cSym IntLT                      = text "<"
+cSym IntLE                      = text "<="
+cSym IntGE                      = text ">="
+cSym IntGT                      = text ">"
+                                
+cSym FloatPlus                  = text "+"
+cSym FloatMinus                 = text "-"
+cSym FloatTimes                 = text "*"
+cSym FloatDiv                   = text "/"
+cSym FloatNeg                   = text "-"
+                                
+cSym FloatEQ                    = text "=="
+cSym FloatNE                    = text "!="
+cSym FloatLT                    = text "<"
+cSym FloatLE                    = text "<="
+cSym FloatGE                    = text ">="
+cSym FloatGT                    = text ">"
+
+cSym AND8                       = text "&"
+cSym OR8                        = text "|"
+cSym EXOR8                      = text "^"
+cSym SHIFTL8                    = text "<<"
+cSym SHIFTR8                    = text ">>"
+cSym NOT8                       = text "~"
+                                
+cSym AND16                      = text "&"
+cSym OR16                       = text "|"
+cSym EXOR16                     = text "^"
+cSym SHIFTL16                   = text "<<"
+cSym SHIFTR16                   = text ">>"
+cSym NOT16                      = text "~"
+                                
+cSym AND32                      = text "&"
+cSym OR32                       = text "|"
+cSym EXOR32                     = text "^"
+cSym SHIFTL32                   = text "<<"
+cSym SHIFTR32                   = text ">>"
+cSym NOT32                      = text "~"
+
+cSym LazyOr                     = text "||"
+cSym LazyAnd                    = text "&&"
+
+cSym PidEQ                      = text "=="
+cSym PidNE                      = text "!="
+
+cSym p                          = text (strRep2 p)
+
+
+-- Name construction ------------------------------------------------------------
 
 noAnnot                         = Annot { location = Nothing, explicit = False, stateVar = False, 
                                           generated = False, suppress = False,  public = False}
@@ -522,6 +580,13 @@ isPublic (Name _ _ _ a)         = public a
 isPublic _                      = True
 
 isPrivate n                     = not (isPublic n)
+
+isNameTag n (Name _ n' _ _)     = n == n'
+isNameTag n _                   = False
+
+isNameStr s (Name s' _ _ _)     = s == s'
+isNameStr s _                   = False
+
 
 -- Equality & Order ----------------------------------------------------------------
 
