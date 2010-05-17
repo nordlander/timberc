@@ -41,6 +41,7 @@ import Env
 import Kind
 import Depend
 import Termred
+import Control.Monad
 import Data.Typeable
 import qualified Control.Exception as Exception
 
@@ -869,7 +870,7 @@ mkTrans env ((w1,p1), (w2,p2))          = do (pe1, R c1, e1) <- instantiate p1 (
                                                  (e',p') = qual qe e (subst s' p)
                                              sc <- gen (tevars env) p'
                                              w <- newNameModPub (modName env) True coercionSym
-                                             e' <- redTerm (coercions env) e'
+                                             e' <- reduceWit env e'
                                              return ((w,sc), (w, e'))
 
 -- Handle class predicates
@@ -1237,4 +1238,64 @@ Monad (O s), Request Int < O s Int, Action < O s ()
  |-> c bind f g : Cmd ()
 
 -}
+
+
+witReduce (Binds r te eqs)      = do eqs' <- mapM (wrEq []) eqs
+                                     return (groupBinds (Binds r te eqs'))
+
+reduceWit env e                 = wr (coercions env) e
+
+wr eqns (EVar x)                = case lookup x eqns of
+                                    Just e -> wr eqns e
+                                    _      -> return (EVar x)
+wr eqns (ELet (Binds r te eqs) e)
+  | all isWReduce (dom eqs)     = wr (eqs ++ eqns) e
+  | otherwise                   = do eqs' <- mapM (wrEq eqns) eqs
+                                     liftM (ELet (Binds r te eqs')) (wr eqns e)
+wr eqns (EAp e es)              = do e' <- wr eqns e
+                                     wrAp eqns e' es
+wr eqns (ELam te e)             = liftM (wrEta te) (wr eqns e)
+wr eqns (ESel e l)              = liftM (\e -> ESel e l) (wr eqns e)
+wr eqns (ECase e alts)          = liftM2 ECase (wr eqns e) (mapM (wrAlt eqns) alts)
+wr eqns (ERec n eqs)            = liftM (ERec n) (mapM (wrEq eqns) eqs)
+wr eqns (EAct o e)              = liftM2 EAct (wr eqns o) (wr eqns e)
+wr eqns (EReq o e)              = liftM2 EReq (wr eqns o) (wr eqns e)
+wr eqns (ETempl x t te c)       = liftM (ETempl x t te) (wrC eqns c)
+wr eqns (EDo x t c)             = liftM (EDo x t) (wrC eqns c)
+wr eqns e                       = return e
+
+
+wrEta te (EAp e es)
+  | okEta e && 
+    all isWReduce xs && 
+    es == map EVar xs           = e
+  where okEta (ECon _)          = False
+        okEta (EVar (Prim _ _)) = False
+        okEta e                 = not (any (`elem` xs) (evars e))
+        xs                      = dom te
+wrEta te e                      = ELam te e
+
+
+wrAp eqns (EVar (Prim Refl _)) [e]
+                                = wr eqns e
+wrAp eqns (ELam te e) es
+  | all isWReduce (dom te)      = wr (dom te `zip` es ++ eqns) e
+wrAp eqns e es                  = liftM (EAp e) (mapM (wr eqns) es)
+
+wrAlt eqns (Alt p e)            = liftM (Alt p) (wr eqns e)
+
+wrEq eqns (l,e)                 = liftM (\e -> (l,e)) (wr eqns e)
+
+wrC eqns (CRet e)               = liftM CRet (wr eqns e)
+wrC eqns (CExp e)               = liftM CExp (wr eqns e)
+wrC eqns (CGen p t e c)         = liftM2 (CGen p t) (wr eqns e) (wrC eqns c)
+wrC eqns (CLet (Binds r te eqs) c)
+                                = do eqs' <- mapM (wrEq eqns) eqs
+                                     liftM (CLet (Binds r te eqs')) (wrC eqns c)
+wrC eqns (CAss x e c)           = liftM2 (CAss x) (wr eqns e) (wrC eqns c)
+
+
+
+isWReduce x                     = isCoercion x || isAssumption x || isEtaExp x || isWitness x
+
 

@@ -104,7 +104,8 @@ tiModule (Module _ _ xs' es' ds' ws' [bs']) (Module v ns xs es ds ws bss)
                                      -- tr ("Top-level: \n" ++ render (nest 4 (vpr (tsigsOf bs0) $$ vpr pe0)))
                                      bs3 <- topresolve env4 ss0 pe0 bs0
                                      -- tr ("Top-level after resolve: \n" ++ render (nest 4 (vpr (tsigsOf bs3))))
-                                     return (Module v ns xs es ds1 (dom weqs1 ++ ws) (groupBinds (concatBinds [bs1,bs2,bs3])))
+                                     bss' <- witReduce (concatBinds [bs1,bs2,bs3])
+                                     return (Module v ns xs es ds1 (dom weqs1 ++ ws) bss')
     where bs                    = concatBinds bss
           weqs                  = restrict (eqnsOf bs') ws' ++ restrict (eqnsOf bs) ws
           pe                    = restrict (tsigsOf bs) ws
@@ -237,7 +238,7 @@ tiEExp env (EERec c eqs)        = do alpha <- newTvar Star
                                      assert1 (null qe) "Ambiguous struct expression" qe
                                      let t0 = subst s alpha
                                      (ss,qes,es') <- fmap unzip3 (mapM (tiEqnR env (tvars t0)) (subst s ts `zip` es))
-                                     es1 <- mapM (redTerm (coercions env)) (map f es0)
+                                     es1 <- mapM (reduceWit env) (map f es0)
                                      tr ("#### ws:\n" ++ render (nest 4 (vcat (map (text . show . reverse . sels) (zipWith ESel es1 ls)))))
                                      return (concat ss, concat qes, R t0, EERec c (ls `zip` es'))
   where (ls,es)                 = unzip eqs
@@ -249,7 +250,7 @@ tiEExp env (EECase e alts)      = do alpha <- newTvar Star
                                      assert1 (null qe) "Ambiguous domain of case expression" qe
                                      alpha' <- newTvar Star
                                      (ss,qes',es') <- fmap unzip3 (mapM (tiAltR env (tvars [subst s alpha,alpha']) (R alpha')) (zip3 pes tes es))
-                                     pats'' <- mapM (redTerm (coercions env)) (map f pats')
+                                     pats'' <- mapM (reduceWit env) (map f pats')
                                      (s',qe',e') <- tiExpT env (scheme (subst s alpha)) e
                                      return (s'++concat ss, qe'++concat qes', R alpha', EECase e' (map mkPPat pats'' `zip` es'))
   where (pats,es)               = unzip alts
@@ -410,10 +411,10 @@ tiLhs env alpha tiX xs          = do x <- newName tempSym
                                          pes1 = subst s (map (filter (not . isCoercion . fst)) pes) -- preserve non-coercions for each alt
                                          (es2,ts2) = unzip (zipWith3 qual pes1 es1 ts1)
                                      ts3 <- genL (tevars (subst s env')) ts2
-                                     es2 <- mapM (redTerm (coercions env)) es2
+                                     es2 <- mapM (reduceWit env) es2
                                      let ws = map (f . EVar) (filter isCoercion (dom (concat pes)))
                                          ws' = map (\w -> EAp w [EVar (name0 tempSym)]) ws
-                                     es2' <- mapM (redTerm (coercions env)) ws'
+                                     es2' <- mapM (reduceWit env) ws'
                                      return (subst s alpha, ts3, es2, es2')
 
 
@@ -638,3 +639,4 @@ data A =
     A Ta
 
 -}
+
