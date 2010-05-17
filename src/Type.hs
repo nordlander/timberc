@@ -153,7 +153,7 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ showids xs ++ ",
         satSubst vs             = zipWith f xs ts
           where es              = map EVar vs
                 f x t           = (x, eLam te (EAp (EVar x) (es ++ map EVar (dom te))))
-                  where te      = abcSupply `zip` ctxt t
+                  where te      = abcSupply `zip` predicates t
         mono                    = or [ monoRestrict True t e | (e,t) <- es `zip` ts ]
 
 
@@ -432,7 +432,7 @@ mkRecTerm env c sels es         = return (mkOne c)
                 sel w           = ff (lookup' (coercions env) w)
                 wg              = findAbove env c
         ff (ELam _ (ESel _ l))  = l
-        ltype l                 = headsym (head (ctxt (findType env l)))
+        ltype l                 = headsym (head (predicates (findType env l)))
         mkOne c                 = ERec c (eqs0 ++ case lookup c groups of Just eqs -> eqs; Nothing -> [])
           where eqs0            = mapSnd mkOne (lookup' graph c)
 

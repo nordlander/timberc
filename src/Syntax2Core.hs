@@ -238,7 +238,7 @@ s2cBinds env bs                         = do (ts,es) <- fmap unzip (mapM s2cEqn 
                                              return (te, Core.Binds isRec te' (vs `zip` es))
   where (sigs,eqs)                      = splitBinds bs
         vs                              = dom eqs
-        isRec                           = not (null (filter (not . isPatTemp) vs `intersect` evars (rng eqs)))
+        isRec                           = not (null ({- filter (not . isPatTemp) -} vs `intersect` evars (rng eqs)))
         env'                            = addSigs sigs env
         s2cEqn (v,e)                    = case lookup v sigs of
                                             Nothing -> s2cEi env' e

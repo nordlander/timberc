@@ -117,7 +117,7 @@ desub env ds                            = do (ds',pes,eqs) <- fmap unzip3 (mapM 
     con m i (t0,ke0) (Scheme (R t) [] ke) =
                                           do w <- newNameModPub m (public (annot i)) coercionSym
                                              k <- newNameModPub m (public (annot i)) (coerceConstr t t0)
-                                             x <- newName paramSym
+                                             x <- newName assumptionSym
                                              let p  = (w, Scheme (R (t `sub` t0)) [] (ke0++ke))
                                                  eq = (w, ELam [(x,scheme t)] (EAp (ECon k) [EVar x]))
                                                  c  = (k, Constr [scheme t] [] ke)
@@ -125,7 +125,7 @@ desub env ds                            = do (ds',pes,eqs) <- fmap unzip3 (mapM 
     sel m i (t0,ke0) (Scheme (R t) [] ke) =
                                           do w <- newNameModPub m (public (annot i)) coercionSym
                                              l <- newNameModPub m (public (annot i)) (coerceLabel t0 t)
-                                             x <- newName paramSym
+                                             x <- newName assumptionSym
                                              let p  = (w, Scheme (R (t0 `sub` t)) [] (ke0++ke))
                                                  eq = (w, ELam [(x,scheme t0)] (ESel (EVar x) l))
                                                  s  = (l, Scheme (R t) [] ke)

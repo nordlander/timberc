@@ -186,7 +186,7 @@ monoRestrict _ _ (EReq _ _)     = False
 monoRestrict _ _ (ETempl _ _ _ _) = False
 monoRestrict _ _ (EDo _ _ _)    = False
 monoRestrict _ _ (EVar x)       = False
-monoRestrict rec sc _           = rec && null (ctxt sc)
+monoRestrict rec sc _           = rec && null (predicates sc)
 
 
 isNew (ELet bs e)
@@ -206,6 +206,10 @@ tupleType n                     = Scheme (tFun' (map scheme ts) t) [] (vs `zip` 
 nullCon                         = Constr [] [] []
 
 
+patOf (Alt p e)                 = p
+
+rhsOf (Alt p e)                 = e
+
 isLitPat (PLit _)               = True
 isLitPat _                      = False
 
@@ -213,6 +217,15 @@ isConPat (PCon _ _)             = True
 isConPat _                      = False
 
 pCon0 c                         = PCon c []
+
+
+isRaise (EAp (EVar (Prim Raise _)) _)
+                                = True
+isRaise _                       = False
+
+isPMC (EVar (Prim p _))         = p `elem` [Match,Commit,Fatbar,Fail]
+isPMC _                         = False
+
 
 -- Pattern matching primitives --------------------
 eMatch, eCommit :: Exp -> Exp
@@ -320,7 +333,7 @@ body (Scheme rh _ _)            = body' rh
   where body' (R c)             = c
         body' (F _ rh)          = body' rh
 
-ctxt (Scheme _ ps _)            = ps
+predicates (Scheme _ ps _)      = ps
 
 quant (Scheme _ _ ke)           = ke
 

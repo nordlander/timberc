@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, PatternGuards #-}
 
 -- The Timber compiler <timber-lang.org>
 --
@@ -33,7 +33,7 @@
 -- ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 -- POSSIBILITY OF SUCH DAMAGE.
 
-module Termred(termred, redTerm, isFinite, constrs) where
+module Termred(termred) where
 
 import Control.Monad
 import Common
@@ -43,18 +43,29 @@ import Data.Char
 
 termred (Module _ _ _ _ ds' _ [bs']) m         = redModule ds' (eqnsOf bs') m
 
-redTerm coercions e             = redExp (initEnv { eqns = coercions }) e
 
-isFinite e                      = finite initEnv e
+data Ctxt                       = AppC  [Exp]
+                                | SelC  Name
+                                | CaseC [Alt Exp]
+                                deriving (Eq,Show)
 
+instance Pr [Ctxt] where
+    pr []                       = text "NOMORE"
+    pr (AppC es : c)            = text "[ ]" <+> hpr ' ' es <+> text ":" <+> pr c
+    pr (SelC l : c)             = text "[ ]" <> text ('.' : show l) <+> text ":" <+> pr c
+    pr (CaseC alts : c)         = text "case [ ] of ..." <+> text ":" <+> pr c
+
+capp [] e                       = e
+capp (AppC es : c) e            = capp c (EAp e es)
+capp (SelC l : c) e             = capp c (ESel e l)
+capp (CaseC alts : c) e         = capp c (ECase e alts)
 
 data Env                        = Env { eqns :: Map Name Exp,
-                                        args :: [Name],
                                         cons :: [Map Name Int],
                                         sels :: TEnv
                                       }
 
-initEnv                         = Env { eqns = [], args = [], cons = cons0, sels = [] }
+initEnv                         = Env { eqns = [], cons = cons0, sels = [] }
 
 cons0                           = [ [(prim TRUE, 0), (prim FALSE, 0)] , [(prim NIL, 0), (prim CONS, 2)] ]
 
@@ -72,23 +83,23 @@ complete _ []                   = False
 complete [] cs0                 = False
 complete (cs:css) cs0           = all (`elem`cs0) (dom cs)  ||  complete css cs0
 
-addArgs env vs                  = env { args = vs ++ args env }
+addEqns eqs env                 = env { eqns = eqs ++ eqns env }
 
-addEqns env eqs                 = env { eqns = eqs ++ eqns env }
+delEqn x env                    = env { eqns = eqns env `prune` [x] }
 
 addDecls env ds                 = env { cons = consOf ds ++ cons env, sels = selsOf ds ++ sels env }
 
 
+
 redModule impDecls impEqs (Module m ns xs es ds is bss)
-                                = do (bss,_) <- redTopBinds env1 bss
+                                = do (bss,_) <- redTopBinds env bss
                                      return (Module m ns xs es ds is bss)
-  where env0                    = addDecls initEnv (tdefsOf impDecls ++ tdefsOf ds)
-        env1                    = addEqns env0 (finiteEqns env0 impEqs)
+  where env                     = addEqns impEqs (addDecls initEnv (tdefsOf impDecls ++ tdefsOf ds))
 
 
 redTopBinds env []              = return ([], [])
 redTopBinds env (bs : bss)      = do Binds r te es <- redBinds env bs
-                                     (bss,vs) <- redTopBinds (addEqns env (finiteEqns env es)) bss
+                                     (bss,vs) <- redTopBinds (addEqns es env) bss
                                      let necessary (v,_) = r || maybe (elem v vs) (const True) (fromMod v)
                                          te' = filter necessary te
                                          es' = filter necessary es
@@ -97,56 +108,358 @@ redTopBinds env (bs : bss)      = do Binds r te es <- redBinds env bs
                                      return (bss', idents es' ++ vs)
                                      
 
-finiteEqns env eqs              = filter p eqs
-  where p (x,e)                 = isSmall e && finite env e
 
-
--- can be safely ignored without changing cbv semantics
-value (EVar x)                  = x /= prim New
-value (ECon _)                  = True
-value (ELit _)                  = True
-value (ESel e _)                = value e
-value (EAp (EVar (Prim IntDiv _)) [e1,e2])
-                                = value e1 && nonzero e2
-value (EAp (EVar (Prim FloatDiv _)) [e1,e2])
-                                = value e1 && nonzero e2
-value (EAp (EVar (Prim _ _)) es)
-                                = all value es
-value (EAp (EVar (Tuple _ _)) es)
-                                = all value es
-value (EAp (ECon c) es)         = all value es
-value (ELam _ _)                = True
-value (ERec _ eqs)              = all (value . snd) eqs
-value e                         = False
-
-nonzero (ELit (LInt _ n))       = n /= 0
-nonzero (ELit (LRat _ n))       = n /= 0
-nonzero _                       = False
-
-
--- may be safely inlined (can't lead to infinite expansion even if part of a recursive binding group)
-finite env (EVar (Prim c _))    = True --c `notElem` [ListArray, UniArray, UpdateArray]
-finite env (EVar (Tuple _ _))   = True
-finite env (EVar x)             = x `elem` args env || maybe False (finite env) (lookup x (eqns env))
-finite env (ECon _)             = True
-finite env (ELit _)             = True
-finite env (ESel e _)           = finite env e
-finite env (ELam te e)          = finite (addArgs env (dom te)) e
-finite env (ERec _ eqs)         = all (finite env) (rng eqs)
-finite env (EAp e es)           = all (finite env) (e:es)
-finite env (ELet bs e)          = fin bs && finite (addArgs env (bvars bs)) e
-  where fin (Binds True _ _)    = False
-        fin (Binds _ _ eqns)    = all (finite env . snd) eqns
---finite env (ECase e alts)     = finite env e && all (finite env . snd) alts
-finite env (ECase e alts)       = finite env e && and [finite env e|Alt p e<-alts]
-finite env e                    = False
-
-
-
-redBinds env (Binds r te eqns)  = do eqns <- redEqns env eqns
-                                     bs <- staticDelayRule env (Binds r te eqns)
+redBinds env (Binds r te eqns)  = do eqns' <- redEqns env eqns
+                                     bs <- staticDelayRule env (Binds r te eqns')
                                      return bs
 
+
+redEqns env eqs                 = do es' <- mapM (redExp env [] ) es
+                                     return (xs `zip` es')
+  where (xs,es)                 = unzip eqs
+
+
+redExp env c (ELit l)           = prodExp env c (ELit (normLit l))
+redExp env c (ERec k eqs)       = do es' <- mapM (redExp env []) es
+                                     prodExp env c (ERec k (ls `zip` es'))
+  where (ls,es)                 = unzip eqs
+redExp env c (ELam te e)        = do e <- redExp env [] e
+                                     prodExp env c (redEta env te e)
+redExp env c (ECon k)           = prodExp env c (ECon k)
+redExp env c (EVar x)           = case lookup x (eqns env) of
+                                    Just e -> do e <- refreshFreeTyvars e           -- temprary work-around
+                                                 -- tr ("**** Inlining " ++ show x ++ "  =  " ++ render (pr e))
+                                                 e1 <- prodExp (delEqn x env) c e
+                                                 if size e1 <= size c + 10
+                                                    then return e1
+                                                    else prodExp env c (EVar x)
+                                    _      -> do prodExp env c (EVar x)
+redExp env c (EAp e es)         = do es1 <- mapM (redExp env []) es
+                                     (bss,es2) <- extractBinds es1
+                                     e3 <- redExp env (AppC es2 : c) e
+                                     return (foldr ELet e3 bss)
+redExp env c (ESel e s)         = redExp env (SelC s : c) e
+redExp env c (ECase e alts)     = do alts' <- mapM redAlt alts
+                                     redExp env (CaseC (dropRedundant env alts') : c) e
+  where redAlt (Alt p e)        = do e' <- redExp env [] e
+                                     return (Alt p e')
+redExp env c (ELet (Binds True te eqs) e)
+                                = do (te,eqs,e) <- alphaC te eqs e
+                                     bs <- redBinds env (Binds True te eqs)
+                                     liftM (ELet bs) (redExp env c e)
+redExp env c (ELet (Binds False te eqs) e)
+                                = do (te2,eqs2,e) <- alphaC te2 eqs2 e
+                                     eqs2 <- redEqns env eqs2
+                                     liftM (eLet te2 eqs2) (redExp env c (subst eqs1 e))
+  where (eqs1,eqs2)             = safeSubst (duplicates (evars e)) (strict e) eqs
+        te2                     = te `restrict` dom eqs2
+redExp env _ (ETempl x t te c)  = liftM (ETempl x t te) (redCmd env c)
+redExp env _ (EAct e e')        = liftM2 EAct (redExp env [] e) (redExp env [] e')
+redExp env _ (EReq e e')        = liftM2 EReq (redExp env [] e) (redExp env [] e')
+redExp env _ (EDo x t c)        = liftM (EDo x t) (redCmd env c)
+
+
+refreshFreeTyvars               = alphaConvert
+
+alphaC te eqs e                 = do xs' <- mapM (newName . str) xs
+                                     let s = xs `zip` map EVar xs'
+                                         te' = substVars (xs `zip` xs') (dom te) `zip` rng te
+                                     return (te', xs' `zip` subst s es, subst s e)
+  where (xs,es)                 = unzip eqs
+
+
+prodExp env c e
+  | isRaise e                   = return e
+prodExp env (AppC es : _) e
+  | not (isPMC e) && any isRaise es
+                                = return (head (filter isRaise es))
+prodExp env (SelC l : c) (ERec _ eqs)
+  | all terminating (rng eqs)   = prodExp env c (lookup' eqs l)
+prodExp env (AppC es : c) (ELam te e)
+                                = do (te2,eqs2,e) <- alphaC te2 eqs2 e
+                                     liftM (eLet te2 eqs2) (redExp env c (subst eqs1 e))
+  where (eqs1,eqs2)             = safeSubst (duplicates (evars e)) (strict e) (dom te `zip` es)
+        te2                     = te `restrict` dom eqs2
+prodExp env (AppC es : c) (EVar (Prim p a))
+                                = prodExp env c (redPrim p a es)
+prodExp env (AppC es : c) e     = prodExp env c (EAp e es)
+prodExp env (CaseC alts : c) (ECon k)
+                                = redExp env c (findConAlt k [] alts)
+prodExp env (CaseC alts : c) (EAp (ECon k) es)
+                                = redExp env c (findConAlt k es alts)
+prodExp env (CaseC alts : c) (ELit l)
+                                = redExp env c (findLitAlt l alts)
+prodExp env c e                 = return (capp c e)
+
+
+safeSubst dups strictvs eqs     = partition safe eqs
+  where 
+    safe (x,e)                  = smallValue e || (x `notElem` dups && (terminating e || x `elem` strictvs))
+
+stricts es                      = concat (map strict es)
+strict (EVar x)                 = [x]
+strict (EAp e es)               = strict e ++ stricts es
+strict (ECon c)                 = []
+strict (ELit l)                 = []
+strict (ELam te e)              = []
+strict (ESel e l)               = strict e
+strict (ELet bs e)              = (stricts es ++ strict e) \\ xs
+  where (xs,es)                 = unzip (eqnsOf bs)
+strict (ERec n eqs)             = stricts (rng eqs)
+strict (EAct e e')              = strict e ++ strict e'
+strict (EReq e e')              = strict e ++ strict e'
+strict (EDo x t c)              = []
+strict (ETempl x t te c)        = []
+strict (ECase e alts)           = strict e
+
+
+-- Pick alt by constructor -----------------------------------------------------------------------------------
+
+findConAlt k [] (Alt (PCon k' []) e : alts)
+  | k == k'                     = e
+findConAlt k es (Alt (PCon k' []) e : alts)
+  | k == k'                     = eAp e es
+findConAlt k es (Alt (PCon k' te) e : alts)
+  | k == k'                     = eAp (eLam te e) es
+findConAlt k es (Alt PWild e : alts)
+                                = e
+findConAlt k es (_ : alts)      = findConAlt k es alts
+
+
+-- Pick alt by literal ---------------------------------------------------------------------------------------
+
+findLitAlt l (Alt (PLit l') e : alts)
+  | l == l'                     = e
+findLitAlt (LStr _ "") (Alt (PCon (Prim NIL _) []) e : alts)
+                                = e
+findLitAlt (LStr _ (c:cs)) (Alt (PCon (Prim CONS _) []) e : alts)
+                                = EAp e [ELit (LChr Nothing c), ELit (LStr Nothing cs)]
+findLitAlt (LStr _ (c:cs)) (Alt (PCon (Prim CONS _) te) e : alts)
+                                = EAp (ELam te e) [ELit (LChr Nothing c), ELit (LStr Nothing cs)]
+findLitAlt l (Alt PWild e : alts)
+                                = e
+findLitAlt l (_ : alts)         = findLitAlt l alts
+
+
+-- Floating out let-bindings --------------------------------------------------------------------------------
+
+extractBinds []                 = return ([], [])
+extractBinds (ELet (Binds r te eqs) e : es)   
+                                = do (te,eqs,e) <- alphaC te eqs e
+                                     (bss,es') <- extractBinds es
+                                     return (Binds r te eqs : bss, e:es')
+extractBinds (e : es)           = do (bss,es') <- extractBinds es
+                                     return (bss, e:es')
+
+
+-- Normalizing big integer literals --------------------------------------------------------------------------
+
+normLit (LInt p i)
+  | i >= 0x80000000             = normLit (LInt p (i - 0x100000000))
+  | i < -0x80000000             = normLit (LInt p (i + 0x100000000))
+  | otherwise                   = LInt p i
+normLit l                       = l
+
+
+-- Eta reduction ---------------------------------------------------------------------------------------------
+
+redEta env te (EAp e es)
+  | okEta e && es==map EVar xs  = e
+  where okEta (ECon _)          = False
+        okEta (EVar (Prim _ _)) = False
+        okEta e                 = null (evars e `intersect` xs)
+        xs                      = dom te
+redEta env te e                 = ELam te e
+
+-- Removing redundant wildcard alternatives -------------------------------------------------------------------
+
+dropRedundant env alts
+  | complete (cons env) cs      = alts'
+  | otherwise                   = alts
+  where alts'                   = takeWhile (isConPat . patOf) alts
+        cs                      = [ c | Alt (PCon c _) _ <- alts' ]
+      
+
+-- Primitives --------------------------------------------------------------------------------------------------
+
+redPrim Refl _ [e]                          = e
+redPrim Match a [e]                         = redMatch a e
+redPrim Fatbar a [e,e']                     = redFat a e e'
+redPrim UniArray a es                       = EAp (EVar (Prim UniArray a)) es
+redPrim IntNeg _ [ELit (LInt _ x)]          = ELit (lInt (-x))
+redPrim IntToFloat _ [ELit (LInt _ x)]      = ELit (lRat (fromInteger x))
+redPrim IntToChar _ [ELit (LInt _ x)]       = ELit (lChr (chr (fromInteger x)))
+redPrim FloatNeg _ [ELit (LRat _ x)]        = ELit (lRat (-x))
+redPrim FloatToInt _ [ELit (LRat _ x)]      = ELit (lInt (truncate x))
+redPrim CharToInt _ [ELit (LChr _ x)]       = ELit (lInt (ord x))
+redPrim p a [ELit (LInt _ x), ELit (LInt _ y)]
+  | p `notElem` [IntDiv,IntMod] || y /= 0   = redInt p x y
+redPrim p a [ELit (LRat _ x), ELit (LRat _ y)]
+  | p /= FloatDiv || y /= 0                 = redRat p x y
+redPrim p a es                              = eAp (EVar (Prim p a)) es
+
+
+redMatch a (ELet bs e)                      = ELet bs (redMatch a e)
+redMatch a (ELam te e)                      = ELam te (redMatch a e)
+redMatch a (EAp (EVar (Prim Commit _)) [e]) = e
+redMatch a (ECase e alts)                   = ECase e [Alt p (redMatch a e)|Alt p e<-alts]
+redMatch _ (EVar (Prim Fail a))             = EAp (EVar (Prim Raise a)) [ELit (lInt 1)]
+redMatch _ e@(ELit _)                       = e
+redMatch a e                                = EAp (EVar (Prim Match a)) [e]
+
+
+redFat a (ELet bs e) e'                     = ELet bs (redFat a e e')
+redFat a (EVar (Prim Fail _)) e             = e
+redFat a e@(EAp (EVar (Prim Commit _)) _) _ = e
+redFat a e e'                               = EAp (EVar (Prim Fatbar a)) [e,e']
+
+
+redInt IntPlus a b              = ELit (normLit (lInt (a + b)))
+redInt IntMinus a b             = ELit (normLit (lInt (a - b)))
+redInt IntTimes a b             = ELit (normLit (lInt (a * b)))
+redInt IntDiv a b               = ELit (lInt (a `div` b))
+redInt IntMod a b               = ELit (lInt (a `mod` b))
+redInt IntEQ a b                = eBool (a == b)
+redInt IntNE a b                = eBool (a /= b)
+redInt IntLT a b                = eBool (a < b)
+redInt IntLE a b                = eBool (a <= b)
+redInt IntGE a b                = eBool (a >= b)
+redInt IntGT a b                = eBool (a > b)
+redInt p _ _                    = internalError0 ("redInt: " ++ show p)
+
+
+redRat FloatPlus a b            = ELit (lRat (a + b))
+redRat FloatMinus a b           = ELit (lRat (a - b))
+redRat FloatTimes a b           = ELit (lRat (a * b))
+redRat FloatDiv a b             = ELit (lRat (a / b))
+redRat FloatEQ a b              = eBool (a == b)
+redRat FloatNE a b              = eBool (a /= b)
+redRat FloatLT a b              = eBool (a < b)
+redRat FloatLE a b              = eBool (a <= b)
+redRat FloatGE a b              = eBool (a >= b)
+redRat FloatGT a b              = eBool (a > b)
+redRat p _ _                    = internalError0 ("redRat: " ++ show p)
+
+
+eBool True                      = ECon (prim TRUE)
+eBool False                     = ECon (prim FALSE)
+
+
+-- Commands -----------------------------------------------------------------------------------------------
+
+redCmd env (CRet e)             = liftM CRet (redExp env [] e)
+redCmd env (CExp e)             = liftM CExp (redExp env [] e)
+redCmd env (CGen p t (ELet bs e) c)
+                                = redCmd env (CLet bs (CGen p t e c))
+redCmd env (CGen p t e c)       = liftM2 (CGen p t) (redExp env [] e) (redCmd env c)
+redCmd env (CLet bs@(Binds rec te eqs) c)
+  | not rec && all smallValue es        -- good enough, and it avoids the need to define strictness for commands
+                                = redCmd env (subst eqs c)
+  | otherwise                   = do bs' <- redBinds env bs
+                                     liftM (CLet bs') (redCmd env c)
+  where (xs,es)                 = unzip eqs
+redCmd env (CAss x e c)         = liftM2 (CAss x) (redExp env [] e) (redCmd env c)
+
+
+-- Comparing terms w.r.t. sizes ---------------------------------------------------------------------------
+
+class Size a where
+    size :: a -> Int
+    
+instance Size a => Size [a] where
+    size es                     = sum (map size es)
+
+instance Size a => Size (Name,a) where
+    size (x,e)                  = size e + 1
+
+instance Size Exp where
+    size (EVar _)               = 1
+    size (ECon _)               = 1
+    size (ELit _)               = 1
+    size (ESel e _)             = size e + 1
+    size (EAp e es)             = size e + size es + 1
+    size (ELam te e)            = size e + length te
+    size (ELet bs e)            = size bs + size e + 1
+    size (ECase e alts)         = size e + size alts + 1
+    size (ERec _ eqs)           = size eqs + 1
+    size (EAct _ e)             = size e + 1
+    size (EReq _ e)             = size e + 1
+    size (EDo _ _ c)            = size c + 1
+    size (ETempl _ _ _ c)       = size c + 1
+    
+instance Size Binds where
+    size (Binds _ _ eqs)        = size eqs
+
+instance Size (Alt Exp) where
+    size (Alt p e)              = size e + 1
+
+instance Size Cmd where
+    size (CLet bs c)            = size bs + size c
+    size (CGen _ _ e c)         = size e + size c
+    size (CAss _ e c)           = size e + size c
+    size (CRet e)               = size e
+    size (CExp e)               = size e
+
+instance Size Ctxt where
+    size (AppC es)              = size es + 1
+    size (SelC _)               = 1
+    size (CaseC alts)           = size alts + 1
+
+
+-- Strictness and linearity --------------------------------------------------------------------------
+
+strictLin xs e                  = tr' ("strictLin " ++ showids xs ++ ":    " ++ showids strictvars ++ "     dups:  " ++ showids dups) $ 
+                                  all (`elem` strictvars) xs && null dups
+  where 
+    strictvars                  = strict e 
+    dups                        = duplicates (strictvars `intersect` xs)
+    stricts es                  = concat (map strict es)
+    strict (EVar x)             = [x]
+    strict (EAp e es)           = strict e ++ stricts es
+    strict (ECon c)             = []
+    strict (ELit l)             = []
+    strict (ELam te e)          = []
+    strict (ESel e l)           = strict e
+    strict (ELet bs e)          = (stricts es ++ strict e) \\ xs
+      where (xs,es)             = unzip (eqnsOf bs)
+    strict (ERec n eqs)         = stricts (rng eqs)
+    strict (EAct e e')          = strict e ++ strict e'
+    strict (EReq e e')          = strict e ++ strict e'
+    strict (EDo x t c)          = []
+    strict (ETempl x t te c)    = []
+    strict (ECase e alts)       = strict e
+    -- Note: the intersection of (strict alts) would also qualify as strict above, but those variables
+    -- will by necessity be non-linear.  Hence we take the shortcut of ignoring them right away.
+
+
+-- Terms that can be ignored without changing the semantics ------------------------------------------------
+
+terminating (EVar _)            = True
+terminating (ECon _)            = True
+terminating (ELit _)            = True
+terminating (ELam _ _)          = True
+terminating (ESel e _)          = terminating e
+terminating (ERec _ eqs)        = all terminating (rng eqs)
+terminating (EAp (ECon _) es)   = all terminating es
+terminating (EAp (EVar (Prim p _)) es)
+                                = p `notElem` [IntDiv, FloatDiv, Raise] && all terminating es
+terminating (ELet bs e)         = all terminating (e : rng (eqnsOf bs))
+terminating (EDo _ _ _)         = True
+terminating (ETempl _ _ _ _)    = True
+terminating (EAct e e')         = all terminating [e,e']
+terminating (EReq e e')         = all terminating [e,e']
+terminating _                   = False
+
+
+-- Terms that can be be inlined zero or multiple times without changing either semantics or program size --
+
+smallValue (EVar x)             = x /= prim New
+smallValue (ECon _)             = True
+smallValue (ELit _)             = True
+smallValue e                    = False
+
+
+-- Implement the static delay rule ------------------------------------------------------------------------
 
 staticDelayRule env bs@(Binds rec te eqs)
   | not rec                     = return bs
@@ -190,330 +503,3 @@ walkEqs env te fw (eq:eqs)      = do (eq,eqs1) <- doEq te eq
                                      return (EVar y, [(y, f (EVar x))])
         maybeDelay f e          = do (e,eqs1) <- doExp e
                                      return (f e, eqs1)
-
-
-redEqns env []                  = return []
-redEqns env ((x,e):eqns)        = do e' <- redExp env e
-                                     let env' = if finite env e' && isSmall e 
-                                                then addEqns env [(x,e')]     -- no risk of infinite inlining
-                                                else env
-                                     liftM ((x,e'):) (redEqns env' eqns)
-
-
-redExp env (ERec c eqs)         = do es' <- mapM (redExp env) es
-                                     return (ERec c (ls `zip` es'))
-  where (ls,es)                 = unzip eqs
-redExp env (ETempl x t te c)    = liftM (ETempl x t te) (redCmd env c)
-redExp env (EAct e e')          = liftM2 EAct (redExp env e) (redExp env e')
-redExp env (EReq e e')          = liftM2 EReq (redExp env e) (redExp env e')
-redExp env (EDo x t c)          = liftM (EDo x t) (redCmd env c)
-redExp env (ELam te e)          = do e <- redExp (addArgs env (dom te)) e
-                                     redEta env te e
-redExp env (ESel e s)           = do e <- redExp env e
-                                     redSel env e s
-redExp env (ECase e alts)       = do e <- redExp env e
-                                     redCase env e alts
-redExp env (ELet bs e)          = do bs'@(Binds rec te eqs) <- redBinds env bs
-                                     if rec then
-                                        liftM (ELet bs') (redExp env e)
-                                      else
-                                        redBeta (addArgs env (dom te)) te e (map (lookup' eqs) (dom te))
-redExp env e@(EVar (Prim {}))   = return e
-redExp env e@(EVar (Tuple {}))  = return e
-redExp env e@(EVar x)           = case lookup x (eqns env) of
-                                      Just e' | inline e' -> alphaConvert e'
-                                      _ -> return e
-  where inline (EVar _)         = True
-        inline (ECon _)         = True
-        inline (ELit _)         = True
-        inline (ELam _ _)       = True
-        inline _                = isGenerated x
-redExp env (EAp e es)           = do e' <- redExp env e
-                                     es' <- mapM (redExp env) es
-                                     redApp env e' es'
-redExp env (ELit l)             = return (ELit (normLit l))
-redExp env e                    = return e
-
-
-normLit (LInt p i)
-  | i >= 0x80000000             = normLit (LInt p (i - 0x100000000))
-  | i < -0x80000000             = normLit (LInt p (i + 0x100000000))
-  | otherwise                   = LInt p i
-normLit l                       = l
-
-
-isRaise (EAp (EVar (Prim Raise _)) [_])
-                                = True
-isRaise _                       = False
-
-isPMC (EVar (Prim p _))         = p `elem` [Match,Commit,Fatbar,Fail]
-isPMC _                         = False
-
-
--- reduce an application e es (head and args already individually reduced)
-redApp env e es
-  | exception                   = return (head es')
-  where es'                     = filter isRaise (e:es)
-        exception               = not (isPMC e) && not (null es')
-redApp env (EVar (Prim p a)) es 
-                                = return (redPrim env p a es)
-redApp env e@(EVar x) es        = case lookup x (eqns env) of
-                                       Just e' | inline e' -> do e' <- alphaConvert e'; redApp env e' es
-                                       _ -> return (EAp e es)
-  where inline (ELam _ _)       = True
-        inline (EVar _)         = True
-        inline _                = False
-redApp env (ELam te e) es       = do redBeta env te e es
-redApp env (ECase e alts) es
-  | length alts' == length alts = liftM (ECase e) (redAlts env alts')
-  where alts'                   = [ a | Just a <- map (appAlt env es) alts ]
-redApp env (ELet bs e) es       = liftM (ELet bs) (redApp env e es)
-redApp env e es                 = return (EAp e es)
-
-
-appAlt env es (Alt(PCon c te) e)= case skipLambda (conArity env c-length te) e es of
-                                    Just e' -> Just (Alt (PCon c te) e')
-                                    _       -> Nothing
-appAlt env es a                 = Just a
-
-
-skipLambda 0 e es               = Just (EAp e es)
-skipLambda n (ELam te e) es
-  | n <= length te              = Just (ELam te1 (eLam te2 (EAp e es)))
-  where (te1,te2)               = splitAt n te
-skipLambda n e es               = Nothing
-
-
-
--- perform beta reduction (if possible)
-redBeta env ((x,t):te) (EVar y) (e:es)
-  | x == y                      = redBeta env te e es                      -- trivial body
-redBeta env ((x,t):te) b (e:es)
-  | inline x e                  = do e' <- redBeta (addEqns env [(x,e)]) te b es
-                                     return (bindx e')
-  | otherwise                   = liftM (ELet bs) (redBeta env te b es)
-  where inline x e              = isSafe x || isEVar e || (value e && finite env e && isSmall e)
-        isSafe x                = isEtaExp x || isAssumption x || isCoercion x        
-        bindx e'
-          | x `elem` evars e'   = ELet bs e'
-          | otherwise           = e'
-        bs                      = Binds False [(x,t)] [(x,e)]
-        isEVar (EVar _)         = True
-        isEVar _                = False
-redBeta env [] b []             = redExp env b
-
-
-redEta env te (EAp e es)        = do es <- mapM (redExp env') es
-                                     e <- redExp env' e
-                                     if okEta e && es == map EVar xs then
-                                        return e
-                                      else do
-                                        liftM (ELam te) (redApp env' e es)
-  where okEta (ECon _)          = False
-        okEta (EVar (Prim _ _)) = False
-        okEta e                 = null (evars e `intersect` xs)
-        env'                    = addArgs env (dom te)
-        xs                      = dom te
-redEta env te e                 = liftM (ELam te) (redExp (addArgs env (dom te)) e)
-
-
-redSel env e s
-  | isRaise e                   = return e
-redSel env e@(EVar x) s         = case lookup x (eqns env) of
-                                    Just e' | inline e' -> do e' <- alphaConvert e'
-                                                              redSel env e' s
-                                    _ -> return (ESel e s)
-  where inline (ERec _ _)       = True
-        inline (EVar _)         = True
-        inline _                = False
-redSel env (ERec c eqs) s
-  | all value (rng eqs)         = case lookup s eqs of
-                                    Just e  -> return e
-                                    Nothing -> internalError0 ("redSel: did not find selector " ++ show s ++ "   in   " ++ show eqs) s
-redSel env e s                  = return (ESel e s)
-
-
-redCase env e alts
-  | isRaise e                   = return e
-redCase env e@(EVar x) alts     = case lookup x (eqns env) of
-                                    Just e' | inline (eFlat e') -> do e' <- alphaConvert e'; redCase env e' alts
-                                    _ -> liftM (ECase e) (redAlts env alts)
-  where inline (ECon _,_)       = True
-        inline (ELit _,_)       = True
-        inline (EVar _, [])     = True
-        inline _                = False
-redCase env (ELit l@(LStr _ _)) alts
-                                = redCaseStrLit env l alts
-redCase env (ELit l) alts       = findLit env l alts
-redCase env e alts              = case eFlat e of
-                                    (ECon k, es) -> findCon env k es alts
-                                    _            -> liftM (ECase e) (redAlts env alts)
-
-redAlts env alts
-  | complete (cons env) cs      = do es <- mapM (redRhs env) es
-                                     return (zipWith argsToLhs ps es)   -- normally zipAlts
-  | otherwise                   = do es0 <- mapM (redRhs env) es0
-                                     return (zipWith argsToLhs ps0 es0)  -- normally zipAlts
-  where (cs,ps,es)              = unzip3 [ (c,p,e) | Alt p@(PCon c _) e <- alts ]
-        (ps0,es0)               = unzipAlts alts
-
-redRhs env (ELam te e)          = do e <- redRhs (addArgs env (dom te)) e
-                                     return (ELam te e)
-redRhs env e                    = redExp env e
-
-
-findCon env k es (Alt PWild e:_)= redExp env e
-findCon env k es (Alt (PCon k' te) e:_)
-  | k == k'                     = redExp env (eAp (eLam te e) es)
-findCon env k es (_:alts)       = findCon env k es alts
-
-
-findLit env l (Alt PWild e:_)   = redExp env e
-findLit env l (Alt (PLit l') e:_)
-  | l == l'                     = redExp env e
-findLit env l (_:alts)          = findLit env l alts
-
-
-redCaseStrLit env l (Alt PWild e:_) = redExp env e
-redCaseStrLit env l (Alt (PLit l') e:_)
- | l == l'                      = redExp env e
-redCaseStrLit env (LStr _ "") (Alt (PCon (Prim NIL _) []) e:alts) = redExp env e
-redCaseStrLit env l@(LStr _ str) alts@(Alt (PCon (Prim CONS _) _) e:_)
-                                = redCase env (foldr (\x y -> EAp cons [chr x,y]) nil str) alts
-   where chr x = ELit (LChr Nothing x)
-         cons = ECon (prim CONS)
-         nil = ECon (prim NIL)
-redCaseStrLit env l (_:alts)         = redCaseStrLit env l alts
-
-
-redPrim env Refl _ [e]                      = e
-redPrim env Match a [e]                     = redMatch env a e
-redPrim env Fatbar a [e,e']                 = redFat a e e'
-redPrim env UniArray a es                   = EAp (EVar (Prim UniArray a)) es
-redPrim env IntNeg _ [ELit (LInt _ x)]      = ELit (lInt (-x))
-redPrim env IntToFloat _ [ELit (LInt _ x)]  = ELit (lRat (fromInteger x))
-redPrim env IntToChar _ [ELit (LInt _ x)]   = ELit (lChr (chr (fromInteger x)))
-redPrim env FloatNeg _ [ELit (LRat _ x)]    = ELit (lRat (-x))
-redPrim env FloatToInt _ [ELit (LRat _ x)]  = ELit (lInt (truncate x))
-redPrim env CharToInt _ [ELit (LChr _ x)]   = ELit (lInt (ord x))
-redPrim env p a [ELit (LInt _ x), ELit (LInt _ y)]
-  | p `notElem` [IntDiv,IntMod] || y /= 0   = redInt p x y
-redPrim env p a [ELit (LRat _ x), ELit (LRat _ y)]
-  | p /= FloatDiv || y /= 0                 = redRat p x y
-redPrim env p a es                          = eAp (EVar (Prim p a)) es
-
-
-redMatch env a (ELet bs e)                  = ELet bs (redMatch (addArgs env (bvars bs)) a e)
-redMatch env a (ELam te e)                  = ELam te (redMatch (addArgs env (dom te)) a e)
-redMatch env a (EAp (EVar (Prim Commit _)) [e]) = e
-redMatch env a (ECase e alts)               = ECase e [Alt p (redMatch env a e)|Alt p e<-alts]
-redMatch env _ (EVar (Prim Fail a))         = EAp (EVar (Prim Raise a)) [ELit (lInt 1)]
-redMatch env _ e@(ELit _)                   = e
-redMatch env a e                            = EAp (EVar (Prim Match a)) [e]
-
-
-redFat a (ELet bs e) e'                     = ELet bs (redFat a e e')
-redFat a (EVar (Prim Fail _)) e             = e
-redFat a e@(EAp (EVar (Prim Commit _)) _) _ = e
-redFat a e e'                               = EAp (EVar (Prim Fatbar a)) [e,e']
-
-
-redInt IntPlus a b              = ELit (normLit (lInt (a + b)))
-redInt IntMinus a b             = ELit (normLit (lInt (a - b)))
-redInt IntTimes a b             = ELit (normLit (lInt (a * b)))
-redInt IntDiv a b               = ELit (lInt (a `div` b))
-redInt IntMod a b               = ELit (lInt (a `mod` b))
-redInt IntEQ a b                = eBool (a == b)
-redInt IntNE a b                = eBool (a /= b)
-redInt IntLT a b                = eBool (a < b)
-redInt IntLE a b                = eBool (a <= b)
-redInt IntGE a b                = eBool (a >= b)
-redInt IntGT a b                = eBool (a > b)
-redInt p _ _                    = internalError0 ("redInt: " ++ show p)
-
-
-redRat FloatPlus a b            = ELit (lRat (a + b))
-redRat FloatMinus a b           = ELit (lRat (a - b))
-redRat FloatTimes a b           = ELit (lRat (a * b))
-redRat FloatDiv a b             = ELit (lRat (a / b))
-redRat FloatEQ a b              = eBool (a == b)
-redRat FloatNE a b              = eBool (a /= b)
-redRat FloatLT a b              = eBool (a < b)
-redRat FloatLE a b              = eBool (a <= b)
-redRat FloatGE a b              = eBool (a >= b)
-redRat FloatGT a b              = eBool (a > b)
-redRat p _ _                    = internalError0 ("redRat: " ++ show p)
-
-
-eBool True                      = ECon (prim TRUE)
-eBool False                     = ECon (prim FALSE)
-
-
-redCmd env (CRet e)             = liftM CRet (redExp env e)
-redCmd env (CExp e)             = liftM CExp (redExp env e)
-redCmd env (CGen p t (ELet bs e) c)
-                                = redCmd env (CLet bs (CGen p t e c))
-redCmd env (CGen p t e c)       = liftM2 (CGen p t) (redExp env e) (redCmd env c)
-redCmd env (CLet bs c)          = do bs'@(Binds rec te eqs) <- redBinds env bs
-                                     if rec then
-                                        liftM (CLet bs') (redCmd env c)
-                                      else
-                                        redBetaC (addArgs env (dom te)) te c (map (lookup' eqs) (dom te))
-redCmd env (CAss x e c)         = liftM2 (CAss x) (redExp env e) (redCmd env c)
-
-
--- perform beta reduction (if possible)
-redBetaC env ((x,t):te) (CRet (EVar y)) (e:es)
-  | x == y                      = redBetaC env te (CRet e) es
-redBetaC env ((x,t):te) c (e:es)
-  | inline x e                  = do c' <- redBetaC (addEqns env [(x,e)]) te c es
-                                     return (bindx c')
-  | otherwise                   = liftM (CLet bs) (redBetaC env te c es)
-  where inline x e              = isSafe x || isSafeEVar e || (value e && finite env e && isSmall e)
-        isSafe x                = isEtaExp x || isAssumption x || isCoercion x        
-        bindx c'
-          | x `elem` evars c'   = CLet bs c'
-          | otherwise           = c'
-        bs                      = Binds False [(x,t)] [(x,e)]
-        isSafeEVar (EVar n)     = not $ isState n
-        isSafeEVar _            = False
-redBetaC env [] c []            = redCmd env c
-
--- Constructor presence
-
-isSmall e                       = length (constrs e) < 5
-
-class Constrs a where
-    constrs :: a -> [Name]
-
-instance Constrs Binds where
-    constrs (Binds rec te eqns) = constrs (map snd eqns)
-
-instance Constrs a => Constrs [a] where
-    constrs xs = concatMap constrs xs
-
-instance Constrs Exp where
-    constrs (ECon c)             = [c]
-    constrs (ESel e l)           = constrs e
-    constrs (ELam te e)          = constrs e
-    constrs (EAp e e')           = constrs e ++ constrs e'
-    constrs (ELet bs e)          = constrs bs ++ constrs e
-    constrs (ECase e alts)       = constrs e ++ constrs alts
-    constrs (ERec c eqs)         = constrs (map snd eqs)
-    constrs (EAct e e')          = constrs e ++ constrs e'
-    constrs (EReq e e')          = constrs e ++ constrs e'
-    constrs (ETempl x t te c)    = constrs c
-    constrs (EDo x t c)          = constrs c
-    constrs _                    = []
-
-instance Constrs e => Constrs (Alt e) where
-    constrs (Alt p e)            = constrs e
-
-
-instance Constrs Cmd where
-    constrs (CLet bs c)          = constrs bs ++ constrs c
-    constrs (CGen x t e c)       = constrs e ++ constrs c
-    constrs (CAss x e c)         = constrs e ++ constrs c
-    constrs (CRet e)             = constrs e
-    constrs (CExp e)             = constrs e
-
