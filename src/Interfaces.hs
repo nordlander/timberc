@@ -97,7 +97,7 @@ ifaceMod (rs,ss) (Module m ns xs es ds ws bss) kds
         (te1,te2)                    = partition exported' te
         (ws1,ws2)                    = partition (\n -> elem n (dom ts1)) ws
         (ts1,ts2)                    = partition exported ts
-        (eqs1,eqs2)                  = partition (\eqn -> fin eqn && exported eqn) (erase eqs)
+        (eqs1,eqs2)                  = partition exported (erase eqs)
         (vis1,vis2)                  = partition isStateType (nub (localTypes [] (rng ts1)))
         ds1                          = Types (ke1 ++ map (\n -> (n,Star)) vis1) te1
         bs1                          = Binds r ts1 eqs1
@@ -107,7 +107,6 @@ ifaceMod (rs,ss) (Module m ns xs es ds ws bss) kds
         ys                           = [d | d@(Default _ i1 i2) <- xs1, isPrivate i1 || isPrivate i2 ]
         exported (n,a)               = isPublic n
         exported' p@(n,_)            = isPublic n && (not(isAbstract p)) --Constructors/selectors are exported
-        fin (_,e)                    = isFinite e && null(filter isPrivate (constrs e))
 
 isAbstract (_,DData _ _ cs)          = all isPrivate (dom cs)
 isAbstract (_,DRec _ _ _ ls)         = all isPrivate (dom ls)
