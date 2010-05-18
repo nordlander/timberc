@@ -4,7 +4,7 @@ module Scp (
             scp
            ) where
 
-import Core hiding (ctxt)
+import Core
 import Common hiding (renaming, delete)
 import PP
 import Config
