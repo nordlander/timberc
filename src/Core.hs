@@ -904,11 +904,12 @@ instance AlphaConv Kind where
     
 
 extSubst s xs  = return s
+{-
 extSubst s xs                   = do s' <- mapM ext xs
                                      return (s'++s)
   where ext x                   = do n <- newNum
                                      return (x, {-annotGenerated-} x { tag = n })
-
+-}
 
 -- Refresh free unification variables -----------------------------------------------
 

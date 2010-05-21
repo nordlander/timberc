@@ -196,11 +196,11 @@ resolve env pe                          = do -- tr ("############### Before reso
 
 red0 ps                                 = do (s,q,[],es) <- red [] ps
                                              return (s,q,es)
-
+{-
 red0 ps                                 = do s <- imp [] ps
                                              (q,[],es) <- rred [] (subst s ps)
                                              return (s,q,es)
-
+-}
 
 -- Scheme reduction -----------------------------------------------------------------------------
 --
