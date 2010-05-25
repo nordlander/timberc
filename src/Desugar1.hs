@@ -80,7 +80,7 @@ env0 ss                       = Env { sels = [], self = Nothing, selSubst = [], 
 mkEnv c ds (rs,rn,ss)           = (env {sels = map transClose recEnv, modName = Just(str c), selSubst = rnSels },
                                    (map (\(n,ss) -> (qName (str c) n,ss)) closeRecEnvLoc,tsynsLoc))
   where (env,ssLoc)             = tsynE (env0 ss) [] tsynDecls
-        tsynsLoc                = map (\(n,y) -> (n {fromMod = Just (str c)},y)) ssLoc
+        tsynsLoc                = map (\(n,y) -> (qName (str c) n,y)) ssLoc
         recEnvLoc               = [ (c,(map type2head ts, concat (map sels ss))) | DRec _ c _ ts ss <- ds ] 
         recEnvImp               = zip ns (zip (repeat []) ss) where (ns,ss) = unzip rs
         closeRecEnvLoc          = map transClose recEnvLoc

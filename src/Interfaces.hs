@@ -68,8 +68,8 @@ encodeCFile ti_file ifc = encodeFile ti_file ifc
 data IFace = IFace { recordEnv   :: Map Name [Name],                -- exported record types and their selectors,
                      tsynEnv     :: Map Name ([Name],Syntax.Type),  -- type synonyms
                      mod1        :: Module,                         -- Exported types, type signatures for exported toplevel values
-                                                                    -- and equations for finite, toplevel values
-                     mod2        :: Module,                         -- private and non-finite parts of Core module
+                                                                    -- and equations
+                     mod2        :: Module,                         -- private types and thype signatures of Core module
                      kdeclEnv    :: Kindle.Decls                    -- Kindle form of declarations
                    }
            deriving (Show)
@@ -97,7 +97,7 @@ ifaceMod (rs,ss) (Module m ns xs es ds ws bss) kds
         (te1,te2)                    = partition exported' te
         (ws1,ws2)                    = partition (\n -> elem n (dom ts1)) ws
         (ts1,ts2)                    = partition exported ts
-        (eqs1,eqs2)                  = partition exported (erase eqs)
+        (eqs1,eqs2)                  = (erase eqs,[]) --partition exported (erase eqs)
         (vis1,vis2)                  = partition isStateType (nub (localTypes [] (rng ts1)))
         ds1                          = Types (ke1 ++ map (\n -> (n,Star)) vis1) te1
         bs1                          = Binds r ts1 eqs1
@@ -144,9 +144,6 @@ initEnvs bms         = do ims <- mapM (mkEnv . snd) bms
 
         nullMod = Module (name0 "Import data") [] [] [] (Types [] []) [] [Binds False [] []]
 
-        mergeMod (Module _ _ xs1 es1 ds1 ws1 [bs1]) (Module m _ xs2 es2 ds2 ws2 [bs2]) =
-             Module m [] (xs1 ++ xs2) (es1 ++ es2) (catDecls ds1 ds2) (ws1 ++ ws2) [catBinds bs1 bs2]
-
         mkRenamings unQual rs ss (Module m ns xs es ds ws [bs]) 
                                      = do rT  <- renaming (dom ke)
                                           rE  <- renaming (dom te')
@@ -157,6 +154,11 @@ initEnvs bms         = do ims <- mapM (mkEnv . snd) bms
                 te'                  = te ++ concatMap (tenvCon ke) ds' ++ extsMap es
                 ls                   = [ s | (_,DRec _ _ _ cs) <- ds', (s,_) <- cs, not (isGenerated s) ]
                 unMod ps             = if unQual then [(tag0 (dropMod c),y) | (c,y) <- ps] ++ ps else ps
+
+
+mergeMod (Module _ _ xs1 es1 ds1 ws1 [bs1]) (Module m _ xs2 es2 ds2 ws2 [bs2]) =
+    Module m [] (xs1 ++ xs2) (es1 ++ es2) (catDecls ds1 ds2) (ws1 ++ ws2) [catBinds bs1 bs2]
+
 
 -- Checking that public part is closed ---------------------------------------------------------
 

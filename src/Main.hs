@@ -205,21 +205,20 @@ compileTimber clo ifs (sm,t_file) ti_file c_file h_file
                                                 return ((n,ifc):ifs')
                               else return ((n,ifc):ifs')
   where passes imps par = do (e0,e1,e2,e3,e4) <- initEnvs imps
-                             -- e4 :: Core.Module contains types, type signatures and equations from imported modules
-                             --                   that are not included in e3. Presently not used.
+                             let m = mergeMod e2 e4
                              (d1,a0) <- pass clo (desugar1 e0)                Desugar1  par
                              rn      <- pass clo (renameM e1)                 Rename    d1
                              d2      <- pass clo desugar2                     Desugar2  rn
                              co      <- pass clo syntax2core                  S2C       d2
-                             kc      <- pass clo (kindcheck e2)               KCheck    co
-                             tc      <- pass clo (typecheck e2)               TCheck    kc
-                             rd      <- pass clo (termred e2)                 Termred   tc
-                             sc      <- pass clo (scp clo e2)                 SCP       rd
-                             tc2     <- pass clo (typecheck2 e2)              Type2     sc
-                             (ki,ds) <- pass clo (core2kindle e2 e3)          C2K       tc2
+                             kc      <- pass clo (kindcheck m)                KCheck    co
+                             tc      <- pass clo (typecheck m)                TCheck    kc
+                             rd      <- pass clo (termred m)                  Termred   tc
+                             sc      <- pass clo (scp clo m)                  SCP       rd
+                             tc2     <- pass clo (typecheck2 m)               Type2     sc
+                             (ki,ds) <- pass clo (core2kindle m e3)           C2K       tc2
                              ki'     <- pass clo (kindlered e3)               Kindlered ki
                              ll      <- pass clo (lambdalift e3)              LLift     ki'
-                             pc      <- pass clo (prepare4c e2 e3)            Prepare4C ll
+                             pc      <- pass clo (prepare4c m e3)             Prepare4C ll
                              c       <- pass clo kindle2c                     K2C       pc
                              return (c,ifaceMod a0 tc2 ds)
 

@@ -69,13 +69,13 @@ hFooter n b                     = (if b then empty else text "#include \"" <> te
 
 k2cDeclStubs isH ds             = vcat (map f ds)
   where f (n, _)
-          | isH==isPublic n     = text "struct" <+> k2cName n <> text ";" $$
+          | isH==isQualified n     = text "struct" <+> k2cName n <> text ";" $$
                                   text "typedef" <+> text "struct" <+> k2cName n <+> text "*" <> k2cName n <> text ";"
           | otherwise           = empty
 
 k2cDecls isH ds                 = vcat (map f ds)
   where f (n, Struct [] te cs)
-          | isH==isPublic n     = text "struct"  <+> k2cName n <+> text "{" $$
+          | isH==isQualified n     = text "struct"  <+> k2cName n <+> text "{" $$
                                      nest 4 (k2cSigs n te) $$
                                   text "}" <> text ";"
           | otherwise           = empty
@@ -91,7 +91,7 @@ k2cFunParams te                 = parens (commasep f te)
 
 k2cBindStubsH bs                 = vcat (map f bs)
   where f (x, _)
-          | isPrivate x         = empty
+          | not(isQualified x)         = empty
         f (x, Fun [] t te c)    = k2cType t <+> k2cName x <+> k2cFunParams te <> text";"
         f (x, Val _ (ECall (Prim GCINFO _) _ _))
                                 = text "extern" <+> text "WORD" <+> k2cGCInfoName x <> text "[];"
@@ -137,16 +137,16 @@ cFooter n                       = text "\n"
 
 k2cBindStubsC bs                = vcat (map f bs)
   where f (x, Fun [] t te c)
-          | isPublic x          = empty
+          | isQualified x          = empty
           | otherwise           = k2cStatic x <+> k2cType t <+> k2cName x <+> k2cFunParams te <> text";"
         f (x, Val _ (ECall (Prim GCINFO _) _ _))
-          | isPublic x          = empty
+          | isQualified x          = empty
           | otherwise           = k2cStatic x <+> text "WORD" <+> k2cGCInfoName x <> text "[];"
         f (x, Val t e)          = k2cStatic x <+> k2cType t <+> k2cName x <> text ";"
 
 
 k2cStatic x
-  | isPublic x                  = empty
+  | isQualified x                  = empty
   | otherwise                   = text "static"
 
 
