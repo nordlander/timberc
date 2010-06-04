@@ -453,7 +453,7 @@ terminating _                   = False
 
 -- Terms that can be be inlined zero or multiple times without changing either semantics or program size --
 
-smallValue (EVar x)             = x /= prim New
+smallValue (EVar x)             = x /= prim New && not (isState x)
 smallValue (ECon _)             = True
 smallValue (ELit _)             = True
 smallValue e                    = False
