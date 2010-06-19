@@ -194,7 +194,7 @@ prodExp env c e                 = return (capp c e)
 
 safeSubst dups strictvs eqs     = partition safe eqs
   where 
-    safe (x,e)                  = smallValue e || (x `notElem` dups && (terminating e || x `elem` strictvs))
+    safe (x,e)                  = smallValue e || ({-x `notElem` dups && -} (terminating e || x `elem` strictvs))
 
 stricts es                      = concat (map strict es)
 strict (EVar x)                 = [x]
