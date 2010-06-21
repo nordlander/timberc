@@ -737,8 +737,8 @@ instance Pr Exp where
                                             text "else" <+> pr e2)
     prn 0 (ECase e alts)        = text "case" <+> pr e <+> text "of" $$ nest 2 (vpr alts)
     prn 0 (EMatch m)            = text "Match" <+> prn 12 m
-    prn 0 (EDo v t ss)          = text "do"<>prN v <+> pr ss 
-    prn 0 (ETempl v t ss)       = text "class"<>prN v $$ nest 4 (pr ss)
+    prn 0 (EDo v t ss)          = text "do"<>prN v<>prN t $$ nest 4 (pr ss)
+    prn 0 (ETempl v t ss)       = text "class"<>prN v<>prN t $$ nest 4 (pr ss)
     prn 0 (EAct v ss)           = text "action"<>prN v $$ nest 4 (pr ss) 
     prn 0 (EReq v ss)           = text "request"<>prN v $$ nest 4 (pr ss) 
     prn 0 (EAfter e e')         = text "after" <+> prn 12 e <+> pr e'

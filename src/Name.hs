@@ -621,7 +621,7 @@ instance Show Name where
   show (Prim p _)               = strRep p
 
 instance Pr Name where
-  -- pr (Name s n m a)             = text (maybe "" (++ ".") m ++ s++'_':show n)
+  -- pr (Name s n m a)             = text (s ++ '_' : maybe (show n) id m)
   pr n                          = text (show n)
 
 prExpl a                        = if explicit a then text "~" else empty

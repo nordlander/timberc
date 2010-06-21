@@ -207,7 +207,7 @@ compileTimber clo ifs (sm,t_file) ti_file c_file h_file
   where passes imps par = do (e0,e1,e2,e3,e4) <- initEnvs imps
                              let m = mergeMod e2 e4
                              (d1,a0) <- pass clo (desugar1 e0)                Desugar1  par
-                             rn      <- pass clo (renameM e1)                 Rename    d1
+                             rn      <- pass clo (renameM e1 (fst a0))        Rename    d1
                              d2      <- pass clo desugar2                     Desugar2  rn
                              co      <- pass clo syntax2core                  S2C       d2
                              kc      <- pass clo (kindcheck m)                KCheck    co

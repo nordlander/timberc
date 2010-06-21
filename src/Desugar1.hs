@@ -63,7 +63,8 @@ desugar1 e0 (Module c is ds ps)  = do let (env,expInfo) = mkEnv c (ds ++ ps) e0
 -- The selector environment --------------------------------------------------------------------------------------
 
 data Env                        = Env { sels :: Map Name [Name], 
-                                        self :: Maybe Name , 
+                                        self :: Maybe Name, 
+                                        selfType :: Maybe Type,
                                         selSubst :: Map Name Name,
                                         modName :: Maybe String,
                                       --isPat :: Bool,
@@ -72,7 +73,7 @@ data Env                        = Env { sels :: Map Name [Name],
                                   } deriving Show
 
 
-env0 ss                       = Env { sels = [], self = Nothing, selSubst = [], modName = Nothing,
+env0 ss                       = Env { sels = [], self = Nothing, selfType = Nothing, selSubst = [], modName = Nothing,
                                     --isPat = False, 
                                       isPublic = True, tsyns = ss }
 
@@ -128,6 +129,8 @@ typeFromSels env ss             = case [ c | (c,ss') <- sels env, ss' == ss ] of
 
 
 haveSelf env                    = self env /= Nothing
+
+haveSelfType env                = selfType env /= Nothing
 
 tSubst env c ts                 = case lookup c (tsyns env) of
                                      Nothing -> foldl TAp (TCon c) ts1
@@ -303,10 +306,12 @@ instance Desugar1 Exp where
     ds1 env (ESelect e s)          = ESelect (ds1 env e) s
     ds1 env e@(ELit (LInt _ n))    = EAp (EVar (name' "fromInt" e)) e 
 
-    ds1 env (ETempl Nothing t ss)  = ds1 env (ETempl (Just (name0 "self")) (ds1 env t) ss)
-    ds1 env (EDo Nothing t ss)
-      | haveSelf env               = ds1 env (EDo (self env) (ds1 env t) ss)
-      | otherwise                  = ds1 env (EDo (Just (name0 "self")) (ds1 env t) ss)
+    ds1 env (ETempl Nothing t ss)  = ds1 (env {selfType = t'}) (ETempl (Just (name0 "self")) t' ss)
+        where t'                   = ds1 env t
+    ds1 env (EDo Nothing t ss)     = ds1  (env {selfType = t'})  (EDo sf t' ss)
+      where t'                     = ds1 env t
+            sf | haveSelf env      = self env
+               | otherwise         = Just (name0 "self")
     ds1 env e@(EAct Nothing ss)
       | haveSelf env               = ds1 env (EAct (self env) ss)
       | otherwise                  = errorTree "Action outside class" e
@@ -317,8 +322,8 @@ instance Desugar1 Exp where
     ds1 env (ETempl v t (Stmts []))= errorTree "Class with empty statement list" (ETempl Nothing t (Stmts []))
     ds1 env (ETempl v t ss)      = ETempl v t (ds1Templ (env{self=v}) [] [] ss)
     ds1 env (EDo v t ss)         = EDo v t (ds1 (env { self=v }) ss)
-    ds1 env (EAct v ss)          = EAct v (Stmts [SExp (EDo v Nothing (ds1 env ss))])
-    ds1 env (EReq v ss)          = EReq v (Stmts [SExp (EDo v Nothing (ds1 env ss))])
+    ds1 env (EAct v ss)          = EAct v (Stmts [SExp (EDo v (selfType env) (ds1 env ss))])
+    ds1 env (EReq v ss)          = EReq v  (Stmts [SExp (EDo v (selfType env) (ds1 env ss))])
 
     ds1 env (EAfter e1 e2)       = EAfter (ds1 env e1) (ds1 env e2)
     ds1 env (EBefore e1 e2)      = EBefore (ds1 env e1) (ds1 env e2)

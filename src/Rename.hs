@@ -55,7 +55,7 @@ import Depend
 import PP
 import Data.List(sort)
 
-renameM e1 m                       = rename (initEnv e1) m
+renameM e1 ls m                    = rename (initEnv e1 ls) m
                                 
 
 -- Syntax traversal environment --------------------------------------------------
@@ -64,13 +64,20 @@ data Env                           = Env { rE :: Map Name Name,
                                            rT :: Map Name Name, 
                                            rS :: Map Name Name,
                                            rL :: Map Name Name,
+                                           labels :: Map Name [Name],
                                            self :: [Name],
                                            void :: [Name]
                                          } deriving Show
 
-initEnv (rL',rT',rE')              = Env { rE = primTerms ++ rE', rT = primTypes ++ rT', rS = [], rL = primSels ++ rL', self = [], void = [] }
+initEnv (rs, rL',rT',rE') ls       = Env { rE = primTerms ++ rE', 
+                                           rT = primTypes ++ rT', 
+                                           rS = [], rL = primSels ++ rL', 
+                                           labels = ls,
+                                           self = [], 
+                                           void = []
+                                         }
 
-stateVars env                      = dom (rS env)
+stateVars env                      = dom (rS env) ++ rng (rS env)
 
 tscope env                         = dom (rT env)
 
@@ -111,6 +118,13 @@ setRenS env vs
   | otherwise                      = do rS' <- renaming (noDups "Duplicate state variables" (legalBind vs))
                                         return (env { rS = rS', void = vs })
   where shadowed                   = intersect vs (self env)
+
+setStateType env c                  = env {rS = rS', void = ss}
+  where c'                          = renT env c
+        ss                          = case lookup c' (labels env) of
+                                        Just ss -> ss
+                                        Nothing -> errorIds "State type of class is not a struct" [c]
+        rS'                         = [(a,b) | (a,b) <- rL env, a `elem` (ss ++ [ dropMod n | n <- ss, isQualified n ])]
 
 unvoid vs env                      = env { void = void env \\ vs }
 
@@ -199,7 +213,6 @@ instance Rename Module where
                                         env4 <- extRenTMod False c env3 ((ts2 \\ ks1') ++ ks2)
                                         env5 <- extRenEMod False c env4 (cs2 ++ (vs2 \\ vss) ++ vs2'++is2++bvars es2)
                                         env6 <- extRenLMod False c env5 ss2
-                                        -- tr (concatMap (\(n1,n2) -> render (pr n1) ++ "," ++ render (pr n2) ++ "   ") (rE env6))
                                         ds <- rename env6 (ds1 ++ ps1)
                                         bs <- rename env6 (bs1' ++ bs2' ++ shuffleB (bs1 ++ bs2))
                                         return (Module c is (ds ++ map DBind (groupBindsS bs)) [])
@@ -234,6 +247,7 @@ instance Rename Module where
          wDups                     = duplicates ws
          eDups                     = duplicates vs
          tcDups                    = duplicates (tcs1++tcs2)
+         sels sigs                 = concat [ vs | Sig vs _ <- sigs]
          isWild (TQual t ps)       = isWild t || any isWild [ t | PType t <- ps ]
          isWild (TAp t t')         = isWild t || isWild t'
          isWild (TSub t t')        = isWild t || isWild t'
@@ -249,7 +263,7 @@ mergeTClasses tcs (DBind _ : ds) = mergeTClasses tcs ds
 mergeTClasses tcs (d : ds) = d : mergeTClasses tcs ds
 mergeTClasses _ [] = []
 
-renameD ks ts ss cs ws tcs is es bss (DKSig c k : ds)
+renameD ks ts ss cs ws tcs is es bss (DKSig c _ : ds)
                                    = renameD (c:ks) ts ss cs ws tcs is es bss ds
 renameD ks ts ss cs ws tcs is es bss (DRec _ c _ _ sigs : ds)
                                    = renameD ks (c:ts) (sels++ss) cs ws tcs is es bss ds
@@ -298,6 +312,7 @@ instance Rename Constr where
 
 instance Rename (Extern Type) where
   rename env (Extern n t)          = liftM (Extern (renE env n)) (renameQT env t)
+
 completeP env t ps
   | not (null dups)                = errorIds "Duplicate type variable abstractions" dups
   | not (null dang)                = errorIds "Dangling type variable abstractions" dang
@@ -315,9 +330,7 @@ renameQT env t
   | otherwise                      = rename env (TQual t ps)
   where ps                         = completeP env t []
 
-
 renameQTs env ts                   = mapM (renameQT env) ts
-
 
 instance Rename Sig where
   rename env (Sig vs t)            = liftM (Sig (map (renL env) vs)) (renameQT env t)
@@ -348,7 +361,7 @@ instance Rename Bind where
 
 instance Rename Pat where
   rename env (PVar v)
-    | v `elem` void env            = errorIds"Uninitialized state variable" [v]
+    | v `elem` void env            = errorIds "Uninitialized state variable" [v]
     | v `elem` stateVars env       = return (PVar (renS env v))
     | otherwise                    = return (PVar (renE env v))
   rename env (PCon c)              = return (PCon (renE env c))
@@ -362,7 +375,7 @@ instance Rename Pat where
 
 instance Rename Exp where
   rename env (EVar v)
-    | v `elem` void env            = errorIds"Uninitialized state variable" [v]
+    | v `elem` void env            = errorIds "Uninitialized state variable" [v]
     | v `elem` stateVars env       = return (EVar (renS env v))
     | otherwise                    = return (EVar (renE env v))
   rename env (ECon c)              = return (ECon (renE env c))
@@ -395,11 +408,19 @@ instance Rename Exp where
   rename env (EDo (Just v) Nothing ss)
                                    = do env1 <- extRenSelf env v
                                         liftM (EDo (Just (renE env1 v)) Nothing) (rename (unvoidAll env1) (shuffleS ss))
+  rename env (EDo (Just v) t@(Just (TCon c)) ss)
+                                   = do env1 <- extRenSelf env v
+                                        let env2 = setStateType env1 c
+                                        liftM2 (EDo (Just (renE env1 v))) (rename env t) (rename (unvoidAll env2) (shuffleS ss))
   rename env (ETempl (Just v) Nothing ss)
                                    = do env1 <- extRenSelf env v
-                                        env2 <- setRenS env1 st
+                                        env2 <- setRenS env1 (assignedVars ss)
                                         liftM (ETempl (Just (renE env2 v)) Nothing) (rename env2 (shuffleS ss))
-    where st                       = assignedVars ss
+  rename env (ETempl (Just v) t@(Just (TCon c)) ss)
+                                   = do env1 <- extRenSelf env v
+                                        let env2 = setStateType env1 c
+                                        liftM2 (ETempl (Just (renE env2 v))) (rename env t) (rename env2 (shuffleS ss))
+             
   rename env (EAfter e1 e2)        = liftM2 EAfter (rename env e1) (rename env e2)
   rename env (EBefore e1 e2)       = liftM2 EBefore (rename env e1) (rename env e2)
   rename env e@(EBStruct (Just c) ls bs)
@@ -418,7 +439,6 @@ renRec env Nothing                 = Nothing
 renSBind envL envR (BEqn (LFun v ps) rh)    = do envR' <- extRenE envR (pvars ps)
                                                  ps'   <- rename envR' ps
                                                  liftM (BEqn (LFun (annotGenerated (renE envL v)) ps')) (rename envR' rh)
---renSBind envL envR (BEqn (LPat (EVar v)) rh)= liftM (BEqn (LPat (EVar (annotGenerated (renE envL v))))) (rename envR rh)
 renSBind envL envR (BEqn (LPat p) rh)       = do p' <- rename envL p
                                                  rh' <- rename envR rh
                                                  return (BEqn (LPat p') rh')
@@ -480,7 +500,7 @@ instance Rename Stmts where
         | not (null illegal)       = errorIds "Unknown state variables" illegal
         | otherwise                = liftM2 (:) (liftM2 SAss (rename (unvoidAll env) p) (rename env e)) (renameS (unvoid (pvars p) env) ss)
         where illegal              = pvars p \\ stateVars env
-      renameS env (SCase e as:ss)  = do e' <- rename env e
+      renameS env (SCase e as:ss)  = do e'  <- rename env e
                                         as' <- rename env as
                                         ss' <- renameS env ss
                                         return (SCase e' as':ss')
@@ -506,7 +526,6 @@ shuffle sigs (b@(BEqn (LFun v _) _) : bs)
 shuffle sigs (BEqn (LPat p) rh : bs)
                                    = BEqn (LPat p') rh : shuffle sigs' bs
   where (sigs',p')                 = attach sigs p
-
 
 
 shuffleS (Stmts ss)                = Stmts (shuffle' [] ss)

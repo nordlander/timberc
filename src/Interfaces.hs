@@ -123,7 +123,7 @@ type ImportInfo a                     =  (Bool, a)
 
 
 type Desugar1Env     = (Map Name [Name], Map Name Name, Map Name ([Name], Syntax.Type))
-type RenameEnv       = (Map Name Name, Map Name Name, Map Name Name)
+type RenameEnv       = (Map Name [Name], Map Name Name, Map Name Name, Map Name Name)
 type CheckEnv        = Module
 type KindleEnv       = Map Name Kindle.Decl
 
@@ -131,7 +131,7 @@ initEnvs             :: Map a (ImportInfo IFace) -> M s (Desugar1Env, RenameEnv,
 initEnvs bms         = do ims <- mapM (mkEnv . snd) bms
                           let ((rs,ss,rnL,rnT,rnE),m1,m2,kds) 
                                = foldr mergeIFace (([],[],[],[],[]),nullMod,nullMod,[]) ims
-                          return ((rs,rnL,ss),(rnL,rnT,rnE),m1,kds,m2)
+                          return ((rs,rnL,ss),(rs,rnL,rnT,rnE),m1,kds,m2)
 
   where mergeIFace ((rs1,ss1,rnL1,rnT1,rnE1),m11,m21,kds1)
                  ((rs2,ss2,rnL2,rnT2,rnE2),m12,m22,kds2) 

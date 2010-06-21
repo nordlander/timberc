@@ -53,6 +53,7 @@ import Fixity
         '<'      { VarSym ("","<") }
         '>'      { VarSym ("",">") }
         '*'	 { VarSym ("","*") }
+        '@'      { VarSym ("","@") }
 	VARSYM	 { VarSym $$ }
 	CONSYM	 { ConSym $$ }
 	INT	 { IntTok $$ }
@@ -413,9 +414,17 @@ exp10a  :: { Exp }
 
 exp10as :: { Exp }
         : loc 'do' stmtlist                     { EDo Nothing Nothing (checkStmts $3) }
+        | loc 'do' '@' var stmtlist             { EDo (Just $4) Nothing (checkStmts $5) }
+        | loc 'do' '@' con stmtlist             { EDo Nothing (Just (TCon $4)) (checkStmts $5) }
+        | loc 'do' '@' var '@' con stmtlist     { EDo (Just $4) (Just (TCon $6)) (checkStmts $7) }
         | loc 'class' stmtlist                  { ETempl Nothing Nothing (checkClass $3) }
+        | loc 'class' '@' var stmtlist          { ETempl (Just $4) Nothing (checkClass $5) }
+        | loc 'class' '@' con stmtlist          { ETempl Nothing (Just (TCon $4)) (checkClass $5) }
+        | loc 'class' '@' var '@' con stmtlist  { ETempl (Just $4) (Just (TCon $6)) (checkClass $7) }
         | loc 'action' stmtlist                 { EAct Nothing (checkStmts $3) }
         | loc 'request' stmtlist                { EReq Nothing (checkStmts $3) }
+        | loc 'action' '@' var stmtlist         { EAct (Just $4) (checkStmts $5) }
+        | loc 'request' '@' var stmtlist        { EReq (Just $4) (checkStmts $5) }
         | 'forall' quals 'do' stmtlist          { EForall (reverse $2) (checkStmts $4) }
         | 'forall' quals 'class' stmtlist       { forallClass (reverse $2) (ETempl Nothing Nothing (checkClass $4)) }
         | con '{'  layout_off recbinds '}'      { ERec (Just ($1,True)) (reverse $4) } 
@@ -458,10 +467,10 @@ bexp    :: { Exp }
         | '(' ')'                               { ECon (tuple 0) }
 
 lit     :: { Lit }
-: loc INT                                   { LInt (Just $1) (readInteger $2) }
-| loc RATIONAL                              { LRat (Just $1) (readRational $2) }
-| loc CHAR                                  { LChr (Just $1) $2 }
-| loc STRING                                { LStr (Just $1) $2 }
+        : loc INT                               { LInt (Just $1) (readInteger $2) }
+        | loc RATIONAL                          { LRat (Just $1) (readRational $2) }
+        | loc CHAR                              { LChr (Just $1) $2 }
+        | loc STRING                            { LStr (Just $1) $2 }
 
 -- List expressions -------------------------------------------------------------
 
@@ -670,6 +679,7 @@ VARSYM0 :: { (String,String) }
         | '<'                                   { ("","<") }
         | '>'                                   { ("",">") }
         | '*'                                   { ("","*") }
+        | '@'                                   { ("","@") }
         | '\\\\'				{ ("","\\\\") }
         
 
