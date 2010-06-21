@@ -46,11 +46,15 @@ kindcheck m                             = kiModule m
 kiModule (Module _ _ _ _ ds' _ [bs']) (Module v ns xs es ds ws bss)
                                          = do ds <- kiDecls env ds
                                               (bss',xs1) <- derive (concatMap bvars bss ++ bvars bs') (ds' `catDecls` ds) xs
+					      es' <- kiExt env es
                                               let env' = addKEnv0 (ksigsOf ds) env
                                               bss <- mapM (kiBinds env') (bss++bss')
-                                              return (Module v ns xs1 es ds (ws++dom(concatMap tsigsOf bss')) bss)
+                                              return (Module v ns xs1 es' ds (ws++dom(concatMap tsigsOf bss')) bss)
   where env                             = addKEnv0 (ksigsOf ds') (initEnv v)
 
+
+kiExt env es				= do te <- kiTEnv env [ (v,t) | Extern v t <- es ]
+					     return [ Extern v t | (v,t) <- te ]
 
 -- Kind unification ------------------------------------------------------------
 
