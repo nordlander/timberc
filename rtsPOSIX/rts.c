@@ -364,7 +364,7 @@ UNIT ASYNC( Msg m, Time bl, Time dl ) {
 	        break;
 	    default:
 	        m->deadline = m->baseline;
-            ADD(m->deadline, dl);
+                ADD(m->deadline, dl);
 	}
         
     if (LESS(now, m->baseline)) {           //  TIMERQ_PROLOGUE();
@@ -557,7 +557,7 @@ Ref init_rts(int argc, char **argv) {
     pthread_key_create(&current_key, NULL);
     pthread_setspecific(current_key, &thread0);
     thread0.id = pthread_self();
-
+    TIMERGET(msg0.baseline);
     sigemptyset(&all_sigs);
     sigaddset(&all_sigs, SIGALRM);
     sigaddset(&all_sigs, SIGSELECT);
