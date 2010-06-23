@@ -2,8 +2,8 @@ module Echo3 where
 
 import POSIX
 
-echo3 env = class
-
+root w = class
+   env = new posix w
    current := "Hello!\n"
 
    save str = action
@@ -16,5 +16,3 @@ echo3 env = class
    result action
       env.stdin.installR save
       tick
-
-root = newRoot echo3

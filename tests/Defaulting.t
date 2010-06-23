@@ -6,8 +6,9 @@ import POSIX
 y = 7:8:y
 
 root :: RootType
-root w = do
+root w = class
     env = new posix w
     x = show (head (tail y))
-    env.stdout.write (x ++ "\n")
-    env.exit 0
+    result action
+      env.stdout.write (x ++ "\n")
+      env.exit 0

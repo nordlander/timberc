@@ -56,7 +56,9 @@ consistent board cs = [ c | c <- cs, null (contradictions board c)]
 
 data State = Idle | JustGuessed | GameOver | GetSecret
            
-mastermind env = class
+root w = class
+
+  env = new posix w
   
   gen = new baseGen (microsecOf env.startTime)
 
@@ -127,5 +129,3 @@ mastermind env = class
      env.stdin.installR inpHandler
      env.stdout.write "Welcome to Mastermind!\n"
      startGame
-
-root = newRoot mastermind

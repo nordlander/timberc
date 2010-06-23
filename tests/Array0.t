@@ -11,7 +11,8 @@ foldlArray f u a = iter 0 u
           | otherwise = ack
 
 root :: RootType
-root world = do
+root world = class
     env = new posix world
-    env.stdout.write (show (foldlArray (+) 0 a) ++ "\n")
-    env.exit 0
+    result action
+      env.stdout.write (show (foldlArray (+) 0 a) ++ "\n")
+      env.exit 0

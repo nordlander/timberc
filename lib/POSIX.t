@@ -33,7 +33,7 @@
 
 module POSIX where
     
-type RootType = World -> Cmd () ()
+type RootType = World -> Class Action
 
 struct Env where
     exit      :: Int -> Request ()

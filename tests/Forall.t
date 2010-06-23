@@ -19,8 +19,8 @@ cell = class
 
           result Cell{..}
 
-root :: World -> Cmd () ()
-root w = do
+root w = class
+  result action
    env = new posix w
    x : xs = forall _ <- [1..80000] new cell 
    forall (c,l) <- zip (x : xs) xs do c.setNb l

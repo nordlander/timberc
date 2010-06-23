@@ -30,14 +30,9 @@ check env k sock = class
 
     result Connection {..}
  
-
-root :: RootType
-root w = do
-    env = new posix w
-    act = new main env
-    act
     
-main env = class
+root w = class
+    env = new posix w
 
     args = [1..fromRight$parse (env.argv!1)] 
 

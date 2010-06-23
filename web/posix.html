@@ -20,9 +20,7 @@ version will be provided in a future release.
 <pre>
 <b>module</b> POSIX <b>where</b>
     
-<b>type</b> RootType = Env -> Class Prog
-
-<b>type</b> Prog = Action
+<b>type</b> RootType = World -> Class Action
 
 <b>struct</b> Env <b>where</b>
     exit      :: Int -> Request ()
@@ -74,6 +72,7 @@ version will be provided in a future release.
 showHost = <b>struct</b>
    show (Host nm) = nm
 
+<b>extern</b> posix :: World -> Class Env
 </pre>
 <p>
 The root module of a program targeted for this environment must

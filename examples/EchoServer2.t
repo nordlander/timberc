@@ -5,16 +5,16 @@ import Counter
 
 port = Port 12345
 
-root :: World -> Cmd () ()
-root w = do
+root w = class
  
     env = new posix w
     clients = new counter
 
-    case parse (env.argv!1) of
-       Right n -> env.inet.tcp.listen port (server n clients env.stdout)
-       _ -> env.stdout.write "usage: EchoServer n, where n is number of concurrent clients\n"
-            env.exit 1
+    result action 
+      case parse (env.argv!1) of
+         Right n -> env.inet.tcp.listen port (server n clients env.stdout)
+         _ -> env.stdout.write "usage: EchoServer n, where n is number of concurrent clients\n"
+              env.exit 1
 
 server :: Int -> Counter -> WFile -> Socket -> Class Connection
 server maxClients clients logfile sock = class

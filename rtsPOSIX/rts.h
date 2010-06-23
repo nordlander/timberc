@@ -200,18 +200,29 @@ Bool primTimeLE(Time t1, Time t2);
 Bool primTimeGT(Time t1, Time t2);
 Bool primTimeGE(Time t1, Time t2);
 
-struct FunList;
-typedef struct FunList *FunList;
+struct Scanner;
+typedef struct Scanner *Scanner;
 
-struct FunList {
+struct Scanner {
   void (*f) (); 
-  FunList next;
+  Scanner next;
 };
 
-void addRootScanner(FunList ls);
-Ref init_rts(int argc, char **argv);
+void addRootScanner(Scanner ls);
+
+struct Handler {
+  Msg msg;
+  void *(*f) (void *);
+};
+
+typedef struct Handler *Handler;
+
+Thread addHandler(Handler h);
+
 int getArgc();
 char **getArgv();
-Thread newThread(Msg m, int prio, void *(*fun)(void *), int stacksize) ;
+void init_rts(int argc, char **argv);
+void sleep_rts();
+void pruneStaticHeap();
 
 #endif

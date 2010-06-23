@@ -3,8 +3,7 @@ module SantaProblem2 where
     import POSIX
     import RandomGenerator
 
-    root :: World -> Cmd () ()
-    root w = do
+    root w = class
        env = new posix w
        rand = new baseGen (microsecOf env.startTime)
        santa = new santaClaus env
@@ -15,7 +14,8 @@ module SantaProblem2 where
        shepherdEout = new batch 3 (secretary.unlock @ Elves)
        reindeer = forall n <- [1..10] new helper env rand shepherdRin shepherdRout (rMsg n)
        elves    = forall n <- [1..9] new helper env rand shepherdEin shepherdEout (eMsg n)
-       forall x <- elves ++ reindeer do x.doSomethingElse
+       result action
+          forall x <- elves ++ reindeer do x.doSomethingElse
 
 private
 

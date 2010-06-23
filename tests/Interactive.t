@@ -2,13 +2,8 @@ module Interactive where
 
 import POSIX
 
-root :: RootType
-root w = do
+root w = class
     env = new posix w
-    act = new main env
-    act
-    
-main env = class
     init := True
     start = action
         if init then

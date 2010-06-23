@@ -2,9 +2,10 @@ module Primes where
 
 import POSIX 
 
-root = newRoot primes
+root w = class
 
-primes env = class
+   env = new posix w
+
    limit :: Int
    limit = fromRight (parse (env.argv!1))
 

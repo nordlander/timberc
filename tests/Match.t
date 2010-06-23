@@ -17,18 +17,19 @@ p 3.2 = 'b'
 p _ = 'c'
 
 root :: RootType
-root w = do
+root w = class
     env = new posix w
-    env.stdout.write ("f \"Ab\"="++show (f "Ab") ++"\n")
-    env.stdout.write ("f \"Ac\"="++show (f "Ac") ++"\n")
-    env.stdout.write ("f \"C\"="++show (f "C") ++"\n")
-    env.stdout.write ("f \"bxx\"="++show (f "bxx") ++"\n")
-    env.stdout.write ("f \"CC\"="++show (f "CC") ++"\n")
+    result action
+      env.stdout.write ("f \"Ab\"="++show (f "Ab") ++"\n")
+      env.stdout.write ("f \"Ac\"="++show (f "Ac") ++"\n")
+      env.stdout.write ("f \"C\"="++show (f "C") ++"\n")
+      env.stdout.write ("f \"bxx\"="++show (f "bxx") ++"\n")
+      env.stdout.write ("f \"CC\"="++show (f "CC") ++"\n")
 
-    env.stdout.write ("p 3.2 ="++show (p 3.2) ++"\n")
-    env.stdout.write ("p 1.5 ="++show (p 1.5) ++"\n")
-    env.stdout.write ("p 4.5 ="++show (p 4.5) ++"\n")
+      env.stdout.write ("p 3.2 ="++show (p 3.2) ++"\n")
+      env.stdout.write ("p 1.5 ="++show (p 1.5) ++"\n")
+      env.stdout.write ("p 4.5 ="++show (p 4.5) ++"\n")
 
-    env.stdout.write ("x ="++show x++"\n")
+      env.stdout.write ("x ="++show x++"\n")
 
-    env.exit 0
+      env.exit 0

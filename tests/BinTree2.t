@@ -6,13 +6,8 @@ data Tree = Nil | Node Int Tree Tree
 
 minN = 4
 
-root :: RootType
-root world = do
-    env = new posix world
-    act = new main env
-    act
-
-main env = class
+root w = class
+  env = new posix w
   pr s n t = env.stdout.write (s++" of depth "++show n++"\t check: "++show t++"\n")
 
   depthLoop d m long
@@ -28,11 +23,11 @@ main env = class
 
   result action
       if size env.argv < 2 then
-        env.stdout.write "Usage: BinTree2 <number>"
+        env.stdout.write "Usage: BinTree2 <number>\n"
         env.exit 0
       temp = parse (env.argv!1)
       if isLeft temp then
-        env.stdout.write "Usage: BinTree2 <number>"
+        env.stdout.write "Usage: BinTree2 <number>\n"
         env.exit 0      
       n :: Int
       n = fromRight temp

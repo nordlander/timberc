@@ -11,9 +11,10 @@ wormObj _ = class
    result "y"
 
 root :: RootType
-root w = do
+root w = class
    env = new posix w
    w1 = new wormObj w2  
    w2 = new wormObj w1 
-   env.stdout.write "OK!\n"
-   env.exit 0
+   result action
+     env.stdout.write "OK!\n"
+     env.exit 0

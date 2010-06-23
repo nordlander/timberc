@@ -2,16 +2,16 @@ module TCPClient where
 
   import POSIX
 
-  root :: World -> Cmd () ()
-  root w = do
+  root w = class
      env = new posix w
-     if size env.argv /= 3 then
-        env.stdout.write "Usage: TCPClient host port\n"
-        env.exit 0
-     host = Host (env.argv!1)
-     port = Port (fromRight (parse (env.argv!2)))
-     env.stdout.write "Connecting... "
-     env.inet.tcp.connect host port (handler env)
+     result action
+        if size env.argv /= 3 then
+           env.stdout.write "Usage: TCPClient host port\n"
+           env.exit 0
+        host = Host (env.argv!1)
+        port = Port (fromRight (parse (env.argv!2)))
+        env.stdout.write "Connecting... "
+        env.inet.tcp.connect host port (handler env)
 
 private
 

@@ -32,14 +32,16 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 #include "rts.h"
+#include "timber.h"
 
-void ROOTINIT(void);
-void ROOT(void *w, Ref r);
+extern void ROOTINIT(void); 
+extern CLOS2 ROOT(World, Int);
 
 int main(int argc, char **argv) {
-    Ref envObj = init_rts(argc,argv);
+    init_rts(argc,argv);
     ROOTINIT();
     pruneStaticHeap();
-    ROOT((void *)0,envObj);
+    CLOS2 prog = ROOT((World)0,0);
+    prog->Code(prog,(POLY)Inherit,(POLY)Inherit);
     sleep_rts();
 }

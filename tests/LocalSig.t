@@ -2,13 +2,8 @@ module LocalSig where
 
 import POSIX
 
-root :: RootType
-root w = do
-    env = new posix w
-    act = new main env
-    act
-    
-main env = class
+root w = class
+            env = new posix w
             result action
               print :: a->Action
               print s = action

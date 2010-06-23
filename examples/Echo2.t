@@ -2,20 +2,20 @@ module Echo2 where
 
 import POSIX
 
-echo2 env = class
+root w = class
+   env = new posix w
    count := 1
 
    prompt = do
       env.stdout.write (show count++"> ")
       count := count+1
 
-   echo str = action
+   handler str = action
       env.stdout.write str
       prompt
 
    result action 
-      env.stdin.installR echo
+      env.stdin.installR handler
       env.stdout.write "Welcome to Echo2!\n"
       prompt
 
-root = newRoot echo2

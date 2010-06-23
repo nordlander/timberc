@@ -26,9 +26,10 @@ objB a = class
 -- the invisisble selection from oB caused by the subtyping coercion from BTypeExtended
 -- to B.  Execution should print "OK" on stdout.
 root :: RootType
-root w = do
+root w = class
 	oA = new objA oB
 	oB = new objB oA
 	env = new posix w
-	env.stdout.write "OK\n"
-	env.exit 0
+        result action
+          env.stdout.write "OK\n"
+	  env.exit 0

@@ -3,20 +3,22 @@ module Reflex where
 import POSIX
 import RandomGenerator
 
-data State = Idle | Waiting Msg | Counting
+data State = Idle | Waiting Msg | Counting 
 
 
 format t = show (secOf t) ++ '.' : fracs ++ " secs"
   where t100  = microsecOf t `div` 10000
         fracs = if t100<10 then '0':show t100 else show t100 
 
-reflex env = class
-  
-   gen = new baseGen (microsecOf env.startTime)
+root w = class
 
+   env = new posix w
+   gen = new baseGen (microsecOf env.startTime)
    tmr = new timer
 
-   print str = env.stdout.write (str ++ "\n")
+   setStatePrint st msg = do
+      env.stdout.write (msg ++ "\n")
+      state := st
 
    state := Idle
   
@@ -26,21 +28,15 @@ reflex env = class
                         waitingTime = sec 2 + millisec (r `mod` 2000)
                         msg <- after waitingTime action
                            tmr.reset
-                           print "Go!"
-                           state := Counting 
-                        print "Wait..."
-                        state := Waiting msg
+                           setStatePrint Counting "Go!!!"
+                        setStatePrint (Waiting msg) "Wait..."
                  
         Waiting msg ->  abort msg
-                        print "Cheat!!!"
-                        state := Idle
+                        setStatePrint Idle "Cheat!"
 
-        Counting ->     t <- tmr.sample
-                        print (format t)
-                        state := Idle
+        Counting     -> t <- tmr.sample
+                        setStatePrint Idle (format t)
 
    result action
       env.stdin.installR enter
-      print "Press return to start"
-
-root = newRoot reflex
+      env.stdout.write "Press return to start\n"

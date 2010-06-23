@@ -18,8 +18,8 @@ s2 = g s1 3
 --s1 = f s2 3
 
 
-cl env =
-    class
+root w = class
+       env = new posix w
        s := s1
        io _ = action
                env.stdout.write (show s.val)
@@ -28,12 +28,6 @@ cl env =
          env.stdin.installR io
          env.stdout.write (s2.str)
 
-
-root :: RootType
-root w = do
-  env = new posix w
-  obj = new cl env
-  obj
 
 ggg n = let apa = 'a':bepa
             bepa = 'b':cepa

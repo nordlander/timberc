@@ -3,7 +3,7 @@ module ArrayTest where
 import POSIX
 
 root :: RootType
-root world = do
+root world = class
     env = new posix world
     act = new class
         a := uniarray 10 True
@@ -11,7 +11,7 @@ root world = do
             a!1 := False
             env.stdout.write (show a ++ "\n")
             env.exit 0
-    act
+    result act
 
 instance showArray :: Show (Array a) \\ Show a where
     show x = "{" ++ (show0 x 0 (size x - 1)) ++ "}"

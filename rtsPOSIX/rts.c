@@ -479,15 +479,15 @@ void scanTimerQ() {
 
 // Scanning roots -------------------------------------------------------------------------------------
 
-FunList scanners = NULL;
+Scanner scanners = NULL;
 
-void addRootScanner(FunList ls) {
+void addRootScanner(Scanner ls) {
   ls->next = scanners;
   scanners = ls;
 }
 
 void scanRoots() {
-    FunList s = scanners;
+    Scanner s = scanners;
 
     envRootsDirty=0;
     while(s) {
@@ -519,12 +519,15 @@ char **getArgv() {
 }
 // Main thread handling -------------------------------------------------------------------------------
 
+Thread addHandler(Handler h) {
+  Thread t = newThread(h->msg,sched_get_priority_max(SCHED_RR),h->f,pagesize);
+  return t;
+}
 pthread_cond_t sleepVar;
 
-int sleep_rts() {
+void sleep_rts() {
   DISABLE(rts);
   pthread_cond_wait(&sleepVar,&rts);
-  return 0;
 }
 
 // Initialization -------------------------------------------------------------------------------------
@@ -538,8 +541,7 @@ Int getNumberOfProcessors() {
     return 1;
 }
 
-Ref init_rts(int argc, char **argv) {
-    Ref envObj;
+void init_rts(int argc, char **argv) {
     argc0 = argc;
     argv0 = argv;
 
@@ -577,7 +579,4 @@ Ref init_rts(int argc, char **argv) {
     newThread(NULL, prio_max, timerHandler, pagesize);
     
     ENABLE(rts);
-    NEW (Ref, envObj, WORDS(sizeof(struct Ref)));
-    INITREF(envObj);
-    return envObj;
 }

@@ -40,15 +40,16 @@ pinger args print quit = class
 
     result Pinger {..}
 
-root :: World -> Cmd () ()
-root w = do
+
+root w = class
    env = new posix w
    args = [1..size env.argv-1] 
    print i mess = env.stdout.write (env.argv!i ++ ": "++ mess ++ "\n")
 
    p = new pinger args print (env.exit 0)
        
-   forall i <- args do
-      env.inet.tcp.connect (Host (env.argv!i)) port (client (p.report i) (p.report i))
-   after (sec 2) p.finish
+   result action
+      forall i <- args do
+         env.inet.tcp.connect (Host (env.argv!i)) port (client (p.report i) (p.report i))
+      after (sec 2) p.finish
 

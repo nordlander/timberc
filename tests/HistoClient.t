@@ -3,13 +3,8 @@ module HistoClient where
 import POSIX
 import Histo
 
-root :: RootType
-root w = do
-    env = new posix w
-    act = new main env
-    act
-    
-main env = class
+root w = class
+             env = new posix w
              bds :: Array Int
              bds = array [10, 20, 30]
              h = new histo bds
@@ -20,7 +15,7 @@ main env = class
                    showResults rs
                    env.exit 0
                 else
-                   h.addObs(fromRight (parse d))
+                   h.addObs(fromRight (parse (init d)))
                    
              showResults rs = do
                    forall i <- [0..size bds-1] do

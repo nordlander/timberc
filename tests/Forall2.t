@@ -7,7 +7,7 @@ test env = class
        env.stdout.write ("i = " ++ show i ++ "\n")
 
 root :: RootType
-root w = do
+root w = class
     env = new posix w
     to = new test env
 --       to 7
@@ -15,5 +15,6 @@ root w = do
 --       forall m <- list1 do
 --           m 1
     list2 = [(3, to), (4, to)]
-    forall (i, mm) <- list2 do
+    result action
+      forall (i, mm) <- list2 do
         mm i

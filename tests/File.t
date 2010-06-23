@@ -3,7 +3,8 @@ module File where
 import POSIX
 
 root :: RootType
-root w = do
+root w = class
+  result action
     env = new posix w
     fname = env.argv!1
     h1 <- env.openR fname

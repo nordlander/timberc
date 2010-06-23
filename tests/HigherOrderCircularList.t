@@ -2,13 +2,8 @@ module HigherOrderCircularList where
 
 import POSIX
 
-root :: RootType
-root w = do
+root w = class
     env = new posix w
-    act = new main env
-    act
-
-main env = class
     t := []
     start = action
         env.stdout.write "Tick\n"

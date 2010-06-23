@@ -3,7 +3,8 @@ module StringEscapes where
 import POSIX
 
 root :: RootType
-root w = do
+root w = class
     env = new posix w
-    env.stdout.write ('\"' : '\'' : ";[~\o33\n' \"\\ \HTxy\x000dude"++"\n")
-    env.exit 0
+    result action
+      env.stdout.write ('\"' : '\'' : ";[~\o33\n' \"\\ \HTxy\x000dude"++"\n")
+      env.exit 0

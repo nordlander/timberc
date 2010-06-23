@@ -8,10 +8,11 @@ import POSIX
 -- a run-time stack overflow instead of an immediate bus error due to selection from a 
 -- placeholder address.
 root :: RootType
-root w = do
-   env = new posix w
-   str = "abc\n"
-   env.stdout.write str
-   str = tail str
-   env.stdout.write str
-   env.exit 0
+root w = class
+   result action
+     env = new posix w
+     str = "abc\n"
+     env.stdout.write str
+     str = tail str
+     env.stdout.write str
+     env.exit 0

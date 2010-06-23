@@ -41,6 +41,7 @@
 #include <errno.h>
 #include "POSIX.h"
 #include "rts.h"
+
 #define SOCKHANDLER   CLOS2
 #define HANDLER       CLOS3
 #define ACTION        CLOS2
@@ -107,15 +108,16 @@ int envRootsDirty;
 
 struct Msg evMsg = { NULL, 0, { 0, 0 }, { INF, 0 }, NULL };
 
-Thread eventThread = NULL; 
-
 pthread_mutex_t envmut;
 
 int maxDesc = 2;
 
-void startLoop();
+Thread eventThread = NULL;
+
+void sendSelect(int active);
 
 //---------- Utilities ---------------------------------------------------------
+
 
 Host_POSIX mkHost(struct sockaddr_in addr) {
   _Host_POSIX host; NEW(_Host_POSIX, host, WORDS(sizeof(struct _Host_POSIX)));
@@ -167,7 +169,7 @@ UNIT close_fun (Closable_POSIX this, Int dummy) {
   CLR_RDTABLE(desc);
   CLR_WRTABLE(desc);
   sockTable[desc] = NULL;
-  if (eventThread) pthread_kill(eventThread->id, SIGSELECT);
+  sendSelect(0); 
   ENABLE(envmut);
   return (UNIT)0;
 }
@@ -248,9 +250,9 @@ UNIT installR_fun (RFile_POSIX this, HANDLER hand, Int dummy) {
   Int desc = ((DescClosable)this->RFILE2FILE->FILE2CLOSABLE)->descriptor;
   Int active = FD_ISSET(desc,&readUsed);
   ADD_RDTABLE(desc,hand);
+  envRootsDirty = 1;
   maxDesc = desc > maxDesc ? desc : maxDesc;  
-  if (!eventThread) startLoop();
-  else if (!active) pthread_kill(eventThread->id, SIGSELECT);
+  sendSelect(active);
   ENABLE(envmut);
   return (UNIT)0;
 }
@@ -290,8 +292,7 @@ UNIT installW_fun (WFile_POSIX this, ACTION act, Int dummy) {
   ADD_WRTABLE(desc,act);
   envRootsDirty = 1;
   maxDesc = desc > maxDesc ? desc : maxDesc;  
-  if (!eventThread) startLoop();
-  else if (!active) pthread_kill(eventThread->id, SIGSELECT);
+  sendSelect(active);
   ENABLE(envmut);
   return (UNIT)0;
 }
@@ -392,7 +393,6 @@ Int new_socket (SOCKHANDLER handler) {
 void netError (Int sock, char *message) {
   SOCKHANDLER handler = sockTable[sock]->handler;
   Connection_POSIX conn = (Connection_POSIX)handler->Code(handler,(POLY)new_Socket(sock),(POLY)0);
-  envRootsDirty = 1;
   conn->neterror_POSIX(conn,getStr(message),Inherit,Inherit);
 }
 
@@ -400,7 +400,6 @@ void setupConnection (Int sock) {
   SOCKHANDLER handler = sockTable[sock]->handler;
   Connection_POSIX conn = (Connection_POSIX)handler->Code(handler,(POLY)new_Socket(sock),(POLY)0);
   sockTable[sock]->conn = conn;
-  envRootsDirty = 1;
   conn->established_POSIX(conn,Inherit,Inherit);
 }
 
@@ -447,8 +446,7 @@ UNIT connect_fun (Sockets_POSIX this, Host_POSIX host, Port_POSIX port, SOCKHAND
     else {
       setupConnection(sock);
     }
-    if (!eventThread) startLoop();
-    else pthread_kill(eventThread->id, SIGSELECT);
+    sendSelect(0);
   }
   ENABLE(envmut);
   return (UNIT)0;
@@ -466,8 +464,7 @@ Closable_POSIX listen_fun (Sockets_POSIX this, Port_POSIX port, SOCKHANDLER hand
     perror("bind failed");
   listen(sock,5);
   FD_SET(sock,&readUsed);
-  if (!eventThread) startLoop();
-  else pthread_kill(eventThread->id, SIGSELECT);
+  sendSelect(0);
   ENABLE(envmut);
   return new_Closable(sock);
 }
@@ -519,7 +516,7 @@ void scanEnvRoots () {
         ENABLE(envmut);
 }
 
-struct FunList scanner = {scanEnvRoots, NULL};
+struct Scanner scanner = {scanEnvRoots, NULL};
 
 
 // --------- Event loop ----------------------------------------------
@@ -569,6 +566,7 @@ void *eventLoop (void *arg) {
 	                    NEW(SockData,sockTable[sock],WORDS(sizeof(struct SockData)));
 	                    sockTable[sock]->handler = sockTable[i]->handler;
 	                    sockTable[sock]->addr = addr;
+                            envRootsDirty = 1;
 	                    maxDesc = sock > maxDesc ? sock : maxDesc;
 	                    setupConnection(sock);
 	                }
@@ -633,9 +631,16 @@ Env_POSIX posix_POSIX(World w, Int dummy) {
   return env;
 }
 
-// --------- Start event loop ----------------------------------------------------
+//---------- Event loop start and signalling -----------------------------------
 
-void startLoop () {
-
-    eventThread = newThread(&evMsg,sched_get_priority_max(SCHED_RR),eventLoop,0);
+void sendSelect(int active) {
+  if (eventThread==NULL) {
+    struct Handler handler = {&evMsg, eventLoop};
+    eventThread = addHandler(&handler);  
+  } else {
+    if (!active) {
+      pthread_kill(eventThread->id, SIGSELECT);
+    }
+  }
 }
+
