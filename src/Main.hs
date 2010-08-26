@@ -191,7 +191,6 @@ Kindle2C:
 
 -}
 
-
 compileTimber clo ifs (sm,t_file) ti_file c_file h_file
                         = do let Syntax.Module n is _ _ = sm
                              putStrLn ("[compiling "++ t_file++"]")
@@ -202,8 +201,8 @@ compileTimber clo ifs (sm,t_file) ti_file c_file h_file
                              writeFile h_file htxt
                              if api clo then do
                                                 writeAPI (rmSuffix ".ti" ti_file) ifc
-                                                return ((n,ifc):ifs')
-                              else return ((n,ifc):ifs')
+                                                return ((n,(ifc,t_file)):ifs')
+                              else return ((n,(ifc,t_file)):ifs')
   where passes imps par = do (e0,e1,e2,e3,e4) <- initEnvs imps
                              let m = mergeMod e2 e4
                              (d1,a0) <- pass clo (desugar1 e0)                Desugar1  par
@@ -361,7 +360,7 @@ compileProg clo cfg t_files = do ps <- mapM (parse clo) t_files
 
 makeProg clo cfg t_file     = do txt <- readFile t_file
                                  let ms@(Syntax.Module n is _ _) = runM (parser txt)
-                                 (imps,ss) <- chaseSyntaxFiles clo is [(n,ms)]
+                                 (imps,ss) <- chaseSyntaxFiles clo is [(n,(ms,t_file))]
                                  let cs = compile_order imps
                                      is = filter nonDummy cs
                                      ps = map (\(n,ii) -> (snd ii,modToPath (str n)++".t")) is ++ [(ms,t_file)]
@@ -401,7 +400,7 @@ checkRoot clo ifs def       = do if1 <- getIFile rootMod
                                             else fail ("Incorrect root type: " ++ render (pr sc) ++ "; should be " ++ render(pr t0))
                                 _ -> fail ("Cannot locate root \"" ++ (root clo) ++ "\" in module " ++ rootMod)
         getIFile m          = case lookup (name0 m) ifs of
-                                Just ifc -> return ifc
+                                Just (ifc,_) -> return ifc
                                 Nothing -> do (ifc,_) <- decodeModule clo (modToPath m ++ ".ti")
                                               return ifc
 
@@ -415,8 +414,8 @@ fatalErrorHandler e =  do putStrLn (show e)
 -- Getting import info ---------------------------------------------------------
 
 
-chaseImps                         :: (String -> IO (a,String)) -> (Bool -> a -> [(Name,Bool)]) -> String -> [Syntax.Import] -> Map Name a 
-                                     -> IO (Map Name (ImportInfo a), Map Name a)
+chaseImps                         :: (String -> IO (a,String)) -> (Bool -> (a,String) -> [(Name,Bool)]) -> String -> [Syntax.Import] -> Map Name (a,String) 
+                                     -> IO (Map Name (ImportInfo a), Map Name (a,String))
 chaseImps readModule iNames suff imps ifs              
                                      = do bms <- mapM (readImport ifs) imps
                                           let newpairs = [p | (p,True) <- bms]
@@ -424,13 +423,13 @@ chaseImps readModule iNames suff imps ifs
                                           chaseRecursively ifs1 (map fst bms) (concat [ iNames b c |  ((_,(b,c)),_) <- bms ])
   where readIfile ifs c              = case lookup c ifs of
                                         Just ifc -> return (ifc,False)
-                                        Nothing -> do (ifc,f) <- readModule f
+                                        Nothing -> do ifc <- readModule f
                                                       return (ifc,True)
                                           where f = modToPath(str c) ++ suff
         readImport ifs (Syntax.Import b c) 
                                      = do (ifc,isNew) <- readIfile ifs c
                                           return ((c,(b,ifc)),isNew)
-        chaseRecursively ifs ms []= return (ms,ifs)
+        chaseRecursively ifs ms []= return (map (\(n,(b,(i,f))) -> (n,(b,i))) ms,ifs)
         chaseRecursively ifs ms (p@(r,unQual) : rs)
                                      = case lookup r ms of
                                           Just (b,_) 
@@ -447,16 +446,29 @@ chaseImps readModule iNames suff imps ifs
         update _ []                = internalError0 "Main.update: did not find module"
         
 
-
+chaseIfaceFiles
+  :: CmdLineOpts
+     -> [Syntax.Import]
+     -> Map Name (IFace, FilePath)
+     -> IO
+          (Map Name (ImportInfo IFace),
+           Map Name (IFace, FilePath))
 chaseIfaceFiles clo                 = chaseImps (decodeModule clo) impsOf2 ".ti"
-  where impsOf2 b i                 = map (\(b',c) -> (c,b && b')) (impsOf i)
+  where impsOf2 b i                 = map (\(b',c) -> (c,b && b')) (impsOf (fst i))
                                           
 impName (Syntax.Import b c)          = c
 impNames (Syntax.Module _ is _ _)    = map impName is
 
-impNames2 b (Syntax.Module _ is _ _)    
+impNames2 b (Syntax.Module _ is _ _,_)    
                                      = map  (\(Syntax.Import b' c) -> (c,b && b')) is
 
+chaseSyntaxFiles
+  :: CmdLineOpts
+     -> [Syntax.Import]
+     -> Map Name (Syntax.Module, FilePath)
+     -> IO
+          (Map Name (ImportInfo Syntax.Module),
+           Map Name (Syntax.Module, FilePath))
 chaseSyntaxFiles clo                 = chaseImps readSyntax impNames2 ".t"
   where readSyntax f                 = (do cont <- readFile f
                                            let sm = runM (parser cont)
