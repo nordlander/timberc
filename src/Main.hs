@@ -360,7 +360,8 @@ compileProg clo cfg t_files = do ps <- mapM (parse clo) t_files
 
 makeProg clo cfg t_file     = do txt <- readFile t_file
                                  let ms@(Syntax.Module n is _ _) = runM (parser txt)
-                                 (imps,ss) <- chaseSyntaxFiles clo is [(n,(ms,t_file))]
+                                 currDir <- Directory.getCurrentDirectory
+                                 (imps,ss) <- chaseSyntaxFiles clo is [(n,(ms,currDir ++ "/" ++ t_file))]
                                  let cs = compile_order imps
                                      is = filter nonDummy cs
                                      ps = map (\(n,ii) -> (snd ii,modToPath (str n)++".t")) is ++ [(ms,t_file)]
@@ -471,8 +472,10 @@ chaseSyntaxFiles
            Map Name (Syntax.Module, FilePath))
 chaseSyntaxFiles clo                 = chaseImps readSyntax impNames2 ".t"
   where readSyntax f                 = (do cont <- readFile f
+                                           currDir <- Directory.getCurrentDirectory
                                            let sm = runM (parser cont)
-                                           return (sm,f)) `catch` (\ e -> do  let libf = Config.libDir clo ++ "/" ++ f
+                                           return (sm,currDir ++ "/" ++ f)) `catch`
+                                                                  (\ e -> do  let libf = Config.libDir clo ++ "/" ++ f
                                                                               t_exists <- Directory.doesFileExist libf
                                                                               if t_exists 
                                                                                 then return (Syntax.Module (name0 "") [] [] [],libf) 

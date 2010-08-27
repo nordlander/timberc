@@ -274,7 +274,9 @@ toHTML n (IFace rs ss (Module _ ns xs es ds ws [bs]) _ _) = text "<html><body>\n
         
 decodeModule clo f                      = (do ifc <- decodeCFile f
                                               putStrLn ("[reading " ++ show f ++ "]")
-                                              return (ifc,f)) `catch`  (\e -> do let libf = Config.libDir clo ++ "/" ++ f
+                                              currDir <- Directory.getCurrentDirectory
+                                              return (ifc,currDir ++ "/" ++ f)) `catch`  
+                                                                       (\e -> do let libf = Config.libDir clo ++ "/" ++ f
                                                                                  ifc <- decodeCFile libf
                                                                                  putStrLn ("[reading " ++ show libf ++ "]")
                                                                                  return (ifc,libf))
