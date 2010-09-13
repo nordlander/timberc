@@ -118,6 +118,7 @@ Reserved Ids
 reserved_ops :: [(String, Token)]
 reserved_ops
     = [
+        ("~", Tilde),
         ( ".",  Dot ),    
         ( "..", DotDot ),    
         ( "::", DoubleColon ),

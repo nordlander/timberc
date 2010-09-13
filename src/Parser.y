@@ -64,6 +64,7 @@ import Fixity
 
 Symbols
 -}
+        '~'     { Tilde }
 	'('	{ LeftParen }
 	')'	{ RightParen }
 	';'	{ SemiColon }
@@ -629,10 +630,14 @@ apat    :: { Pat }
 var     :: { Name }
         : varid                                 { $1 }
         | '(' varsym ')'                        { $2 }
+        | '~' varid                             { annotExplicit $2 }
+        | '~' '(' varsym ')'                    { annotExplicit $3 }
 
 con     :: { Name }
         : conid                                 { $1 }
         | '(' consym ')'                        { $2 }
+        | '~' conid                             { annotExplicit $2 }
+        | '~' '(' consym ')'                    { annotExplicit $3 }
 
 varop   :: { Name }
         : varsym                                { $1 }
