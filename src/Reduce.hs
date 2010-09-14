@@ -328,7 +328,7 @@ solve r g gs
                                              (s,q,es,_) <- red gs []
                                              (q',e) <- newHyp (subst s g)
                                              return (prune s (tvars (snd g)), q'++q, e:es)
-  | otherwise                           = do -- tr ("------ Solving " ++ render (pr (snd g)))
+  | otherwise                           = do -- tr ("------ Solving " ++ render (pr (snd g)) ++ "   #####history: " ++ show (length (history (fst g))))
                                              -- tr (render (nest 4 (vpr (rng gs))))
                                              -- tr ("Witness graph: " ++ show (findWG r g))
                                              try r (Left msg) (findWG r g) (logHistory g) gs
@@ -337,7 +337,7 @@ solve r g gs
 
 try r accum wg g gs
   | isNullWG wg || isNull accum         = unexpose accum
-  | otherwise                           = do -- tr ("Trying " ++ render (pr (snd g)) ++ " with " ++ render (pr (predOf wit)))
+  | otherwise                           = do -- tr ("Trying (" ++ show r ++ ") "++ render (pr (snd g)) ++ " with " ++ render (pr (predOf wit)))
                                              res <- expose (hyp wit g gs)
                                              accum <- plus (g : gs) accum res
                                              -- tr ("New accum: " ++ show accum)

@@ -79,9 +79,10 @@ conArity env c                  = lookup' (concat (cons env)) c
 
 
 complete _ [Tuple _ _]          = True
-complete _ []                   = False
 complete [] cs0                 = False
-complete (cs:css) cs0           = all (`elem`cs0) (dom cs)  ||  complete css cs0
+complete ([]:css) []            = True
+complete ([]:css) cs0		= complete css cs0
+complete (cs:css) cs0           = all (`elem`cs0) cs  ||  complete css cs0
 
 addEqns eqs env                 = env { eqns = eqs ++ eqns env }
 
@@ -127,16 +128,14 @@ redExp env c (ELam te e)        = do e <- redExp env [] e
                                      prodExp env c (redEta env te e)
 redExp env c (ECon k)           = prodExp env c (ECon k)
 redExp env c (EVar x)           = case lookup x (eqns env) of
-                                    Just e -> do e <- refreshFreeTyvars e           -- temprary work-around
-                                                 -- tr ("**** Inlining " ++ show x ++ "  =  " ++ render (pr e))
-                                                 e1 <- prodExp (delEqn x env) c e
+                                    Just e -> do e1 <- prodExp (delEqn x env) c e
                                                  if size e1 <= size c + 10
                                                     then return e1
                                                     else prodExp env c (EVar x)
                                     _      -> do prodExp env c (EVar x)
 redExp env c (EAp e es)         = do es1 <- mapM (redExp env []) es
                                      (bss,es2) <- extractBinds es1
-                                     e3 <- redExp env (AppC es2 : c) e
+				     e3 <- redExp env (AppC es2 : c) e
                                      return (foldr ELet e3 bss)
 redExp env c (ESel e s)         = redExp env (SelC s : c) e
 redExp env c (ECase e alts)     = do alts' <- mapM redAlt alts
@@ -159,8 +158,6 @@ redExp env _ (EReq e e')        = liftM2 EReq (redExp env [] e) (redExp env [] e
 redExp env _ (EDo x t c)        = liftM (EDo x t) (redCmd env c)
 
 
-refreshFreeTyvars               = alphaConvert
-
 alphaC te eqs e                 = do xs' <- mapM (newName . str) xs
                                      let s = xs `zip` map EVar xs'
                                          te' = substVars (xs `zip` xs') (dom te) `zip` rng te
@@ -177,7 +174,7 @@ prodExp env (SelC l : c) (ERec _ eqs)
   | all terminating (rng eqs)   = prodExp env c (lookup' eqs l)
 prodExp env (AppC es : c) (ELam te e)
                                 = do (te2,eqs2,e) <- alphaC te2 eqs2 e
-                                     liftM (eLet te2 eqs2) (redExp env c (subst eqs1 e))
+				     liftM (eLet te2 eqs2) (redExp env c (subst eqs1 e))
   where (eqs1,eqs2)             = safeSubst (duplicates (evars e)) (strict e) (dom te `zip` es)
         te2                     = te `restrict` dom eqs2
 prodExp env (AppC es : c) (EVar (Prim p a))
@@ -274,15 +271,21 @@ redEta env te e                 = ELam te e
 -- Removing redundant wildcard alternatives -------------------------------------------------------------------
 
 dropRedundant env alts
-  | complete (cons env) cs      = alts'
+  | complete css cs      	= alts'
   | otherwise                   = alts
   where alts'                   = takeWhile (isConPat . patOf) alts
         cs                      = [ c | Alt (PCon c _) _ <- alts' ]
+	css			= map dom (cons env)
       
 
 -- Primitives --------------------------------------------------------------------------------------------------
 
 redPrim Refl _ [e]                          = e
+redPrim ClassRefl _ [EVar (Prim Refl _)]    = EVar (prim Refl)
+redPrim LazyAnd _ [ECon (Prim TRUE _), e]   = e
+redPrim LazyAnd _ [ECon (Prim FALSE _), _]  = ECon (prim FALSE)
+redPrim LazyOr _ [ECon (Prim TRUE _), _]    = ECon (prim TRUE)
+redPrim LazyOr _ [ECon (Prim FALSE _), e]   = e
 redPrim Match a [e]                         = redMatch a e
 redPrim Fatbar a [e,e']                     = redFat a e e'
 redPrim UniArray a es                       = EAp (EVar (Prim UniArray a)) es
@@ -404,32 +407,6 @@ instance Size Ctxt where
     size (AppC es)              = size es + 1
     size (SelC _)               = 1
     size (CaseC alts)           = size alts + 1
-
-
--- Strictness and linearity --------------------------------------------------------------------------
-
-strictLin xs e                  = tr' ("strictLin " ++ showids xs ++ ":    " ++ showids strictvars ++ "     dups:  " ++ showids dups) $ 
-                                  all (`elem` strictvars) xs && null dups
-  where 
-    strictvars                  = strict e 
-    dups                        = duplicates (strictvars `intersect` xs)
-    stricts es                  = concat (map strict es)
-    strict (EVar x)             = [x]
-    strict (EAp e es)           = strict e ++ stricts es
-    strict (ECon c)             = []
-    strict (ELit l)             = []
-    strict (ELam te e)          = []
-    strict (ESel e l)           = strict e
-    strict (ELet bs e)          = (stricts es ++ strict e) \\ xs
-      where (xs,es)             = unzip (eqnsOf bs)
-    strict (ERec n eqs)         = stricts (rng eqs)
-    strict (EAct e e')          = strict e ++ strict e'
-    strict (EReq e e')          = strict e ++ strict e'
-    strict (EDo x t c)          = []
-    strict (ETempl x t te c)    = []
-    strict (ECase e alts)       = strict e
-    -- Note: the intersection of (strict alts) would also qualify as strict above, but those variables
-    -- will by necessity be non-linear.  Hence we take the shortcut of ignoring them right away.
 
 
 -- Terms that can be ignored without changing the semantics ------------------------------------------------

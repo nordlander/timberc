@@ -335,7 +335,7 @@ void *run(void *arg) {
 
 // Major primitives ---------------------------------------------------------------------
 
-UNIT ASYNC( Msg m, Time bl, Time dl ) {
+Msg ASYNC( Msg m, Time bl, Time dl ) {
     DISABLE(rts);
 
     AbsTime now;
@@ -376,7 +376,7 @@ UNIT ASYNC( Msg m, Time bl, Time dl ) {
         enqueueByDeadline(m, &msgQ);
 
     ENABLE(rts);
-    return (UNIT)0;
+    return m;
 }
 
 

@@ -45,10 +45,12 @@ module Execution (
                   stopCompiler,
                   compileC,
                   linkO,
+                  linkHTML
                  ) where
     
 import System.Exit (exitWith, ExitCode(..))
 import System.Process (system)
+import Data.List (isSuffixOf)
 import qualified Control.Monad as Monad
 import qualified System.Directory as Directory
 import Common
@@ -60,7 +62,9 @@ import Name
 
 -- | Compile a C-file. 
 compileC global_cfg clo c_file
-                        = do let o_file = rmSuffix ".c" (rmDirs c_file) ++ ".o"
+  | target clo == "Browser"
+			= return ()
+  | otherwise           = do let o_file = rmSuffix ".c" (rmDirs c_file) ++ ".o"
                              res <- checkUpToDate c_file o_file
                              if not res then do
                                 putStrLn ("[compiling "++c_file++"]")
@@ -104,6 +108,35 @@ linkO global_cfg clo r o_files =
                                        ++ rtsMain clo 
                                        ++ linkLibs cfg
                              execCmd clo cmd
+
+-- | Build an HTML wrapper around the referenced js-files
+linkHTML global_cfg clo r js_files =
+			  do putStrLn "[building web-app]"
+			     js_files' <- complementExtern js_files
+			     let root = name2str r
+				 html_file = let f = outfile clo in if ".html" `isSuffixOf` f then f else f ++ ".html"
+				 include f = "<script src='" ++ f ++ "'></script>\n"
+			         html_text =
+					"<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\"\n" ++
+					"\"http://www.w3.org/TR/html4/strict.dtd\">\n\n" ++
+					"<html lang='en'>\n" ++
+					"<head>\n" ++
+					concatMap include ((datadir clo ++ "/rtsBrowser/rts.js") : js_files') ++
+					"</head>\n" ++
+					"<body>\n" ++
+					"<script>\n" ++
+					"    prog = " ++ root ++ "(0,0)\n" ++
+					"    prog(0,0)\n" ++
+					"</script>\n" ++
+					"</body>\n" ++
+					"</html>\n"
+			     writeFile html_file html_text
+
+complementExtern []	= return []
+complementExtern (f:fs)	= do b <- Directory.doesFileExist f'
+			     fs' <- complementExtern fs
+			     return (if b then f:f':fs' else f:fs')
+  where f'		= (rmSuffix ".js" f) ++ ".extern.js"
 
 
 -- | Return with exit code /= 0

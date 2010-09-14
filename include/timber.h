@@ -130,8 +130,8 @@ struct LIST {
 
 struct CONS {
   WORD *GCINFO;
-  POLY a;
-  LIST b;
+  POLY hd;
+  LIST tl;
 };
 extern WORD __GC__CONS[];
 
@@ -187,7 +187,7 @@ struct Timer {
 
 extern WORD __GC__Timer[];
 
-UNIT ASYNC(Msg, Time, Time);
+Msg ASYNC(Msg, Time, Time);
 OID  LOCK(OID);
 UNIT UNLOCK(OID);
 void RAISE(Int);
@@ -205,6 +205,8 @@ void  CYCLIC_UPDATE(Array, Int, ADDR stop);
 void  CYCLIC_END(Array, ADDR stop);
 
 POLY primRefl(BITS32,POLY);
+CLOS1 primClassRefl(BITS32, CLOS1);
+
 
 TIMERTYPE primTIMERTERM(Int x);
 UNIT      ABORT(BITS32,Msg msg,Ref x);
@@ -212,4 +214,20 @@ UNIT      ABORT(BITS32,Msg msg,Ref x);
 LIST primShowFloat(Float x);
 LIST getStr(char *p) ;
 Int strEq (LIST s1, LIST s2) ;
+
+
+struct MUTLIST;
+typedef struct MUTLIST *MUTLIST;
+
+struct MUTLIST {
+	WORD *GCINFO;
+	LIST anchor;
+	LIST *current;
+};
+extern WORD __GC__MUTLIST[];
+
+MUTLIST MUTLISTINIT(BITS32);
+UNIT MUTLISTEXTEND(BITS32,MUTLIST,POLY);
+#define MUTLISTEXTRACT(polytag,x)  (x->anchor)
+
 #endif

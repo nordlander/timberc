@@ -221,21 +221,21 @@ LIST read_descr (int descr) {
     xslast = (LIST)0;
     r = read(descr, buf, 1023);
     if (r <= 0) {
-      if (reslast != (LIST)0) ((CONS)reslast)->b = (LIST)0;
+      if (reslast != (LIST)0) ((CONS)reslast)->tl = (LIST)0;
       return res;
     }
     while (r) {
       CONS n; NEW(CONS, n, WORDS(sizeof(struct CONS)));
       if (xslast==(LIST)0) xslast = (LIST)n;
       n->GCINFO = __GC__CONS+5;                         // POLY instance is a scalar
-      n->a = (POLY)(Int)buf[--r];
-      n->b = xs;
+      n->hd = (POLY)(Int)buf[--r];
+      n->tl = xs;
       xs = (LIST)n;
     }
     if (res==(LIST)0) 
       res = xs; 
     else 
-      ((CONS)reslast)->b = xs;
+      ((CONS)reslast)->tl = xs;
     reslast = xslast;
   }
 }
@@ -274,8 +274,8 @@ int write_fun (WFile_POSIX this, LIST xs, Int dummy) {
   while (xs) {
     int len = 0;
     while (xs && len < 1024) {
-      buf[len++] = (Char)(Int)((CONS)xs)->a;
-      xs = ((CONS)xs)->b;
+      buf[len++] = (Char)(Int)((CONS)xs)->hd;
+      xs = ((CONS)xs)->tl;
     }
     if (len<1024) buf[len] = 0;
     int r = write(((DescClosable)this->WFILE2FILE->FILE2CLOSABLE)->descriptor, buf, len);
@@ -318,8 +318,8 @@ Maybe_Prelude open_fun (LIST path, int oflag) {
   char buf[1024];
   int len = 0;
   while (path && len < 1024) {
-    buf[len++] = (Char)(Int)((CONS)path)->a;
-    path = ((CONS)path)->b;
+    buf[len++] = (Char)(Int)((CONS)path)->hd;
+    path = ((CONS)path)->tl;
   }
   buf[len] = 0;
   int descr = open(buf,oflag,S_IWUSR|S_IRUSR|S_IRGRP|S_IROTH);
@@ -410,8 +410,8 @@ int mkAddr (Int sock, Host_POSIX host, struct in_addr *addr) {
   Int hostid;
   struct hostent *ent;
   while (h && len < 1024) {
-    buf[len++] = (Char)(Int)((CONS)h)->a;
-    h = ((CONS)h)->b;
+    buf[len++] = (Char)(Int)((CONS)h)->hd;
+    h = ((CONS)h)->tl;
   }
   buf[len] = 0;
   // We assume gethostbyname will not block...

@@ -163,6 +163,10 @@ dsBinds bs                      = f [] bs
 -- Equations -----------------------------------------------------------------
 
 dsEqns []                       = return []
+dsEqns ((LPat (PVar v), r):eqns)
+				= dsEqns ((LFun v [], r):eqns)
+dsEqns ((LPat (PRec _ ps),RExp (EVar v)):eqns)
+				= dsEqns ([ (LPat p, RExp (ESelect (EVar v) l)) | Field l p <- ps ] ++ eqns)
 dsEqns ((LPat p,RExp (EVar v)):eqns)
                                 = do p' <- dsPat p      -- Checks validity
                                      sels <- mapM (sel (EVar v)) vs

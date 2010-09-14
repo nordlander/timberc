@@ -61,6 +61,7 @@ import Termred
 import Type2
 import Kindle
 import Kindlered
+import Kindle2JS
 import Prepare4C
 import Kindle2C
 import Core2Kindle
@@ -191,14 +192,15 @@ Kindle2C:
 
 -}
 
-compileTimber clo ifs (sm,t_file) ti_file c_file h_file
+compileTimber clo ifs (sm,t_file) ti_file c_file h_file js_file
                         = do let Syntax.Module n is _ _ = sm
                              putStrLn ("[compiling "++ t_file++"]")
                              (imps,ifs') <- chaseIfaceFiles clo is ifs
-                             let ((htxt,mtxt),ifc) = runM (passes imps sm)
+                             let ((htxt,mtxt),ifc,jstxt) = runM (passes imps sm)
                              encodeCFile ti_file ifc
                              writeFile c_file mtxt
                              writeFile h_file htxt
+			     writeFile js_file jstxt
                              if api clo then do
                                                 writeAPI (rmSuffix ".ti" ti_file) ifc
                                                 return ((n,(ifc,t_file)):ifs')
@@ -216,10 +218,11 @@ compileTimber clo ifs (sm,t_file) ti_file c_file h_file
                              tc2     <- pass clo (typecheck2 m)               Type2     sc
                              (ki,ds) <- pass clo (core2kindle m e3)           C2K       tc2
                              ki'     <- pass clo (kindlered e3)               Kindlered ki
+			     js      <- pass clo kindle2js                    K2JS      ki'
                              ll      <- pass clo (lambdalift e3)              LLift     ki'
                              pc      <- pass clo (prepare4c m e3)             Prepare4C ll
                              c       <- pass clo kindle2c                     K2C       pc
-                             return (c,ifaceMod a0 tc2 ds)
+                             return (c, ifaceMod a0 tc2 ds, js)
 
         
 pass clo m p a          = do -- tr ("Pass " ++ show p ++ " ...")
@@ -238,37 +241,40 @@ parse clo t_file        = do t_exists <- Directory.doesFileExist t_file
 
 compileAll clo ifs []   = return ifs
 compileAll clo ifs (p@(ms,t_file):t_files)
-                        = do res <- checkUpToDate clo t_file ti_file c_file h_file (impNames ms)
+                        = do res <- checkUpToDate clo t_file ti_file c_file h_file js_file (impNames ms)
                              if res then do 
                                  putStrLn ("[skipping " ++ t_file ++ " (output is up to date)]")
                                  (ifc,_) <- decodeModule clo ti_file
                                  compileAll clo ((name0 (takeBaseName t_file),ifc):ifs) t_files
                               else do
-                                 ifs' <- compileTimber clo ifs (longName p) ti_file c_file h_file
+                                 ifs' <- compileTimber clo ifs (longName p) ti_file c_file h_file js_file
                                  compileAll clo ifs' t_files
   where base            = rmSuffix ".t" t_file
         ti_file         = base ++ ".ti"
         c_file          = base ++ ".c"
         h_file          = base ++ ".h"
+        js_file         = base ++ ".js"
         qm              = takeBaseName t_file
         longName (Syntax.Module m a b c,t)
           | reverse (takeWhile (/= '.') (reverse qm)) == str m 
                         = (Syntax.Module (name0 qm) a b c, t_file)
           | otherwise   = errorIds "Module name not last constructor id in file name" [m]
 
-checkUpToDate clo t_file ti_file c_file h_file imps
+checkUpToDate clo t_file ti_file c_file h_file js_file imps
   | shortcut clo        = do ti_exists <- Directory.doesFileExist ti_file
                              c_exists  <- Directory.doesFileExist c_file
                              h_exists  <- Directory.doesFileExist h_file
-                             if not ti_exists || not c_exists || not h_exists then 
+                             js_exists <- Directory.doesFileExist js_file
+                             if not ti_exists || not c_exists || not h_exists || js_exists then 
                                  return False 
                               else do
                                  t_time  <- Directory.getModificationTime t_file
                                  ti_time <- Directory.getModificationTime ti_file
                                  c_time  <- Directory.getModificationTime c_file
                                  h_time  <- Directory.getModificationTime h_file
+                                 js_time <- Directory.getModificationTime js_file
                                  ti_OKs <- mapM (tiOK ti_time) imps
-                                 return (t_time < ti_time && t_time < c_time && t_time < h_time && and ti_OKs)
+                                 return (t_time < ti_time && t_time < c_time && t_time < h_time && t_time < js_time && and ti_OKs)
   | otherwise           = return False
   where tiOK ti_time1 n = do let ti_file = modToPath (str n) ++ ".ti"
                              ti_exists <- Directory.doesFileExist ti_file
@@ -282,6 +288,7 @@ checkUpToDate clo t_file ti_file c_file h_file imps
                                -- return True  -- library module
                                else do ti_time <- Directory.getModificationTime ti_file
                                        return (ti_time <= ti_time1)
+
 ------------------------------------------------------------------------------
 {-
   Debugging the compiler with the ghci debugger:
@@ -354,7 +361,10 @@ compileProg clo cfg t_files = do ps <- mapM (parse clo) t_files
                                  let basenames = map rmDirs basefiles
                                      o_files  = map (++ ".o") basenames
                                  Monad.when(not (null basenames)) (do r <- checkRoot clo ifs (last basenames)
-                                                                      linkO cfg clo r o_files)
+                                                                      if target clo == "Browser" then 
+								           linkHTML cfg clo r basefiles
+                                                                       else
+                                                                           linkO cfg clo r o_files)
                                  return []
 
 
@@ -370,31 +380,24 @@ makeProg clo cfg t_file     = do txt <- readFile t_file
                                  let basefiles = map (rmSuffix ".t" . snd) ps
                                      c_files   = map (++ ".c") basefiles
                                      o_files   = map ((++ ".o") . rmDirs) basefiles
+				     allfiles  = map (rmSuffix ".t" . snd . snd) ss
+				     js_files  = map (++ ".js") allfiles
                                  mapM (compileC cfg clo) c_files
-                                 linkO cfg clo{outfile = root_path} r o_files
+                                 if target clo == "Browser" then
+   				      linkHTML cfg clo{outfile = root_path} r js_files
+	                          else
+	                              linkO cfg clo{outfile = root_path} r o_files
   where nonDummy (_,(_,Syntax.Module n _ _ _)) 
                             = str n /= ""
         root_path           = rmSuffix ".t" t_file
 
 
 checkRoot clo ifs def       = do if1 <- getIFile rootMod
-                                 if2 <- getIFile rtsMod 
-                                 let ts = tEnv if2
-                                     ke = Core.ksigsOf ts
-                                     ds = Core.tdefsOf ts
-                                     te = Core.tsigsOf (valEnv if1)
-                                 case lookup rootT ke of
-                                     Nothing   -> fail ("Cannot locate RootType in module " ++ rtsMod)
-                                     Just Star -> case lookup rootT ds of
-                                        Nothing                -> internalError0 "checkRoot"
-                                        Just (Core.DType _ t') -> checkRoot' te t'
-                                        Just _                 -> checkRoot' te (Core.TId rootT)
-                                     Just _    -> fail ("Bad RootType in module " ++ rtsMod)
+                                 checkRoot' (Core.tsigsOf (valEnv if1)) tRoot
                                          
-  where rtsMod              = target clo
-        (r,rootMod)         = splitQual (root clo) def
+  where (r,rootMod)         = splitQual (root clo) def
         rootN               = qName rootMod (name0 r)
-        rootT               = qName rtsMod (name0 "RootType")
+        tRoot               = Core.TFun [Core.TId (prim World)] (Core.TAp (Core.TId (prim Class)) (Core.TId (prim Action)))
         checkRoot' te t0    = case [ (n,sc) | (n,sc) <- te, n == rootN ] of
                                 [(n,sc)]  -> if Core.sameType sc t0
                                             then return n

@@ -297,6 +297,7 @@ isTvar _                        = False
 
 a `sub` b                       = TFun [a] b
 
+args `fun` b			= TFun args b
 
 isSub' p                        = isSub (body p)
 
@@ -497,10 +498,10 @@ subst_bvs' s bvs ifvs           = (r,s')
     -- more accurate, but more expensive (always computes inner free variables):
   --s'                          = [(x, e) | (x, e) <- s, x `notElem` bvs, x `elem` ifvs]
 
-    -- Given a list of names to avoid, map the names xs to fresh names
-    newvars avoid xs                = zipWith new xs [m..]
-      where new x i                 = (x,x{tag=i})
-            m                       = 1+maximum [t|Name{tag=t}<-avoid]
+-- Given a list of names to avoid, map the names xs to fresh names
+newvars avoid xs                = zipWith new xs [m..]
+  where new x i                 = (x,x{tag=i})
+        m                       = 1+maximum [t|Name{tag=t}<-avoid]
 
 subst_bvs s bvs inner           = (r,subst (mapSnd EVar r++s') inner)
   where (r,s')                  = subst_bvs' s bvs (idents inner)
@@ -902,7 +903,6 @@ instance AlphaConv Scheme where
 instance AlphaConv Kind where
     ac s k                      = return k
     
-
 extSubst s xs  = return s
 {-
 extSubst s xs                   = do s' <- mapM ext xs
@@ -910,6 +910,40 @@ extSubst s xs                   = do s' <- mapM ext xs
   where ext x                   = do n <- newNum
                                      return (x, {-annotGenerated-} x { tag = n })
 -}
+
+class TRefresh a where
+    tRefresh :: a -> M x a
+    
+instance TRefresh a => TRefresh [a] where
+    tRefresh xs                 = mapM tRefresh xs
+    
+instance TRefresh Type where
+    tRefresh (TId n)
+      | isVar n                 = newTvar Star   -- not quite correct, really need an env to find kind of n
+                                                 -- But we're past kind errors anyway when we alphaconvert...
+      | otherwise               = return (TId n)
+    tRefresh (TFun t ts)        = liftM2 TFun (tRefresh t) (tRefresh ts)
+    tRefresh (TAp t u)          = liftM2 TAp (tRefresh t) (tRefresh u)
+    tRefresh (Tvar n)           = newTvar (tvKind n)
+
+
+instance TRefresh Rho where
+    tRefresh (R t)              = liftM R (tRefresh t)
+    tRefresh (F ts t)           = liftM2 F (tRefresh ts) (tRefresh t)
+
+instance TRefresh Scheme where
+    tRefresh (Scheme t ps ke)   = do t <- tRefresh t
+                                     ps <- tRefresh ps
+                                     return (Scheme t ps ke)
+    
+instance TRefresh (Name,Scheme) where
+    tRefresh (x,sc)             = do sc <- tRefresh sc
+                                     return (x, sc)
+
+instance TRefresh Binds where
+    tRefresh (Binds r te eqs)   = do te <- tRefresh te
+                                     return (Binds r te eqs)
+
 
 -- Refresh free unification variables -----------------------------------------------
 

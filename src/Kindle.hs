@@ -189,6 +189,8 @@ tRef a                                  = TCon (prim Ref) [a]
 tLIST a                                 = TCon (prim LIST) [a]
 tArray a                                = TCon (prim Array) [a]
 
+tMUTLIST a				= TCon (prim MUTLIST) [a]
+
 maxSmallCLOS                            = 3 :: Int
 smallCLOS 1                             = CLOS1
 smallCLOS 2                             = CLOS2
@@ -228,18 +230,23 @@ multiEnter [] [] e                      = e
 multiEnter (ts:tss) es e                = multiEnter tss es2 (enter e [] es1)
   where (es1,es2)                       = splitAt (length ts) es
                                         
-tupleDecl (Tuple n _)                   = Struct ids (map f ids) Top
-  where ids                             = take n abcSupply
-        f n                             = (n, ValT (TVar n []))
-
 equants (Extends _ _ vs)                = vs
 equants _                               = []
-
 
 litType (LInt _ _)                      = tInt
 litType (LRat _ _)                      = tFloat
 litType (LChr _ _)                      = tChar
 litType (LStr _ _)                      = tLIST tChar
+
+tupleDecl (Tuple n _)                   = Struct ids (map f ids) Top
+  where ids                             = take n abcSupply
+        f n                             = (n, ValT (TVar n []))
+
+selH                                    = name0 "hd"
+selT                                    = name0 "tl"
+
+conSels (Prim CONS _)			= [selH,selT]
+conSels _				= abcSupply
 
 a                                       = name0 "a"
 b                                       = name0 "b"
@@ -255,8 +262,8 @@ primDecls                               = (prim Bool,      Struct []    []      
                                           (prim TRUE,      Struct []    []                      (Extends (prim Bool) [] [])) :
                                           (prim LIST,      Struct [a]   []                      Union) :
                                           (prim NIL,       Struct [a]   []                      (Extends (prim LIST) [ta] [])) :
-                                          (prim CONS,      Struct [a]   [(a, ValT ta), 
-                                                                         (b, ValT (tLIST ta))]  (Extends (prim LIST) [ta] [])) :
+                                          (prim CONS,      Struct [a]   [(selH, ValT ta), 
+                                                                         (selT, ValT (tLIST ta))]  (Extends (prim LIST) [ta] [])) :
                                           (prim Ref,       Struct [a]   [(prim STATE, ValT ta)] Top) :
                                           (prim EITHER,    Struct [a,b] []                      Union) :
                                           (prim LEFT,      Struct [a,b] [(a,ValT ta)]           (Extends (prim EITHER) [ta,tb] [])) :
@@ -311,6 +318,12 @@ primTEnv0                               = (prim TIMERTERM,  FunT []  [tInt] (tId
                                           (prim Inherit,    ValT tTime) :
                                           (prim EmptyArray, FunT [a] [tInt] (tArray ta)) :
                                           (prim CloneArray, FunT [a] [tArray ta, tInt] (tArray ta)) :
+
+					  (prim MUTLISTINIT,    FunT [a] [] (tMUTLIST ta)) :
+					  (prim MUTLISTEXTEND,  FunT [a] [tMUTLIST ta, ta] tUNIT) :
+					  (prim MUTLISTEXTRACT, FunT [a] [tMUTLIST ta] (tLIST ta)) :
+					
+					  (prim ClassRefl,      FunT [a,b] [tClos tb [ta]] (tClos (tClos tb [tInt]) [tClos ta [tInt]])) :
                                           []
 
 okRec (ValT t)                          = okRec' t
@@ -349,6 +362,8 @@ typeOf' b                               = rngType (typeOf b)
 
 declsOf (Module _ _ _ ds _)             = ds
 
+consOf alts				= [ c | ACon c _ _ _ <- alts ]
+
 unions ds                               = [ n | (n,Struct _ _ Union) <- ds ]
         
 variants ds n0                          = [ n | (n,Struct _ _ (Extends n' _ _)) <- ds, n' == n0 ]
@@ -372,6 +387,7 @@ cUpd (x:xs) (e:es) c                    = CUpd x e (cUpd xs es c)
 
 simpleExp (EVar _)                      = True
 simpleExp (ELit _)                      = True
+simpleExp (ENew _ _ [])			= True
 simpleExp (ECast _ e)                   = simpleExp e
 simpleExp _                             = False
 

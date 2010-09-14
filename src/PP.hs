@@ -62,6 +62,9 @@ instance Pr Int where
 -- XXX Is this correct?
 -- AJG It is needed by Main, but it looks wrong.
 
+instance Pr [Char] where
+    pr a      = text a
+
 instance Pr (String, String) where
     pr (a, b) = text a <> text b
 

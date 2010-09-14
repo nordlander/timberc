@@ -39,12 +39,12 @@ Array primListArray(BITS32 polytag, LIST xs) {
         Int len = 0;
         Int i = 0;
         LIST ys = xs;
-        while ((Int)ys) {len++; ys = ((CONS)ys)->b;}; // not nice to compute the length here ...
+        while ((Int)ys) {len++; ys = ((CONS)ys)->tl;}; // not nice to compute the length here ...
         Array res; NEW(Array,res,WORDS(sizeof(struct Array))+len);
         res->GCINFO = (polytag ? __GC__Array1 : __GC__Array0);
         res->size = len;
         ys = xs;
-        while((Int)ys) {res->elems[i] = ((CONS)ys)->a; ys = ((CONS)ys)->b; i++;}
+        while((Int)ys) {res->elems[i] = ((CONS)ys)->hd; ys = ((CONS)ys)->tl; i++;}
         return res;
 }
 

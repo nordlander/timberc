@@ -246,20 +246,23 @@ data Prim                       =
                                 | IndexArray
                                 | UpdateArray
                                 
+                                | CharToInt
+                                | IntToChar
+
                                 | MAX____KINDLEVAR
 
                                 | Abort                 -- Preserved in Kindle, but given new translated types
                                 | TIMERTERM             --                       -"-
 
+				| ClassRefl
+				| ReqRefl
+				| CmdRefl
                                 
 -- transformed away during Kindle conversion ----------------------------------------------------
 
                                 | ActToCmd
                                 | ReqToCmd
                                 | RefToOID
-
-                                | CharToInt
-                                | IntToChar
 
                                 | BITS8ToInt
                                 | BITS16ToInt
@@ -317,6 +320,11 @@ data Prim                       =
                                 
                                 | POLY                  -- Type representing polymorhic values
                                 | WORD                  -- Target-dependent int/ptr type
+
+				| MUTLIST		-- type of lists extendable through mutation, for implementing tail-recursion modulo CONS
+				| MUTLISTINIT           -- initial state of extendable lists
+				| MUTLISTEXTEND		-- add one element to the end
+				| MUTLISTEXTRACT	-- access the built-up list (no more MUTLISTEXTEND must follow afterwards)
                                 
                                 | Float2POLY            -- Conversion macros required to circumvent C casting irreguliarity
                                 | POLY2Float

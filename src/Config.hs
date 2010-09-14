@@ -291,11 +291,10 @@ readCfg clo = parseCfg (rtsCfg clo)
 
 -- | Read the configuration at the given location.
 parseCfg file
-    = do
-      txt <- catch (readFile file)
-             (\e -> Exception.throwIO $ emsg file)
-      config <- safeRead file txt
-      return config
+    = do txt <- catch (readFile file)
+                (\e -> Exception.throwIO $ emsg file)
+         config <- safeRead file txt
+         return config
     where        
         safeRead :: FilePath -> String -> IO CfgOpts
         safeRead file text =
@@ -303,7 +302,7 @@ parseCfg file
                       [x] -> x
                       [] -> Exception.throw (ConfigError ("Parse error in " ++ file ++ "\n"))
                       _ -> Exception.throw (ConfigError ("File not found: " ++ file ++ "\n"))
-                in (return $! val)
+            in (return $! val)
         emsg f = (CmdLineError $ "Could not open " ++ file)
 
 
@@ -321,6 +320,7 @@ data Pass            = Parser
                      | Type2
                      | C2K
                      | Kindlered
+                     | K2JS
                      | LLift
                      | Prepare4C
                      | K2C

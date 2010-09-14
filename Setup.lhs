@@ -19,6 +19,9 @@
 >       system("cd rtsPOSIX && chmod +x configure")
 >       system("cd rtsPOSIX && ./configure --prefix=" ++ dataDir ++ " --with-timberc=" ++ timberc)
 >       system("cd rtsPOSIX && make install")
+>       system("cd rtsBrowser && chmod +x configure")
+>       system("cd rtsBrowser && ./configure --prefix=" ++ dataDir ++ " --with-timberc=" ++ timberc)
+>       system("cd rtsBrowser && make install")
 >       return ()
 
 > myPostInst args iflags pkg_descr lbi = do

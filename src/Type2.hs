@@ -145,11 +145,13 @@ t2Exp env (ESel e l)            = do (F (sc:scs) rh,ts) <- t2Inst (findType env 
                                      (s,e) <- t2ExpT env sc e
                                      e' <- encodeTApp ts (ESel e l)         -- NOTE: the *full* instantiation of l is remembered here,
                                      return (s, subst s (tFun scs rh), e')  -- including the actual struct type arguments (C.f.: c2k.cExp)
-t2Exp env (ELam te e)           = do (s,rh,e) <- t2Exp (addTEnv te env) e
+t2Exp env (ELam te e)           = do te <- tRefresh te
+                                     (s,rh,e) <- t2Exp (addTEnv te env) e
                                      return (s, F (subst s (rng te)) rh, ELam te e)
 t2Exp env (EAp e es)            = do (s,rh,e) <- t2Exp env e
                                      t2Ap env s rh e es
-t2Exp env (ELet bs e)           = do (s1,bs) <- t2Binds env bs
+t2Exp env (ELet bs e)           = do bs <- tRefresh bs
+                                     (s1,bs) <- t2Binds env bs
                                      (s2,rh,e) <- t2Exp (addTEnv (subst s1 (tsigsOf bs)) env) e
                                      return (mergeSubsts [s1,s2], rh, ELet bs e)
 t2Exp env (ERec c eqs)          = do alphas <- mapM newTvar (kArgs (findKind env c))
@@ -185,11 +187,14 @@ t2Exp env (EAct e1 e2)          = do alpha <- newTvar Star
                                      (s2,e2) <- t2ExpT env (scheme (tCmd alpha beta)) e2
                                      let s = mergeSubsts [s1,s2]
                                      return (s, R tAction, EAct e1 e2)
-t2Exp env (EDo x tx c)          = do (s1,t,c) <- t2Cmd (setSelf x tx env) c
+t2Exp env (EDo x tx c)          = do tx <- tRefresh tx
+                                     (s1,t,c) <- t2Cmd (setSelf x tx env) c
                                      let s2 = case stateT env of Nothing -> nullSubst; Just t' -> unif [(t',tx)]
                                          s = mergeSubsts [s1,s2]
                                      return (s, R (subst s (tCmd tx t)), EDo x tx c)
-t2Exp env (ETempl x tx te c)    = do (s,t,c) <- t2Cmd (setSelf x tx (addTEnv te env)) c
+t2Exp env (ETempl x tx te c)    = do tx <- tRefresh tx
+                                     te <- tRefresh te
+                                     (s,t,c) <- t2Cmd (setSelf x tx (addTEnv te env)) c
                                      return (s, R (tClass t), ETempl x tx te c)
 
         
@@ -199,7 +204,8 @@ t2Cmd env (CRet e)              = do alpha <- newTvar Star
 t2Cmd env (CExp e)              = do alpha <- newTvar Star
                                      (s,e) <- t2ExpT env (scheme (tCmd (fromJust (stateT env)) alpha)) e
                                      return (s, subst s alpha, CExp e)
-t2Cmd env (CGen x tx e c)       = do (s1,e) <- t2ExpT env (scheme (tCmd (fromJust (stateT env)) tx)) e
+t2Cmd env (CGen x tx e c)       = do tx <- tRefresh tx
+                                     (s1,e) <- t2ExpT env (scheme (tCmd (fromJust (stateT env)) tx)) e
                                      (s2,t,c) <- t2Cmd (addTEnv [(x,scheme tx)] env) c
                                      let s = mergeSubsts [s1,s2]
                                      return (s, subst s t, CGen x tx e c)
@@ -207,7 +213,8 @@ t2Cmd env (CAss x e c)          = do (s1,e) <- t2ExpT env (findType env x) e
                                      (s2,t,c) <- t2Cmd env c
                                      let s = mergeSubsts [s1,s2]
                                      return (s, subst s t, CAss x e c)
-t2Cmd env (CLet bs c)           = do (s1,bs) <- t2Binds env bs
+t2Cmd env (CLet bs c)           = do bs <- tRefresh bs
+                                     (s1,bs) <- t2Binds env bs
                                      (s2,t,c) <- t2Cmd (addTEnv (tsigsOf bs) env) c
                                      let s = mergeSubsts [s1,s2]
                                      return (s, subst s t, CLet bs c)

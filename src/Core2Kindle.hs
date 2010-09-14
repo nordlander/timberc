@@ -153,7 +153,7 @@ cDecls (Types ke ds)                = concat (map cDecl ds)
 
         cCon n vs (c,Constr ts ps ke)
                                     = (injectCon c, Kindle.Struct (vs++vs') (cValTEnv te) (Kindle.Extends n (map Kindle.tVar vs) vs'))
-          where te                  = abcSupply `zip` (ps++ts)
+          where te                  = Kindle.conSels c `zip` (ps++ts)
                 vs'                 = dom ke
 
 
@@ -468,7 +468,7 @@ cAct env fa fb (EAct e e')              = do (_,_,c) <- cFun env (EReq e e')
                                              a  <- newName paramSym
                                              b  <- newName paramSym
                                              m  <- newName tempSym
-                                             let c1  = Kindle.cBind bs (Kindle.CRun e1 (Kindle.CRet (Kindle.EVar m)))
+                                             let c1  = Kindle.cBind bs (Kindle.CRet e1)
                                                  c2  = Kindle.cmap (\_ -> Kindle.unit) c
                                                  bs  = [(m, Kindle.Val Kindle.tMsg (Kindle.ENew (prim Msg) [] bs'))]
                                                  bs' = [(prim Code, Kindle.Fun [] Kindle.tUNIT [] c2)]
@@ -579,7 +579,7 @@ cCase cE env e (Alt (PCon k te) e':_)
   | isTuple k                           = do (bf,_,e) <- cValExp env e
                                              (te,t1,r) <- cRhs cE env (width k) [] (eLam te e')
                                              let (xs,ts) = unzip te
-                                                 bs = mkBinds xs ts (map (Kindle.ESel e) (take (width k) abcSupply))
+                                                 bs = mkBinds xs ts (map (Kindle.ESel e) (take (width k) (Kindle.conSels k)))
                                              return (t1, rcomp (bf . Kindle.cBind bs) r)
 cCase cE env e alts                     = do (bf,t0,e0) <- cValExp env e
                                              rs <- mapM (cAlt cE env) alts
@@ -842,10 +842,10 @@ cExp env (ESel e l)                     = do (bf,e) <- cValExpT (setTArgs env []
 cExp env (ECon k) 
   | isTuple k                           = case ts of
                                              [] -> return (id, Kindle.TCon k [], ValR (Kindle.ENew k [] []))
-                                             _  -> return (id, Kindle.TCon k ts, FunR (Kindle.ENew k ts . mkBinds abcSupply ts) ts)
+                                             _  -> return (id, Kindle.TCon k ts, FunR (Kindle.ENew k ts . mkBinds (Kindle.conSels k) ts) ts)
   | otherwise                           = case te of
                                              [] -> return (id, t0, ValR (newK []))
-                                             _  -> return (id, t0, FunR (newK . mkBinds abcSupply ts') ts')
+                                             _  -> return (id, t0, FunR (newK . mkBinds (Kindle.conSels k) ts') ts')
   where ts                              = tArgs env
         Kindle.Struct vs te (Kindle.Extends k0 ts0 _) = findDecl env k
         s                               = vs `zip` ts
@@ -897,11 +897,11 @@ isPrim p e                              = False
 
 isCastPrim (EVar (Prim p _))
   | p `elem` intCasts                   = Just Kindle.tInt
-  | p == IntToChar                      = Just Kindle.tChar
+--  | p == IntToChar                      = Just Kindle.tChar
   | p == IntToBITS8                     = Just Kindle.tBITS8
   | p == IntToBITS16                    = Just Kindle.tBITS16
   | p == IntToBITS32                    = Just Kindle.tBITS32
-  where intCasts                        = [CharToInt,BITS8ToInt,BITS16ToInt,BITS32ToInt]
+  where intCasts                        = [{-CharToInt,-}BITS8ToInt,BITS16ToInt,BITS32ToInt]
 isCastPrim _                            = Nothing
 
 

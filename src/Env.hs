@@ -65,6 +65,7 @@ data Env = Env { kindEnv0      :: KEnv,              -- Kind for each global tyc
                  
                  coercions     :: Eqns,              -- Defs of top-level subtype coercions
 
+		 reflEnv       :: Map Name (Name,PScheme),   -- Reflexive predicates for all T not served by reflAll
                  aboveEnv      :: Map Name WGraph,   -- Overlap graph of all S > T for each T (closed under transitivity)
                  belowEnv      :: Map Name WGraph,   -- Overlap graph of all S < T for each T (closed under transitivity)
                  classEnv      :: Map Name WGraph,   -- Overlap graph of all instances for each type class (closed under subclassing)
@@ -96,6 +97,7 @@ nullEnv                                 = Env { kindEnv0   = [],
                                                 pevars     = [],
                                                 stateT     = Nothing,
                                                 coercions  = [],
+						reflEnv    = [],
                                                 aboveEnv   = [],
                                                 belowEnv   = [],
                                                 classEnv   = [],
@@ -282,6 +284,10 @@ findPred env w                          = case lookup w (predEnv env ++ predEnv0
                                             Just p  -> p
                                             Nothing -> internalError0 ("Unknown witness identifier: " ++ show w)
 
+findRefl env c				= case lookup c (reflEnv env) of
+					    Just r -> r
+					    Nothing -> reflAll
+
 
 findAbove env c                         = case lookup c (aboveEnv env) of
                                             Just wg -> wg
@@ -299,9 +305,9 @@ findClass env c                         = case lookup c (classEnv env) of
 
 
 
-findCoercion env a b
-  | a == b                              = Just reflAll
-  | otherwise                           = search (upperIs b) (nodes (findAbove env a))
+findCoercion env a b			= case search (upperIs b) (nodes (findAbove env a)) of
+					    Nothing | a == b -> Just (findRefl env a)
+					    r                -> r
 
 findCoercion' env a b                   = case findCoercion env a b of
                                             Just n -> unitWG n
@@ -359,36 +365,32 @@ T < Eq T, S < T, Eq a < Eq b \\ b < a  |-  x < Eq x
 
 
 findWG (RConCon i j)  (env,_)           = findCoercion' env i j
-findWG (ROrd _ Pos i) (env,_)           = addReflWG (findAbove env i)
-findWG (ROrd _ Neg i) (env,_)           = addReflWG (findBelow env i)
-findWG (RUnif)        (env,_)           = reflWG
-findWG (RInv _ Pos i) (env,_)           = concatWG reflWG (findAbove env i)
-findWG (RInv _ Neg i) (env,_)           = concatWG reflWG (findBelow env i)
+findWG (ROrd _ Pos i _) (env,_)           = reflWG (findRefl env i) (findAbove env i)
+findWG (ROrd _ Neg i _) (env,_)           = reflWG (findRefl env i) (findBelow env i)
+findWG (RUnif)        (env,_)           = unitWG reflAll
+findWG (RInv _ Pos i) (env,_)           = flattenWG (reflWG (findRefl env i) (findAbove env i))
+findWG (RInv _ Neg i) (env,_)           = flattenWG (reflWG (findRefl env i) (findBelow env i))
 findWG (RClass _ i)   (env,_)           = lookup' (classEnv env) i
 
 
-addReflWG wg                            = WG { nodes = reflAll : nodes wg, 
-                                               arcs = (repeat (prim Refl) `zip` dom (nodes wg)) ++ arcs wg }
+reflWG r wg                             = WG { nodes = r : nodes wg, 
+                                               arcs = (repeat (fst r) `zip` dom (nodes wg)) ++ arcs wg }
                                                
+unitWG n                                = WG { nodes = [n], arcs = [] }
+
+nullWG                                  = WG { nodes = [], arcs = [] }
+
 shrinkWG wg t                           = WG { nodes = filter (upperIs t) (nodes wg), arcs = [] }
 
 flattenWG wg                            = wg { arcs = [] }
-
-reflWG                                  = unitWG (reflAll)
 
 isNullWG wg                             = null (nodes wg)
 
 takeWG (WG (n:nodes) a)                 = (n, WG nodes a)
 takeWG _                                = internalError0 "takeWG: empty node list"
 
-concatWG wg1 wg2                        = WG { nodes = nodes wg1 ++ nodes wg2, arcs = [] }
-
 pruneWG w wg                            = wg { nodes = filter ((`notElem` ws) . fst) (nodes wg) }
   where ws                              = [ w2 | (w1,w2) <- arcs wg, w1 == w ]
-
-unitWG n                                = WG { nodes = [n], arcs = [] }
-
-nullWG                                  = WG { nodes = [], arcs = [] }
 
 
 
@@ -398,7 +400,7 @@ data Dir                                = Pos | Neg
 
 data Rank                               = RFun                  -- function type in either position, handle as a predicate scheme
                                         | RConCon Name Name     -- con-con, only one solution possible (or failure!)
-                                        | ROrd    Int Dir Name  -- con-var, with gravity governed by var's position in target type
+                                        | ROrd    Int Dir Name Int -- con-var, with gravity governed by var's position in target type
                                         | RUnif                 -- var-var, unifiable (either safe or forced)
                                         | RInv    Int Dir Name  -- con-var, requires unordered search 
                                         | RClass  Int Name      -- class constraint, rank below all subpreds involving a tycon
@@ -429,19 +431,23 @@ rank info (env,TFun [l] u)              = subrank (tFlat l) (tFlat u)
     subrank _ (TFun _ _, _)             = RUnif
     subrank (TId i,_) (TId j,_)         = RConCon i j                -- only one choice, highest rank
     subrank (TId i,_) (Tvar n,_)
-      | l==0 && b==0 && not (isNeg v)   = ROrd 0 Pos i               -- no embeddings, only constant bounds, right polarity
-      | approx && n `notElem` vs        = ROrd l Pos i               -- approximate in right direction if n not in environment
+      | l==0 && b'==1                   = RUnif
+      | l==0 && b==0 && not (isNeg v)   = ROrd 0 Pos i b'               -- no embeddings, only constant bounds, right polarity
+      | approx && n `notElem` vs        = ROrd l Pos i b'              -- approximate in right direction if n not in environment
       | otherwise                       = RInv l Pos i               -- otherwise rank below v-v unification (dir only for env lookup)
       where l                           = length (filter (==n) emb)  -- # of embeddings of n
             b                           = length (filter (==n) lb)   -- # of lower var bounds for n
             v                           = polarity pvs n             -- polarity of n in target type
+	    b'                          = length (filter (==n) lb')
     subrank (Tvar n,_) (TId i,_)
-      | l==0 && b==0 && not (isPos v)   = ROrd 0 Neg i               -- no embeddings, only constant bounds, right polarity
-      | approx && n `notElem` vs        = ROrd l Neg i               -- approximate in right direction if n not in environment
+      | l==0 && b'==1                   = RUnif
+      | l==0 && b==0 && not (isPos v)   = ROrd 0 Neg i b'              -- no embeddings, only constant bounds, right polarity
+      | approx && n `notElem` vs        = ROrd l Neg i b'              -- approximate in right direction if n not in environment
       | otherwise                       = RInv l Neg i               -- otherwise rank below v-v unification (dir only for env lookup)
       where l                           = length (filter (==n) emb)  -- # of embeddings of n
             b                           = length (filter (==n) ub)   -- # of upper var bounds for n
             v                           = polarity pvs n             -- polarity of n in target type
+            b'                          = length (filter (==n) ub')
     subrank (Tvar n,ts) (Tvar n',ts')
       | n == n'                         = RUnif     -- identical heads, and we only have invariant constructors
       | l==0 && b==1 && null ts && not (isPos v)
@@ -625,6 +631,7 @@ instance Pr (Name,Name) where
 
 initEnv v               = nullEnv { kindEnv0 = primKindEnv,
                                     typeEnv0 = primTypeEnv,
+				    reflEnv  = primReflEnv,
                                     aboveEnv = primAboveEnv,
                                     belowEnv = primBelowEnv,
                                     classEnv = primClassEnv,
@@ -670,6 +677,8 @@ primTypeEnv             = [ (prim NIL,          scheme1 [] (tList a)),
                             (prim ActToCmd,     scheme1 [tAction] (tCmd a tMsg)),
                             (prim ReqToCmd,     scheme2 [tRequest a] (tCmd b a)),
                             (prim RefToOID,     scheme1 [tRef a] tOID),
+
+			    (prim ClassRefl,    scheme2 [a `sub` b] (tClass a `sub` tClass b)),
 
                             (prim IntPlus,      scheme0 [tInt,tInt] tInt),
                             (prim IntMinus,     scheme0 [tInt,tInt] tInt),
@@ -824,6 +833,10 @@ scheme0 ts t            = Scheme (mkRho ts t) [] []
 scheme1 ts t            = Scheme (mkRho ts t) [] [(name0 "a",Star)]
 scheme2 ts t            = Scheme (mkRho ts t) [] [(name0 "a",Star),(name0 "b",Star)]
 
+pred0 ps p              = Scheme (R p) (map scheme ps) []
+pred1 ps p              = Scheme (R p) (map scheme ps) [(name0 "a",Star)]
+pred2 ps p              = Scheme (R p) (map scheme ps) [(name0 "a",Star),(name0 "b",Star)]
+
 mkRho [] t              = R t
 mkRho ts t              = F (map scheme ts) (R t)
 
@@ -842,17 +855,20 @@ primBelowEnv    = [ (prim Action,   nullWG),
                     (prim OID,      unitWG subRefOID)
                   ]
 
-
-reflAll         = (prim Refl,       scheme1 [] (a `sub` a))
-
-subActCmd       = (prim ActToCmd,   scheme1 [] (tAction `sub` tCmd a tMsg))
-
-subReqCmd       = (prim ReqToCmd,   scheme2 [] (tRequest a `sub` tCmd b a))
-
-subRefOID       = (prim RefToOID,   scheme1 [] (tRef a `sub` tOID))
+primReflEnv	= [ (prim Class,    subClassClass) ]
 
 
-primPredEnv     = [reflAll, subActCmd, subReqCmd, subRefOID]
+reflAll         = (prim Refl,       pred1 [] (a `sub` a))
+
+subActCmd       = (prim ActToCmd,   pred1 [] (tAction `sub` tCmd a tMsg))
+
+subReqCmd       = (prim ReqToCmd,   pred2 [] (tRequest a `sub` tCmd b a))
+
+subRefOID       = (prim RefToOID,   pred1 [] (tRef a `sub` tOID))
+
+subClassClass	= (prim ClassRefl,  pred2 [a `sub` b] (tClass a `sub` tClass b))
+
+primPredEnv     = [reflAll, subActCmd, subReqCmd, subRefOID, subClassClass]
 
 
 primClassEnv    = []

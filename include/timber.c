@@ -83,8 +83,8 @@ WORD __GC__CLOS3[] = {WORDS(sizeof(struct CLOS3)),GC_STD,0};
 WORD __GC__CLOS[]  = {WORDS(sizeof(struct CLOS)),GC_STD,0};
 
 WORD __GC__CONS[]       = {
-        HEAD(CONS),     OFF(CONS, a),   OFF(CONS, b),   0,
-        HEAD(CONS),                     OFF(CONS, b),   0,0
+        HEAD(CONS),     OFF(CONS, hd),  OFF(CONS, tl),  0,
+        HEAD(CONS),                     OFF(CONS, tl),  0,0
         };
 
 WORD __GC__LEFT[]       = {
@@ -129,6 +129,50 @@ POLY primRefl(BITS32 polytag, POLY in) {
         return in;
 }
 
+struct T1 {
+	POLY GCINFO;
+	POLY (*Code) (CLOS1, POLY);
+	CLOS1 coerce;
+};
+typedef struct T1 *T1;
+WORD __GC__T1[] = {WORDS(sizeof(struct T1)),GC_STD, OFF(T1, coerce), 0};
+
+struct T2 {
+	POLY GCINFO;
+	POLY (*Code) (CLOS1, POLY);
+	CLOS1 coerce;
+	CLOS1 cl;
+};
+typedef struct T2 *T2;
+WORD __GC__T2[] = {WORDS(sizeof(struct T2)),GC_STD, OFF(T2, coerce), OFF(T2, cl), 0};
+
+POLY takeDummy(CLOS1 this, POLY dummy) {
+	CLOS1 cl = ((T2)this)->cl;
+	CLOS1 coerce = ((T2)this)->coerce;
+	POLY obj = cl->Code(cl, (POLY)0);
+	POLY obj2 = coerce->Code(coerce, obj);
+	return obj2;
+}
+
+POLY takeClass(CLOS1 this, POLY cl) {
+	T2 x;
+	NEW(T2, x, WORDS(sizeof(struct T2)));
+	x->GCINFO = __GC__T2;
+	x->Code = takeDummy;
+	x->coerce = ((T1)this)->coerce;
+	x->cl = (CLOS1)cl;
+	return (POLY)x;
+}
+
+CLOS1 primClassRefl(BITS32 polytag, CLOS1 coerce) {
+	T1 x;
+	NEW(T1, x, WORDS(sizeof(struct T1)));
+	x->GCINFO = __GC__T1;
+	x->Code = takeClass;
+	x->coerce = coerce;
+	return (CLOS1)x;
+}
+
 // String marshalling ----------------------------------------------------------------------------------
 
 LIST getStr(char *p) {
@@ -137,14 +181,14 @@ LIST getStr(char *p) {
         CONS n0; NEW(CONS, n0, WORDS(sizeof(struct CONS)));
         n0->GCINFO = __GC__CONS;
         CONS n = n0;
-        n->a = (POLY)(Int)*p++;
+        n->hd = (POLY)(Int)*p++;
         while (*p) {
-	        NEW(LIST, n->b, WORDS(sizeof(struct CONS)));
-                n = (CONS)n->b;
+	        NEW(LIST, n->tl, WORDS(sizeof(struct CONS)));
+                n = (CONS)n->tl;
                 n->GCINFO = __GC__CONS;
-                n->a = (POLY)(Int)*p++;
+                n->hd = (POLY)(Int)*p++;
         }
-        n->b = (LIST)0;
+        n->tl = (LIST)0;
         return (LIST)n0;
 }
 
@@ -159,12 +203,36 @@ Int strEq (LIST s1, LIST s2) {
       case 0:
 	return 0;
       default:
-	c1 = (Int)((CONS)s1)->a;
-	c2 = (Int)((CONS)s2)->a;
+	c1 = (Int)((CONS)s1)->hd;
+	c2 = (Int)((CONS)s2)->hd;
         if (c1!=c2) return 0;
-	s1 = ((CONS)s1)->b;
-	s2 = ((CONS)s2)->b;
+	s1 = ((CONS)s1)->tl;
+	s2 = ((CONS)s2)->tl;
       }
     }
   }
+}
+
+// Mutable lists ---------------------------------------------------------------------------------------------
+
+WORD __GC__MUTLIST[]  = {WORDS(sizeof(struct MUTLIST)),GC_STD, OFF(MUTLIST, anchor), 0};
+
+MUTLIST MUTLISTINIT(BITS32 polytag) {
+	MUTLIST x;
+	NEW(MUTLIST, x, WORDS(sizeof(struct MUTLIST)));
+	x->GCINFO = __GC__MUTLIST;
+	x->anchor = (LIST)0;
+	x->current = &x->anchor;
+	return x;
+}
+
+UNIT MUTLISTEXTEND(BITS32 polytag, MUTLIST x, POLY e) {
+	CONS tmp;
+	NEW(CONS, tmp, WORDS(sizeof(struct CONS)));
+	tmp->GCINFO = __GC__CONS;
+	tmp->hd = e;
+	tmp->tl = (LIST)0;
+	*x->current = (LIST)tmp;
+	x->current = &tmp->tl;
+	return (UNIT)0;
 }

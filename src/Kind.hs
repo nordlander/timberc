@@ -44,7 +44,7 @@ import Control.Monad
 kindcheck m                             = kiModule m
 
 kiModule (Module _ _ _ _ ds' _ [bs']) (Module v ns xs es ds ws bss)
-                                         = do ds <- kiDecls env ds
+                                         = do ds <- kiDeclss env (groupTypes ds)
                                               (bss',xs1) <- derive (concatMap bvars bss ++ bvars bs') (ds' `catDecls` ds) xs
 					      es' <- kiExt env es
                                               let env' = addKEnv0 (ksigsOf ds) env
@@ -105,6 +105,11 @@ kiTExp env (TAp t t')                   = do (cs,k) <- kiTExp env t
                                              return ((k,KFun k' kv):cs++cs', kv)
 
 -- Handle type declarations ----------------------------------------------------
+
+kiDeclss env []				= return (Types [] [])
+kiDeclss env (ds:dss)			= do ds1 <- kiDecls env ds
+					     ds2 <- kiDeclss (addKEnv0 (ksigsOf ds1) env) dss
+					     return (catDecls ds1 ds2)
 
 kiDecls env t@(Types ke ds)             = do css <- mapM (kiDecl (addKEnv0 ke env)) ds
                                              s <- kindUnify (concat css) `handle` \m -> errorTree m t

@@ -177,6 +177,9 @@ extern pthread_key_t current_key;
 
 ADDR force(WORD, ADDR);
 
+#define primIntToChar (Char)
+#define primCharToInt (Int)
+
 Time sec(Int c);
 Time millisec(Int x);
 Time microsec(Int x);
