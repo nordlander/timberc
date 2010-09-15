@@ -135,6 +135,9 @@ data Exp    = EVar    Name
             | EAfter  Exp Exp
             | EBefore Exp Exp
             | EForall [Qual] Stmts
+           -- pre-expressions, only allowed as unshadowed subexpressions of a Stmt
+            | ENew    Exp
+            | EGen    Exp
            -- the following is introduced in desugaring
             | EMatch  (Match Pat Exp [Bind] Exp)
             deriving  (Eq,Show)
@@ -515,6 +518,8 @@ instance Subst Exp Name Exp where
     subst s (EAfter e e')       = EAfter (subst s e) (subst s e')
     subst s (EBefore e e')      = EBefore (subst s e) (subst s e')
     subst s (EForall qs st)     = EForall (subst s qs) (subst s st)
+    subst s (ENew e)            = ENew (subst s e)
+    subst s (EGen e)            = EGen (subst s e)
 
 instance Subst a Name a => Subst (Field a) Name a where
     subst s (Field l e)         = Field l (subst s e)
@@ -746,6 +751,10 @@ instance Pr Exp where
     prn 0 (ELit l)              = prn 0 l
     prn 0 e                     = prn 1 e
 
+    prn 10 (ENew e)             = text "new" <+> prn 11 e
+    prn 10 (EGen e)             = text "<-" <+> prn 11 e
+    prn 10 e                    = prn 11 e
+
     prn 11 (EAp e e')           = prn 11 e <+> prn 12 e'
     prn 11 e                    = prn 12 e
         
@@ -855,6 +864,8 @@ instance Ids Exp where
     idents (EAfter e e')        = idents e ++ idents e'
     idents (EBefore e e')       = idents e ++ idents e'
     idents (EForall qs ss)      = identQuals qs ++ (idents ss \\ bvars qs)
+    idents (ENew e)             = idents e
+    idents (EGen e)             = idents e
     idents _                    = []
 
 instance Ids a => Ids (Field a) where
@@ -1029,6 +1040,8 @@ instance HasPos Exp where
   posInfo (EBefore e e')        = between (posInfo e) (posInfo e')
   posInfo (ELit l)              = posInfo l
   posInfo (EForall qs ss)       = between (posInfo qs) (posInfo ss)  
+  posInfo (ENew e)              = posInfo e
+  posInfo (EGen e)              = posInfo e
   posInfo _                     = Unknown
 
 instance HasPos a => HasPos (Field a) where
@@ -1224,7 +1237,9 @@ instance Binary Exp where
   put (EAfter a b) = putWord8 25 >> put a >> put b
   put (EBefore a b) = putWord8 26 >> put a >> put b
   put (EBStruct a b c) = putWord8 27 >> put a >> put b >> put c
-  put (EForall a b) = putWord8 28 >> put a >> put b  
+  put (EForall a b) = putWord8 28 >> put a >> put b 
+  put (ENew a) = putWord8 29 >> put a
+  put (EGen a) = putWord8 30 >> put a
 
   get = do
     tag_ <- getWord8
@@ -1257,6 +1272,8 @@ instance Binary Exp where
       26 -> get >>= \a -> get >>= \b -> return (EBefore a b)
       27 -> get >>= \a -> get >>= \b -> get >>= \c -> return (EBStruct a b c)
       28 -> get >>= \a -> get >>= \b -> return (EForall a b)
+      29 -> get >>= \a -> return (ENew a)
+      30 -> get >>= \a -> return (EGen a)
       _ -> fail "no parse"
 
 instance Binary a => Binary (Field a) where
