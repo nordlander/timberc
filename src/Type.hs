@@ -438,14 +438,14 @@ mkRecTerm env c sels es         = return (mkOne c)
 
 
 -- Build a case term -------------------------------------------------------------------------------------------------------
-mkCaseTerm env e0 c pats0 es0
+mkCaseTerm env e0 c0 pats0 es0
   | any isLitPat pats0          = return (ECase e0 (zipAlts pats0 es0))
-  | otherwise                   = mkOne e0 c
+  | otherwise                   = mkOne e0 c0
   where (altsK,altsW)           = partition (isConPat . altPat) (zipAlts pats0 es0)
         (pats,es)               = unzipAlts altsK
         cs                      = map ptype pats
         groups                  = map (\c -> (c, [ Alt p e | (c',p,e) <- zip3 cs pats es, c == c' ])) (nub cs)
-        graph                   = nodesFrom c
+        graph                   = nodesFrom c0
         nodesFrom c             = (c,ns) : concatMap nodesFrom (rng ns)
           where ns              = [ (con w, fst (subsyms p)) | (w,p) <- nodes wg, w `notElem` indirect ]
                 indirect        = map snd (arcs wg)
@@ -453,14 +453,15 @@ mkCaseTerm env e0 c pats0 es0
                 wg              = findBelow env c
         ff (ELam _ (EAp (ECon k) _)) = k
         ptype (PCon k _)        = tId (tHead (body (findType env k)))
-        mkOne e0 c              = do alts0 <- mapM mkAlt0 (lookup' graph c)
+        mkOne e0 c              = do alts0 <- mapM mkAlt0 (filter notEmpty (lookup' graph c))
                                      return (ECase e0 (alts0 ++ (case lookup c groups of Just alts -> alts; Nothing -> []) ++ altsW))
         mkAlt0 (k,c)            = do x <- newName tempSym
                                      (F [sc] _, _) <- inst (findType env k)
                                      e <- mkOne (EVar x) c
                                      return (Alt (pCon0 k) (ELam [(x,sc)] e))
+	notEmpty (k,c) 		= lookup c groups /= Nothing
 
-        
+
 
 -- data Pack m a = Pack (m a) \\ Eq a
 -- data Exists m > Pack m a \\ a
