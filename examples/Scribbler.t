@@ -26,9 +26,7 @@ root world = class
 	clear _ = action
 		ctx.clearRect 0 0 300 300
 		
-	row = new hr []
-	but = new inputButton [Value "Clear", OnClick clear]
-	elem = new div [] [c, row, but]
+	elem = new div [] [c, new hr [], new inputButton [Value "Clear", OnClick clear]]
 
 	result action
 		body.appendChild elem
