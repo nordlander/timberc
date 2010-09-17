@@ -294,6 +294,8 @@ addToStore x                    = M $ \(n,s) -> Right ((n,x:s), ())
 
 currentStore                    = M $ \(n,s) -> Right ((n,s), s)
 
+clearStore                      = M $ \(n,s) -> Right ((n,[]), ())
+
 localStore (M m)                = M $ \(n0,s0) ->
                                     case m (n0,[]) of
                                       Right ((n,s), x) -> Right ((n,s0), x)

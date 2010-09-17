@@ -433,6 +433,8 @@ exp10as :: { Exp }
         | con '{'  layout_off recbinds ',' '..' '}' { ERec (Just ($1,False)) (reverse $4) } 
         | con '{'  layout_off '..' '}'          { ERec (Just ($1,False)) [] } 
 	| con '{'  layout_off  '}'		{ ERec (Just ($1,True)) [] }
+        | '<-' exp10a                           { EGen $2 }
+        | 'new' exp10a                          { ENew $2 }
         | fexp                                  { $1 }
 
 exp10b :: { Exp }
@@ -565,12 +567,13 @@ stmts   :: { [Stmt] }
 	| stmt					{ [$1] }
 	| {- empty -}				{ [] }
 
+
 stmt    :: { Stmt }
         : pat '<-' exp                          { SGen $1 $3 }
         | mexp                                  { SExp $1 }
         | vars '::' type                        { SBind [BSig $1 $3] }
         | lhs rhs                               { SBind [BEqn $1 $2] }
-        | lhs '=' 'new' exp                     { SBind [BEqn $1 (RExp (EAp (EVar (prim New)) $4))] }
+--        | lhs '=' 'new' exp                     { SBind [BEqn $1 (RExp (EAp (EVar (prim New)) $4))] }
         | lhs '=' 'forall' quals 'new' exp10as  { SBind [BEqn $1 (RExp (EAp (EVar (prim New)) (forallClass $4 $6)))] }
         | pat ':=' exp                          { SAss $1 $3 }
         | 'result' exp                          { SRet $2 }

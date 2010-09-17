@@ -24,8 +24,7 @@ root w = class
   
    enter _ = action
       case state of
-        Idle ->         r <- gen.next
-                        waitingTime = sec 2 + millisec (r `mod` 2000)
+        Idle ->         waitingTime = sec 2 + millisec (<-gen.next `mod` 2000)
                         msg <- after waitingTime action
                            tmr.reset
                            setStatePrint Counting "Go!!!"
@@ -34,8 +33,7 @@ root w = class
         Waiting msg ->  abort msg
                         setStatePrint Idle "Cheat!"
 
-        Counting     -> t <- tmr.sample
-                        setStatePrint Idle (format t)
+        Counting     -> setStatePrint Idle (format (<- tmr.sample))
 
    result action
       env.stdin.installR enter

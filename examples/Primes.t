@@ -22,12 +22,10 @@ root w = class
               elsif k `mod` p  == 0 then
                  result False
               else
-                 r <- loop (n+1)
-                 result r
+                 result <-loop (n+1)
 
    checkFrom k = do
-     p <- isPrime k
-     if p then 
+     if <-isPrime k then 
         primes!count := k
         count := count + 1
      if k < limit then checkFrom (k+1)

@@ -783,7 +783,7 @@ instance Pr Exp where
     prn 13 (EForall qs ss)      = text "forall" <+> hpr ',' qs <+> text "do" $$ nest 4 (pr ss)
     prn 13 e                    = parens (prn 0 e)
 
-    prn n e                     = prn 11 e
+    prn n e                     = prn 10 e
    
 prN (Just v) = text "@" <> pr v
 prN Nothing = empty 

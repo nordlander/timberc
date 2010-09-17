@@ -211,6 +211,7 @@ instance Desugar1 Decl where
     ds1 env d                   = d
 
 instance Desugar1 Bind where
+    ds1 env (BEqn lh (RExp (ENew e))) = BEqn (ds1 env lh) (RExp (EAp (EVar (prim New)) (ds1 env e)))
     ds1 env (BEqn lh rh)        = BEqn (ds1 env lh) (ds1 env rh)
     ds1 env (BSig vs t)         = BSig vs (ds1 env t)
 
@@ -329,6 +330,8 @@ instance Desugar1 Exp where
     ds1 env (EBefore e1 e2)      = EBefore (ds1 env e1) (ds1 env e2)
     ds1 env (EForall qs ss)      = ds1Forall False env qs ss
 
+    ds1 env (EGen e)             = EGen (ds1 env e)
+    ds1 env (ENew e)             = ENew (ds1 env e)
     ds1 env e                    = e
 
 stuffedCons (PRec (Just (c,False)) fs)

@@ -37,8 +37,7 @@ server maxClients clients logfile sock = class
    neterror str = action log ("Neterror: "++str)
 
    established = action
-      cl <- clients.value
-      if cl < maxClients then
+      if <-clients.value < maxClients then
          clients.incr
          log ("Connected from " ++ p)
          sock.inFile.installR echo

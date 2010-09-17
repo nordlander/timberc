@@ -431,7 +431,9 @@ instance Rename Exp where
                                         return (foldr ELet r (groupBindsS bs'))
   rename env (EForall qs ss)       = do (qs,ss) <- renameQ env qs ss
                                         return (EForall qs ss)
-  rename env e                     = internalError "rename did not expect: " e
+  rename env (ENew e)              = liftM ENew (rename env e)
+  rename env (EGen e)              = liftM EGen (rename env e)
+  rename env e                     = internalError "rename did not expect: "  e
 
 renRec env (Just (n, t))           = Just (renT env n, t)
 renRec env Nothing                 = Nothing
