@@ -77,7 +77,6 @@ struct Document where
 	rp :: [GlobalAttr] -> [PhrasingContent] -> Class RubyContent
 	menu :: [MenuAttr] -> [ListContent] -> Class FlowContent
 	inputButton :: [InputButtonAttr] -> Class PhrasingContent
-	text :: String -> Class PhrasingContent
 
 extern htmlDOM :: World -> Class Document
 
