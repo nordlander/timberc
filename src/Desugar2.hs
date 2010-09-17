@@ -243,14 +243,21 @@ joinVars Nothing ys             = Nothing
 
 -- Expressions --------------------------------------------------------
 
-
+dsExp vs (EAp (EAp (EVar (Prim LazyAnd _)) e1) e2) 
+                                = do e1 <- dsExp vs e1
+                                     e2 <- dsExp Nothing e2
+                                     return (EAp (EAp (EVar (prim LazyAnd)) e1) e2)
+dsExp vs (EAp (EAp (EVar (Prim LazyOr _)) e1) e2) 
+                                = do e1 <- dsExp vs e1
+                                     e2 <- dsExp Nothing e2
+                                     return (EAp (EAp (EVar (prim LazyOr)) e1) e2)
 dsExp vs (EAp e e')             = liftM2 EAp (dsExp vs e) (dsExp vs e')
 dsExp vs (ESig e qt)            = do x <- newNamePos tempSym e
                                      dsExp vs (ELet [BSig [x] qt, BEqn (LFun x []) (RExp e)] (EVar x))
 dsExp vs (ELam ps e)            
-  | all isPSigVar ps            = liftM2 ELam (mapM dsPat ps) (dsExp (joinVars vs (pvars ps)) e)
+  | all isPSigVar ps            = liftM2 ELam (mapM dsPat ps) (dsExp Nothing e)
   | otherwise                   = do ps <- mapM dsPat ps
-                                     e <- dsExp (joinVars vs (pvars ps)) e
+                                     e <- dsExp Nothing e
                                      ws <- newNamesPos paramSym ps
                                      e' <- pmc' ws [(ps,RExp e)]
                                      return (ELam (zipSigs ws ps) e')
@@ -264,7 +271,7 @@ dsExp vs (ESectR e op)          = dsExp vs (EAp (op2exp op) e)
 dsExp vs (ESectL op e)          = do x <- newNamePos paramSym op
                                      dsExp vs (ELam [PVar x] (EAp (EAp (op2exp op) (EVar x)) e))
 dsExp vs (ECase e alts)         = do e <- dsExp vs e
-                                     alts <- dsAlts vs (dsExp vs) alts
+                                     alts <- dsAlts vs (dsExp Nothing) alts
                                      pmc e alts
 dsExp vs (EMatch m)             = EMatch `fmap` dsMatch vs (dsExp vs) m
 dsExp vs (ESelect e s)          = liftM (flip ESelect s) (dsExp vs e)
