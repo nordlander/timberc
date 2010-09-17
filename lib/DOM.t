@@ -4,82 +4,80 @@ struct Document where
 	close  :: Request ()
 	body   :: Element BodyAttr FlowContent
 
-	a      :: [AnchorAttr ARel] -> [Class PhrasingContent] -> Class PhrasingContent
-	em     :: [GlobalAttr] -> [Class PhrasingContent] -> Class PhrasingContent
-	strong :: [GlobalAttr] -> [Class PhrasingContent] -> Class PhrasingContent
-	small  :: [GlobalAttr] -> [Class PhrasingContent] -> Class PhrasingContent
-	cite   :: [GlobalAttr] -> [Class PhrasingContent] -> Class PhrasingContent
-	q      :: [QuoteAttr] -> [Class PhrasingContent] -> Class PhrasingContent
-	dfn    :: [GlobalAttr] -> [Class PhrasingContent] -> Class PhrasingContent
-	abbr   :: [GlobalAttr] -> [Class PhrasingContent] -> Class PhrasingContent
-	time   :: [TimeAttr] -> [Class PhrasingContent] -> Class PhrasingContent
-	code   :: [GlobalAttr] -> [Class PhrasingContent] -> Class PhrasingContent
-	var    :: [GlobalAttr] -> [Class PhrasingContent] -> Class PhrasingContent
-	samp   :: [GlobalAttr] -> [Class PhrasingContent] -> Class PhrasingContent
-	kbd    :: [GlobalAttr] -> [Class PhrasingContent] -> Class PhrasingContent
-	sub    :: [GlobalAttr] -> [Class PhrasingContent] -> Class PhrasingContent
-	sup    :: [GlobalAttr] -> [Class PhrasingContent] -> Class PhrasingContent
-	i      :: [GlobalAttr] -> [Class PhrasingContent] -> Class PhrasingContent
-	b      :: [GlobalAttr] -> [Class PhrasingContent] -> Class PhrasingContent
-	mark   :: [GlobalAttr] -> [Class PhrasingContent] -> Class PhrasingContent
-	ruby   :: [GlobalAttr] -> [Class RubyContent] -> Class PhrasingContent
-	bdo    :: [GlobalAttr] -> [Class PhrasingContent] -> Class PhrasingContent
-	span   :: [GlobalAttr] -> [Class PhrasingContent] -> Class PhrasingContent
+	a      :: [AnchorAttr ARel] -> [PhrasingContent] -> Class PhrasingContent
+	em     :: [GlobalAttr] -> [PhrasingContent] -> Class PhrasingContent
+	strong :: [GlobalAttr] -> [PhrasingContent] -> Class PhrasingContent
+	small  :: [GlobalAttr] -> [PhrasingContent] -> Class PhrasingContent
+	cite   :: [GlobalAttr] -> [PhrasingContent] -> Class PhrasingContent
+	q      :: [QuoteAttr] -> [PhrasingContent] -> Class PhrasingContent
+	dfn    :: [GlobalAttr] -> [PhrasingContent] -> Class PhrasingContent
+	abbr   :: [GlobalAttr] -> [PhrasingContent] -> Class PhrasingContent
+	time   :: [TimeAttr] -> [PhrasingContent] -> Class PhrasingContent
+	code   :: [GlobalAttr] -> [PhrasingContent] -> Class PhrasingContent
+	var    :: [GlobalAttr] -> [PhrasingContent] -> Class PhrasingContent
+	samp   :: [GlobalAttr] -> [PhrasingContent] -> Class PhrasingContent
+	kbd    :: [GlobalAttr] -> [PhrasingContent] -> Class PhrasingContent
+	sub    :: [GlobalAttr] -> [PhrasingContent] -> Class PhrasingContent
+	sup    :: [GlobalAttr] -> [PhrasingContent] -> Class PhrasingContent
+	i      :: [GlobalAttr] -> [PhrasingContent] -> Class PhrasingContent
+	b      :: [GlobalAttr] -> [PhrasingContent] -> Class PhrasingContent
+	mark   :: [GlobalAttr] -> [PhrasingContent] -> Class PhrasingContent
+	ruby   :: [GlobalAttr] -> [RubyContent] -> Class PhrasingContent
+	bdo    :: [GlobalAttr] -> [PhrasingContent] -> Class PhrasingContent
+	span   :: [GlobalAttr] -> [PhrasingContent] -> Class PhrasingContent
 	br     :: [GlobalAttr] -> Class PhrasingContent
 	wbr    :: [GlobalAttr] -> Class PhrasingContent
-	ins    :: [EditAttr] -> [Class PhrasingContent] -> Class PhrasingContent
-	del    :: [EditAttr] -> [Class PhrasingContent] -> Class PhrasingContent
+	ins    :: [EditAttr] -> [PhrasingContent] -> Class PhrasingContent
+	del    :: [EditAttr] -> [PhrasingContent] -> Class PhrasingContent
 	img    :: [GlobalAttr] -> Class PhrasingContent
 	embed  :: [GlobalAttr] -> Class PhrasingContent
-	canvas :: [CanvasAttr] -> [Class PhrasingContent] -> Class PhrasingContent
-	label  :: [LabelAttr] -> [Class PhrasingContent] -> Class PhrasingContent
-	p          :: [GlobalAttr] -> [Class PhrasingContent] -> Class FlowContent
+	canvas :: [CanvasAttr] -> [PhrasingContent] -> Class PhrasingContent
+	label  :: [LabelAttr] -> [PhrasingContent] -> Class PhrasingContent
+	p          :: [GlobalAttr] -> [PhrasingContent] -> Class FlowContent
 	hr         :: [GlobalAttr] -> Class FlowContent
-	pre        :: [QuoteAttr] -> [Class FlowContent] -> Class FlowContent
-	blockquote :: [GlobalAttr] -> [Class PhrasingContent] -> Class FlowContent
-	ol         :: [OListAttr] -> [Class ListContent] -> Class FlowContent
-	ul         :: [GlobalAttr] -> [Class ListContent] -> Class FlowContent
-	dl         :: [GlobalAttr] -> [Class DefinitionContent] -> Class FlowContent
-	figure     :: [GlobalAttr] -> [Class FigureContent] -> Class FlowContent
-	div        :: [GlobalAttr] -> [Class FlowContent] -> Class FlowContent
-	section    :: [GlobalAttr] -> [Class FlowContent] -> Class FlowContent
-	nav        :: [GlobalAttr] -> [Class FlowContent] -> Class FlowContent
-	article    :: [GlobalAttr] -> [Class FlowContent] -> Class FlowContent
-	aside      :: [GlobalAttr] -> [Class FlowContent] -> Class FlowContent
-	header     :: [GlobalAttr] -> [Class FlowContent] -> Class FlowContent
-	footer     :: [GlobalAttr] -> [Class FlowContent] -> Class FlowContent
-	address    :: [GlobalAttr] -> [Class FlowContent] -> Class FlowContent
-	hgroup     :: [GlobalAttr] -> [Class HContent] -> Class FlowContent
-	table      :: [GlobalAttr] -> [Class TableContent] -> Class FlowContent
-	form       :: [FormAttr] -> [Class FlowContent] -> Class FlowContent
-	fieldset   :: [GlobalAttr] -> [Class FieldsetContent] -> Class FlowContent
-	legend :: [GlobalAttr] -> [Class PhrasingContent] -> Class FieldsetContent
-	caption  :: [GlobalAttr] -> [Class FlowContent] -> Class TableContent
-	colgroup :: [SpanAttr] -> [Class ColContent] -> Class TableContent
-	tbody    :: [GlobalAttr] -> [Class FlowContent] -> Class TableContent
-	thead    :: [GlobalAttr] -> [Class FlowContent] -> Class TableContent
-	tfoot    :: [GlobalAttr] -> [Class FlowContent] -> Class TableContent
-	tr :: [GlobalAttr] -> [Class TRowContent] -> Class TBodyContent
-	th :: [ThAttr] -> [Class PhrasingContent] -> Class TRowContent
-	td :: [TdAttr] -> [Class FlowContent] -> Class TRowContent
+	pre        :: [QuoteAttr] -> [FlowContent] -> Class FlowContent
+	blockquote :: [GlobalAttr] -> [PhrasingContent] -> Class FlowContent
+	ol         :: [OListAttr] -> [ListContent] -> Class FlowContent
+	ul         :: [GlobalAttr] -> [ListContent] -> Class FlowContent
+	dl         :: [GlobalAttr] -> [DefinitionContent] -> Class FlowContent
+	figure     :: [GlobalAttr] -> [FigureContent] -> Class FlowContent
+	div        :: [GlobalAttr] -> [FlowContent] -> Class FlowContent
+	section    :: [GlobalAttr] -> [FlowContent] -> Class FlowContent
+	nav        :: [GlobalAttr] -> [FlowContent] -> Class FlowContent
+	article    :: [GlobalAttr] -> [FlowContent] -> Class FlowContent
+	aside      :: [GlobalAttr] -> [FlowContent] -> Class FlowContent
+	header     :: [GlobalAttr] -> [FlowContent] -> Class FlowContent
+	footer     :: [GlobalAttr] -> [FlowContent] -> Class FlowContent
+	address    :: [GlobalAttr] -> [FlowContent] -> Class FlowContent
+	hgroup     :: [GlobalAttr] -> [HContent] -> Class FlowContent
+	table      :: [GlobalAttr] -> [TableContent] -> Class FlowContent
+	form       :: [FormAttr] -> [FlowContent] -> Class FlowContent
+	fieldset   :: [GlobalAttr] -> [FieldsetContent] -> Class FlowContent
+	legend :: [GlobalAttr] -> [PhrasingContent] -> Class FieldsetContent
+	caption  :: [GlobalAttr] -> [FlowContent] -> Class TableContent
+	colgroup :: [SpanAttr] -> [ColContent] -> Class TableContent
+	tbody    :: [GlobalAttr] -> [FlowContent] -> Class TableContent
+	thead    :: [GlobalAttr] -> [FlowContent] -> Class TableContent
+	tfoot    :: [GlobalAttr] -> [FlowContent] -> Class TableContent
+	tr :: [GlobalAttr] -> [TRowContent] -> Class TBodyContent
+	th :: [ThAttr] -> [PhrasingContent] -> Class TRowContent
+	td :: [TdAttr] -> [FlowContent] -> Class TRowContent
 	col :: [SpanAttr] -> Class ColContent
-	h1 :: [GlobalAttr] -> [Class PhrasingContent] -> Class HContent
-	h2 :: [GlobalAttr] -> [Class PhrasingContent] -> Class HContent
-	h3 :: [GlobalAttr] -> [Class PhrasingContent] -> Class HContent
-	h4 :: [GlobalAttr] -> [Class PhrasingContent] -> Class HContent
-	h5 :: [GlobalAttr] -> [Class PhrasingContent] -> Class HContent
-	h6 :: [GlobalAttr] -> [Class PhrasingContent] -> Class HContent
-	figcaption :: [GlobalAttr] -> [Class FlowContent] -> Class FigureContent
-	dt :: [GlobalAttr] -> [Class PhrasingContent] -> Class DefinitionContent
-	dd :: [GlobalAttr] -> [Class PhrasingContent] -> Class DefinitionContent
-	li :: [GlobalAttr] -> [Class FlowContent] -> Class ListContent
-	rt :: [GlobalAttr] -> [Class PhrasingContent] -> Class RubyContent
-	rp :: [GlobalAttr] -> [Class PhrasingContent] -> Class RubyContent
-	menu :: [MenuAttr] -> [Class ListContent] -> Class FlowContent
+	h1 :: [GlobalAttr] -> [PhrasingContent] -> Class HContent
+	h2 :: [GlobalAttr] -> [PhrasingContent] -> Class HContent
+	h3 :: [GlobalAttr] -> [PhrasingContent] -> Class HContent
+	h4 :: [GlobalAttr] -> [PhrasingContent] -> Class HContent
+	h5 :: [GlobalAttr] -> [PhrasingContent] -> Class HContent
+	h6 :: [GlobalAttr] -> [PhrasingContent] -> Class HContent
+	figcaption :: [GlobalAttr] -> [FlowContent] -> Class FigureContent
+	dt :: [GlobalAttr] -> [PhrasingContent] -> Class DefinitionContent
+	dd :: [GlobalAttr] -> [PhrasingContent] -> Class DefinitionContent
+	li :: [GlobalAttr] -> [FlowContent] -> Class ListContent
+	rt :: [GlobalAttr] -> [PhrasingContent] -> Class RubyContent
+	rp :: [GlobalAttr] -> [PhrasingContent] -> Class RubyContent
+	menu :: [MenuAttr] -> [ListContent] -> Class FlowContent
 	inputButton :: [InputButtonAttr] -> Class PhrasingContent
 	text :: String -> Class PhrasingContent
-
-extern wrap :: a -> Class a
 
 extern htmlDOM :: World -> Class Document
 
