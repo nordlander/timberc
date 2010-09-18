@@ -216,7 +216,7 @@ k2cValBinds (_,bs)              = text ("{   Array roots = CYCLIC_BEGIN(" ++ sho
                                           text "CYCLIC_END(roots, hp);") $$
                                   text "}"
   where size                    = length bs
-        upd                     = updates [] bs
+        upd                     = cyclicUpdateFlags [] bs
         n_upd                   = length (filter id upd)
         f i (x, Val t (ENew (Prim Ref _) _ _))
                                 = internalError0 "new Ref in k2cValBinds"
@@ -240,22 +240,26 @@ k2cValBinds (_,bs)              = text ("{   Array roots = CYCLIC_BEGIN(" ++ sho
         rootInd' t i            = ECast t (rootInd i)
 
 
-strictBs bs                     = concat [ strict e | (_,Val _ e) <- bs ]
-                                -- We assume all free variables of function closures have been extracted as value
-                                -- bindings by llift, hence only Val patterns need to be considered above
+-- Forward and backward references within recursive bindings ------------------------------------------------
+
+strictBs bs                     = concatMap strictB bs
+strictB (_, Val _ e)		= strict e
+strictB (_, Fun _ _ te c) 	= evars c \\ dom te
+
 strict (ECast _ e)              = strict e
 strict (ESel e l)               = evars e
-strict (EEnter e l [] es)       = evars (e:es)
-strict (ECall f [] es)          = evars es
-strict (ENew _ [] bs)           = strictBs bs
+strict (EEnter e l _ es)        = evars (e:es)
+strict (ECall f _ es)           = evars es
+strict (ENew _ _ bs)            = strictBs bs
 strict _                        = []
 
 strictRhs (EVar x)              = [x]
 strictRhs (ECast _ e)           = strictRhs e
 strictRhs e                     = strict e
 
-updates prev []                 = []
-updates prev ((x,Val _ e):bs)   = mustUpdate : updates ((x,fwrefs):prev') bs
+cyclicUpdateFlags prev []       = []
+cyclicUpdateFlags prev ((x,Val _ e):bs)
+   				= mustUpdate : cyclicUpdateFlags ((x,fwrefs):prev') bs
   where computed                = dom prev
         bwrefs                  = filter (not . isPatTemp) (strictRhs e `intersect` computed)
         fragile                 = concat [ fws | (y,fws) <- prev, y `elem` bwrefs ]
@@ -263,7 +267,9 @@ updates prev ((x,Val _ e):bs)   = mustUpdate : updates ((x,fwrefs):prev') bs
         fwrefs                  = evars e `intersect` (x:dom bs)
         prev' | mustUpdate      = [ (y,fws \\ computed) | (y,fws) <- prev ]
               | otherwise       = prev
-        
+cyclicUpdateFlags prev ((x,fn):bs)	
+				= False : cyclicUpdateFlags ((x,evars fn `intersect` (x:dom bs)):prev) bs
+--------------------------------------------------------------------------------------------------------------
 
 
 newCall t x [n] | isBigTuple n  = text "NEW" <+> parens (k2cType t <> text "," <+> 

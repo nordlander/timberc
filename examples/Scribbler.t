@@ -4,7 +4,7 @@ import DOM
 
 root world = class
 	Document {..} = new htmlDOM world
-
+	
 	c = new canvas [OnMousedown penDown, OnMouseup penUp, OnMousemove move] []
 	CANVAS ctx = c
             
@@ -25,7 +25,7 @@ root world = class
 
 	clear _ = action
 		ctx.clearRect 0 0 300 300
-		
+	
 	elem = new div [] [c, new hr [], new inputButton [Value "Clear", OnClick clear]]
 
 	result action

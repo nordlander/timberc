@@ -13,9 +13,35 @@ k2jModule (Module n ns es _ bs) = k2jExtern n es $$ vcat (map k2jBinds (groupMap
 k2jExtern n []			= empty
 k2jExtern n _			= empty -- text "includeScript" <> parens (text ("'" ++ modToPath (str n) ++ ".extern.js'"))
 
-k2jBinds (_, bs)            = vcat (map k2jBind bs)
-k2jBinds (True, bs)             = vcat (map k2jInitBind bs) $$
-				  vcat (map k2jUpdateBind bs)
+
+k2jBinds (False, bs)            = vcat (map k2jBind bs)
+k2jBinds (True, bs)             = vcat (zipWith k2jInitBind upds bs) $$
+				  vcat (zipWith k2jUpdateBind upds bs)
+  where upds			= updatesRequired [] [] bs
+
+calledFuns (ECast _ e)		= calledFuns e
+calledFuns (ESel e l)		= calledFuns e
+calledFuns (ECall f _ es) 	= f : evars es
+calledFuns (EEnter e _ _ es)	= calledFuns e ++ evars es
+calledFuns (ENew _ _ bs)
+  | null funBinds		= concat [ evars e | (_, Val _ e) <- bs ]
+  | otherwise			= evars bs
+  where funBinds		= [ x | (x, Fun _ _ _ _) <- bs ]
+calledFuns (EVar x)		= []
+calledFuns (ELit _)		= []
+calledFuns (EThis)		= []
+
+updatesRequired vs fs []	= []
+updatesRequired vs fs ((x,Val _ e):bs)
+				= (x `elem` vs) : updatesRequired (nub (vs' ++ vs)) fs bs
+  where vs'			= fwclose fs (evars e)
+updatesRequired vs fs ((x,Fun _ _ te c):bs)
+				= False : updatesRequired vs ((x, vs'):fs) bs
+  where vs'			= (nub (evars c) \\ dom te) `intersect` dom bs
+
+fwclose fs []			= []
+fwclose fs vs			= vs ++ fwclose fs (concat [ fwrefs \\ vs | (f,fwrefs) <- fs, f `elem` vs ])
+	
 
 k2jBind (x, Fun _ _ te c)       = text "function" <+> k2jName x <+> parens (commasep k2jName (dom te)) <+> text "{" $$
                                   nest 4 (k2jCmd c) $$
@@ -23,11 +49,11 @@ k2jBind (x, Fun _ _ te c)       = text "function" <+> k2jName x <+> parens (comm
 k2jBind (x, Val _ e)            = text "var" <+> k2jName x <+> text "=" <+> k2jExp e
 
 
-k2jInitBind (x, Val _ _)	= text "var" <+> k2jName x <+> text "= {}"
-k2jInitBind (x, Fun _ _ _ _)	= empty
+k2jInitBind True (x, Val _ _)	= text "var" <+> k2jName x <+> text "= {}"
+k2jInitBind False _		= empty
 
-k2jUpdateBind (x, Val _ e)	= k2jName x <+> text "= UPDATE" <> parens (k2jName x <> comma <+> k2jExp e)
-k2jUpdateBind b			= k2jBind b
+k2jUpdateBind True (x, Val _ e)	= k2jName x <+> text "= UPDATE" <> parens (k2jName x <> comma <+> k2jExp e)
+k2jUpdateBind False b		= k2jBind b
 
 
 specialFuns 			= map prim [CharToInt, TimeMin, SecOf, MicrosecOf, MUTLISTINIT, MUTLISTEXTEND, MUTLISTEXTRACT]

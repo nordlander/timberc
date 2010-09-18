@@ -9,6 +9,62 @@ Array.prototype.concat = function(tail) {
 		return this.oldConcat.apply(this,arguments) 
 	}
 }
+
+function RAISE (err) {
+	switch (err) {
+		case 1: throw 'Pattern-match error'
+		case 2: throw 'Illegal forward reference'
+		case 3: throw 'Deadlock'
+		default: throw ('Unknown exception: ' + err)
+	}
+}
+
+Raise = RAISE
+
+var Inherit = 0
+
+function ASYNC(f,after,before) {
+	if (after == undefined)
+		after = 0
+	return window.setTimeout(f,after)
+}
+
+function ABORT(msg) {
+	window.clearTimeout(msg)
+}
+
+function LOCK(r) {
+	if (r.LOCKED)
+		RAISE(3)
+	r.LOCKED = true
+	return r
+}
+
+function UNLOCK(r) {
+	r.LOCKED = false
+}
+
+function UPDATE(ptr,obj) {
+	switch (typeof(obj)) {
+		case "function":
+			return obj
+		case "string":   
+			ptr.toString = function() { return obj }
+			break
+		case "object":
+			if (obj.nodeType != undefined)
+				RAISE(2)
+			var names = Object.getOwnPropertyNames(obj)
+			for (var i = 0; i < names.length; i++)
+				ptr[names[i]] = obj[names[i]]
+			ptr.__proto__ = obj.__proto__
+			break
+		default:
+			throw "Internal: Cannot overwrite cyclic placeholder..."
+	}
+	return ptr
+}
+
 Array.prototype.isNil = function() {
 	return this.length == 0
 }
@@ -44,59 +100,4 @@ Cyclic.prototype = {
 		this.inProgress = undefined
 		return that
 	}
-}
-
-function RAISE (err) {
-	switch (err) {
-		case 1: throw 'Pattern-match error'
-		case 2: throw 'Ill-defined recursion error'
-		case 3: throw 'Deadlock'
-		default: throw 'Unknown exception'
-	}
-}
-
-Raise = RAISE
-
-var Inherit = 0
-
-function ASYNC(f,after,before) {
-	if (after == undefined)
-		after = 0
-	return window.setTimeout(f,after)
-}
-
-function ABORT(msg) {
-	window.clearTimeout(msg)
-}
-
-function LOCK(r) {
-	if (r.LOCKED)
-		RAISE(3)
-	r.LOCKED = true
-	return r
-}
-
-function UNLOCK(r) {
-	r.LOCKED = false
-}
-
-function UPDATE(p,obj) {
-	switch (typeof(obj)) {
-		case "function":
-			return obj
-		case "string":   
-			p.toString = function() { return obj }
-			break
-		case "object":
-			if (obj.nodeType != undefined)
-				RAISE(2)
-			var names = Object.getOwnPropertyNames(obj)
-			for (var i = 0; i < names.length; i++)
-				p[names[i]] = obj[names[i]]
-			p.__proto__ = obj.__proto__
-			break
-		default:
-			throw "Cannot overwrite placeholder..."
-	}
-	return p
 }
