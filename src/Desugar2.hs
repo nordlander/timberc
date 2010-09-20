@@ -159,12 +159,13 @@ dsClassPred p                   = errorTree "Illegal type qualifier" p
 
 {-
 
-The parameter vs :: Maybe [Name] given as first argument to most functions 
+The parameter vs :: Maybe [Name] given as first argument to most functions in this module
 has the following meaning:
- - its value is Just xs when used to desugar a command c  and its constituent parts; here
-   xs is the variable bound in an outer scope in the present command; when we encounter
+ - its value is Just xs when used to desugar a command c and its constituent parts where
+   lifting of pre-expressions may occur.
+   xs is the list of variables bound in an outer scope in the present command; when we encounter
    a pre-expression (EGen e or ENew e) we check that the free variables in e do not
-   intersects with xs; this prohibits lifting of the pre-expression to a command in
+   intersect with xs, since this prohibits lifting of the pre-expression to a command in
    the same sequence as c.
  - its value is Nothing otherwise.
    

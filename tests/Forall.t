@@ -10,10 +10,9 @@ cell = class
           nb := Nothing
   
           depth = request
-                   case nb of
-                     Nothing -> result 1
-                     Just c -> d <- c.depth
-                               result d+1
+                    case nb of
+                       Nothing -> result 1
+                       Just c -> result 1 + <- c.depth
 
           setNb c = request nb := Just c
 
@@ -22,21 +21,17 @@ cell = class
 root w = class
   result action
    env = new posix w
-   x : xs = forall _ <- [1..80000] new cell 
+   x : xs = forall _ <- [1..8000] new cell 
    forall (c,l) <- zip (x : xs) xs do c.setNb l
-   d <- x.depth
-   env.stdout.write (show d ++ " cells linked\n")
+   env.stdout.write (show (<- x.depth) ++ " cells linked\n")
    zs = forall z <- [1..10] new class
           result request result z
-   q <- last zs
-   env.stdout.write (show q ++ "\n")
+   env.stdout.write (show (<- last zs) ++ "\n")
    ws <- forall n <- [9..11] do
-       r <- env.stdout.write ("Hej " ++ show n ++ "\n")
-       result r
+       result <-env.stdout.write ("Hej " ++ show n ++ "\n")
    env.stdout.write (show ws ++ "\n")  
    rs <- forall q <- take 4 xs do
-      d <- q.depth
-      result d  
+      result <- q.depth
    env.stdout.write (show rs ++ "\n")  
    ts <- forall i <- [1..3], j <- [4..6] do
       result (i,j)
@@ -48,6 +43,5 @@ root w = class
                           forall p <- [i..j] do
                             s := s + p
                           result s
-   a <- head(last ts)
-   env.stdout.write (show a++ "\n")
+   env.stdout.write (show (<-head (last ts)) ++ "\n")
    env.exit 0
