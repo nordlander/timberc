@@ -36,6 +36,7 @@ module Syntax2Core where
 
 import Common
 import Syntax
+import Depend
 import Control.Monad
 import qualified Core
 import PP
@@ -63,7 +64,7 @@ addSigs te env                  = env { sigs = te ++ sigs env }
 -- Translate top-level declarations, accumulating signature environment env, kind environment ke, 
 -- type declarations ts, instance names ws, bindings bs as well as default declarations xs
 s2cDecls env [] ke ts ws bss xs es 
-                                = do bss <- s2cBindsList env (reverse bss)
+                                = do (_,bss) <- s2cBinds env (concat bss)
                                      ke' <- mapM s2cKSig (impl_ke `zip` repeat KWild)
                                      xs' <- mapM s2cDefault xs
                                      es' <- mapM s2cExtern es
@@ -95,12 +96,6 @@ s2cDecls env (DExtern es' : ds) ke ts ws bss xs es
                                 = s2cDecls env ds ke ts ws bss xs (es ++ es')
 s2cDecls env (DBind bs : ds) ke ts ws bss xs es
                                 = s2cDecls env ds ke ts ws (bs:bss) xs es
-
-
-s2cBindsList env []             = return []
-s2cBindsList env (bs:bss)       = do (te,bs) <- s2cBinds env bs
-                                     bss <- s2cBindsList (addSigs te env) bss
-                                     return (bs:bss)
 
 
 s2cDefault (Default t a b)      = return (Default t a b)
@@ -235,10 +230,9 @@ splitBinds bs                           = s2cB [] [] bs
 s2cBinds env bs                         = do (ts,es) <- fmap unzip (mapM s2cEqn eqs)
                                              let te = vs `zip` ts
                                              te' <- s2cTE te
-                                             return (te, Core.Binds isRec te' (vs `zip` es))
+                                             return (te, groupBinds (Core.Binds True te' (vs `zip` es)))
   where (sigs,eqs)                      = splitBinds bs
         vs                              = dom eqs
-        isRec                           = not (null ({- filter (not . isPatTemp) -} vs `intersect` evars (rng eqs)))
         env'                            = addSigs sigs env
         s2cEqn (v,e)                    = case lookup v sigs of
                                             Nothing -> s2cEi env' e
@@ -258,9 +252,9 @@ s2cEc env _ (EAp e1 e2)         = do (t,e1) <- s2cEi env e1
                                      let (t1,_) = splitT t
                                      e2 <- s2cEc env (peel t1) e2
                                      return (Core.eAp2 e1 [e2])
-s2cEc env t (ELet bs e)         = do (te',bs') <- s2cBinds env bs
+s2cEc env t (ELet bs e)         = do (te',bss) <- s2cBinds env bs
                                      e' <- s2cEc (addSigs te' env) t e
-                                     return (Core.ELet bs' e')
+                                     return (Core.eLet' bss e')
 s2cEc env t (ECase e alts)      = do e <- s2cEc env TWild e
                                      alts <- mapM (s2cAE env t) alts
                                      return (Core.ECase e (alts++dflt))
@@ -325,9 +319,9 @@ s2cMc env t m =
       where
         dflt = [(Core.PWild, MFail)]
 
-    Let bs m      -> do (te',bs') <- s2cBinds env bs
+    Let bs m      -> do (te',bss) <- s2cBinds env bs
                         e' <- s2cMc (addSigs te' env) t m
-                        return (Let bs' e')
+                        return (foldr Let e' bss)
 
 -- Statements ==================================================================================
 
@@ -356,9 +350,9 @@ s2cSs env (SAss (PSig v t) e : ss)      = s2cSs env (SAss v e : ss)
 s2cSs env (SAss (PVar v) e : ss)        = do e' <- s2cEc env (lookupT v env) e
                                              c <- s2cSs env ss
                                              return (Core.CAss v e' c)
-s2cSs env (SBind bs : ss)               = do (te',bs') <- s2cBinds env bs
+s2cSs env (SBind bs : ss)               = do (te',bss) <- s2cBinds env bs
                                              c <- s2cSs (addSigs te' env) ss
-                                             return (Core.CLet bs' c)
+                                             return (Core.cLet' bss c)
 s2cSs env ss                            = internalError "s2cSs: did not expect" (Stmts ss)
 
 
@@ -373,9 +367,9 @@ s2cEi env (EAp e1 e2)           = do (t,e1) <- s2cEi env e1
                                      let (t1,t2) = splitT t
                                      e2 <- s2cEc env (peel t1) e2
                                      return (t2, Core.eAp2 e1 [e2])
-s2cEi env (ELet bs e)           = do (te',bs') <- s2cBinds env bs
+s2cEi env (ELet bs e)           = do (te',bss) <- s2cBinds env bs
                                      (t,e') <- s2cEi (addSigs te' env) e
-                                     return (t, Core.ELet bs' e')
+                                     return (t, Core.eLet' bss e')
 s2cEi env (ECase e alts)        = do e <- s2cEc env TWild e
                                      alts <- mapM (s2cAE env TWild) alts
                                      return (TWild, Core.ECase e (alts++dflt))

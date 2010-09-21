@@ -215,7 +215,7 @@ instance Rename Module where
                                         env6 <- extRenLMod False c env5 ss2
                                         ds <- rename env6 (ds1 ++ ps1)
                                         bs <- rename env6 (bs1' ++ bs2' ++ shuffleB (bs1 ++ bs2))
-                                        return (Module c is (ds ++ map DBind (groupBindsS bs)) [])
+                                        return (Module c is (ds ++ [DBind bs]) [])
    where (ks1,ts1,ss1,cs1,ws1,tcs1,is1,es1,bss1) = renameD [] [] [] [] [] [] [] [] [] ds
          (ks2,ts2,ss2,cs2,ws2,tcs2,is2,es2,bss2) = renameD [] [] [] [] [] [] [] [] [] ps
          ds1                       = mergeTClasses tcs1 ds
@@ -392,7 +392,7 @@ instance Rename Exp where
   rename env (ELet bs e)           = do env' <- extRenE env (bvars bs)
                                         bs' <- rename env' (shuffleB bs)
                                         e' <- rename env' e
-                                        return (foldr ELet e' (groupBindsS bs'))
+                                        return (ELet bs' e')
   rename env (ECase e as)          = liftM2 ECase (rename env e) (rename env as)
   rename env (EMatch m)            = liftM EMatch (rename env m)
   rename env (EIf e1 e2 e3)        = liftM3 EIf (rename env e1) (rename env e2) (rename env e3)
@@ -428,7 +428,7 @@ instance Rename Exp where
                                         env' <- extRenE env ls' 
                                         r <- rename env' (ERec (Just (c,True)) (map (\(s,s') -> Field s (EVar s')) (ls `zip` ls')))
                                         bs' <- mapM (renSBind env' env) bs
-                                        return (foldr ELet r (groupBindsS bs'))
+                                        return (ELet bs' r)
   rename env (EForall qs ss)       = do (qs,ss) <- renameQ env qs ss
                                         return (EForall qs ss)
   rename env (ENew e)              = liftM ENew (rename env e)
@@ -458,7 +458,7 @@ instance Rename a => Rename (Rhs a) where
   rename env (RWhere e bs)         = do env' <- extRenE env (bvars bs)
                                         bs' <- rename env' (shuffleB bs)
                                         e' <- rename env' e
-                                        return (foldr (flip RWhere) e' (groupBindsS bs'))
+                                        return (RWhere e' bs')
 
 
 instance Rename a => Rename (GExp a) where
@@ -479,7 +479,7 @@ renameQ env (QGen p e : qs) e0     = do e <- rename env e
 renameQ env (QLet bs : qs) e0      = do env' <- extRenE env (bvars bs)
                                         bs <- rename env' bs
                                         (qs,e0) <- renameQ env' qs e0
-                                        return (map QLet (groupBindsS bs) ++ qs, e0)
+                                        return (QLet bs : qs, e0)
 
 
 instance Rename a => Rename (Alt a) where
@@ -497,7 +497,7 @@ instance Rename Stmts where
       renameS env (SBind bs : ss)  = do env' <- extRenE env (bvars bs)
                                         bs' <- rename env' bs
                                         ss' <- renameS env' ss
-                                        return (map SBind (groupBindsS bs') ++ ss')
+                                        return (SBind bs' : ss')
       renameS env (SAss p e : ss)
         | not (null illegal)       = errorIds "Unknown state variables" illegal
         | otherwise                = liftM2 (:) (liftM2 SAss (rename (unvoidAll env) p) (rename env e)) (renameS (unvoid (pvars p) env) ss)

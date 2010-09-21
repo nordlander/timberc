@@ -180,12 +180,12 @@ dsEqns vs ((LPat (PVar v), r):eqns)
 				= dsEqns vs ((LFun v [], r):eqns)
 dsEqns vs ((LPat (PRec _ ps),RExp (EVar v)):eqns)
 				= dsEqns vs ([ (LPat p, RExp (ESelect (EVar v) l)) | Field l p <- ps ] ++ eqns)
-dsEqns vs ((LPat p,RExp (EVar v)):eqns)
+dsEqns vs ((LPat p,RExp e0@(EVar v)):eqns)
                                 = do p' <- dsPat p      -- Checks validity
-                                     sels <- mapM (sel (EVar v)) vs'
+                                     sels <- mapM sel vs'
                                      dsEqns vs (sels ++ eqns)
   where vs'                     = pvars p
-        sel e0 v'               = do vs'' <- newNamesPos dummySym vs'
+        sel v'                  = do vs'' <- newNamesPos dummySym vs'
                                      v'' <- newNamePos paramSym v'
                                      return (LFun v' [], RExp (selectFrom e0 (zip (v':vs') (v'':vs'')) p (EVar v')))
 dsEqns vs ((LPat p,rh):eqns)    = do v <- newNamePos patSym p

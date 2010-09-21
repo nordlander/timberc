@@ -363,7 +363,7 @@ instance Desugar1 Stmts where
         ds1S env (SGen p e : ss)     = SGen (ds1pat env p) (ds1 env e) : ds1S env ss
         ds1S env ss@(SBind _ : _)    = dsBs [] ss
           where dsBs bs (SBind bs' : ss) = dsBs (bs++bs') ss
-                dsBs bs ss               = SBind (ds1 env bs) : ds1S env ss
+                dsBs bs ss               = map SBind (groupBindsS (ds1 env bs)) ++ ds1S env ss
         ds1S env (SAss p e : ss)     = dsAss p e : ds1S env ss
           where dsAss (PAp (PAp (PVar (Prim IndexArray _)) a) i) e
                                      = dsAss a (EAp (EAp (EAp (EVar (prim UpdateArray)) (pat2exp a)) (pat2exp i)) e)
@@ -414,7 +414,7 @@ ds1Forall b env (QExp e : qs) ss   = EIf (ds1 env e) (eDo env (Stmts [])) (ds1Fo
 ds1Templ env bss asg (Stmts ss)  = Stmts (ds1T env bss asg ss)
   where
     ds1T env []  asg [SRet e]        = reverse asg ++ [SRet (ds1 env e)]
-    ds1T env bss asg [SRet e]        = SBind (ds1 env (concat (reverse bss))) : reverse asg ++ [SRet (ds1 env e)]
+    ds1T env bss asg [SRet e]        = map SBind (groupBindsS (ds1 env (concat (reverse bss)))) ++ reverse asg ++ [SRet (ds1 env e)]
     ds1T env bss asg [s]             = errorTree "Last statement in class must be result, not" s
     ds1T env bss asg (s@(SRet _):_)  = errorTree "Result statement must be last in sequence" s
     ds1T env bss asg (SBind bs : ss) = ds1T env (bs:bss) asg ss

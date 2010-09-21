@@ -809,7 +809,7 @@ instance Pr Stmt where
     pr (SExp e)                 = pr e
     pr (SRet e)                 = text "result" <+> pr e
     pr (SGen p e)               = pr p <+> text "<-" <+> pr e
-    pr (SBind bs)               = vpr bs
+    pr (SBind bs)               = vpr bs $$ text "---------"
     pr (SAss p e)               = pr p <+> text ":=" <+> pr e
     pr (SIf e ss)               = text "if" <+> pr e <+> text "then" $$ nest 4 (pr ss)
     pr (SElsif e ss)            = text "elsif" <+> pr e <+> text "then" $$ nest 4 (pr ss)

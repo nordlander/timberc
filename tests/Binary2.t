@@ -24,3 +24,10 @@ binaryBin = struct
 toBin :: Either () () -> Bin
 toBin (Left a)  = B0
 toBin (Right a) = B1
+
+relyOnMonomorphismRestriction (B0 : bs) = class
+    (x,bs') = get bs
+    result (Left x, bs')
+relyOnMonomorphismRestriction (B1 : bs) = class
+    (x,bs') = get bs
+    result (Right x, bs')
