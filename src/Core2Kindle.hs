@@ -580,7 +580,10 @@ cCase cE env e (Alt (PCon k te) e':_)
                                              (te,t1,r) <- cRhs cE env (width k) [] (eLam te e')
                                              let (xs,ts) = unzip te
                                                  bs = mkBinds xs ts (map (Kindle.ESel e) (take (width k) (Kindle.conSels k)))
-                                             return (t1, rcomp (bf . Kindle.cBind bs) r)
+						 (bs1,bs2) = partition ((`elem` dups) . fst) bs
+						 r' = rcomp (subst [ (x,e) | (x, Kindle.Val _ e) <- bs2 ]) r
+                                             return (t1, rcomp (bf . Kindle.cBind bs1) r')
+  where dups				= duplicates (evars e')
 cCase cE env e alts                     = do (bf,t0,e0) <- cValExp env e
                                              rs <- mapM (cAlt cE env) alts
                                              let r = maxR rs
@@ -854,9 +857,11 @@ cExp env (ECon k)
         newK                            = Kindle.ECast t0 . Kindle.ENew (injectCon k) ts
 cExp env e                              = do (vs,te,t,c) <- cFun0 env e
                                              case (vs,te) of
-                                               ([],[]) -> do
-                                                  x <- newName tempSym
-                                                  return (Kindle.cBind [(x, Kindle.Fun [] t [] c)], t, ValR (Kindle.ECall x [] []))
+                                               ([],[]) 
+						  | Kindle.CRet e <- c -> return (id, t, ValR e)
+						  | otherwise -> do
+                                                     x <- newName tempSym
+                                                     return (Kindle.cBind [(x, Kindle.Fun [] t [] c)], t, ValR (Kindle.ECall x [] []))
                                                _  -> return (id, t', ValR (Kindle.closure2 vs t te c))
                                                   where t' = Kindle.tClos2 vs t (rng te)
                                                   
