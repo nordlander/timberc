@@ -103,6 +103,7 @@ k2cType (TCon (Prim TRUE _) _)  = text "TRUETYPE"
 k2cType (TCon (Prim FALSE _) _) = text "FALSETYPE"
 k2cType (TCon n _)              = k2cName n
 k2cType (TVar _ _)              = k2cType tPOLY
+k2cType (TClos _ _ _)		= k2cName (prim CLOS)
 
 
 
@@ -192,18 +193,22 @@ k2cGC n e                       = k2cExp e
 k2cValBinds (rec,bs)
   | not rec || isSafe bs        = vcat (map f bs) $$
                                   vcat (map g bs)
-  where f (x, Val t (ENew (Prim Ref _) _ _))
+  where f (x, Val _ (ENew (Prim Ref _) _ _))
                                 = internalError0 "new Ref in k2cValBinds"
         f (x, Val t (ENew n [] bs)) 
                                 = newCall t x [n]
         f (x, Val t (ECast _ (ENew n [] bs)))
                                 = newCall t x [n]
-        f (x, Val t e)          = k2cName x <+> text "=" <+> k2cExp e <> text ";"
+        f (x, Val t (EClos [] _ _ _))
+				= newCall t x [prim CLOS] 
+        f (x, Val _ e)          = k2cName x <+> text "=" <+> k2cExp e <> text ";"
         f _                     = empty
-        g (x, Val t (ENew n [] bs)) 
+        g (x, Val _ (ENew n [] bs)) 
                                 = k2cStructBinds (EVar x) n bs
-        g (x, Val t (ECast _ (ENew n [] bs)))
+        g (x, Val _ (ECast _ (ENew n [] bs)))
                                 = k2cStructBinds (ECast (tCon n) (EVar x)) n bs
+        g (x, Val _ (EClos [] _ _ (CRet (ECall f [] _))))
+				= k2cExp (ESel (EVar x) (prim Code)) <+> text "=" <+> parens (parens (text "void(*)(void)") <> k2cName f) <> text ";"
         g _                     = empty
         vs                      = dom bs
         isSafe bs               = all isConst bs && strictBs bs `intersect` vs == []
@@ -231,6 +236,11 @@ k2cValBinds (_,bs)              = text ("{   Array roots = CYCLIC_BEGIN(" ++ sho
                                   newCall t x [n] $$
                                   k2cExp (rootInd i) <+> text "=" <+> k2cExp (ECast tPOLY (EVar x)) <> text ";" $$
                                   k2cStructBinds (ECast (tCon n) (rootInd' t i)) n bs'
+	g i u (x, Val t (EClos [] _ _ (CRet (ECall f [] _))))
+				= update u i $$
+				  newCall t x [prim CLOS] $$
+				  k2cExp (rootInd i) <+> text "=" <+> k2cExp (ECast tPOLY (EVar x)) <> text ";" $$
+				  k2cExp (ESel (EVar x) (prim Code)) <+> text "=" <+> parens (parens (text "void(*)(void)") <> k2cName f) <> text ";"
         g i u (x, Val t e)      = update u i $$
                                   k2cName x <+> text "=" <+> k2cExp e <> text ";" $$
                                   k2cExp (rootInd i) <+> text "=" <+> k2cExp (ECast tPOLY (EVar x)) <> text ";"
@@ -294,8 +304,7 @@ k2cStructBinds e0 n bs          = vcat (map f bs)
                     | otherwise = text "+" <> parens (k2cExp (head es))
         f (x, Val t e)          = k2cExp (ESel e0 x) <+> text "=" <+> k2cExp e <> text ";"
         f (x, Fun [] t te (CRet (ECall f [] es)))
-                                = k2cExp (ESel e0 x) <+> text "=" <+> pf <> text ";"
-          where pf              = if n == prim CLOS then parens (parens (text "void(*)(void)") <> k2cName f) else k2cName f
+                                = k2cExp (ESel e0 x) <+> text "=" <+> k2cName f <> text ";"
         f (x, _)                = internalError0 "k2cSBind"
 
 
@@ -310,8 +319,6 @@ k2cCmd (CBind False [(x,Val t (ENew n [] bs))] (CBind False [(y,Val tref (ENew (
                                   k2cStructBinds (ECast t (ESel (EVar y) (prim STATE))) n bs $$
                                   k2cCmd c
   where Val _ st                = lookup' bs' (prim STATE)
-k2cCmd (CBind False [(_,Val t e)] CBreak)
-  | t == tUNIT                  = text "break;"
 k2cCmd (CBind False bs c)       = k2cValBindStubsC bs $$
                                   k2cValBinds (False,bs) $$
                                   k2cCmd c
@@ -406,8 +413,8 @@ k2cExp2 (ESel e (Prim STATE _)) = text "STATEOF" <> parens (k2cExp e)
 k2cExp2 (ESel (ECast (TCon n _) e) l)
   | isBigTuple n                = k2cBigSel e l
 k2cExp2 (ESel e l)              = k2cExp2 e <> text "->" <> k2cName l
-k2cExp2 (EEnter (ECast (TCon (Prim CLOS _) (t:ts)) (EVar x)) (Prim Code _) [] es)
-                                = parens (parens (ftype) <> parens (k2cName x <> text "->Code"))
+k2cExp2 (EEnter (ECast (TClos [] ts t) (EVar x)) (Prim Code _) [] es)
+                                = parens (parens ftype <> parens (k2cName x <> text "->" <> k2cName (prim Code)))
                                   <> parens (commasep k2cExp (EVar x : es))
   where ftype                   = k2cType t <> text "(*)" <> parens (hsep (punctuate comma (k2cName (prim CLOS) : map k2cType ts)))
 k2cExp2 (EEnter (EVar x) f [] es)  
@@ -450,5 +457,6 @@ k2cPrim IntToChar               = text "(Char)"
 k2cPrim Infinity                = text "Infinity"
 k2cPrim Raise                   = text "Raise"
 k2cPrim Abort                   = text "ABORT"
+k2cPrim CLOS			= text "CLOS"
 
 k2cPrim p                       = cSym p

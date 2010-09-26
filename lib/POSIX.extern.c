@@ -42,9 +42,28 @@
 #include "POSIX.h"
 #include "rts.h"
 
-#define SOCKHANDLER   CLOS2
-#define HANDLER       CLOS3
-#define ACTION        CLOS2
+struct String_Time_Time_to_Msg;
+typedef struct String_Time_Time_to_Msg *String_Time_Time_to_Msg;
+struct Time_Time_to_Msg;
+typedef struct Time_Time_to_Msg *Time_Time_to_Msg;
+struct Socket_Int_to_Connection;
+typedef struct Socket_Int_to_Connection *Socket_Int_to_Connection;
+
+struct String_Time_Time_to_Msg {		// String -> Action
+	WORD *GCINFO;
+	Msg (*Code) (String_Time_Time_to_Msg, LIST, Time, Time);
+};
+
+struct Time_Time_to_Msg {			// Action
+	WORD *GCINFO;
+	Msg (*Code) (Time_Time_to_Msg, Time, Time);
+};
+
+struct Socket_Int_to_Connection {		// Socket -> Class Connection
+	WORD *GCINFO;
+	Connection_POSIX (*Code) (Socket_Int_to_Connection, Socket_POSIX, Int);
+};
+
 #define FILE2CLOSABLE l_File_POSIX_Closable_POSIX_POSIX
 #define RFILE2FILE    l_RFile_POSIX_File_POSIX_POSIX
 #define WFILE2FILE    l_WFile_POSIX_File_POSIX_POSIX
@@ -64,7 +83,7 @@
 struct SockData {
   WORD *GCINFO;
   struct sockaddr_in addr;              // address of remote peer
-  SOCKHANDLER handler;      
+  Socket_Int_to_Connection handler;      
   Connection_POSIX conn;                // open connection; needed when closing.
 };
 
@@ -100,9 +119,9 @@ typedef struct SockData *SockData;
 
 fd_set readUsed, writeUsed;
 
-HANDLER rdTable[FD_SETSIZE] ;
-ACTION  wrTable[FD_SETSIZE] ;
-SockData sockTable[FD_SETSIZE];
+String_Time_Time_to_Msg  rdTable   [FD_SETSIZE] ;
+Time_Time_to_Msg         wrTable   [FD_SETSIZE] ;
+SockData                 sockTable [FD_SETSIZE];
 
 int envRootsDirty;
 
@@ -245,11 +264,12 @@ LIST read_fun (RFile_POSIX this, Int dummy) {
   return read_descr(((DescClosable)this->RFILE2FILE->FILE2CLOSABLE)->descriptor);
 }
 
-UNIT installR_fun (RFile_POSIX this, HANDLER hand, Int dummy) {
+UNIT installR_fun (RFile_POSIX this, CLOS hand, Int dummy) {
   DISABLE(envmut);
   Int desc = ((DescClosable)this->RFILE2FILE->FILE2CLOSABLE)->descriptor;
   Int active = FD_ISSET(desc,&readUsed);
-  ADD_RDTABLE(desc,hand);
+  String_Time_Time_to_Msg handler = (String_Time_Time_to_Msg)hand;
+  ADD_RDTABLE(desc,handler);
   envRootsDirty = 1;
   maxDesc = desc > maxDesc ? desc : maxDesc;  
   sendSelect(active);
@@ -285,11 +305,12 @@ int write_fun (WFile_POSIX this, LIST xs, Int dummy) {
   return res;
 }
 
-UNIT installW_fun (WFile_POSIX this, ACTION act, Int dummy) {
+UNIT installW_fun (WFile_POSIX this, CLOS act, Int dummy) {
   DISABLE(envmut);
   Int desc = ((DescClosable)this->WFILE2FILE->FILE2CLOSABLE)->descriptor;
   Int active = FD_ISSET(desc,&writeUsed);
-  ADD_WRTABLE(desc,act);
+  Time_Time_to_Msg action = (Time_Time_to_Msg)act;
+  ADD_WRTABLE(desc,action);
   envRootsDirty = 1;
   maxDesc = desc > maxDesc ? desc : maxDesc;  
   sendSelect(active);
@@ -377,7 +398,7 @@ Socket_POSIX new_Socket (Int sock) {
 }
 
 
-Int new_socket (SOCKHANDLER handler) {
+Int new_socket (Socket_Int_to_Connection handler) {
   SockData d; 
   int sock = socket(PF_INET,SOCK_STREAM,0);
   fcntl(sock,F_SETFL,O_NONBLOCK);
@@ -391,14 +412,14 @@ Int new_socket (SOCKHANDLER handler) {
 }  
 
 void netError (Int sock, char *message) {
-  SOCKHANDLER handler = sockTable[sock]->handler;
-  Connection_POSIX conn = (Connection_POSIX)handler->Code(handler,(POLY)new_Socket(sock),(POLY)0);
+  Socket_Int_to_Connection handler = sockTable[sock]->handler;
+  Connection_POSIX conn = handler->Code(handler,new_Socket(sock),0);
   conn->neterror_POSIX(conn,getStr(message),Inherit,Inherit);
 }
 
 void setupConnection (Int sock) {
-  SOCKHANDLER handler = sockTable[sock]->handler;
-  Connection_POSIX conn = (Connection_POSIX)handler->Code(handler,(POLY)new_Socket(sock),(POLY)0);
+  Socket_Int_to_Connection handler = sockTable[sock]->handler;
+  Connection_POSIX conn = handler->Code(handler,new_Socket(sock),0);
   sockTable[sock]->conn = conn;
   conn->established_POSIX(conn,Inherit,Inherit);
 }
@@ -427,11 +448,11 @@ int mkAddr (Int sock, Host_POSIX host, struct in_addr *addr) {
   }
 }
 
-UNIT connect_fun (Sockets_POSIX this, Host_POSIX host, Port_POSIX port, SOCKHANDLER handler, Int dummy) {
+UNIT connect_fun (Sockets_POSIX this, Host_POSIX host, Port_POSIX port, CLOS handler, Int dummy) {
   DISABLE(envmut);
   struct sockaddr_in addr;
   struct in_addr iaddr;
-  int sock = new_socket(handler);
+  int sock = new_socket((Socket_Int_to_Connection)handler);
   if (mkAddr(sock, host, &iaddr) == 0) {
     addr.sin_addr = iaddr;
     addr.sin_port = htons(((_Port_POSIX)port)->a);
@@ -453,10 +474,10 @@ UNIT connect_fun (Sockets_POSIX this, Host_POSIX host, Port_POSIX port, SOCKHAND
 }
 
 
-Closable_POSIX listen_fun (Sockets_POSIX this, Port_POSIX port, SOCKHANDLER handler, Int dummy) {
+Closable_POSIX listen_fun (Sockets_POSIX this, Port_POSIX port, CLOS handler, Int dummy) {
   DISABLE(envmut);
   struct sockaddr_in addr;
-  int sock = new_socket(handler);
+  int sock = new_socket((Socket_Int_to_Connection)handler);
   addr.sin_addr.s_addr = INADDR_ANY;
   addr.sin_port = htons(((_Port_POSIX)port)->a);
   addr.sin_family = AF_INET;
@@ -506,8 +527,8 @@ void scanEnvRoots () {
         int i = 0;
         DISABLE(envmut);
         while (i<maxDesc+1) {
-                if (rdTable[i]) rdTable[i] = (HANDLER)copy((ADDR)rdTable[i]);
-                if (wrTable[i]) wrTable[i] = (ACTION)copy((ADDR)wrTable[i]);
+                if (rdTable[i]) rdTable[i] = (String_Time_Time_to_Msg)copy((ADDR)rdTable[i]);
+                if (wrTable[i]) wrTable[i] = (Time_Time_to_Msg)copy((ADDR)wrTable[i]);
                 if (sockTable[i]) sockTable[i] = (SockData)copy((ADDR)sockTable[i]);
                 i++;
                 ENABLE(envmut);
@@ -549,7 +570,7 @@ void *eventLoop (void *arg) {
 	                if (rdTable[i]) {
 	                    LIST inp = read_descr(i);
 	                    if (inp) {
-	                        rdTable[i]->Code(rdTable[i],(POLY)inp,(POLY)Inherit,(POLY)Inherit);
+	                        rdTable[i]->Code(rdTable[i],inp,Inherit,Inherit);
 	                    }
 	                    else if (sockTable[i]) { //we got a close message from peer on connected socket
                                 Closable_POSIX cl = sockTable[i]->conn->CONN2CLOSABLE;
@@ -573,7 +594,7 @@ void *eventLoop (void *arg) {
 	            }
 	            if (FD_ISSET(i, &writeFds)) {
 	                if (wrTable[i]) {
-	                    wrTable[i]->Code(wrTable[i],(POLY)Inherit,(POLY)Inherit);
+	                    wrTable[i]->Code(wrTable[i],Inherit,Inherit);
 	                } else if (sockTable[i]) { //delayed connection has been accepted or has failed
 	                    int opt;
 	                    socklen_t len = sizeof(int);

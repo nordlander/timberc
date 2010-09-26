@@ -76,10 +76,6 @@ WORD __GC__TUP4[]       =
 
 WORD __GC__TUPLE[] = {WORDS(sizeof(struct TUPLE)),GC_TUPLE,0};
 
-WORD __GC__CLOS1[] = {WORDS(sizeof(struct CLOS1)),GC_STD,0};
-WORD __GC__CLOS2[] = {WORDS(sizeof(struct CLOS2)),GC_STD,0};
-WORD __GC__CLOS3[] = {WORDS(sizeof(struct CLOS3)),GC_STD,0};
-
 WORD __GC__CLOS[]  = {WORDS(sizeof(struct CLOS)),GC_STD,0};
 
 WORD __GC__CONS[]       = {
@@ -120,57 +116,66 @@ struct Array {
   POLY elems[];
 };
 */
-WORD __GC__Array0[]     = {WORDS(sizeof(struct Array)), GC_ARRAY, 0};       // flag 0 => node contains all pointers
+WORD __GC__Array0[]     = {WORDS(sizeof(struct Array)), GC_ARRAY, 0};     // flag 0 => node contains only pointers
 
-WORD __GC__Array1[]     = {WORDS(sizeof(struct Array)), GC_ARRAY, 1};     // flag 1 => node contains all scalars
+WORD __GC__Array1[]     = {WORDS(sizeof(struct Array)), GC_ARRAY, 1};     // flag 1 => node contains only scalars
 
 
 POLY primRefl(BITS32 polytag, POLY in) {
         return in;
 }
 
-struct T1 {
+struct CLOS_to_CLOS;
+typedef struct CLOS_to_CLOS *CLOS_to_CLOS;
+struct CLOS_to_CLOS {
 	POLY GCINFO;
-	POLY (*Code) (CLOS1, POLY);
-	CLOS1 coerce;
+	CLOS (*Code) (CLOS_to_CLOS, CLOS);	// takeClass
+	CLOS coerce;
 };
-typedef struct T1 *T1;
-WORD __GC__T1[] = {WORDS(sizeof(struct T1)),GC_STD, OFF(T1, coerce), 0};
+WORD __GC__CLOS_to_CLOS[] = {WORDS(sizeof(struct CLOS_to_CLOS)),GC_STD, OFF(CLOS_to_CLOS, coerce), 0};
 
-struct T2 {
+struct Int_to_POLY;
+typedef struct Int_to_POLY *Int_to_POLY;
+struct Int_to_POLY {
 	POLY GCINFO;
-	POLY (*Code) (CLOS1, POLY);
-	CLOS1 coerce;
-	CLOS1 cl;
+	POLY (*Code) (Int_to_POLY, Int);	// takeDummy
+	CLOS coerce;
+	CLOS cl;
 };
-typedef struct T2 *T2;
-WORD __GC__T2[] = {WORDS(sizeof(struct T2)),GC_STD, OFF(T2, coerce), OFF(T2, cl), 0};
+WORD __GC__Int_to_POLY[] = {WORDS(sizeof(struct Int_to_POLY)),GC_STD, OFF(Int_to_POLY, coerce), OFF(Int_to_POLY, cl), 0};
 
-POLY takeDummy(CLOS1 this, POLY dummy) {
-	CLOS1 cl = ((T2)this)->cl;
-	CLOS1 coerce = ((T2)this)->coerce;
-	POLY obj = cl->Code(cl, (POLY)0);
+struct POLY_to_POLY;
+typedef struct POLY_to_POLY *POLY_to_POLY;
+struct POLY_to_POLY {
+	POLY GCINFO;
+	POLY (*Code) (POLY_to_POLY, POLY);
+};
+
+POLY takeDummy(Int_to_POLY this, Int dummy) {
+	Int_to_POLY cl = (Int_to_POLY)this->cl;
+	POLY_to_POLY coerce = (POLY_to_POLY)this->coerce;
+	POLY obj = cl->Code(cl, 0);
 	POLY obj2 = coerce->Code(coerce, obj);
 	return obj2;
 }
 
-POLY takeClass(CLOS1 this, POLY cl) {
-	T2 x;
-	NEW(T2, x, WORDS(sizeof(struct T2)));
-	x->GCINFO = __GC__T2;
+CLOS takeClass(CLOS_to_CLOS this, CLOS cl) {
+	Int_to_POLY x;
+	NEW(Int_to_POLY, x, WORDS(sizeof(struct Int_to_POLY)));
+	x->GCINFO = __GC__Int_to_POLY;
 	x->Code = takeDummy;
-	x->coerce = ((T1)this)->coerce;
-	x->cl = (CLOS1)cl;
-	return (POLY)x;
+	x->coerce = this->coerce;
+	x->cl = cl;
+	return (CLOS)x;
 }
 
-CLOS1 primClassRefl(BITS32 polytag, CLOS1 coerce) {
-	T1 x;
-	NEW(T1, x, WORDS(sizeof(struct T1)));
-	x->GCINFO = __GC__T1;
+CLOS primClassRefl(BITS32 polytag, CLOS coerce) {
+	CLOS_to_CLOS x;
+	NEW(CLOS_to_CLOS, x, WORDS(sizeof(struct CLOS_to_CLOS)));
+	x->GCINFO = __GC__CLOS_to_CLOS;
 	x->Code = takeClass;
 	x->coerce = coerce;
-	return (CLOS1)x;
+	return (CLOS)x;
 }
 
 // String marshalling ----------------------------------------------------------------------------------

@@ -105,10 +105,8 @@ k2jExp2 (EEnter e x _ es)       = k2jExp2 e <> text "." <> k2jSelName x <> paren
 k2jExp2 (ENew (Prim NIL _) _ _) = text "[]"
 k2jExp2 (ENew (Prim CONS _) _ bs)
 				= k2jList [headExp bs] (tailExp bs)
-k2jExp2 (ENew x _ [(Prim Code _,Fun _ _ te (CRet e))])
-				= text "function" <+> parens (commasep k2jName (dom te)) <+> text "{" <+> text "return" <+> k2jExp e <+> text "}"
-k2jExp2 (ENew x _ [(Prim Code _,Fun _ _ te c)])
-				= text "function" <+> parens (commasep k2jName (dom te)) <+> text "{" $$
+k2jExp2 (EClos _ _ te (CRet e))	= text "function" <+> parens (commasep k2jName (dom te)) <+> text "{" <+> text "return" <+> k2jExp e <+> text "}"
+k2jExp2 (EClos _ _ te c)	= text "function" <+> parens (commasep k2jName (dom te)) <+> text "{" $$
 				  nest 4 (k2jCmd c) $$
 				  text "}"
 k2jExp2 (ENew x _ [(_,Val _ e)])

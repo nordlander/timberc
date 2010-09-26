@@ -288,10 +288,6 @@ data Prim                       =
                                 | After
                                 | Before
                                 
-                                | CLOS1                 -- Low arity closure types
-                                | CLOS2
-                                | CLOS3
-
                                 | CLOS                  -- Generic closure type
                                 
                                 | NEWREF                -- RTS entry points

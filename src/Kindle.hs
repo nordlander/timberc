@@ -67,23 +67,26 @@ data Module     = Module Name [Name] TEnv Decls Binds
 
 -- A type declaration introduces a struct type that defines the layout of heap-allocated objects.
 -- A struct type may bind type parameters and may contain both value and function fields.  Each 
--- struct introduces a private namespace for its field names.  A struct can also be declared an
--- extension of another struct, as indicated by the Link parameter.  If a struct is an extension,
--- a prefix of its field names and their types must match the full definition of the extended 
--- struct when instantiated with the given type arguments.  In addition, an extended struct may
--- indicate that a subset of its type parameters are to be existentially quantified when the
--- struct is cast to its base type, and this list must contain the existential parameters of
--- its base type (if any) as a prefix.  If a struct is not an extension, it must either be an 
--- ordinary Top of an extension hierarchy, or a Union - the latter form supporting case analysis
--- between different extensions by means of the 'switch' command.
+-- struct introduces a private namespace for its field names.  A struct can also be declared as
+-- an extension of a base type, as indicated by the Link parameter.  If a struct is an extension,
+-- the base type must be either a named struct type or a closure, and a prefix of the extension's
+-- field names and their types must match the field definition of the base type when instantiated 
+-- with the given type arguments.  In addition, an extended struct may indicate that a subset of 
+-- its type parameters are to be existentially quantified when the struct is cast to its base type,
+-- and this list must contain the existential parameters of its base type (if any) as a prefix.
+-- If a struct is not an extension, it must either be an ordinary Top of an extension hierarchy,
+-- or a Union - the latter form supporting case analysis between different extensions by means of 
+-- the 'switch' command.  A closure type counts as an anonymous Top struct type with a single 
+-- function field 'Code' of the form indicated by its type parameters (see alternative TClos below).
+
 type Decls      = Map Name Decl
 
 data Decl       = Struct [Name] TEnv Link
-                deriving (Eq,Show)
+                deriving (Show)
 
 data Link       = Top
                 | Union
-                | Extends Name [AType] [Name]
+                | Extends AType [Name]
                 deriving (Eq,Show)
 
 -- A term binding is either a named value of atomic type or a named function.  A named function can
@@ -104,18 +107,20 @@ type TEnv       = Map Name Type
 
 data Type       = ValT   AType
                 | FunT   [Name] [AType] AType
-                deriving (Eq,Show)
+                deriving (Show)
 
 
--- An atomic type is either a named constructor or a type variable (both possibly applied to
--- further atomic type arguments), or an index into the sequence of existentially quantified
--- type components of the surrounding struct (only valid within function-valued field definitions).
+-- An atomic type is either a named struct or a type variable (both possibly applied to
+-- further atomic type arguments), or a function closure with parameters similar to those of a
+-- function binding type, or an index into the sequence of existentially quantified type 
+-- components of the surrounding struct or closure (only valid within function-valued fields).
 type ATEnv      = Map Name AType
 
 data AType      = TCon   Name [AType]
                 | TVar   Name [AType]
+                | TClos  [Name] [AType] AType
                 | TThis  Int
-                deriving (Eq,Show)
+                deriving (Show)
 
 
 -- A function body is a command that computes the desired result, possibly while performing imperative
@@ -148,11 +153,12 @@ data Alt        = ACon  Name [Name] ATEnv Cmd -- if switch value has struct type
 
 -- Simple expressions that can be RH sides of value definitions as well as function arguments.
 data Exp        = EVar   Name                   -- local or global value name, enum constructor or function parameter
-                | EThis                         -- the surrounding struct itself 
-                                                -- (only valid within function fields, illegal in local/global functions)
+                | EThis                         -- the surrounding struct itself (only valid within function fields,
+ 						-- illegal in local/global functions and closures)
                 | ELit   Lit                    -- literal
                 | ESel   Exp Name               -- selection of value field $2 from struct $1
                 | ENew   Name [AType] Binds     -- a new struct of type $1 with type args $2, (partially) initialized by $3
+		| EClos  [Name] AType ATEnv Cmd -- a new closure (parameters mimic those of a Fun binding)
                 | ECall  Name [AType] [Exp]     -- calling local or global function $1 with type/term arguments $2/$3
                 | EEnter Exp Name [AType] [Exp] -- entering function $2 of struct $1 with type/term arguments $3/($1:$4)
                 | ECast  AType Exp              -- unchecked cast of value $2 to type $1
@@ -162,6 +168,27 @@ data Exp        = EVar   Name                   -- local or global value name, e
 -- Kindle implementation must either handle this correctly at run-time, or such variable occurrences must be 
 -- transformed away at compile-time.  The latter can be done using lambda-lifting for local functions and
 -- explicitly closing the struct functions via extra value fields accessed through "this".
+
+instance Eq AType where
+    TCon n ts == TCon n' ts'		= n == n' && ts == ts'
+    TVar n ts == TVar n' ts'		= n == n' && ts == ts'
+    TClos [] ts t == TClos [] ts' t'	= t:ts == t':ts'
+    TClos vs ts t == TClos vs' ts' t'	= length vs == length vs' && (t:ts) == subst s (t':ts')
+      where s                           = vs' `zip` map tVar vs
+    TThis i == TThis i'			= i == i'
+    _ == _				= False
+
+instance Eq Type where
+    ValT t == ValT t'			= t == t'
+    FunT [] ts t == FunT [] ts' t'	= t:ts == t':ts'
+    FunT vs ts t == FunT vs' ts' t'	= length vs == length vs' && (t:ts) == subst s (t':ts')
+      where s                           = vs' `zip` map tVar vs
+    _ == _				= False
+
+instance Eq Decl where
+    Struct vs te l == Struct vs' te' l'	= length vs == length vs' && te == subst s te' && l == l'
+      where s				= vs' `zip` map tVar vs
+
 
 tId x                                   = tCon (prim x)
 
@@ -188,49 +215,27 @@ tTimer                                  = tId TIMERTYPE
 tRef a                                  = TCon (prim Ref) [a]
 tLIST a                                 = TCon (prim LIST) [a]
 tArray a                                = TCon (prim Array) [a]
+tEITHER a b				= TCon (prim EITHER) [a,b]
 
 tMUTLIST a				= TCon (prim MUTLIST) [a]
 
-maxSmallCLOS                            = 3 :: Int
-smallCLOS 1                             = CLOS1
-smallCLOS 2                             = CLOS2
-smallCLOS 3                             = CLOS3
-
-encodeCLOS [] t ts                      = t:ts
-encodeCLOS vs t ts                      = t:ts ++ tCon (prim CLOS) : map tVar vs
-
-decodeCLOS ts0                          = (vs, ts, t)
-  where (t:ts,tvs)                      = span (/=(tCon (prim CLOS))) ts0
-        vs                              = [ v | TVar v _ <- tvs ]
-
 tClos t ts                              = tClos2 [] t ts
 
-tClos2 [] t ts
-  | a <= maxSmallCLOS                   = TCon (prim (smallCLOS a)) (t:ts)
-  where a                               = length ts
-tClos2 vs t ts                          = TCon (prim CLOS) (encodeCLOS vs t ts)
+tClos2 vs t ts				= TClos vs ts t
 
-openClosureType (TCon (Prim p _) ts)
-  | p `elem` [CLOS1,CLOS2,CLOS3,CLOS]   = decodeCLOS ts
-openClosureType t                       = internalError "Kindle.openClosureType" t
-
-closure t te c                          = closure2 [] t te c
-
-closure2 [] t te c
-  | a <= maxSmallCLOS                   = ENew (prim (smallCLOS a)) (t:rng te) [(prim Code, Fun [] t te c)]
-  where a                               = length te
-closure2 vs t te c                      = ENew (prim CLOS) (encodeCLOS vs t (rng te)) [(prim Code, Fun vs t te c)]
-
-closBind ts0                            = [(prim Code, FunT vs ts t)]
-  where (vs,ts,t)                       = decodeCLOS ts0
+closBind (TClos vs ts t)		= [(prim Code, FunT vs ts t)]
 
 enter e ts es                           = EEnter e (prim Code) ts es
 
-multiEnter [] [] e                      = e
-multiEnter (ts:tss) es e                = multiEnter tss es2 (enter e [] es1)
+enter' (EClos vs t te c) ts es
+  | all isEVal es && not (refThis c) 	= subst (vs `zip` ts) (subst (dom te `zip` es) c)
+enter' e ts es				= CRet (EEnter e (prim Code) ts es)
+
+multiEnter [] [] e                      = CRet e
+multiEnter (ts:tss) es e                = cmap' (multiEnter tss es2) (enter' e [] es1)
   where (es1,es2)                       = splitAt (length ts) es
                                         
-equants (Extends _ _ vs)                = vs
+equants (Extends _ vs)                  = vs
 equants _                               = []
 
 litType (LInt _ _)                      = tInt
@@ -258,16 +263,16 @@ tc                                      = TVar c []
 td                                      = TVar d []
         
 primDecls                               = (prim Bool,      Struct []    []                      Union) :
-                                          (prim FALSE,     Struct []    []                      (Extends (prim Bool) [] [])) :
-                                          (prim TRUE,      Struct []    []                      (Extends (prim Bool) [] [])) :
+                                          (prim FALSE,     Struct []    []                      (Extends tBool [])) :
+                                          (prim TRUE,      Struct []    []                      (Extends tBool [])) :
                                           (prim LIST,      Struct [a]   []                      Union) :
-                                          (prim NIL,       Struct [a]   []                      (Extends (prim LIST) [ta] [])) :
+                                          (prim NIL,       Struct [a]   []                      (Extends (tLIST ta) [])) :
                                           (prim CONS,      Struct [a]   [(selH, ValT ta), 
-                                                                         (selT, ValT (tLIST ta))]  (Extends (prim LIST) [ta] [])) :
+                                                                         (selT, ValT (tLIST ta))]  (Extends (tLIST ta) [])) :
                                           (prim Ref,       Struct [a]   [(prim STATE, ValT ta)] Top) :
                                           (prim EITHER,    Struct [a,b] []                      Union) :
-                                          (prim LEFT,      Struct [a,b] [(a,ValT ta)]           (Extends (prim EITHER) [ta,tb] [])) :
-                                          (prim RIGHT,     Struct [a,b] [(a,ValT tb)]           (Extends (prim EITHER) [ta,tb] [])) :
+                                          (prim LEFT,      Struct [a,b] [(a,ValT ta)]           (Extends (tEITHER ta tb) [])) :
+                                          (prim RIGHT,     Struct [a,b] [(a,ValT tb)]           (Extends (tEITHER ta tb) [])) :
 
                                           (prim Msg,       Struct []        [(prim Code, FunT [] [] tUNIT),
                                                                              (prim Baseline, ValT (tId AbsTime)),
@@ -276,9 +281,9 @@ primDecls                               = (prim Bool,      Struct []    []      
                                           (prim TIMERTYPE, Struct []        [(prim Reset,  FunT [] [tInt] tUNIT),
                                                                              (prim Sample, FunT [] [tInt] tTime)] Top) : 
 
-                                          (prim CLOS1,     Struct [a,b]     [(prim Code, FunT [] [tb] ta)]        Top) :
-                                          (prim CLOS2,     Struct [a,b,c]   [(prim Code, FunT [] [tb,tc] ta)]     Top) :
-                                          (prim CLOS3,     Struct [a,b,c,d] [(prim Code, FunT [] [tb,tc,td] ta)]  Top) :
+--                                          (prim CLOS1,     Struct [a,b]     [(prim Code, FunT [] [tb] ta)]        Top) :
+--                                          (prim CLOS2,     Struct [a,b,c]   [(prim Code, FunT [] [tb,tc] ta)]     Top) :
+--                                          (prim CLOS3,     Struct [a,b,c,d] [(prim Code, FunT [] [tb,tc,td] ta)]  Top) :
                                           []
                                           
 isInfix (Prim p _)                      = p `elem` [MIN____KINDLE_INFIX .. MAX____KINDLE_INFIX]
@@ -332,6 +337,7 @@ okRec' (TVar _ _)                       = False         -- Bad: statically unkno
 okRec' (TThis _)                        = False         -- Bad: statically unknown representation
 okRec' (TCon n _) | n `elem` scalars    = False         -- Bad: type that can't fit placeholder
                   | otherwise           = True          -- Good: heap allocated data
+okRec' (TClos _ _ _)			= True		-- Good: heap-allocated function closure
 
 scalars                                 = tuple 0 : map prim [Int, Float, Char, Bool, BITS8, BITS16, BITS32, AbsTime]
 
@@ -352,6 +358,21 @@ isArray _                               = False
 isEVar (EVar _)                         = True
 isEVar _                                = False
 
+isEVal (EVar _)				= True
+isEVal (ELit _)				= True
+isEVal (EThis)				= True
+isEVal (ECast _ e)			= isEVal e
+isEVal (ESel e _)			= isEVal e
+isEVal _				= False
+
+simpleExp (EVar _)                      = True
+simpleExp (ELit _)                      = True
+simpleExp (EClos _ _ _ _)		= True
+simpleExp (ENew _ _ bs)			= all simpleExp [ e | (_, Val _ e) <- bs ]
+simpleExp (ECast _ e)                   = simpleExp e
+simpleExp _                             = False
+
+
 typeOf (Val t e)                        = ValT t
 typeOf (Fun vs t te c)                  = FunT vs (rng te) t
 
@@ -366,7 +387,7 @@ consOf alts				= [ c | ACon c _ _ _ <- alts ]
 
 unions ds                               = [ n | (n,Struct _ _ Union) <- ds ]
         
-variants ds n0                          = [ n | (n,Struct _ _ (Extends n' _ _)) <- ds, n' == n0 ]
+variants ds n0                          = [ n | (n,Struct _ _ (Extends (TCon n' _) _)) <- ds, n' == n0 ]
 
 typeOfSel ds l                          = head [ (k,vs,t) | (k,Struct vs te _) <- ds, (l',t) <- te, l'==l ]
 
@@ -384,12 +405,6 @@ flatBinds bf                            = flat (bf CBreak)
 
 cUpd [] [] c                            = c
 cUpd (x:xs) (e:es) c                    = CUpd x e (cUpd xs es c)
-
-simpleExp (EVar _)                      = True
-simpleExp (ELit _)                      = True
-simpleExp (ENew _ _ [])			= True
-simpleExp (ECast _ e)                   = simpleExp e
-simpleExp _                             = False
 
 lock t e                                = ECast t (ECall (prim LOCK) [] [ECast tOID e])
 
@@ -434,29 +449,7 @@ instance CLift a => CLift [a] where
 
 cmap f                                  = clift (cMap (CRet . f))
 
-
-findStruct s0 []                        = Nothing
-findStruct s0 ((n,s):ds)
-  | equalStructs (s0,s)                 = Just n
-  | otherwise                           = findStruct s0 ds
-
-
-equalStructs (Struct [] te1 l1, Struct [] te2 l2)
-                                        = l1 == l2 && ls1 == ls2 && all equalTypes (ts1 `zip` ts2)
-  where (ls1,ts1)                       = unzip te1
-        (ls2,ts2)                       = unzip te2
-equalStructs (Struct vs1 te1 l1, Struct vs2 te2 l2)
-                                        = l1 == l2 && length vs1 == length vs2 &&
-                                          ls1 == ls2 && all equalTypes (subst s ts1 `zip` ts2)
-  where s                               = vs1 `zip` map tVar vs2
-        (ls1,ts1)                       = unzip te1
-        (ls2,ts2)                       = unzip te2
-
-equalTypes (ValT t1, ValT t2)           = t1 == t2
-equalTypes (FunT vs1 ts1 t1, FunT vs2 ts2 t2)
-                                        = length vs1 == length vs2 && (t1:ts1) == subst s (t2:ts2)
-  where s                               = vs2 `zip` map tVar vs1
-equalTypes _                            = False
+cmap' f                                 = clift (cMap f)
 
 
 subexps (CRet e)                        = [e]
@@ -487,6 +480,7 @@ instance RefThis Exp where
     refThis (ELit _)                    = False
     refThis (ESel e _)                  = refThis e
     refThis (ENew _ ts bs)              = refThis ts || refThis bs
+    refThis (EClos vs t te c)		= refThis t || refThis te || refThis c
     refThis (ECall _ ts es)             = refThis ts || refThis es
     refThis (EEnter e _ ts es)          = refThis e || refThis ts || refThis es
     refThis (ECast t e)                 = refThis t || refThis e
@@ -517,6 +511,7 @@ instance RefThis Bind where
 instance RefThis AType where
     refThis (TCon _ ts)                 = refThis ts
     refThis (TVar _ ts)                 = refThis ts
+    refThis (TClos vs ts t)		= refThis (t:ts)
     refThis (TThis i)                   = True
 
 
@@ -529,6 +524,7 @@ instance Ids Exp where
     idents (ELit l)                     = []
     idents (ESel e l)                   = idents e
     idents (ENew x ts bs)               = idents bs
+    idents (EClos vs t te c)		= idents c \\ dom te
     idents (ECall x ts es)              = x : idents es
     idents (EEnter e x ts es)           = idents e ++ idents es
     idents (ECast t e)                  = idents e
@@ -560,6 +556,7 @@ instance Ids Bind where
 instance Ids AType where
     idents (TCon c ts)                  = c : idents ts
     idents (TVar v ts)                  = v : idents ts
+    idents (TClos vs ts t)		= idents (t:ts) \\ vs
     idents (TThis i)                    = []
 
 instance Ids Type where
@@ -586,6 +583,7 @@ instance TypeVars Exp where
     typevars (ELit _)                   = []
     typevars (ESel e _)                 = typevars e
     typevars (ENew _ ts bs)             = typevars ts ++ typevars bs
+    typevars (EClos vs t te c)		= (typevars t ++ typevars te ++ typevars c) \\ vs
     typevars (ECall _ ts es)            = typevars ts ++ typevars es
     typevars (EEnter e _ ts es)         = typevars ts ++ typevars (e:es)
     typevars (ECast t e)                = typevars t ++ typevars e
@@ -612,6 +610,7 @@ instance TypeVars Alt where
 instance TypeVars AType where
     typevars (TCon _ ts)                = typevars ts
     typevars (TVar n ts)                = n : typevars ts
+    typevars (TClos vs ts t)		= typevars (t:ts) \\ vs
     typevars (TThis i)                  = []
     
 -- Substitutions ------------------------------------------------------------------------------------------
@@ -624,6 +623,7 @@ instance Subst Exp Name Exp where
     subst s (ELit l)                    = ELit l
     subst s (ESel e l)                  = ESel (subst s e) l
     subst s (ENew x ts bs)              = ENew x ts (subst s bs)
+    subst s (EClos vs t te c)		= EClos vs t te (subst (prune s (dom te)) c)
     subst s (ECall x ts es)             = ECall x ts (subst s es)
     subst s (EEnter e x ts es)          = EEnter (subst s e) x ts (subst s es)
     subst s (ECast t e)                 = ECast t (subst s e)
@@ -631,7 +631,8 @@ instance Subst Exp Name Exp where
 instance Subst Cmd Name Exp where
     subst s (CRet e)                    = CRet (subst s e)
     subst s (CRun e c)                  = CRun (subst s e) (subst s c)
-    subst s (CBind r bs c)              = CBind r (subst s bs) (subst s c)
+    subst s (CBind r bs c)              = CBind r (subst (if r then s' else s) bs) (subst s' c)
+      where s'				= prune s (dom bs)
     subst s (CUpd x e c)                = CUpd x (subst s e) (subst s c)
     subst s (CUpdS e x e' c)            = CUpdS (subst s e) x (subst s e') (subst s c)
     subst s (CUpdA e i e' c)            = CUpdA (subst s e) (subst s i) (subst s e') (subst s c)
@@ -643,13 +644,13 @@ instance Subst Cmd Name Exp where
     subst s (CCont)                     = CCont
 
 instance Subst Alt Name Exp where
-    subst s (ACon x vs te c)            = ACon x vs te (subst s c)              -- NOTE: no alpha-conversion!!
+    subst s (ACon x vs te c)            = ACon x vs te (subst (prune s (dom te)) c)              -- NOTE: no alpha-conversion!!
     subst s (ALit l c)                  = ALit l (subst s c)
     subst s (AWild c)                   = AWild (subst s c)
     
 instance Subst Bind Name Exp where
     subst s (Val t e)                   = Val t (subst s e)
-    subst s (Fun vs t te c)             = Fun vs t te (subst s c)
+    subst s (Fun vs t te c)             = Fun vs t te (subst (prune s (dom te)) c)
 
 
 instance Subst Exp Name Name where
@@ -659,6 +660,7 @@ instance Subst Exp Name Name where
     subst s (ELit l)                    = ELit l
     subst s (ESel e l)                  = ESel (subst s e) (subst s l)
     subst s (ENew x ts bs)              = ENew (subst s x) ts (subst s bs)
+    subst s (EClos vs t te c)		= EClos vs t te (subst (prune s (dom te)) c)
     subst s (ECall x ts es)             = ECall (subst s x) ts (subst s es)
     subst s (EEnter e x ts es)          = EEnter (subst s e) (subst s x) ts (subst s es)
     subst s (ECast t e)                 = ECast t (subst s e)
@@ -667,7 +669,8 @@ instance Subst Cmd Name Name where
     subst [] c                          = c
     subst s (CRet e)                    = CRet (subst s e)
     subst s (CRun e c)                  = CRun (subst s e) (subst s c)
-    subst s (CBind r bs c)              = CBind r (subst s bs) (subst s c)
+    subst s (CBind r bs c)              = CBind r (subst (if r then s' else s) bs) (subst s' c)
+      where s'				= prune s (dom bs)
     subst s (CUpd x e c)                = CUpd (subst s x) (subst s e) (subst s c)
     subst s (CUpdS e x e' c)            = CUpdS (subst s e) (subst s x) (subst s e') (subst s c)
     subst s (CUpdA e i e' c)            = CUpdA (subst s e) (subst s i) (subst s e') (subst s c)
@@ -679,7 +682,7 @@ instance Subst Cmd Name Name where
     subst s (CCont)                     = CCont
 
 instance Subst Alt Name Name where
-    subst s (ACon x vs te c)            = ACon (subst s x) vs te (subst (prune s vs) c)      -- NOTE: no alpha-conversion!!
+    subst s (ACon x vs te c)            = ACon (subst s x) vs te (subst (prune s (dom te)) c)      -- NOTE: no alpha-conversion!!
     subst s (ALit l c)                  = ALit l (subst s c)
     subst s (AWild c)                   = AWild (subst s c)
     
@@ -690,7 +693,8 @@ instance Subst Bind Name Name where
 
 instance Subst Type Name AType where
     subst s (ValT t)                    = ValT (subst s t)
-    subst s (FunT vs t ts)              = FunT vs (subst s t) (subst s ts)      -- NOTE: no alpha-conversion!!
+    subst s (FunT vs t ts)              = FunT vs (subst s' t) (subst s' ts)      -- NOTE: no alpha-conversion!!
+      where s'				= prune s vs
 
 instance Subst AType Name AType where
     subst s (TCon c ts)                 = TCon c (subst s ts)
@@ -700,17 +704,21 @@ instance Subst AType Name AType where
       where ts'                         = subst s ts
             appargs (TCon c ts)         = norm c (ts++ts')
             appargs (TVar v ts)         = TVar v (ts++ts')
-            appargs (TThis i)           = TThis i
+            appargs t			= t
 
             norm (Prim Class _) [t]     = tClos t [tInt]
             norm (Prim Request _) [t]   = tClos t [tInt]
             norm (Prim Cmd _) [s,t]     = tClos t [tRef s]
             norm c ts                   = TCon c ts
+    subst s (TClos vs ts t)		= TClos vs (subst s' ts) (subst s' t)
+      where s'				= prune s vs
     subst s (TThis i)                   = TThis i
 
 instance Subst Exp Name AType where
     subst s (ESel e l)                  = ESel (subst s e) l
     subst s (ENew x ts bs)              = ENew x (subst s ts) (subst s bs)
+    subst s (EClos vs t te c)		= EClos vs (subst s' t) (subst s' te) (subst s' c)
+      where s'				= prune s vs
     subst s (ECall x ts es)             = ECall x (subst s ts) (subst s es)
     subst s (EEnter e f ts es)          = EEnter (subst s e) f (subst s ts) (subst s es)
     subst s (ECast t e)                 = ECast (subst s t) (subst s e)
@@ -718,7 +726,8 @@ instance Subst Exp Name AType where
 
 instance Subst Bind Name AType where
     subst s (Val t e)                   = Val (subst s t) (subst s e)
-    subst s (Fun vs t te c)             = Fun vs (subst s t) (subst s te) (subst s c)   -- NOTE: no alpha-conversion!!
+    subst s (Fun vs t te c)             = Fun vs (subst s' t) (subst s' te) (subst s' c)   -- NOTE: no alpha-conversion!!
+      where s'				= prune s vs
     
 instance Subst Cmd Name AType where
     subst s (CRet e)                    = CRet (subst s e)
@@ -735,7 +744,8 @@ instance Subst Cmd Name AType where
     subst s (CCont)                     = CCont
     
 instance Subst Alt Name AType where
-    subst s (ACon x vs te c)            = ACon x vs (subst s te) (subst s c)
+    subst s (ACon x vs te c)            = ACon x vs (subst s' te) (subst s' c)
+      where s'				= prune s vs
     subst s (ALit l c)                  = ALit l (subst s c)
     subst s (AWild c)                   = AWild (subst s c)
     
@@ -765,8 +775,8 @@ prTyvars vs                             = text "<" <> commasep pr vs <> text ">"
 instance Pr Link where
     pr Top                              = empty
     pr Union                            = text "union"
-    pr (Extends n ts [])                = text "extends" <+> pr (TCon n ts)
-    pr (Extends n ts vs)                = text "extends" <+> pr (TCon n ts) <+> text "hiding" <+> prTyvars vs
+    pr (Extends t [])                   = text "extends" <+> pr t
+    pr (Extends t vs)                   = text "extends" <+> pr t <+> text "hiding" <+> prTyvars vs
 
 
 instance Pr (Name, Type) where
@@ -775,10 +785,9 @@ instance Pr (Name, Type) where
 
 
 instance Pr AType where
-    pr (TCon (Prim CLOS _) ts0)         = prTyvars vs <+> prId2 (prim CLOS) <> prTyargs (t:ts)
-      where (vs,ts,t)                   = decodeCLOS ts0
     pr (TCon c ts)                      = prId2 c <> prTyargs ts
     pr (TVar v ts)                      = prId2 v <> prTyargs ts
+    pr (TClos vs ts t)			= prTyvars vs <+> parens (pr t) <> text "CLOS" <> prTyargs ts
     pr (TThis i)                        = text ('#' : show i)
 
 prTyargs []                             = empty
@@ -850,6 +859,9 @@ instance Pr Exp where
     prn 2 (EVar x)                      = prId2 x
     prn 2 (EThis)                       = text "this"
     prn 2 (ELit l)                      = prn 1 l
+    prn 2 (EClos vs t te c)             = prTyvars vs <+> text "CLOSURE" <+> parens (commasep pr te) <+> text "{" $$
+                                          nest 4 (pr c) $$
+                                          text "}"
     prn 2 (ENew x ts bs)
       | all isVal bs                    = text "new" <+> prId2 x <> prTyargs ts <+> text "{" <> commasep prInit bs <> text "}"
     prn 2 (ENew x ts bs)                = text "new" <+> prId2 x <> prTyargs ts <+> text "{" $$
@@ -870,6 +882,7 @@ prInit b                                = pr b
 instance HasPos AType where
   posInfo (TCon n ts)           = between (posInfo n) (posInfo ts)
   posInfo (TVar n ts)           = between (posInfo n) (posInfo ts)
+  posInfo (TClos vs ts t)	= between (posInfo ts) (posInfo t)
   posInfo (TThis i)             = Unknown
 
 
@@ -890,13 +903,13 @@ instance Binary Decl where
 instance Binary Link where
     put Top = putWord8 0
     put Union = putWord8 1
-    put (Extends a b c) = putWord8 2 >> put a >> put b >> put c
+    put (Extends a b) = putWord8 2 >> put a >> put b
     get = do
       tag_ <- getWord8
       case tag_ of
         0 -> return Top
         1 -> return Union
-        2 -> get >>= \a -> get >>= \b -> get >>= \c -> return (Extends a b c)
+        2 -> get >>= \a -> get >>= \b -> return (Extends a b)
         _ -> fail "no parse"
 {-
 instance Binary Bind where
@@ -923,11 +936,13 @@ instance Binary AType where
   put (TCon a b) = putWord8 0 >> put a >> put b
   put (TVar a b) = putWord8 1 >> put a >> put b
   put (TThis a) = putWord8 2 >> put a
+  put (TClos a b c) = putWord8 3 >> put a >> put b >> put c
   get = do
     tag_ <- getWord8
     case tag_ of
       0 -> get >>= \a -> get >>= \b -> return (TCon a b)
       1 -> get >>= \a -> get >>= \b -> return (TVar a b)
       2 -> get >>= \a -> return (TThis a)
+      3 -> get >>= \a -> get >>= \b -> get >>= \c -> return (TClos a b c)
       _ -> fail "no parse"
 

@@ -44,12 +44,6 @@ typedef struct TUP4 *TUP4;
 struct TUPLE;
 typedef struct TUPLE *TUPLE;
 
-struct CLOS1;
-typedef struct CLOS1 *CLOS1;
-struct CLOS2;
-typedef struct CLOS2 *CLOS2;
-struct CLOS3;
-typedef struct CLOS3 *CLOS3;
 struct CLOS;
 typedef struct CLOS *CLOS;
 
@@ -99,24 +93,6 @@ struct TUPLE {
     POLY elems[];
 };
 extern WORD __GC__TUPLE[];
-
-struct CLOS1 {
-    POLY GCINFO;
-    POLY (*Code) (CLOS1, POLY);
-};
-extern WORD __GC__CLOS1[];
-
-struct CLOS2 {
-    POLY GCINFO;
-    POLY (*Code) (CLOS2, POLY, POLY);
-};
-extern WORD __GC__CLOS2[];
- 
-struct CLOS3 {
-    POLY GCINFO;
-    POLY (*Code) (CLOS3, POLY, POLY, POLY);
-};
-extern WORD __GC__CLOS3[];
 
 struct CLOS {
     POLY GCINFO;
@@ -205,7 +181,7 @@ void  CYCLIC_UPDATE(Array, Int, ADDR stop);
 void  CYCLIC_END(Array, ADDR stop);
 
 POLY primRefl(BITS32,POLY);
-CLOS1 primClassRefl(BITS32, CLOS1);
+CLOS primClassRefl(BITS32, CLOS);
 
 
 TIMERTYPE primTIMERTERM(Int x);

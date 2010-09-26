@@ -282,6 +282,8 @@ dropRedundant env alts
 
 redPrim Refl _ [e]                          = e
 redPrim ClassRefl _ [EVar (Prim Refl _)]    = EVar (prim Refl)
+redPrim ClassRefl _ [ELam [(x,_)] e]
+  | e == EVar x				    = EVar (prim Refl)
 redPrim LazyAnd _ [ECon (Prim TRUE _), e]   = e
 redPrim LazyAnd _ [ECon (Prim FALSE _), _]  = ECon (prim FALSE)
 redPrim LazyOr _ [ECon (Prim TRUE _), _]    = ECon (prim TRUE)

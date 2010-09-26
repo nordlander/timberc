@@ -478,6 +478,52 @@ instance Ids Cmd where
     idents (CExp e)             = idents e
 
 
+-- Entered free variables -------------------------------------------------------------
+
+class Entered a where
+    entered			:: a -> [Name]
+
+instance Entered a => Entered [a] where
+     entered xs			= concatMap entered xs
+
+instance Entered a => Entered (Name,a) where
+    entered (x,e)		= entered e
+
+instance Entered Binds where
+    entered (Binds rec te eqns)
+      | rec                     = entered eqns \\ dom eqns
+      | otherwise               = entered eqns
+
+instance Entered Exp where
+    entered (ECon _)            = []
+    entered (ESel e l)          = entered e
+    entered (EVar v)            = []
+    entered (ELam te e)         = entered e \\ dom te
+    entered (EAp (EVar x) e)	= x : entered e
+    entered (EAp e es)          = entered e ++ entered es
+    entered (ELet bs e)         = entered bs ++ (entered e \\ bvars bs)
+    entered (ECase e alts)      = entered e ++ entered alts
+    entered (ERec c eqs)        = entered eqs
+    entered (ELit _)            = []
+    entered (EAct e e')         = entered e ++ entered e'
+    entered (EReq e e')         = entered e ++ entered e'
+    entered (ETempl x t te c)   = entered c \\ (x : dom te)
+    entered (EDo x t c)         = filter (not . isState) (entered c \\ [x])
+
+
+instance Entered r => Entered (Alt r) where
+    entered (Alt p r)           = entered r \\ idents p
+
+instance Entered Cmd where
+    entered (CLet bs c)         = entered bs ++ (entered c \\ bvars bs)
+    entered (CGen x t (EVar y) c)
+				= y : (entered c \\ [x])
+    entered (CGen x t e c)      = entered e ++ (entered c \\ [x])
+    entered (CAss _ e c)        = entered e ++ entered c
+    entered (CRet e)            = entered e
+    entered (CExp e)            = entered e
+
+
 -- Substitutions --------------------------------------------------------------------------------
 
 -- First, some functions to avoid name capture when substituting under binders in the presence of

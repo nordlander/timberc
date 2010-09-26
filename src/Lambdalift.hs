@@ -65,7 +65,6 @@ addLocals te env                        = env { locals = te ++ prune (locals env
 
 addExpansions exps env                  = env { expansions = exps ++ expansions env }
 
-findStructInstance env (Prim CLOS _) ts = (closBind ts, [])
 findStructInstance env n ts             = (subst s te, [ t | (v,t) <- s, v `elem` vs' ])
   where Struct vs te l                  = if isTuple n then tupleDecl n else lookup' (decls env) n
         s                               = vs `zip` ts
@@ -154,11 +153,11 @@ llExp env (ECall x ts es)               = do es <- mapM (llExp env) es
                                                 Nothing -> return (ECall x (mkT env ts) es)
 llExp env ee@(ENew n ts0 bs)
   | null fte && null fvs                = liftM (ENew n ts) (mapM (llBind env) bs)
-  | otherwise                           = do n' <- getStructName (Struct tvs (te ++ mapSnd ValT fte) (Extends n ts tvs))
+  | otherwise                           = do n' <- getStructName (Struct tvs (te ++ mapSnd ValT fte) (Extends tret tvs))
                                              vals' <- mapM (llBind env) vals
                                              funs' <- mapM (llBind (setThis tvs (dom fte) env)) funs
                                              -- tr ("lift ENew: " ++ render (pr (TCon n ts)) ++ "  fvs: " ++ show fvs ++ "   new: " ++ show n')
-                                             return (ECast (TCon n ts) (ENew n' (ts'++map close' fvs) (vals' ++ funs' ++ map close fte)))
+                                             return (ECast tret (ENew n' (ts'++map close' fvs) (vals' ++ funs' ++ map close fte)))
   where ts                              = mkT env ts0
         (vals,funs)                     = partition isVal bs
         free0                           = evars funs
@@ -170,6 +169,26 @@ llExp env ee@(ENew n ts0 bs)
         (te,ts')                        = findStructInstance env n ts
         close (x,t)                     = (x, Val (mkT env t) (mkEVar env x))
         close' v                        = mkT env (tVar v)
+	tret				= TCon n ts
+llExp env (EClos vs t0 te0 c)
+  | null fte && null fvs		= do c' <- llCmd (addLocals te env) c
+					     return (EClos vs t te c')
+  | otherwise				= do n' <- getStructName (Struct tvs (sig : mapSnd ValT fte) (Extends tret tvs))
+					     fun' <- llBind (setThis tvs (dom fte) env) fun
+                                             return (ECast tret (ENew n' (map close' fvs) (fun' : map close fte)))
+  where t				= mkT env t0
+	te				= mapSnd (mkT env) te0
+	fun				= (prim Code, Fun vs t te c)
+	free0				= evars fun
+        free1				= free0 ++ concat [ xs | (f,(_,xs)) <- expansions env, f `elem` free0 ]
+        fte				= locals env `restrict` free1
+        vs1				= concat [ vs | (f,(vs,_)) <- expansions env, f `elem` free0 ]
+        fvs				= nub (typevars fun ++ typevars fte ++ vs1)
+        tvs				= fvs
+	sig				= (prim Code, FunT vs (rng te) t)
+        close (x,t)			= (x, Val (mkT env t) (mkEVar env x))
+        close' v			= mkT env (tVar v)
+	tret				= TClos vs (rng te) t
 llExp env (EVar x)                      = return (mkEVar env x)
 llExp env (EThis)                       = return (EThis)
 llExp env (ELit l)                      = return (ELit l)
@@ -184,8 +203,8 @@ mkEVar env x                            = if x `elem` thisVars env then ESel ETh
 mkT env t                               = subst (thisSubst env) t
 
 getStructName str                       = do s <- currentStore
-                                             case findStruct str (declsOfStore s) of
-                                               Just n  -> return n
-                                               Nothing -> do n <- newName typeSym
-                                                             addToStore (Left (n, str))
-                                                             return n
+                                             case [ n | (n,decl) <- declsOfStore s, decl == str ] of
+                                               n:_ -> return n
+                                               []  -> do n <- newName typeSym
+                                                         addToStore (Left (n, str))
+                                                         return n

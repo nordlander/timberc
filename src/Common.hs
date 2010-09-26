@@ -394,6 +394,10 @@ tr m                            = trace (m++"\n") (return ())
 
 tr' m e                         = trace ("\n"++m++"\n") e
 
+trPr m e                        = trace ("\n"++m++render (pr e)++"\n") e
+
+trShow m e                      = trace ("\n"++m++show e++"\n") e
+
 trNum str                       = do n <- currentNum
                                      tr ("At "++show n++": "++str)
 

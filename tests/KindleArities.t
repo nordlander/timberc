@@ -1,6 +1,5 @@
 module KindleArities where
 
-import POSIX
 
 struct Counter where
         display :: Action

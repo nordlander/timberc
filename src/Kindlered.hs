@@ -239,8 +239,10 @@ redRet env (EEnter e f ts es)           = do c <- redRet env e
 redRet env e                            = return (CRet e)
 
 
+ff env (Prim Code _) ts es (EClos vs t te c)
+  | all isEVal es && not (refThis c) 	= subst (vs `zip` ts) (subst (dom te `zip` es) c)
 ff env f ts es (ENew n _ bs)
-  | not (refThis c)                     = subst (vs `zip` ts) (subst (dom te `zip` es) c)
+  | all isEVal es && not (refThis c)    = subst (vs `zip` ts) (subst (dom te `zip` es) c)
   where Fun vs t te c                   = lookup' bs f
 ff env f ts es e                        = CRet (EEnter e f ts es)
 
@@ -265,6 +267,8 @@ redExp env (ECall x ts es)              = do es <- mapM (redExp env) es
                                              return (ECall x ts es)
 redExp env (ENew n ts bs)               = do bs <- mapM (redBind env) bs
                                              redNew env n ts bs
+redExp env (EClos vs t te c)		= do c <- redCmd env c
+                                             redClos env vs t te c
 redExp env (EVar x)                     = return (EVar x)
 redExp env (EThis)                      = return (EThis)
 redExp env (ELit l)                     = return (ELit l)
@@ -281,6 +285,11 @@ redEnter env e@(ENew n _ bs) f ts es    = case c of
   where Fun vs t te c                   = lookup' bs f
 redEnter env e f ts es                  = return (EEnter e f ts es)
 
+
+redClos env vs _ te (CRet (EEnter e (Prim Code _) ts es))
+  | ts == map tVar vs && es == map EVar (dom te) && not (refThis e)
+					= return e
+redClos env vs t te c			= return (EClos vs t te c)
 
 redNew env _ _ [(Prim Code _, Fun vs _ te (CRet (EEnter e (Prim Code _) ts es)))]
   | ts == map tVar vs && es == map EVar (dom te) && not (refThis e)
