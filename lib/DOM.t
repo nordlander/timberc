@@ -3,6 +3,7 @@ module DOM where
 struct Document where
 	close  :: Request ()
 	body   :: Element BodyAttr FlowContent
+	console :: Console
 
 	a      :: [AnchorAttr ARel] -> [PhrasingContent] -> Class PhrasingContent
 	em     :: [GlobalAttr] -> [PhrasingContent] -> Class PhrasingContent
@@ -79,6 +80,11 @@ struct Document where
 	inputButton :: [InputButtonAttr] -> Class PhrasingContent
 
 extern htmlDOM :: World -> Class Document
+
+struct Console where
+	log :: String -> Request ()
+	warn :: String -> Request ()
+	error :: String -> Request ()
 
 struct Element a c where
 	getAttributes :: Request [a]
