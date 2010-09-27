@@ -109,6 +109,8 @@ k2jExp2 (EClos _ _ te (CRet e))	= text "function" <+> parens (commasep k2jName (
 k2jExp2 (EClos _ _ te c)	= text "function" <+> parens (commasep k2jName (dom te)) <+> text "{" $$
 				  nest 4 (k2jCmd c) $$
 				  text "}"
+k2jExp2 (ENew (Prim Msg _) _ [(Prim Code _, Fun vs t te c)])
+				= k2jExp2 (EClos vs t te c)
 k2jExp2 (ENew x _ [(_,Val _ e)])
   | isCoerceConstr x		= k2jExp2 e
 k2jExp2 (ENew (Prim Ref _) _ _)	= text "{ LOCKED: false }"
