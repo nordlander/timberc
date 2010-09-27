@@ -239,9 +239,9 @@ pModule (Core.Module _ _ _ es' _ _ [bs']) dsi (Module m ns es ds bs)
                                      tei <- Core2Kindle.c2kTEnv dsi te2 
                                      let env1 = addTEnv (primTEnv++tei++es) (addDecls (primDecls++dsi) env0)
                                          env  = addTEnv (mapSnd typeOf bs) (addDecls ds env1)
-                                     (bf,bs) <- pBinds pBind env bs
+                                     bs <- pBinds env bs
                                      bs' <- currentStore
-                                     return (Module m ns es (pDecls env ds) (gcinfo env ds ++ flatBinds bf ++ bs ++ reverse bs'))
+                                     return (Module m ns es (pDecls env ds) (gcinfo env ds ++ bs ++ reverse bs'))
 
 
 -- Prepare structs declarations
@@ -309,16 +309,22 @@ pATEnv te                       = mapSnd pAType te
 -- Prepare bindings and commands
 -- =============================
 
+seqbind []			= id
+seqbind (b:bs)			= CBind False [b] . seqbind bs
+
+parbind bs			= CBind True bs
+
+
 -- Prepare bindings
-pBinds f env xs                 = do (bfs,xs) <- fmap unzip (mapM (f env) xs)
-                                     return (foldr (.) id bfs, xs)
+pBinds env bs                   = do bss <- mapM (pBind env) bs
+                                     return (concat bss)
 
 -- Prepare top-level & cmd bindings (assume code is lambda-lifted)
 pBind env (x, Val t e)          = do (bf,t',e) <- pRhsExp env e 
-                                     return (bf, (x, Val (pAType t) (cast t t' e)))
+                                     return (bf ++ [(x, Val (pAType t) (cast t t' e))])
 pBind env (x, Fun vs t te c)    = do te' <- newEnv paramSym (polyTagTypes (length vs))
                                      c <- pCmd0 (addVals te (addPolyEnv vs (dom te') env)) t c
-                                     return (id, (x, Fun [] (pAType t) (te' ++ pATEnv te) c))
+                                     return ([(x, Fun [] (pAType t) (te' ++ pATEnv te) c)])
 
 
 -- Prepare commands
@@ -326,49 +332,49 @@ pCmd0 env t0 c                  = pCmd (env {blockvs = []}) t0 c
 
 
 pCmd env t0 (CRet e)            = do (bf,e) <- pExpT env t0 e
-                                     return (bf (CRet e))
+                                     return (seqbind bf (CRet e))
 pCmd env t0 (CRun e c)          = do (bf,_,e) <- pExp env e
-                                     liftM (bf . CRun e) (pCmd env t0 c)
+                                     liftM (seqbind bf . CRun e) (pCmd env t0 c)
 pCmd env t0 (CBind _ [] c)      = pCmd env t0 c
 pCmd env t0 c@(CBind _ bs _)
   | not (null xs)               = do xs' <- mapM (newName . str) xs
                                      pCmd env t0 (subst (xs `zip` xs') c)
   where xs                      = dom bs `intersect` blockvs env
-pCmd env t0 (CBind False bs c)  = do (bf,bs) <- pBinds pBind env bs
-                                     liftM (bf . CBind False bs) (pCmd env' t0 c)
+pCmd env t0 (CBind False bs c)  = do bs <- pBinds env bs
+                                     liftM (seqbind bs) (pCmd env' t0 c)
   where env'                    = addTEnv' (mapSnd typeOf bs) env
-pCmd env t0 (CBind True bs c)   = do (bf,bs) <- pBinds pBind env' bs
-                                     liftM (CBind True (flatBinds bf ++ bs)) (pCmd env' t0 c)
+pCmd env t0 (CBind True bs c)   = do bs <- pBinds env' bs
+                                     liftM (parbind bs) (pCmd env' t0 c)
   where env'                    = addTEnv' (mapSnd typeOf bs) env
 pCmd env t0 (CUpd x e c)        = do (bf,e) <- pExpT env (findValT (tenv env) x) e
-                                     liftM (bf . CUpd x e) (pCmd env t0 c)
+                                     liftM (seqbind bf . CUpd x e) (pCmd env t0 c)
 pCmd env t0 (CUpdS e x e' c)    = do (bf,t1,e) <- pExp env e
                                      let (s,te) = findStructTEnv env t1
                                      (bf',e') <- pExpT env (findValT te x) e'
-                                     liftM (bf . bf' . CUpdS e x e') (pCmd env t0 c)
+                                     liftM (seqbind (bf ++ bf') . CUpdS e x e') (pCmd env t0 c)
 pCmd env t0 (CUpdA e i e' c)    = do (bf,TCon (Prim Array _) [t],e) <- pExp env e
                                      (bf',i) <- pExpT env tInt i
                                      (bf'',e') <- pExpT env tPOLY e'
-                                     liftM (bf . bf' . bf'' . CUpdA e i e') (pCmd env t0 c)
+                                     liftM (seqbind (bf ++ bf' ++ bf'') . CUpdA e i e') (pCmd env t0 c)
 pCmd env t0 (CSeq c c')         = liftM2 mkSeq (pCmd env t0 c) (pCmd env t0 c')
 pCmd env t0 (CBreak)            = return CBreak
 pCmd env t0 (CRaise e)          = do (bf,e) <- pExpT env tInt e
-                                     return (bf (CRaise e))
+                                     return (seqbind bf (CRaise e))
 pCmd env t0 (CWhile e c c')     = do (bf,e) <- pExpT env tBool e
                                      c <- pCmd0 env t0 c
-                                     liftM (bf . CWhile e c) (pCmd env t0 c')
+                                     liftM (seqbind bf . CWhile e c) (pCmd env t0 c')
 pCmd env t0 (CCont)             = return CCont
 pCmd env t0 (CSwitch e alts)    
   | any litA alts               = if simple (litType (firstLit alts)) then
                                      do (bf,e) <- pExpT env tInt e
                                         alts <- mapM (pAlt env e tInt t0) alts
-                                        return (bf (CSwitch e alts))
+                                        return (seqbind bf (CSwitch e alts))
                                     else mkVarSwitch env t0 e alts
   | isEVar e || all nullA alts  = do (bf,t,e) <- pExp env e
                                      alts <- mapM (pAlt env e t t0) alts
                                      let (alts0,alts1) = partition nullA [ a | a@(ACon _ _ _ _) <- alts ]
                                          altsW         = [ a | a@(AWild _) <- alts ]
-                                     return (bf (mkSwitch env e (alts0++absent0 altsW) (alts1++absent1 altsW)))
+                                     return (seqbind bf (mkSwitch env e (alts0++absent0 altsW) (alts1++absent1 altsW)))
   | otherwise                   = mkVarSwitch env t0 e alts
   where nullA (ACon k _ _ _)    = k `elem` nulls env
         nullA _                 = False
@@ -403,11 +409,11 @@ mkSwitch env e alts0 alts1      = mkSwitch env e (alts0++[AWild d]) []
 mkVarSwitch env t0 e alts
   | isEVar e                    = do (bf,t,e) <- pExp env e
                                      alts <- mapM (pAlt env e t t0) alts
-                                     return (bf (CSwitch e alts))
+                                     return (seqbind bf (CSwitch e alts))
   | otherwise                   = do (bf,t,e) <- pExp env e
                                      x <- newName tempSym
                                      c <- pCmd (addVals [(x,t)] env) t0 (CSwitch (EVar x) alts)
-                                     return (bf (cBind [(x,Val t e)] c))
+                                     return (seqbind (bf ++ [(x,Val t e)]) c)
 
 
 mkLitAlt env (ACon n [] [] c)   = ALit (conLit env n) c
@@ -453,7 +459,7 @@ mkSeq c1 c2                     = case anchor c1 of
 -- Prepare a right-hand-side expression
 pRhsExp env (ENew n ts bs)      = pNewExp env n ts bs
 pRhsExp env (EClos vs t te c) 	= do (t',te',c') <- pFunField (TClos vs (rng te) t) ([], rng te, t) env vs t te c
-				     return (id, TClos vs (rng te) t, EClos [] t' te' c')
+				     return ([], TClos vs (rng te) t, EClos [] t' te' c')
 pRhsExp env (ECast t (ENew n ts bs))
                                 = do (bf,t',e) <- pNewExp env n ts bs
                                      return (bf, t, cast t t' e)
@@ -461,9 +467,9 @@ pRhsExp env e                   = pExp env e
 
 
 pNewExp env n ts bs
-  | n == tuple 0                = return (id, t0, cast t0 tWORD (ELit (lInt 0)))
-  | n `elem` nulls env          = return (id, t0, cast t0 tWORD (ELit (conLit env n)))
-  | otherwise                   = do (bf,bs) <- pBinds (pSBind t0 te0) env bs
+  | n == tuple 0                = return ([], t0, cast t0 tWORD (ELit (lInt 0)))
+  | n `elem` nulls env          = return ([], t0, cast t0 tWORD (ELit (conLit env n)))
+  | otherwise                   = do (bf,bs) <- pSBinds t0 te0 env bs
                                      return (bf, t0, ENew n [] (bs''++bs'++bs))
   where bs'                     = if n `elem` tagged env then [(prim Tag, Val tInt (ELit (conLit env n)))] else []
         bs''                    = polyTagBinds env n ts
@@ -472,12 +478,15 @@ pNewExp env n ts bs
 
 
 -- Prepare struct bindings (assume code is lambda-lifted)
+pSBinds t0 te0 env xs           = do (bfs,xs) <- fmap unzip (mapM (pSBind t0 te0 env) xs)
+                                     return (concat bfs, xs)
+
 pSBind _ te0 env (x,Val t e)    = do (bf,e) <- pExpT env t e 
                                      return (bf, (x, Val (pAType t0) (cast t0 t e)))
   where t0                      = findValT te0 x
 pSBind ty te0 env (x, Fun vs t te c)
 				= do (t',te',c') <- pFunField ty (findFunT te0 x []) env vs t te c
-				     return (id, (x, Fun [] t' te' c'))
+				     return ([], (x, Fun [] t' te' c'))
 
 
 pFunField ty (_,ts0,t0) env [] t te c@(CRet (ECall f [] (EThis:es)))
@@ -518,17 +527,16 @@ smallPrim (TCon n _)            = n `elem` smallTypes
 smallPrim _                     = False
 
 
-pExpTs env [] []                = return (id, [])
+pExpTs env [] []                = return ([], [])
 pExpTs env (t:ts) (e:es)        = do (bf1,e) <- pExpT env t e
                                      (bf2,es) <- pExpTs env ts es
-                                     return (bf1 . bf2, e:es)
-pExpTs env ts es		= error ("## pExpTs: " ++ render (hpr ',' ts) ++ "   |   " ++ render (hpr ',' es))
+                                     return (bf1 ++ bf2, e:es)
 
 
 -- Prepare an expression in an arbitrary position and compute its type
-pExp env (EVar x)                   = return (id, findValT (tenv env) x, EVar x)
-pExp env (ELit l)                   = return (id, litType l, ELit l)
-pExp env (EThis)                    = return (id, findValT (tenv env) x, EVar x)
+pExp env (EVar x)                   = return ([], findValT (tenv env) x, EVar x)
+pExp env (ELit l)                   = return ([], litType l, ELit l)
+pExp env (EThis)                    = return ([], findValT (tenv env) x, EVar x)
   where x                           = fromJust (this env)
 pExp env (ESel e l)                 = do (bf,t1,e) <- pExp env e
                                          let (s,te) = findStructTEnv env t1
@@ -547,16 +555,16 @@ pExp env (EEnter e f ts es)         = do (bf1,t1,e') <- pRhsExp env e
                                              (s',ts0,t) = findFunT te f ts
                                          (bf2,es') <- pExpTs env ts0 es
                                          x <- newName tempSym
-                                         specialize (s'@@s) t (bf1 . bf2 . cBind [(x, Val (pAType t1) e')]) 
+                                         specialize (s'@@s) t (bf1 ++ bf2 ++ [(x, Val (pAType t1) e')]) 
                                                     (EEnter (castIfClos t1 x) f [] (polyTagArgs env ts ++ es'))
 pExp env (ECast t e)                = do (bf,t',e) <- pExp env e
                                          return (bf, t, cast t t' e)
 pExp env (ENew n ts bs)
-  | n == tuple 0                    = return (id, tWORD, ELit (lInt 0))
-  | n `elem` nulls env              = return (id, tWORD, ELit (conLit env n))
+  | n == tuple 0                    = return ([], tWORD, ELit (lInt 0))
+  | n `elem` nulls env              = return ([], tWORD, ELit (conLit env n))
 pExp env e	                    = do (bf,t,e) <- pRhsExp env e
                                          x <- newName tempSym
-                                         return (bf . cBind [(x, Val (pAType t) e)], t, EVar x)
+                                         return (bf ++ [(x, Val (pAType t) e)], t, EVar x)
 
 specialize s t bf e                 = return (bf, t', cast t' t e)
   where t'                          = subst s t
