@@ -257,19 +257,23 @@ cBindsList env (bs:bss)                 = do (te,bf) <- cBinds env (dom (tsigsOf
 
 -- Translate a list of (mutually recursive) Core bindings into a Kindle.CBind on basis of declared type
 cBinds env called (Binds r te eqs)
-  | not r || all Kindle.okRec (rng te') = do (bf,bs) <- cEqs (addTEnv te' env) te' eqs
-					     return (te', comb r bf bs)
+  | not r || all Kindle.okRec (rng te') = do bf <- cEqs (addTEnv te' env) te' eqs
+					     return (te', comb r bf)
   | otherwise                           = errorIds "Illegal value recursion" (dom te')
-  where comb False bf bs                = bf . Kindle.CBind False bs
-        comb True bf bs                 = Kindle.CBind True (Kindle.flatBinds bf ++ bs)
+  where comb False bf                   = bf
+        comb True bf                    = Kindle.CBind True (Kindle.flatBinds bf)
         te'                             = cTEnv' forceVal te
 --        te'                             = cTEnv te
 	forceVal			= dom eqs \\ called
 
 
 -- Translate a list of Core equations into a list of Kindle bindings on basis of declared type
-cEqs env te eqs                         = do (bfs,bs) <- fmap unzip (mapM (cEq env te) eqs)
-                                             return (foldr (.) id bfs, bs)
+cEqs env te []				= return id
+cEqs env te (eq:eqs)			= do (bf,b) <- cEq env te eq
+					     bf' <- cEqs env te eqs
+					     return (bf . Kindle.cBind [b] . bf')
+--cEqs env te eqs                         = do (bfs,bs) <- fmap unzip (mapM (cEq env te) eqs)
+--                                             return (foldr (.) id bfs, bs)
 
 cEq env te (x,e)                        = case lookup' te x of
                                             Kindle.ValT t0 -> do
@@ -773,6 +777,10 @@ rename1 (Binds r te eqs) e              = do s <- mapM f xs
         f x                             = do n <- newNum
                                              return (x, x {tag = n})
 
+cStructEqs env te eqs                   = do (bfs,bs) <- fmap unzip (mapM (cEq env te) eqs)
+                                             return (foldr (.) id bfs, bs)
+
+
 -- Translate a Core.Exp into an expression result that is either a value or a function,
 -- overflowing into a list of Kindle.Binds if necessary
 cExp env (ELet bs e)
@@ -782,7 +790,7 @@ cExp env (ELet bs e)
                                              (bf',t,h) <- cExp (addTEnv te env) e
                                              return (bf . bf', t, h)
 cExp env (ELit l)                       = return (id, Kindle.litType l, ValR (Kindle.ELit l))
-cExp env (ERec c eqs)                   = do (bf,bs) <- cEqs (setTArgs env []) te' eqs
+cExp env (ERec c eqs)                   = do (bf,bs) <- cStructEqs (setTArgs env []) te' eqs
                                              return (bf, Kindle.TCon c ts, ValR (Kindle.ENew c ts bs))
   where ts                              = tArgs env
         Kindle.Struct vs te _           = findDecl env c
