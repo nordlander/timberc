@@ -49,9 +49,13 @@ k2jBind (x, Fun _ _ te c)       = text "function" <+> k2jName x <+> parens (comm
 k2jBind (x, Val _ e)            = text "var" <+> k2jName x <+> text "=" <+> k2jExp e
 
 
+k2jInitBind True (x, Val (TClos _ _ _) _)
+				= text "var" <+> k2jName x <+> text "= function() { return arguments.callee.Code.apply(this,arguments) }"
 k2jInitBind True (x, Val _ _)	= text "var" <+> k2jName x <+> text "= {}"
 k2jInitBind False _		= empty
 
+k2jUpdateBind True (x, Val (TClos _ _ _) e)
+				= k2jName x <> text ".Code =" <+> k2jExp e
 k2jUpdateBind True (x, Val _ e)	= k2jName x <+> text "= UPDATE" <> parens (k2jName x <> comma <+> k2jExp e)
 k2jUpdateBind False b		= k2jBind b
 
