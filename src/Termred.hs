@@ -459,7 +459,7 @@ walkEqs env te fw (eq:eqs)      = do (eq,eqs1) <- doEq te eq
         doAlt (Alt p e)         = do (e,eqs1) <- doExp e
                                      return (Alt p e, eqs1)
         doExp (ESel e l)
-          | isCoerceLabel l     = maybeDelay (\e -> ESel e l) e
+          | True {- isCoerceLabel l -}    = maybeDelay (\e -> ESel e l) e
           | otherwise           = do (e,eqs1) <- doExp e
                                      return (ESel e l, eqs1)
         doExp (ECase e alts)    = do (e,eqs1) <- doExp e
@@ -476,7 +476,7 @@ walkEqs env te fw (eq:eqs)      = do (eq,eqs1) <- doEq te eq
                                      return (ERec n eqs', concat eqss)
         doExp e                 = return (e, [])
         maybeDelay f (ESel e l)
-          | isCoerceLabel l     = maybeDelay (\e -> f (ESel e l)) e
+          | True {- isCoerceLabel l -}    = maybeDelay (\e -> f (ESel e l)) e
         maybeDelay f (EVar x)
           | x `elem` fw         = do y <- newName tempSym
                                      return (EVar y, [(y, f (EVar x))])
