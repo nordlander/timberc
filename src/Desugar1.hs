@@ -160,6 +160,7 @@ dsDecls env (DData c vs ss cs : ds) = DData c vs (ds1 env ss) (ds1 env cs) : dsD
 dsDecls env (DRec b c vs ss ss' : ds) = DRec b c vs (ds1 env ss) (ds1 env ss') :dsDecls env ds
 dsDecls env (DPSig n t : ds)    = DInstance [n] : DBind [BSig [n] (ds1 env t)] : dsDecls env ds
 dsDecls env (DDefault ts : ds)  = DDefault (ds1 env ts) : dsDecls env ds
+dsDecls env (DInst c t bs : ds) = DInst c (ds1 env t) (ds1 env bs) : dsDecls env ds
 dsDecls env ds@(DBind _ : _)    = dsDs [] ds
   where dsDs bs (DBind bs':ds)  = dsDs (bs++bs') ds
         dsDs bs ds              = DBind (ds1 env bs) : dsDecls env ds

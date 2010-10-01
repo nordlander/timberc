@@ -86,7 +86,9 @@ stateVars env                      = dom (rS env) ++ rng (rS env)
 tscope env                         = dom (rT env)
 
 
-mixAnnot old new                   = (annot new) { location = location (annot old), explicit = explicit (annot old), stateVar = stateVar (annot old) }
+mixAnnot old new                   = (annot new) { location = location (annot old), 
+						   explicit = explicit (annot old), 
+						   stateVar = stateVar (annot old) }
 
 renE env n@(Tuple _ _)             = n
 renE env n@(Prim _ _)              = n
@@ -179,7 +181,8 @@ legalBind vs                        = map checkName vs
           | otherwise               = errorIds "Binding occurrence may not be qualified" [v]
 
 checkQualError mess v rX
-   | fromMod v==Nothing && length ms>1 = errorIds (mess ++ " not in scope; imported from several modules (" ++ concat(intersperse ", " ms) ++")") [v]
+   | fromMod v==Nothing && length ms>1 = errorIds (mess ++ " not in scope; imported from several modules (" ++ 
+						   concat(intersperse ", " ms) ++")") [v]
    | otherwise                         = errorIds ("Undefined " ++ map toLower mess) [v]
    where ms                            = [m | Name s t (Just m) _ <- dom rX, s == str v]
 
@@ -225,11 +228,11 @@ instance Rename Module where
                                         assert (null dtcs2) "Dangling typeclass declarations" dtcs2
                                         assert (null badImpl) "Illegal type signature for instance" badImpl
                                         env1 <- extRenTMod True  c env  (ts1 ++ ks1')
-                                        env2 <- extRenEMod True  c env1 (vs1 ++ vs1' ++ vss++is1++ bvars es1)
+                                        env2 <- extRenEMod True  c env1 (vs1++vs1'++vss++is1++instws1++bvars es1)
                                         env3 <- extRenLMod True  c env2 ss1
                                         env4 <- extRenCMod True  c env3 cs1
                                         env5 <- extRenTMod False c env4 ((ts2 \\ ks1') ++ ks2)
-                                        env6 <- extRenEMod False c env5 (cs2 ++ (vs2 \\ vss) ++ vs2'++is2++bvars es2)
+                                        env6 <- extRenEMod False c env5 (cs2++(vs2 \\ vss)++vs2'++is2++instws2++bvars es2)
                                         env7 <- extRenLMod False c env6 ss2
                                         env8 <- extRenCMod False c env7 cs2
                                         ds <- rename env8 (ds1 ++ ps1)
@@ -316,7 +319,6 @@ bindings ds                        = concat [ bs | DBind bs <- ds ]
 mergeDecls tcs (DRec isC n vs ts ss : ds) = DRec (isC || elem n tcs) n vs ts ss : mergeDecls tcs ds
 mergeDecls tcs (DTClass _ : ds) = mergeDecls tcs ds
 mergeDecls tcs (DBind _ : ds) = mergeDecls tcs ds
-mergeDecls tcs (DInst _ _ _ : ds) = mergeDecls tcs ds
 mergeDecls tcs (d : ds) = d : mergeDecls tcs ds
 mergeDecls _ [] = []
 
@@ -356,13 +358,9 @@ instance Rename Decl where
   rename env (DType c vs t)        = do env' <- extRenT env vs
                                         liftM (DType (renT env c) (map (renT env') vs)) (rename env' t)
   rename env (DInstance vs)        = return (DInstance (map (renE env) vs))
-  rename env (DInst n t bs)        = do x <- case n of Nothing -> newName witnessSym; Just x -> return x
-	                                env' <- extRenE env (map annotGenerated ls)
-                                        r <- rename env' (ERec (Just (type2head t,True)) (map (\l -> Field l (EVar l)) ls))
-                                        bs' <- mapM (renSBind env' env) bs
-                                        t' <- renameQT env t
-                                        return (DBind [BSig [x] t', BEqn (LFun x []) (RExp (ELet bs' r))])
-    where ls			   = nub (bvars bs)
+  rename env (DInst n t bs)	   = do x <- case n of Just x -> return (renE env x); _ -> newName witnessSym
+					t' <- renameQT env t
+					liftM (DInst (Just x) t') (mapM (renSBind (env { rE = rL env }) env) bs)
   rename env (DDefault ts)         = liftM DDefault (rename env ts)
   rename env (DBind bs)            = liftM DBind (rename env bs)
   rename env (DExtern es)          = liftM DExtern (rename env es)
