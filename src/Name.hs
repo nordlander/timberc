@@ -344,9 +344,11 @@ isIdPrim p                      = p `notElem` primSyms
 
 primSyms                        = [LIST, NIL, CONS, LazyAnd, LazyOr, IndexArray]
 
-primTypes                       =  map primKeyValue [MIN____TYPE .. MAX____TYPE]
+primTypes                       = map primKeyValue [MIN____TYPE .. MAX____TYPE]
 
-primTerms                       =  map primKeyValue ([MIN____CONS .. MAX____CONS] ++ [MIN____VAR .. MAX____VAR])
+primTerms                       = map primKeyValue [MIN____VAR .. MAX____VAR]
+
+primCons                        = map primKeyValue [MIN____CONS .. MAX____CONS]
 
 primSels                        = map primKeyValue [MIN____SELS .. MAX____SELS]
                                   

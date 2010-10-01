@@ -123,20 +123,20 @@ type ImportInfo a                     =  (Bool, a)
 
 
 type Desugar1Env     = (Map Name [Name], Map Name Name, Map Name ([Name], Syntax.Type))
-type RenameEnv       = (Map Name [Name], Map Name Name, Map Name Name, Map Name Name)
+type RenameEnv       = (Map Name [Name], Map Name Name, Map Name Name, Map Name Name, Map Name Name)
 type CheckEnv        = Module
 type KindleEnv       = Map Name Kindle.Decl
 
 initEnvs             :: Map a (ImportInfo IFace) -> M s (Desugar1Env, RenameEnv, CheckEnv, KindleEnv,Module)
 initEnvs bms         = do ims <- mapM (mkEnv . snd) bms
-                          let ((rs,ss,rnL,rnT,rnE),m1,m2,kds) 
-                               = foldr mergeIFace (([],[],[],[],[]),nullMod,nullMod,[]) ims
-                          return ((rs,rnL,ss),(rs,rnL,rnT,rnE),m1,kds,m2)
+                          let ((rs,ss,rnL,rnT,rnE,rnC),m1,m2,kds) 
+                               = foldr mergeIFace (([],[],[],[],[],[]),nullMod,nullMod,[]) ims
+                          return ((rs,rnL,ss),(rs,rnL,rnT,rnE,rnC),m1,kds,m2)
 
-  where mergeIFace ((rs1,ss1,rnL1,rnT1,rnE1),m11,m21,kds1)
-                 ((rs2,ss2,rnL2,rnT2,rnE2),m12,m22,kds2) 
+  where mergeIFace ((rs1,ss1,rnL1,rnT1,rnE1,rnC1),m11,m21,kds1)
+                 ((rs2,ss2,rnL2,rnT2,rnE2,rnC2),m12,m22,kds2) 
                                      = ((rs1 ++ rs2, ss1 ++ ss2, mergeRenamings2 rnL1 rnL2, 
-                                       mergeRenamings2 rnT1 rnT2, mergeRenamings2 rnE1 rnE2),
+                                       mergeRenamings2 rnT1 rnT2, mergeRenamings2 rnE1 rnE2, mergeRenamings2 rnC1 rnC2),
                                        mergeMod m11 m12,mergeMod m21 m22, kds1 ++ kds2)
         mkEnv (unQual,IFace rs ss m1 m2 kds) 
                                      = do rss <- mkRenamings unQual rs ss m1
@@ -147,11 +147,13 @@ initEnvs bms         = do ims <- mapM (mkEnv . snd) bms
         mkRenamings unQual rs ss (Module m ns xs es ds ws [bs]) 
                                      = do rT  <- renaming (dom ke)
                                           rE  <- renaming (dom te')
+                                          rC  <- renaming (dom ce)
                                           rL <- renaming ls
-                                          return (unMod rs, unMod ss, unMod rL ,unMod rT, unMod rE)
+                                          return (unMod rs, unMod ss, unMod rL ,unMod rT, unMod rE, unMod rC)
           where Types ke ds'         = ds
                 Binds _ te _         = bs
-                te'                  = te ++ concatMap (tenvCon ke) ds' ++ extsMap es
+                te'                  = te ++ extsMap es
+                ce                   = concatMap (tenvCon ke) ds'
                 ls                   = [ s | (_,DRec _ _ _ cs) <- ds', (s,_) <- cs, not (isGenerated s) ]
                 unMod ps             = if unQual then [(tag0 (dropMod c),y) | (c,y) <- ps] ++ ps else ps
 

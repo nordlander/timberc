@@ -276,7 +276,7 @@ instance Desugar1 Exp where
               | fromMod s == modName env = dropMod s
               | otherwise          = s
     ds1 env e@(EBStruct c0 bs) 
-      | ok c c0                    = EBStruct (Just c) (ds1 env bs)
+      | ok c c0                    = EBStruct (Just (c,True)) (ds1 env bs)
       | otherwise                  = errorTree "Declared struct type differs from inferred" e
       where c                      = typeFromSels env (sort (ren env sels))
             sels0                  = bvars bs
@@ -291,7 +291,7 @@ instance Desugar1 Exp where
 	    stuffedCons (PAp p p') = stuffedCons p ++ stuffedCons p'
 	    stuffedCons _          = []
             ok c Nothing           = True
-            ok c (Just c')         = c == typeFromSels env (selsFromType env c')
+            ok c (Just (c',_))     = c == typeFromSels env (selsFromType env c')
     ds1 env (ELet bs e)            = ELet (ds1 env bs) (ds1 env e)
     ds1 env (EAp e1 e2)            = EAp (ds1 env e1) (ds1 env e2)
     ds1 env (ETup es)              = ETup (ds1 env es)

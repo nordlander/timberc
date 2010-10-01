@@ -178,7 +178,7 @@ topdecl :: { [Decl] }
 --        | 'instance' var '::' type 'where' bindlist        { [DInst (Just $2) $4 $6] }
 --        | 'instance' type 'where' bindlist                 { [DInst Nothing $2 $4] }
         | 'instance' var '::' type 'where' bindlist        { [DBind [BEqn (var2lhs $2) 
-                                                                          (RExp (EBStruct (Just (type2head $4)) $6))],
+                                                                          (RExp (EBStruct (Just (type2head $4, True)) $6))],
                                                               DPSig $2 $4] }
         | 'instance' ids                                   { [DInstance $2] }
         | 'default' def                                    { [DDefault (reverse $2)] }

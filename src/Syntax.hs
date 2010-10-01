@@ -116,7 +116,7 @@ data Exp    = EVar    Name
             | ESig    Exp Type
             | ERec    (Maybe (Name,Bool)) [EField]
            -- pattern syntax ends here
-            | EBStruct (Maybe Name) [Bind]  -- struct value in bindlist syntax
+            | EBStruct (Maybe (Name,Bool)) [Bind]  -- struct value in bindlist syntax
             | ELam    [Pat] Exp
             | ELet    [Bind] Exp
            -- the following and ETup, EList removed in desugaring
@@ -467,10 +467,34 @@ okClass (s : ss)                = errorTree "Illegal command in class" s
 
 -- Substitution --------------------------------------------------------------
 
+instance Subst Bind Name Name where
+    subst s (BEqn l r)		= BEqn (subst s l) r
+    subst s (BSig xs t)		= BSig (substVars s xs) t
+
+instance Subst Lhs Name Name where
+    subst s (LFun x ps)		= LFun (substVar s x) ps
+    subst s (LPat p)            = LPat (subst s p)
+
+instance Subst Pat Name Name where
+    subst s (PVar x)            = case lookup x s of
+                                    Just y  -> PVar y
+                                    Nothing -> PVar x
+    subst s (PAp e e')          = PAp (subst s e) (subst s e')
+    subst s (PCon c)            = PCon c
+    subst s (PLit l)            = PLit l
+    subst s (PTup es)           = PTup (subst s es)
+    subst s (PList es)          = PList (subst s es)
+    subst s (PWild)             = PWild
+    subst s (PSig e t)          = PSig (subst s e) t
+    subst s (PRec m fs)         = PRec m (subst s fs)
+
+instance Subst a Name Name => Subst (Field a) Name Name where
+    subst s (Field l p)		= Field l (subst s p)
+
+
 instance Subst Bind Name Exp where
     subst s (BSig xs t)         = BSig xs t
     subst s (BEqn lhs rhs)      = BEqn lhs (subst s rhs)
-
 
 instance Subst Pat Name Pat where
     subst s (PVar x)            = case lookup x s of

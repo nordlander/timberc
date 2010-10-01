@@ -49,6 +49,7 @@ This module does the following:
 -}
 
 import Control.Monad
+import Data.Char
 import Common
 import Syntax
 import Depend
@@ -64,14 +65,17 @@ data Env                           = Env { rE :: Map Name Name,
                                            rT :: Map Name Name, 
                                            rS :: Map Name Name,
                                            rL :: Map Name Name,
+                                           rC :: Map Name Name,
                                            labels :: Map Name [Name],
                                            self :: [Name],
                                            void :: [Name]
                                          } deriving Show
 
-initEnv (rs, rL',rT',rE') ls       = Env { rE = primTerms ++ rE', 
+initEnv (rs, rL',rT',rE',rC') ls   = Env { rE = primTerms ++ rE', 
                                            rT = primTypes ++ rT', 
-                                           rS = [], rL = primSels ++ rL', 
+                                           rS = [], 
+                                           rL = primSels ++ rL', 
+                                           rC = primCons ++ rC',
                                            labels = ls,
                                            self = [], 
                                            void = []
@@ -89,6 +93,7 @@ renE env n@(Prim _ _)              = n
 renE env v                         = case lookup v (rE env) of
                                        Just n  -> n { annot = mixAnnot v n }
                                        Nothing -> checkQualError "Variable" v (rE env)
+
 renS env n@(Tuple _ _)             = n
 renS env n@(Prim _ _)              = n
 renS env v                         = case lookup v (rS env) of
@@ -100,11 +105,17 @@ renL env v                         = case lookup v (rL env) of
                                        Just n  -> n { annot = mixAnnot v n }
                                        Nothing -> checkQualError "Selector" v (rL  env)
 
+renC env n@(Tuple _ _)             = n
+renC env n@(Prim _ _)              = n
+renC env v                         = case lookup v (rC env) of
+				       Just n  -> n { annot = mixAnnot v n }
+				       Nothing -> checkQualError "Constructor" v (rC  env)
+
 renT env n@(Tuple _ _)             = n
 renT env n@(Prim _ _)              = n
 renT env v                         = case lookup v (rT env) of
                                        Just n  -> n { annot = mixAnnot v n }
-                                       Nothing -> errorIds "Undefined type identifier" [v]
+                                       Nothing -> checkQualError "Type identifier" v (rT env)
 
 extRenE env vs
   | not (null shadowed)            = errorIds "Illegal shadowing of state variables" shadowed
@@ -147,6 +158,10 @@ extRenLMod _ _ env []              = return env
 extRenLMod pub m env vs            = do rL' <- extRenXMod pub m (rL env) vs
                                         return (env {rL = rL'})
 
+extRenCMod _ _ env []              = return env
+extRenCMod pub m env vs            = do rC' <- extRenXMod pub m (rC env) vs
+                                        return (env {rC = rC'})
+
 extRenSelf env s                   = do rE' <- renaming (legalBind [s])
                                         return (env { rE = rE' ++ rE env, self = [s] })
 
@@ -165,7 +180,7 @@ legalBind vs                        = map checkName vs
 
 checkQualError mess v rX
    | fromMod v==Nothing && length ms>1 = errorIds (mess ++ " not in scope; imported from several modules (" ++ concat(intersperse ", " ms) ++")") [v]
-   | otherwise                         = errorIds "Undefined identifier" [v]
+   | otherwise                         = errorIds ("Undefined " ++ map toLower mess) [v]
    where ms                            = [m | Name s t (Just m) _ <- dom rX, s == str v]
 
 
@@ -210,27 +225,31 @@ instance Rename Module where
                                         assert (null dtcs2) "Dangling typeclass declarations" dtcs2
                                         assert (null badImpl) "Illegal type signature for instance" badImpl
                                         env1 <- extRenTMod True  c env  (ts1 ++ ks1')
-                                        env2 <- extRenEMod True  c env1 (cs1 ++ vs1 ++ vs1' ++ vss++is1++ bvars es1)
+                                        env2 <- extRenEMod True  c env1 (vs1 ++ vs1' ++ vss++is1++ bvars es1)
                                         env3 <- extRenLMod True  c env2 ss1
-                                        env4 <- extRenTMod False c env3 ((ts2 \\ ks1') ++ ks2)
-                                        env5 <- extRenEMod False c env4 (cs2 ++ (vs2 \\ vss) ++ vs2'++is2++bvars es2)
-                                        env6 <- extRenLMod False c env5 ss2
-                                        ds <- rename env6 (ds1 ++ ps1)
-                                        bs <- rename env6 (bs1' ++ bs2' ++ shuffleB (bs1 ++ bs2))
+                                        env4 <- extRenCMod True  c env3 cs1
+                                        env5 <- extRenTMod False c env4 ((ts2 \\ ks1') ++ ks2)
+                                        env6 <- extRenEMod False c env5 (cs2 ++ (vs2 \\ vss) ++ vs2'++is2++bvars es2)
+                                        env7 <- extRenLMod False c env6 ss2
+                                        env8 <- extRenCMod False c env7 cs2
+                                        ds <- rename env8 (ds1 ++ ps1)
+                                        bs <- rename env8 (bs1' ++ bs2' ++ shuffleB (bs1 ++ bs2))
                                         return (Module c is (ds ++ [DBind bs]) [])
-   where (ks1,ts1,ss1,cs1,ws1,tcs1,is1,es1,bss1) = renameD [] [] [] [] [] [] [] [] [] ds
-         (ks2,ts2,ss2,cs2,ws2,tcs2,is2,es2,bss2) = renameD [] [] [] [] [] [] [] [] [] ps
-         ds1                       = mergeTClasses tcs1 ds
-         ps1                       = mergeTClasses tcs2 ps
+   where (ks1,ts1,ss1,cs1,ws1,tcs1,is1,es1,insts1,bss1) = renameD [] [] [] [] [] [] [] [] [] [] ds
+         (ks2,ts2,ss2,cs2,ws2,tcs2,is2,es2,insts2,bss2) = renameD [] [] [] [] [] [] [] [] [] [] ps
+         ds1                       = mergeDecls tcs1 ds
+         ps1                       = mergeDecls tcs2 ps
          vs1                       = concat (map bvars bss1)
          vs2                       = concat (map bvars bss2)
          bs1                       = concat (reverse bss1)
          bs2                       = concat (reverse bss2)
+         instws1		   = [ w | DInst (Just w) _ _ <- insts1 ]
+         instws2		   = [ w | DInst (Just w) _ _ <- insts2 ]
          vss                       = concat [ ss | BSig ss _ <- bs1 ] \\ vs1
          vs                        = vs1 ++ vs2
          ks                        = ks1 ++ ks2
          ts                        = ts1 ++ ts2
-         ws                        = ws1 ++ ws2
+         ws                        = ws1 ++ ws2 ++ instws1 ++ instws2
          bs1'                      = oloadBinds vs ds1
          bs2'                      = oloadBinds vs ps1
          vs1'                      = bvars bs1'
@@ -241,7 +260,7 @@ instance Rename Module where
          dws2                      = ws2 \\ concat [ ss | BSig ss _ <- bs2 ]
          dtcs1                     = tcs1 \\ [ n | DRec False n _ _ _ <- ds ]
          dtcs2                     = tcs2 \\ [ n | DRec False n _ _ _ <- ps ]
-         badImpl                   = concat [ ws | BSig ss t <- bs1++bs2, not (null (ss `intersect` ws)), isWild t ]
+         badImpl                   = concat [ ws' | BSig ss t <- bs1++bs2, let ws' = ss `intersect` ws, not (null ws'), isWild t ]
          kDups                     = duplicates ks
          tDups                     = duplicates ts
          sDups                     = duplicates (ss1 ++ ss2)
@@ -258,36 +277,74 @@ instance Rename Module where
          isWild (TFun ts t)        = any isWild (t:ts)
          isWild TWild              = True
          isWild _                  = False
-         
-mergeTClasses tcs (DRec isC n vs ts ss : ds) = DRec (isC || elem n tcs) n vs ts ss : mergeTClasses tcs ds
-mergeTClasses tcs (DTClass _ : ds) = mergeTClasses tcs ds
-mergeTClasses tcs (DBind _ : ds) = mergeTClasses tcs ds
-mergeTClasses tcs (d : ds) = d : mergeTClasses tcs ds
-mergeTClasses _ [] = []
+{-         
+renaME env (Module name imports decls decls')
+				   = undefined
+      where ksigs		   = kind_sigs decls
+            ksigs'                 = kind_sigs decls'
+            types                  = type_names decls
+            types'                 = type_names decls'
+            pub_constructors       = constructor_names pub_decls
+            constructors           = pub_constructors ++ constructor_names priv_decls
+            pub_selectors          = selector_names pub_decls
+            selectors              = pub_selectors ++ selector_names priv_decls
+	    typeclass_names        = [ ]
+	    typeclass_combos       = [ DRec True]
 
-renameD ks ts ss cs ws tcs is es bss (DKSig c _ : ds)
-                                   = renameD (c:ks) ts ss cs ws tcs is es bss ds
-renameD ks ts ss cs ws tcs is es bss (DRec _ c _ _ sigs : ds)
-                                   = renameD ks (c:ts) (sels++ss) cs ws tcs is es bss ds
+
+kind_sigs ds			   = [ c | DKSig c _ <- ds ]
+
+type_names []			   = []
+type_names (DRec _ c _ _ _ : ds)   = c : type_names ds
+type_names (DData c _ _ _ : ds)    = c : type_names ds
+type_names (DType c _ _ : ds)      = c : type_names ds
+type_names (d : ds)                = type_names ds
+
+constructor_names ds		   = concat [ c | DData _ _ _ condefs <- ds, Constr c _ _ <- condefs ]
+
+selector_names ds		   = concat [ concat ss | DRec _ _ _ _ seldefs <- ds, Sig ss t <- seldefs ]
+
+instance_decls ds		   = [ d | d@(DInst _ _ _) <- ds ]
+
+instance_names ds                  = concat [ xs | DInstance xs <- ds ]
+
+typeclass_names ds                 = concat [ cs | DTClass cs <- ds ]
+
+bindings ds                        = concat [ bs | DBind bs <- ds ]
+-}
+
+mergeDecls tcs (DRec isC n vs ts ss : ds) = DRec (isC || elem n tcs) n vs ts ss : mergeDecls tcs ds
+mergeDecls tcs (DTClass _ : ds) = mergeDecls tcs ds
+mergeDecls tcs (DBind _ : ds) = mergeDecls tcs ds
+mergeDecls tcs (DInst _ _ _ : ds) = mergeDecls tcs ds
+mergeDecls tcs (d : ds) = d : mergeDecls tcs ds
+mergeDecls _ [] = []
+
+renameD ks ts ss cs ws tcs is es insts bss (DKSig c _ : ds)
+                                   = renameD (c:ks) ts ss cs ws tcs is es insts bss ds
+renameD ks ts ss cs ws tcs is es insts bss (DRec _ c _ _ sigs : ds)
+                                   = renameD ks (c:ts) (sels++ss) cs ws tcs is es insts bss ds
   where sels                       = concat [ vs | Sig vs t <- sigs ]
-renameD ks ts ss cs ws tcs is es bss (DData c _ _ cdefs : ds)
-                                   = renameD ks (c:ts) ss (cons++cs) ws tcs is es bss ds
+renameD ks ts ss cs ws tcs is es insts bss (DData c _ _ cdefs : ds)
+                                   = renameD ks (c:ts) ss (cons++cs) ws tcs is es insts bss ds
   where cons                       = [ c | Constr c _ _ <- cdefs ]
-renameD ks ts ss cs ws tcs is es bss (DType c _ _ : ds)
-                                   = renameD ks (c:ts) ss cs ws tcs is es bss ds
-renameD ks ts ss cs ws tcs is es bss (DInstance vs : ds)
-                                   = renameD ks ts ss cs (ws++vs) tcs is es bss ds
-renameD ks ts ss cs ws tcs is es bss (DTClass vs : ds)
-                                   = renameD ks ts ss cs ws (tcs++vs) is es bss ds
-renameD ks ts ss cs ws tcs is es bss (DDefault ps : ds)
-                                   = renameD ks ts ss cs ws tcs (is1 ++ is) es bss ds
+renameD ks ts ss cs ws tcs is es insts bss (DType c _ _ : ds)
+                                   = renameD ks (c:ts) ss cs ws tcs is es insts bss ds
+renameD ks ts ss cs ws tcs is es insts bss (DInstance vs : ds)
+                                   = renameD ks ts ss cs (vs++ws) tcs is es insts bss ds
+renameD ks ts ss cs ws tcs is es insts bss (d@(DInst _ _ _) : ds)
+                                   = renameD ks ts ss cs ws tcs is es (d:insts) bss ds
+renameD ks ts ss cs ws tcs is es insts bss (DTClass vs : ds)
+                                   = renameD ks ts ss cs ws (tcs++vs) is es insts bss ds
+renameD ks ts ss cs ws tcs is es insts bss (DDefault ps : ds)
+                                   = renameD ks ts ss cs ws tcs (is1 ++ is) es insts bss ds
   where is1                        = [i | Derive i _ <- ps]
-renameD ks ts ss cs ws tcs is es bss (DBind bs : ds)
-                                   = renameD ks ts ss cs ws tcs is es (bs : bss) ds
-renameD ks ts ss cs ws tcs is es bss (DExtern es' : ds)
-                                   = renameD ks ts ss cs ws tcs is (es ++ es') bss ds
-renameD ks ts ss cs ws tcs is es bss []
-                                   = (ks, ts, ss, cs, ws, tcs, is, es, bss)
+renameD ks ts ss cs ws tcs is es insts bss (DBind bs : ds)
+                                   = renameD ks ts ss cs ws tcs is es insts (bs : bss) ds
+renameD ks ts ss cs ws tcs is es insts bss (DExtern es' : ds)
+                                   = renameD ks ts ss cs ws tcs is (es ++ es') insts bss ds
+renameD ks ts ss cs ws tcs is es insts bss []
+                                   = (ks, ts, ss, cs, ws, tcs, is, es, insts, bss)
 
 
 instance Rename Decl where
@@ -299,6 +356,13 @@ instance Rename Decl where
   rename env (DType c vs t)        = do env' <- extRenT env vs
                                         liftM (DType (renT env c) (map (renT env') vs)) (rename env' t)
   rename env (DInstance vs)        = return (DInstance (map (renE env) vs))
+  rename env (DInst n t bs)        = do x <- case n of Nothing -> newName witnessSym; Just x -> return x
+	                                env' <- extRenE env (map annotGenerated ls)
+                                        r <- rename env' (ERec (Just (type2head t,True)) (map (\l -> Field l (EVar l)) ls))
+                                        bs' <- mapM (renSBind env' env) bs
+                                        t' <- renameQT env t
+                                        return (DBind [BSig [x] t', BEqn (LFun x []) (RExp (ELet bs' r))])
+    where ls			   = nub (bvars bs)
   rename env (DDefault ts)         = liftM DDefault (rename env ts)
   rename env (DBind bs)            = liftM DBind (rename env bs)
   rename env (DExtern es)          = liftM DExtern (rename env es)
@@ -309,7 +373,7 @@ instance Rename (Default Type) where
 
 instance Rename Constr where
   rename env (Constr c ts ps)      = do env' <- extRenT env (bvars ps')
-                                        liftM2 (Constr (renE env c)) (rename env' ts) (rename env' ps')
+                                        liftM2 (Constr (renC env c)) (rename env' ts) (rename env' ps')
    where ps'                       = completeP env ts ps
 
 instance Rename (Extern Type) where
@@ -366,7 +430,7 @@ instance Rename Pat where
     | v `elem` void env            = errorIds "Uninitialized state variable" [v]
     | v `elem` stateVars env       = return (PVar (renS env v))
     | otherwise                    = return (PVar (renE env v))
-  rename env (PCon c)              = return (PCon (renE env c))
+  rename env (PCon c)              = return (PCon (renC env c))
   rename env (PAp e1 e2)           = liftM2 PAp (rename env e1) (rename env e2)
   rename env (PLit l)              = return (PLit l)
   rename env (PTup ps)             = liftM PTup (rename env ps)
@@ -380,7 +444,7 @@ instance Rename Exp where
     | v `elem` void env            = errorIds "Uninitialized state variable" [v]
     | v `elem` stateVars env       = return (EVar (renS env v))
     | otherwise                    = return (EVar (renE env v))
-  rename env (ECon c)              = return (ECon (renE env c))
+  rename env (ECon c)              = return (ECon (renC env c))
   rename env (ESel l)              = return (ESel (renL env l))
   rename env (EAp e1 e2)           = liftM2 EAp (rename env e1) (rename env e2)
   rename env (ELit l)              = return (ELit l)
@@ -388,7 +452,7 @@ instance Rename Exp where
   rename env (EList es)            = liftM EList (rename env es)
   rename env EWild                 = return EWild
   rename env (ESig e t)            = liftM2 ESig (rename env e) (renameQT env t)
-  rename env (ERec m fs)           = liftM (ERec (renRec env m)) (rename env fs)
+  rename env (ERec c fs)           = liftM (ERec (renRec env c)) (rename env fs)
   rename env (ELam ps e)           = do env' <- extRenE env (pvars ps)
                                         liftM2 ELam (rename env' ps) (rename env' e)
   rename env (ELet bs e)           = do env' <- extRenE env (bvars bs)
@@ -425,12 +489,8 @@ instance Rename Exp where
              
   rename env (EAfter e1 e2)        = liftM2 EAfter (rename env e1) (rename env e2)
   rename env (EBefore e1 e2)       = liftM2 EBefore (rename env e1) (rename env e2)
-  rename env (EBStruct (Just c) bs)
-                                   = do env' <- extRenE env (map annotGenerated ls)
-                                        r <- rename env' (ERec (Just (c,True)) (map (\l -> Field l (EVar l)) ls))
-                                        bs' <- mapM (renSBind env' env) bs
-                                        return (ELet bs' r)
-    where ls			   = nub (bvars bs)
+  rename env (EBStruct c bs)       = do bs' <- mapM (renSBind (env { rE = rL env }) env) bs
+                                        return (EBStruct (renRec env c) bs')
   rename env (EForall qs ss)       = do (qs,ss) <- renameQ env qs ss
                                         return (EForall qs ss)
   rename env (ENew e)              = liftM ENew (rename env e)
