@@ -174,10 +174,12 @@ topdecl :: { [Decl] }
         | 'typeclass' conid tyvars 'where' siglist         { [DRec True $2 (reverse $3) [] $5] }
         | 'typeclass' ids                                  { [DTClass $2] }
         | 'instance' var '::' type                         { [DPSig $2 $4] }  
+	| 'instance' var '::' type rhs                     { [DBind [BEqn (var2lhs $2) $5], DPSig $2 $4] }
+--        | 'instance' var '::' type 'where' bindlist        { [DInst (Just $2) $4 $6] }
+--        | 'instance' type 'where' bindlist                 { [DInst Nothing $2 $4] }
         | 'instance' var '::' type 'where' bindlist        { [DBind [BEqn (var2lhs $2) 
-                                                                          (RExp (EBStruct (Just (type2head $4)) [] $6))],
+                                                                          (RExp (EBStruct (Just (type2head $4)) $6))],
                                                               DPSig $2 $4] }
-        | 'instance' var '::' type rhs                     { [DBind [BEqn (var2lhs $2) $5], DPSig $2 $4] }
         | 'instance' ids                                   { [DInstance $2] }
         | 'default' def                                    { [DDefault (reverse $2)] }
         | 'extern' ext                                     { [DExtern (reverse $2)] }
@@ -379,7 +381,7 @@ kind1	:: { Kind }
 exp     :: { Exp }
         : exp0a '::' btype                      { ESig $1 $3 }
         | exp0                                  { $1}
-        | 'struct' bindlist                     { EBStruct Nothing [] $2 }
+        | 'struct' bindlist                     { EBStruct Nothing $2 }
 
 exp0    :: { Exp }
         : exp0a                                 { $1 }

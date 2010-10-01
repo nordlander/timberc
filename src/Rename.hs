@@ -82,26 +82,28 @@ stateVars env                      = dom (rS env) ++ rng (rS env)
 tscope env                         = dom (rT env)
 
 
+mixAnnot old new                   = (annot new) { location = location (annot old), explicit = explicit (annot old), stateVar = stateVar (annot old) }
+
 renE env n@(Tuple _ _)             = n
 renE env n@(Prim _ _)              = n
 renE env v                         = case lookup v (rE env) of
-                                       Just n  -> n { annot = (annot v) {suppress = suppress (annot n), public = public (annot n)} }
+                                       Just n  -> n { annot = mixAnnot v n }
                                        Nothing -> checkQualError "Variable" v (rE env)
 renS env n@(Tuple _ _)             = n
 renS env n@(Prim _ _)              = n
 renS env v                         = case lookup v (rS env) of
-                                       Just n  -> n { annot = a { stateVar = True} }
+                                       Just n  -> n { annot = a { stateVar = True } }
                                        Nothing -> errorIds "Undefined state variable" [v]
   where a                          = annot v
 
 renL env v                         = case lookup v (rL env) of
-                                       Just n  -> n { annot = (annot v){suppress = suppress (annot n), public = public (annot n)} }
+                                       Just n  -> n { annot = mixAnnot v n }
                                        Nothing -> checkQualError "Selector" v (rL  env)
 
 renT env n@(Tuple _ _)             = n
 renT env n@(Prim _ _)              = n
 renT env v                         = case lookup v (rT env) of
-                                       Just n  -> n { annot = (annot v) {suppress = suppress (annot n), public = public (annot n)} }
+                                       Just n  -> n { annot = mixAnnot v n }
                                        Nothing -> errorIds "Undefined type identifier" [v]
 
 extRenE env vs
@@ -423,12 +425,12 @@ instance Rename Exp where
              
   rename env (EAfter e1 e2)        = liftM2 EAfter (rename env e1) (rename env e2)
   rename env (EBefore e1 e2)       = liftM2 EBefore (rename env e1) (rename env e2)
-  rename env e@(EBStruct (Just c) ls bs)
-                                   = do let ls' = map (dropMod . annotGenerated) ls
-                                        env' <- extRenE env ls' 
-                                        r <- rename env' (ERec (Just (c,True)) (map (\(s,s') -> Field s (EVar s')) (ls `zip` ls')))
+  rename env (EBStruct (Just c) bs)
+                                   = do env' <- extRenE env (map annotGenerated ls)
+                                        r <- rename env' (ERec (Just (c,True)) (map (\l -> Field l (EVar l)) ls))
                                         bs' <- mapM (renSBind env' env) bs
                                         return (ELet bs' r)
+    where ls			   = nub (bvars bs)
   rename env (EForall qs ss)       = do (qs,ss) <- renameQ env qs ss
                                         return (EForall qs ss)
   rename env (ENew e)              = liftM ENew (rename env e)
@@ -438,13 +440,16 @@ instance Rename Exp where
 renRec env (Just (n, t))           = Just (renT env n, t)
 renRec env Nothing                 = Nothing
 
+
 renSBind envL envR (BEqn (LFun v ps) rh)    = do envR' <- extRenE envR (pvars ps)
                                                  ps'   <- rename envR' ps
-                                                 liftM (BEqn (LFun (annotGenerated (renE envL v)) ps')) (rename envR' rh)
+                                                 liftM (BEqn (LFun (renE envL v) ps')) (rename envR' rh)
 renSBind envL envR (BEqn (LPat p) rh)       = do p' <- rename envL p
                                                  rh' <- rename envR rh
                                                  return (BEqn (LPat p') rh')
-renSBind _ _ s@(BSig vs t)                  = errorTree "Signature in struct value" s 
+renSBind envL envR (BSig vs t)              = liftM (BSig (map (renE envL) vs)) (renameQT envR t)
+
+
 
 instance Rename r => Rename (Match Pat Exp [Bind] r) where
   rename env = mapMMatch (rename env) (rename env) (rename env) (rename env)

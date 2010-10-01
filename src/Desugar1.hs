@@ -275,16 +275,21 @@ instance Desugar1 Exp where
             mkLocal s
               | fromMod s == modName env = dropMod s
               | otherwise          = s
-    ds1 env e@(EBStruct c0  _ bs) 
-      | ok c c0                    = EBStruct (Just c) labs (ds1 env bs)
+    ds1 env e@(EBStruct c0 bs) 
+      | ok c c0                    = EBStruct (Just c) (ds1 env bs)
       | otherwise                  = errorTree "Declared struct type differs from inferred" e
-      where labs                   = selsFromType env c
-            c                      = typeFromSels env (sort (ren env sels))
+      where c                      = typeFromSels env (sort (ren env sels))
             sels0                  = bvars bs
             cs                     = concat [ stuffedCons p | BEqn (LPat p) _ <- bs ]
             sels1                  = concatMap (boundSels env) cs \\ sels0
             sels                   = sels0 ++ sels1
             boundSels env (c,ls)   = selsFromType env c \\ ren env ls
+	    stuffedCons (PRec (Just (c,False)) fs)
+	                           = (c,bvars fs) : concat [ stuffedCons p | Field _ p <- fs ]
+	    stuffedCons (PTup ps)  = concatMap stuffedCons ps
+	    stuffedCons (PList ps) = concatMap stuffedCons ps
+	    stuffedCons (PAp p p') = stuffedCons p ++ stuffedCons p'
+	    stuffedCons _          = []
             ok c Nothing           = True
             ok c (Just c')         = c == typeFromSels env (selsFromType env c')
     ds1 env (ELet bs e)            = ELet (ds1 env bs) (ds1 env e)
@@ -334,12 +339,6 @@ instance Desugar1 Exp where
     ds1 env (ENew e)             = ENew (ds1 env e)
     ds1 env e                    = e
 
-stuffedCons (PRec (Just (c,False)) fs)
-                                 = (c,bvars fs) : concat [ stuffedCons p | Field _ p <- fs ]
-stuffedCons (PTup ps)            = concatMap stuffedCons ps
-stuffedCons (PList ps)           = concatMap stuffedCons ps
-stuffedCons (PAp p p')           = stuffedCons p ++ stuffedCons p'
-stuffedCons _                    = []
 
 instance Desugar1 r => Desugar1 (Match Pat Exp [Bind] r) where
     ds1 env = mapMatch (ds1 env) (ds1 env) (ds1 env) (ds1 env)

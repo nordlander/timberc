@@ -51,11 +51,11 @@ data Import = Import Bool Name
 data Decl   = DKSig   Name Kind
             | DData   Name [Name] [Type] [Constr]
             | DRec    Bool Name [Name] [Type] [Sig]
-            | DType   Name [Name] Type   -- removed by desugaring
---            | DInst   Type [Bind]        --          -"-
+            | DType   Name [Name] Type
             | DPSig   Name Type 
             | DDefault [Default Type]  
             | DInstance [Name]
+	    | DInst   (Maybe Name) Type [Bind]
             | DTClass [Name]
             | DBind   [Bind]
             | DExtern [Extern Type]
@@ -116,7 +116,7 @@ data Exp    = EVar    Name
             | ESig    Exp Type
             | ERec    (Maybe (Name,Bool)) [EField]
            -- pattern syntax ends here
-            | EBStruct (Maybe Name) [Name] [Bind]  -- struct value in bindlist syntax
+            | EBStruct (Maybe Name) [Bind]  -- struct value in bindlist syntax
             | ELam    [Pat] Exp
             | ELet    [Bind] Exp
            -- the following and ETup, EList removed in desugaring
@@ -501,7 +501,7 @@ instance Subst Exp Name Exp where
     subst s (ECase e alts)      = ECase (subst s e) (subst s alts)
     subst s (EMatch m)          = EMatch (subst s m)
     subst s (ERec m fs)         = ERec m (subst s fs)
-    subst s (EBStruct c ls bs)  = EBStruct c ls (subst s bs)
+    subst s (EBStruct c bs)     = EBStruct c (subst s bs)
     subst s (EIf e1 e2 e3)      = EIf (subst s e1) (subst s e2) (subst s e3)
     subst s (ENeg e)            = ENeg (subst s e)
     subst s (ESeq e1 Nothing e2)  = ESeq (subst s e1) Nothing (subst s e2)
@@ -602,10 +602,11 @@ instance Pr Decl where
     pr (DRec isC c vs sups ss)  = text kwd <+> prId c <+> hsep (map prId vs) 
                                   <+> prSups sups <+> prEq ss $$ prSigs ss
       where kwd                 = if isC then "typeclass" else "struct"
---    pr (DInst t bs)             = text "instance" <+> pr t <+> text "=" $$ nest 4 (vpr bs)
     pr (DPSig v t)              = text "instance" <+> prId v <+> text "::" <+> pr t
     pr (DDefault ts)            = text "default" <+> hpr ',' ts
     pr (DInstance ns)           = text "instance" <+> hpr ',' ns 
+    pr (DInst (Just x) t bs)	= text "instance" <+> prId x <+> text "::" <+> pr t <+> text "where" $$
+				  nest 4 (vpr bs)
     pr (DTClass ns)             = text "typeclass" <+> hpr ',' ns 
     pr (DBind bs)               = vpr bs
     pr (DExtern es)             = text "extern" <+> hpr ',' es
@@ -768,7 +769,7 @@ instance Pr Exp where
     prn 13 (ELit l)             = prn 1 l
     prn 13 (ERec Nothing fs)    = text "{" <+> hpr ',' fs <+> text "}"
     prn 13 (ERec (Just(c,b)) fs)= prId c <+> text "{" <+> hpr ',' fs <+> (if b then empty else text "..") <+> text "}"
-    prn 13 (EBStruct _ _ bs)    = text "struct" $$ nest 4 (vpr bs)
+    prn 13 (EBStruct _ bs)      = text "struct" $$ nest 4 (vpr bs)
     prn 13 (ENeg e)             = text "-" <> prn 0 e
     prn 13 (ESig e qt)          = parens (pr e <+> text "::" <+> pr qt)
     prn 13 (ETup es)            = parens (hpr ',' es)
@@ -844,7 +845,7 @@ instance Ids Exp where
     idents (EList es)           = idents es
     idents (ESig e _)           = idents e
     idents (ERec _  fs)         = idents fs
-    idents (EBStruct _ _ bs)    = idents bs
+    idents (EBStruct _ bs)      = idents bs
     idents (ELam ps e)          = idents e \\ idents ps
     idents (ELet bs e)          = idents bs ++ (idents e \\ bvars bs)
     idents (ECase e as)         = idents e ++ idents as
@@ -1020,7 +1021,7 @@ instance HasPos Exp where
   posInfo (EList es)            = posInfo es
   posInfo (ESig e t)            = between (posInfo e) (posInfo t)
   posInfo (ERec m fs)           = between (posInfo m) (posInfo fs)
-  posInfo (EBStruct c _ bs)     = between (posInfo c) (posInfo bs)
+  posInfo (EBStruct c bs)       = between (posInfo c) (posInfo bs)
   posInfo (ELam ps e)           = between (posInfo ps) (posInfo e)
   posInfo (ELet bs e)           = between (posInfo bs) (posInfo e)
   posInfo (ECase e as)          = between (posInfo e) (posInfo as)
@@ -1098,13 +1099,13 @@ instance Binary Decl where
   put (DData a b c d) = putWord8 1 >> put a >> put b >> put c >> put d
   put (DRec a b c d e) = putWord8 2 >> put a >> put b >> put c >> put d >> put e
   put (DType a b c) = putWord8 3 >> put a >> put b >> put c
---  put (DInst a b) = putWord8 4 >> put a >> put b
   put (DPSig a b) = putWord8 4 >> put a >> put b
   put (DDefault a) = putWord8 5 >> put a
   put (DInstance a) = putWord8 6 >> put a
   put (DTClass a) = putWord8 7 >> put a
   put (DBind a) = putWord8 8 >> put a
   put (DExtern a) = putWord8 9 >> put a
+  put (DInst a b c) = putWord8 10 >> put a >> put b >> put c
   get = do
     tag_ <- getWord8
     case tag_ of
@@ -1112,13 +1113,13 @@ instance Binary Decl where
       1 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (DData a b c d)
       2 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> return (DRec a b c d e)
       3 -> get >>= \a -> get >>= \b -> get >>= \c -> return (DType a b c)
---      4 -> get >>= \a -> get >>= \b -> return (DInst a b)
       4 -> get >>= \a -> get >>= \b -> return (DPSig a b)
       5 -> get >>= \a -> return (DDefault a)
       6 -> get >>= \a -> return (DInstance a)
       7 -> get >>= \a -> return (DTClass a)
       8 -> get >>= \a -> return (DBind a)
       9 -> get >>= \a -> return (DExtern a)
+      10 -> get >>= \a -> get >>= \b -> get >>= \c -> return (DInst a b c)
 
       _ -> fail "no parse"
 
@@ -1236,7 +1237,7 @@ instance Binary Exp where
   put (EReq a b) = putWord8 24 >> put a >> put b
   put (EAfter a b) = putWord8 25 >> put a >> put b
   put (EBefore a b) = putWord8 26 >> put a >> put b
-  put (EBStruct a b c) = putWord8 27 >> put a >> put b >> put c
+  put (EBStruct a b) = putWord8 27 >> put a >> put b
   put (EForall a b) = putWord8 28 >> put a >> put b 
   put (ENew a) = putWord8 29 >> put a
   put (EGen a) = putWord8 30 >> put a
@@ -1270,7 +1271,7 @@ instance Binary Exp where
       24 -> get >>= \a -> get >>= \b -> return (EReq a b)
       25 -> get >>= \a -> get >>= \b -> return (EAfter a b)
       26 -> get >>= \a -> get >>= \b -> return (EBefore a b)
-      27 -> get >>= \a -> get >>= \b -> get >>= \c -> return (EBStruct a b c)
+      27 -> get >>= \a -> get >>= \b -> return (EBStruct a b)
       28 -> get >>= \a -> get >>= \b -> return (EForall a b)
       29 -> get >>= \a -> return (ENew a)
       30 -> get >>= \a -> return (EGen a)
