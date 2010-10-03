@@ -90,7 +90,7 @@ mkEnv c ds (rs,rn,ss)           = (env {sels = map transClose recEnv, modName = 
         selsLocQual             = concatMap (snd . snd) recEnvLoc
         selsLoc                 = map dropMod selsLocQual
         rnSels                  = zip selsLoc selsLocQual ++ zip selsLocQual selsLocQual ++ rn
-        sels (Sig vs _)         = map (qName (str c)) vs
+        sels (Sig vs t)         = map (qName (str c)) vs
         transClose (c,(cs,ss))  = (c, sort (ss ++ nub(concat (map (selectors [c]) cs))))
         selectors cs0 c
           | c `elem` cs0        = errorIds "Circular struct dependencies" (c:cs0)

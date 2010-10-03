@@ -1,3 +1,4 @@
+{-# LANGUAGE PatternGuards #-}
 -- The Timber compiler <timber-lang.org>
 --
 -- Copyright 2008-2009 Johan Nordlander <nordland@csee.ltu.se>
@@ -98,20 +99,39 @@ tiModule (Module _ _ xs' es' ds' ws' [bs']) (Module v ns xs es ds ws bss)
                                      -- restricted rules for coercions, and that the equalities collected 
                                      -- in env2 are actually met by the equations in bs1, bs2 and bss
                                      let env3 = insertDefaults (addTEnv0 (extsMap (es' ++ es)) env2) (pe'++pe) (xs'++xs)
-                                         env4 = addCoercions (weqs1 ++ weqs) env3
+                                         env4 = addCoercions (weqs1 ++ weqs' ++ weqs) env3
                                          weqs1 = eqnsOf bs1 ++ eqnsOf bs2
-                                     (ss0,pe0,bs0) <- tiBindsList env4 bss
+					 teSpec = [] -- specializeInsts env4 pe weqs
+				     -- tr ("### teSpec:\n" ++ render (nest 4 (vpr teSpec)))
+				     -- tr ("%%% bss:\n" ++ render (nest 4 (vpr (map (spec teSpec) bss))))
+                                     (ss0,pe0,bs0) <- tiBindsList env4 (map (spec teSpec) bss)
                                      -- tr ("Top-level: \n" ++ render (nest 4 (vpr (tsigsOf bs0) $$ vpr pe0)))
                                      bs3 <- topresolve env4 ss0 pe0 bs0
                                      -- tr ("Top-level after resolve: \n" ++ render (nest 4 (vpr (tsigsOf bs3))))
                                      bss' <- witReduce (concatBinds [bs1,bs2,bs3])
                                      return (Module v ns xs es ds1 (dom weqs1 ++ ws) bss')
     where bs                    = concatBinds bss
-          weqs                  = restrict (eqnsOf bs') ws' ++ restrict (eqnsOf bs) ws
-          pe                    = restrict (tsigsOf bs) ws
+    	  pe                    = restrict (tsigsOf bs) ws
+          weqs                  = restrict (eqnsOf bs) ws
           pe'                   = restrict (tsigsOf bs') ws'
+          weqs'			= restrict (eqnsOf bs') ws'
           env0                  = addTEnv0 (tsigsOf bs') (impDecls (initEnv v) ds')
-          ps                    = filter (isGenerated . fst) (tsigsOf bs')
+          ps                    = filter (isCoercion . fst) (tsigsOf bs')
+
+specializeInsts env pe []	= []
+specializeInsts env pe ((w, ERec c eqs) : weqs)
+				= map f eqs' ++ specializeInsts env pe weqs
+  where Scheme (R t) ps ke	= lookup' pe w
+	eqs'			= [ (l,x) | (l,EVar x) <- eqs, isGenerated x ]
+	f (l,x)			= (x, Scheme (subst s rh') (ps ++ subst s ps') (ke ++ prune ke' (tyvars t0)))
+	  where Scheme rh' (Scheme (R t0) [] [] : ps') ke' = findType env l
+		s		= matchTypes [(t,t0)]
+specializeInsts env pe (_:weqs)	= specializeInsts env pe weqs
+
+spec te1 (Binds r te eqs)	= Binds r (map spec' te) eqs
+  where spec' (x,_) | isGenerated x, Just sc <- lookup x te1
+				= (x, sc)
+	spec' sig		= sig
 
 tiBindsList env []              = return ([], [], nullBinds)
 tiBindsList env (bs:bss)        = do (ss1, pe1, bs1) <- tiBinds env bs

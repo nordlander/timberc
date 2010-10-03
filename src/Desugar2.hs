@@ -62,11 +62,10 @@ dsDecls (DData c vs bs cs : ds) = liftM (DData c vs (map dsQualBaseType bs) (map
 dsDecls (DRec i c vs bs ss:ds)  = liftM (DRec i c vs (map dsQualBaseType bs) (map dsSig ss) :) (dsDecls ds)
 dsDecls (DType c vs t : ds)     = liftM (DType c vs (dsType t) :) (dsDecls ds)
 dsDecls (DInstance vs : ds)     = liftM (DInstance vs :) (dsDecls ds)
-dsDecls (DInst c t bs : ds)	= do ls' <- mapM (newName . str) ls
+dsDecls (DInst c t bs : ds)	= do ls' <- mapM (\n -> newNameMod (fromMod n) (str n)) ls
 				     bs' <- dsBinds Nothing (subst (ls `zip` ls') bs)
-				     let e = ELet bs' (ERec m (zipWith (\l l' -> Field l (EVar l')) ls ls'))
-				         eqn = BEqn (LFun x []) (RExp e)
-				     liftM (DInstance [x] :) (liftM (DBind [BSig [x] t', eqn] :) (dsDecls ds))
+				     let e = ERec m (zipWith (\l l' -> Field l (EVar l')) ls ls')
+				     liftM (DInstance [x] :) (liftM (DBind (BSig [x] t' : BEqn (LFun x []) (RExp e) : bs') :) (dsDecls ds))
   where ls			= nub (bvars bs)
   	t'			= dsQualPred t
 	m			= Just (type2head t', True)

@@ -404,7 +404,16 @@ matchTs ((t,Tvar n):eqs)                = matchTs (subst s eqs) @@ s
 matchTs ((TAp t u,TAp t' u'):eqs)       = matchTs ((t,t'):(u,u'):eqs)
 matchTs ((TId c,TId c'):eqs)            = matchTs eqs
 matchTs ((TFun ts t,TFun ts' t'):eqs)   = matchTs ((t,t') : ts `zip` ts' ++ eqs)
-matchTs _                               = internalError0 "Core.match"
+matchTs ((t,t'):_)                      = internalError0 ("Core.match: " ++ render (pr t) ++ " /= " ++ render (pr t'))
+
+
+matchTypes []                            = nullSubst
+matchTypes ((t,TId n):eqs) | isVar n     = matchTypes (subst s eqs) @@ s
+  where s                                = n +-> t
+matchTypes ((TAp t u,TAp t' u'):eqs)     = matchTypes ((t,t'):(u,u'):eqs)
+matchTypes ((TId c,TId c'):eqs)          = matchTypes eqs
+matchTypes ((TFun ts t,TFun ts' t'):eqs) = matchTypes ((t,t') : ts `zip` ts' ++ eqs)
+matchTypes ((t,t'):_)                    = internalError0 ("Core.match: " ++ render (pr t) ++ " /= " ++ render (pr t'))
 
 
 -- Equality up to renaming ----------------------------------------------
