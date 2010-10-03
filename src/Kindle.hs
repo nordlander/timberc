@@ -819,6 +819,7 @@ instance Pr Cmd where
                                           nest 2 (vpr alts) $$
                                           text "}"
     pr (CSeq c1 c2)                     = pr c1 $$
+                                          text "//" $$
                                           pr c2
     pr (CBreak)                         = text "break;"
     pr (CRaise e)                       = text "RAISE" <> parens (pr e) <> text ";"

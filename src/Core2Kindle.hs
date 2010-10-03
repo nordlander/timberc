@@ -309,7 +309,6 @@ cValExpTs env (s:ss) (e:es)             = do (bf,e) <- cValExpT env s e
                                              (bf',es) <- cValExpTs env ss es
                                              return (bf . bf', e:es)
 
-
 -- =============================================
 -- Adapting arities
 -- =============================================
@@ -658,15 +657,7 @@ cCmd env (CLet bs c)                    = do (bf,te,bs) <- freezeState env bs
                                              (te',bf') <- cBinds (addTEnv te env) (entered c) bs
                                              (t,c) <- cCmd (addTEnv te' env) c
                                              return (t, bf (bf' c))
-cCmd env (CGen x tx (ECase e alts) c)
-  | isDummy x && null alts'             = cCmd env c
-  | isDummy x                           = do (_,ValR c1) <- cCase cValCmdExp env e alts'
-                                             (t,c2) <- cCmd env c
-                                             return (t, Kindle.CSeq (Kindle.cMap (\_ -> Kindle.CBreak) c1) c2)
-  where alts'                           = filter useful alts
-        useful (Alt _ (EDo _ _ (CRet e)))= e /= eUnit
-        useful _                        = True
-cCmd env (CGen x tx0 e c)               = do (bf,te,e) <- freezeState env e
+cCmd env (CGen x tx0 e c)   		= do (bf,te,e) <- freezeState env e
                                              (bf',e) <- cValExpT (addTEnv te env) tx (EAp e [EVar (self env)])
                                              (t,c) <- cCmd (addATEnv [(x,tx)] env) c
                                              return (t, bf (bf' (Kindle.cBind [(x,Kindle.Val tx e)] c)))
@@ -694,7 +685,7 @@ cCmdExp env (EDo x tx0 c)               = do (t,c) <- cCmd (pushSelf x (addATEnv
                                              return (t, Kindle.cBind [(x,Kindle.Val (Kindle.tRef tx) (Kindle.EVar (self env)))] c)
   where tx                              = cAType tx0
 cCmdExp env (ECase e alts)              = do (bf,te,e) <- freezeState env e
-                                             (t,ValR c) <- cCase cValCmdExp (addTEnv te env) e alts
+					     (t,ValR c) <- cCase cValCmdExp (addTEnv te env) e alts
                                              return (t, bf c)
 cCmdExp env e                           = do (bf,te,e) <- freezeState env e
                                              (bf',t,e) <- cValExp (addTEnv te env) (EAp e [EVar (self env)])
@@ -868,7 +859,10 @@ cExp env e                              = do (vs,te,t,c) <- cFun0 env e
                                              case (vs,te) of
                                                ([],[]) 
 						  | Kindle.CRet e <- c -> return (id, t, ValR e)
-						  | otherwise -> return (id, t, ValR (Kindle.enter (Kindle.EClos [] t [] c) [] []))
+						  | otherwise -> do
+--							x <- newName tempSym
+--							return (Kindle.cBind [(x, Kindle.Fun [] t [] c)], t, ValR (Kindle.ECall x [] []))
+							return (id, t, ValR (Kindle.EEnter (Kindle.EClos [] t [] c) (prim Code) [] []))
 					       _  -> return (id, t', ValR (Kindle.EClos vs t te c))
                                                   where t' = Kindle.TClos vs (rng te) t
                                                   

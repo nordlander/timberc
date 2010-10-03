@@ -205,7 +205,7 @@ redTailCallModCONSAlt f x vs (ALit l c)         = liftM (ALit l) (redTailCallMod
 redTailCallModCONSAlt f x vs (AWild c)          = liftM AWild (redTailCallModCONS f x vs c)
 
 
-single x e                              = length (filter (==x) (evars e)) == 1
+single x e                              = False -- length (filter (==x) (evars e)) == 1
 
 newRef (ENew (Prim Ref _) _ _)          = True
 newRef _                                = False
@@ -218,7 +218,9 @@ redCmd env (CRet e)                     = do e <- redExp env e
                                              redRet env e
 redCmd env e0@(CBind False [(x,Val _ e)] (CRet e'))
   | single x e' && not (newRef e)       = redCmd env (CRet (subst [(x,e)] e'))
-redCmd env (CBind r bs c)               = liftM2 (CBind r) (mapM (redBind env) bs) (redCmd env c)
+redCmd env (CBind r bs c)               = do bs <- mapM (redBind env) bs
+ 					     c <- redCmd env c
+                                             redGen r bs c
 redCmd env (CRun e c)                   = liftM2 CRun (redExp env e) (redCmd env c)
 redCmd env (CUpd x e c)                 = liftM2 (CUpd x) (redExp env e) (redCmd env c)
 redCmd env (CUpdS e x v c)              = do f <- redAssign env (arrayDepth t) (ESel e x) v
@@ -227,12 +229,94 @@ redCmd env (CUpdS e x v c)              = do f <- redAssign env (arrayDepth t) (
 redCmd env (CUpdA e i e' c)             = do e <- redExp env e
                                              liftM2 (CUpdA e i) (redExp env e') (redCmd env c)
 redCmd env (CSwitch e alts)             = liftM2 CSwitch (redExp env e) (mapM (redAlt env) alts)
-redCmd env (CSeq c c')                  = liftM2 CSeq (redCmd env c) (redCmd env c')
+redCmd env (CSeq c c')                  = do c <- redCmd env c
+					     c' <- redCmd env c'
+					     redSeq c c'
 redCmd env (CBreak)                     = return CBreak
 redCmd env (CRaise e)                   = liftM CRaise (redExp env e)
 redCmd env (CWhile e c c')              = liftM3 CWhile (redExp env e) (redCmd env c) (redCmd env c')
 redCmd env (CCont)                      = return CCont
 
+
+redGen False [(x,Val _ e)] c
+  | isDummy x, 
+    False,
+    Just cf <- redGenExp e []		= return (cf c)
+redGen r bs c				= return (CBind r bs c)
+
+redGenExp (EEnter e (Prim Code _) ts es) ctxt
+  | all isEVal es			= redGenExp e ((ts,es):ctxt)
+redGenExp (EClos vs _ te c) ((ts,es):ctxt)
+					= redGenCmd (subst (vs `zip` ts) (subst (dom te `zip` es) c)) ctxt
+redGenExp _ _				= Nothing
+
+redGenCmd (CRet e) []
+  | isEVal e				= Just id
+redGenCmd (CRet e) ctxt			= redGenExp e ctxt
+redGenCmd (CRun e c) ctxt 		= liftM (CRun e .) (redGenCmd c ctxt)
+redGenCmd (CBind r bs c) ctxt		= liftM (CBind r bs .) (redGenCmd c ctxt)
+redGenCmd (CUpd x e c) ctxt		= liftM (CUpd x e .) (redGenCmd c ctxt)
+redGenCmd (CUpdS e x v c) ctxt		= liftM (CUpdS e x v .) (redGenCmd c ctxt)
+redGenCmd (CUpdA e i e' c) ctxt		= liftM (CUpdA e i e' .) (redGenCmd c ctxt)
+redGenCmd (CWhile e c c') ctxt		= liftM (CWhile e c .) (redGenCmd c' ctxt)
+redGenCmd (CSwitch e alts) ctxt		= do alts' <- mapM (redGenAlt ctxt) alts
+					     return (CSeq (CSwitch e alts'))
+redGenCmd _ _				= Nothing
+
+redGenAlt ctxt (ACon k vs te c) 	= do cf <- redGenCmd c ctxt
+					     return (ACon k vs te (cf CBreak))
+redGenAlt ctxt (ALit l c) 		= do cf <- redGenCmd c ctxt
+					     return (ALit l (cf CBreak))
+redGenAlt ctxt (AWild c) 		= do cf <- redGenCmd c ctxt
+					     return (AWild (cf CBreak))
+
+nbreaks (CBreak)			= 1
+nbreaks (CBind _ _ c) 			= nbreaks c
+nbreaks (CRun _ c) 			= nbreaks c
+nbreaks (CUpd _ _ c) 			= nbreaks c
+nbreaks (CUpdS _ _ _ c)			= nbreaks c
+nbreaks (CUpdA _ _ _ c) 		= nbreaks c
+nbreaks (CWhile _ _ c) 			= nbreaks c
+nbreaks (CSeq _ c) 			= nbreaks c
+nbreaks (CSwitch _ alts)		= sum (map nbreaks' alts)
+nbreaks _				= 0
+
+nbreaks' (ACon _ _ _ c) 		= nbreaks c
+nbreaks' (ALit _ c) 			= nbreaks c
+nbreaks' (AWild c) 			= nbreaks c
+
+
+simpleCmd (CRet e)			= isEVal e
+simpleCmd (CRaise e)			= isEVal e
+simpleCmd (CBreak)			= True
+simpleCmd (CCont)			= True
+simpleCmd _				= False
+
+
+redSeq c c'
+  | simpleCmd c'			= redBreak c c'
+  | nbreaks c <= 1			= redBreak c c'
+  | otherwise				= return (CSeq c c')
+
+redBreak (CBreak) ctail 		= return ctail
+redBreak (CRet e) ctail			= return (CRet e)
+redBreak (CBind r bs c) ctail 		= liftM (CBind r bs) (redBreak c ctail)
+redBreak (CRun e c) ctail 		= liftM (CRun e) (redBreak c ctail)
+redBreak (CUpd x e c) ctail 		= liftM (CUpd x e) (redBreak c ctail)
+redBreak (CUpdS e x v c) ctail 		= liftM (CUpdS e x v) (redBreak c ctail)
+redBreak (CUpdA e i e' c) ctail 	= liftM (CUpdA e i e') (redBreak c ctail)
+redBreak (CWhile e c c') ctail 		= liftM (CWhile e c) (redBreak c' ctail)
+redBreak (CSwitch e alts) ctail 	= liftM (CSwitch e) (mapM (redBreakAlt ctail) alts)
+redBreak (CSeq c c') ctail 		= do c' <- redBreak c' ctail
+					     redSeq c c'
+redBreak (CRaise e) ctail 		= return (CRaise e)
+redBreak (CCont) ctail 			= return (CCont)
+
+
+redBreakAlt ctail (ACon k vs te c)	= liftM (ACon k vs te) (redBreak c ctail)
+redBreakAlt ctail (ALit l' c) 		= liftM (ALit l') (redBreak c ctail)
+redBreakAlt ctail (AWild c) 		= liftM (AWild) (redBreak c ctail)
+	
 
 redRet env (EEnter e f ts es)           = do c <- redRet env e
                                              return (cMap (ff env f ts es) c)
@@ -278,11 +362,11 @@ redExp env a@(ESel e l)
 redExp env (ECast t e)                  = liftM (ECast t) (redExp env e)
 
 
-redEnter env e@(ENew n _ bs) f ts es    = case c of
-                                             CRet e' | not (refThis e') 
-                                                    -> return (subst (vs `zip` ts) (subst (dom te `zip` es) e'))
-                                             _      -> return (EEnter e f ts es)
+redEnter env (ENew n _ bs) f ts es
+  | CRet e <- c, not (refThis e)	= return (subst (vs `zip` ts) (subst (dom te `zip` es) e))
   where Fun vs t te c                   = lookup' bs f
+redEnter env (EClos vs _ te c) (Prim Code _) ts es
+  | CRet e <- c, not (refThis e)	= return (subst (vs `zip` ts) (subst (dom te `zip` es) e))
 redEnter env e f ts es                  = return (EEnter e f ts es)
 
 
