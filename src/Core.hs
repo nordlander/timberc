@@ -545,7 +545,7 @@ instance Entered Cmd where
 -- the bound variables have to be renamed)
 subst_bvs' s bvs ifvs           = (r,s')
   where
-    r                           = newvars (bvs++ifvs) cvs
+    r                           = newvars (bvs++ifvs++ofvs) cvs
     cvs                         = intersect bvs ofvs -- clashing variables
     ofvs                        = nub (idents s') --outer free variables,
                                                   --might get captured by a clashing bound var

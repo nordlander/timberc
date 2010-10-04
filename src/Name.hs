@@ -626,6 +626,11 @@ instance Show Name where
   show (Tuple n _)              = '(' : replicate (n-1) ',' ++ ")"
   show (Prim p _)               = strRep p
 
+showFull (Name s n m a)		= (if m==Nothing then "" else fromJust m ++ ".") ++ s ++ "_" ++ show n
+showFull n			= show n
+
+prFullId i			= text (showFull i)
+
 instance Pr Name where
   -- pr (Name s n m a)             = text (s ++ '_' : maybe (show n) id m)
   pr n                          = text (show n)
