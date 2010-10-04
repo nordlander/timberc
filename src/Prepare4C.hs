@@ -96,8 +96,8 @@ addDecls ds env                 = env { decls = ds ++ decls env, strinfo = info 
         taggedunions            = [ n | (n,ns) <- unioncons `zip` allvariants, any (`elem` taggedcons) ns ]
         info                    = mapSnd structInfo ds
         
-structInfo (Struct vs te _)     = (length (ptrFields te []), map (`elem` relevant) vs)
-  where relevant                = rng (varFields te)
+structInfo (Struct vs te ext)   = (length (ptrFields te []), map (`elem` relevant) vs)
+  where relevant                = rng (varFields te ext)
 
 addTEnv te env                  = env { tenv = te ++ tenv env }
 
@@ -262,9 +262,9 @@ gcMUT                           = ELit (lInt 4)
 
 -- Generate gcinfo for structs
 gcinfo env ds                   = map f (prune ds (nulls env))
-  where f (n,Struct vs te _)    = (n, Val tPOLY (ECall (prim GCINFO) [] es))
+  where f (n,Struct vs te ext)  = (n, Val tPOLY (ECall (prim GCINFO) [] es))
           where es | l_vs1 <= 4 = concat [ EVar n : gcSTD : pad l_es0 (ptrFields te vs) | vs <- sampleSpaces vs1 ]
-                   | otherwise  = EVar n : gcBIG : es0 ++ concat (map bitRef (varFields te)) ++ [ELit (lInt 0)]
+                   | otherwise  = EVar n : gcBIG : es0 ++ concat (map bitRef (varFields te ext)) ++ [ELit (lInt 0)]
                 es0             = ptrFields te []
                 l_es0           = length es0
                 (d,vflags)      = findStructInfo env n
@@ -281,14 +281,16 @@ ptrFields te vs                 = map EVar (dom (filter (isPtr vs) te)) ++ [ELit
 sampleSpaces []                 = [[]]
 sampleSpaces (v:vs)             = [ vs1 ++ vs2 | vs1 <- [[],[v]], vs2 <- sampleSpaces vs ]
 
+isPtr vs (Prim Next _, _)       = False         -- the next field in Msg and its subtypes is custom handled during timerQ scanning.
 isPtr vs (n,FunT _ _ _)         = False
 isPtr vs (n,ValT (TVar v _))    = v `notElem` vs
-isPtr vs (Prim Next _, _)       = False         -- the next field in Msg and its subtypes is custom handled during timerQ scanning.
 isPtr vs (n,ValT (TCon k _))    = k `notElem` scalars
-isPtr vs (n, ValT (TClos _ _ _)) = True
+isPtr vs (n,ValT (TClos _ _ _)) = True
+isPtr vs (n,ValT (TThis _))	= True
 
 
-varFields te                    = [ (n,v) | (n,ValT (TVar v _)) <- te ]
+varFields te ext                = [ (n,v) | (n,ValT (TVar v _)) <- te ] ++ [ (n, vs!!(i-1)) | (n,ValT (TThis i)) <- te ]
+  where vs			= equants ext
 
 
 -- Prepare types

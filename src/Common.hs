@@ -189,6 +189,9 @@ startPos Unknown                = Nothing
 class HasPos a where
   posInfo :: a -> PosInfo
 
+instance HasPos Int where
+  posInfo i = Unknown
+
 instance HasPos a => HasPos [a] where
   posInfo xs = foldr between Unknown (map posInfo xs)
 
