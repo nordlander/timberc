@@ -329,11 +329,17 @@ adaptEnv (expected_t:expected_ts) ((x,t):te)
 
 
 -- Adapt the arity structure of a single closure value
+adaptVal (Kindle.TClos exp_vs exp_ts exp_t) (Kindle.TClos vs ts t)
+					= do exp_te <- newEnv paramSym exp_ts
+					     f <- adaptVal' exp_te exp_t (subst s ts) (subst s t)
+					     return (\e -> Kindle.EClos exp_vs exp_t exp_te (Kindle.CRet (f e)))
+  where s				= vs `zip` map Kindle.tVar exp_vs
 adaptVal expected_t t	  		= adaptVal' [] expected_t [] t
+
 
 adaptVal' [] expected_t [] t
   | expected_t == t                     = return id                                                                         -- A
-adaptVal' expected_te expected_t [] t	= adaptVal' expected_te expected_t ts t'                                        -- B
+adaptVal' expected_te expected_t [] t   = adaptVal' expected_te expected_t ts t'                                            -- B
   where Kindle.TClos [] ts t'           = t
 adaptVal' expected_te expected_t ts t
   | l_expected >= l_ts         		= do -- higher-arity closure expected, or arity is correct
