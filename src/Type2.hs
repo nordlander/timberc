@@ -89,14 +89,14 @@ t2Binds env (Binds r te eqs)    = do (s0,eqs') <- t2Eqs eqs
         t2Quant tvs0 (x,t)      = do ids <- newNames tyvarSym (length tvs)
                                      let ts  = map TId ids
                                          s   = tvs `zip` ts
-                                         ke' = ke ++ ids `zip` map tvKind tvs
+                                         ke' = (ke `restrict` tyvars rh) ++ ids `zip` map tvKind tvs
                                      e <- encodeTApp ts (EVar x)
                                      return (x, (Scheme (subst s rh) (subst s ps) ke', s, e))
           where tvs             = nub (filter (`notElem` tvs0) (tvars rh))
                 Scheme rh ps ke = t
                 
         t2Gen env s ss s1 (x,e) = do e' <- encodeTAbs ke (subst s1 (subst s0 e))
-                                     return (x, e')
+				     return (x, e')
           where s0              = mergeSubsts [lookup' ss x, s]
                 ke              = quant (findType env x)
 

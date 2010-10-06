@@ -860,7 +860,7 @@ instance Pr Exp where
     prn 2 (EVar x)                      = prId2 x
     prn 2 (EThis)                       = text "this"
     prn 2 (ELit l)                      = prn 1 l
-    prn 2 (EClos vs t te c)             = prTyvars vs <+> text "CLOSURE" <+> parens (commasep pr te) <+> text "{" $$
+    prn 2 (EClos vs t te c)             = prTyvars vs <+> pr t <+> text "CLOSURE" <+> parens (commasep pr te) <+> text "{" $$
                                           nest 4 (pr c) $$
                                           text "}"
     prn 2 (ENew x ts bs)
