@@ -67,7 +67,7 @@ data Env                        = Env { eqns :: Map Name Exp,
 
 initEnv                         = Env { eqns = [], cons = cons0, sels = [] }
 
-cons0                           = [ [(prim TRUE, 0), (prim FALSE, 0)] , [(prim NIL, 0), (prim CONS, 2)] ]
+cons0                           = [ [(prim TRUE, 0), (prim FALSE, 0)] , [(prim NIL, 0), (prim CONS, 2)],  [(prim LEFT, 1), (prim RIGHT, 1)] ]
 
 consOf ds                       = [ map f ce | (_,DData _ _ ce) <- ds ]
   where f (c, Constr te pe _)   = (c, length te + length pe)
@@ -111,7 +111,7 @@ redTopBinds env (bs : bss)      = do Binds r te es <- redBinds env bs
 
 
 redBinds env (Binds r te eqns)  = do eqns' <- redEqns env eqns
-                                     bs <- staticDelayRule env (Binds r te eqns')
+				     bs <- staticDelayRule env (Binds r te eqns')
                                      return bs
 
 
@@ -140,8 +140,13 @@ redExp env c (EAp e es)         = do es1 <- mapM (redExp env []) es
 redExp env c (ESel e s)         = redExp env (SelC s : c) e
 redExp env c (ECase e alts)     = do alts' <- mapM redAlt alts
                                      redExp env (CaseC (dropRedundant env alts') : c) e
-  where redAlt (Alt p e)        = do e' <- redExp env [] e
-                                     return (Alt p e')
+  where redAlt (Alt (PCon k te) e)
+        			= do e' <- redRhs (conArity env k - length te) e
+                                     return (Alt (PCon k te) e')
+	redAlt (Alt p e)	= liftM (Alt p) (redExp env [] e)
+	redRhs 0 e		= redExp env [] e
+	redRhs n (ELam te e)	= liftM (ELam te) (redRhs (n - length te) e)
+	redRhs n e		= redExp env [] e
 redExp env c (ELet (Binds True te eqs) e)
                                 = do (te,eqs,e) <- alphaC te eqs e
                                      bs <- redBinds env (Binds True te eqs)
