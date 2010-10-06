@@ -205,5 +205,6 @@ extern WORD __GC__MUTLIST[];
 MUTLIST MUTLISTINIT(BITS32);
 UNIT MUTLISTEXTEND(BITS32,MUTLIST,POLY);
 #define MUTLISTEXTRACT(polytag,x)  (x->anchor)
+#define MUTLISTAPPEXTRACT(polytag,x,e) (*x->current = e, x->anchor)
 
 #endif

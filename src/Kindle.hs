@@ -247,10 +247,10 @@ tupleDecl (Tuple n _)                   = Struct ids (map f ids) Top
   where ids                             = take n abcSupply
         f n                             = (n, ValT (TVar n []))
 
-selH                                    = name0 "hd"
-selT                                    = name0 "tl"
+selHd                                   = name0 "hd"
+selTl                                   = name0 "tl"
 
-conSels (Prim CONS _)			= [selH,selT]
+conSels (Prim CONS _)			= [selHd,selTl]
 conSels _				= abcSupply
 
 a                                       = name0 "a"
@@ -267,8 +267,8 @@ primDecls                               = (prim Bool,      Struct []    []      
                                           (prim TRUE,      Struct []    []                      (Extends tBool [])) :
                                           (prim LIST,      Struct [a]   []                      Union) :
                                           (prim NIL,       Struct [a]   []                      (Extends (tLIST ta) [])) :
-                                          (prim CONS,      Struct [a]   [(selH, ValT ta), 
-                                                                         (selT, ValT (tLIST ta))]  (Extends (tLIST ta) [])) :
+                                          (prim CONS,      Struct [a]   [(selHd, ValT ta), 
+                                                                         (selTl, ValT (tLIST ta))]  (Extends (tLIST ta) [])) :
                                           (prim Ref,       Struct [a]   [(prim STATE, ValT ta)] Top) :
                                           (prim EITHER,    Struct [a,b] []                      Union) :
                                           (prim LEFT,      Struct [a,b] [(a,ValT ta)]           (Extends (tEITHER ta tb) [])) :
@@ -327,6 +327,7 @@ primTEnv0                               = (prim TIMERTERM,  FunT []  [tInt] (tId
 					  (prim MUTLISTINIT,    FunT [a] [] (tMUTLIST ta)) :
 					  (prim MUTLISTEXTEND,  FunT [a] [tMUTLIST ta, ta] tUNIT) :
 					  (prim MUTLISTEXTRACT, FunT [a] [tMUTLIST ta] (tLIST ta)) :
+					  (prim MUTLISTAPPEXTRACT, FunT [a] [tMUTLIST ta, tLIST ta] (tLIST ta)) :
 					
 					  (prim ClassRefl,      FunT [a,b] [tClos tb [ta]] (tClos (tClos tb [tInt]) [tClos ta [tInt]])) :
                                           []

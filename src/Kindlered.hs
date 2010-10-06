@@ -63,69 +63,91 @@ redBind env (f, Fun vs t te c)          = do c <- redCmd env c
                                              c <- tailOptimize f t te c
                                              return (f, Fun vs t te c)
 redBind env (x, Val t e)                = do e <- redExp env e
-                                             return (x, Val t e)
+					     e' <- tailOptimizeVal x e
+                                             return (x, Val t e')
 
 -- Tail recursion optimization
 
-tailOptimize f t@(TCon (Prim LIST _) [t']) te c
-  | isTailRecModCONS f c                = do x <- newName tempSym
-                                             c <- redTailCallModCONS f x te c
+tailOptimize f (TCon (Prim LIST _) [t]) te c
+  | isTailRecModCONS isTailCall f c     = do x <- newName tempSym
+                                             c <- redTailCallModCONS isTailCall doTailCall f x t te c
                                              let c' = CWhile (ELit (lInt 1)) c (CRaise (ELit (lInt 1)))
-                                             return (cBind [(x, Val (tMUTLIST t') (ECall (prim MUTLISTINIT) [t'] []))] c')
+                                             return (cBind [(x, Val (tMUTLIST t) (ECall (prim MUTLISTINIT) [t] []))] c')
 tailOptimize f t te c
-  | isTailRecursive f c                 = do c <- redTailCall f te c
+  | isTailRecursive isTailCall f c      = do c <- redTailCall isTailCall doTailCall f te c
                                              return (CWhile (ELit (lInt 1)) c (CRaise (ELit (lInt 1))))
 tailOptimize f t te c                   = return c
 
 
+tailOptimizeVal f (EClos vs (TCon (Prim LIST _) [t]) te c)
+  | isTailRecModCONS isTailEnter f c	= do x <- newName tempSym
+					     c <- redTailCallModCONS isTailEnter doTailEnter f x t te c
+					     let c' = CWhile (ELit (lInt 1)) c (CRaise (ELit (lInt 1)))
+					     return (EClos vs t te (cBind [(x, Val (tMUTLIST t) (ECall (prim MUTLISTINIT) [t] []))] c'))
+tailOptimizeVal f (EClos vs t te c)
+  | isTailRecursive isTailEnter f c	= do c <- redTailCall isTailEnter doTailEnter f te c
+					     return (EClos vs t te (CWhile (ELit (lInt 1)) c (CRaise (ELit (lInt 1)))))
+tailOptimizeVal f e			= return e
 
 
 {-
-
-  f (xs) {                         f (xs) {}
-     ...                               while (1) {
-     return f(es)                          ...
-     ...                                   xs = es; continue;
-  }                                        ...
-                                       }
+                                   f (xs) {}
+  f (xs) {                             while (1) {
+     ...                                   ...
+     return f(es)                          xs = es; continue;
+     ...                                   ...
+     return e                              return e
+     ...                                   ...
+  }                                    }
                                    }
 -}
 
-isTailRecursive f (CBind False [(_, Val t (ECall g _ _))] (CRet (ENew (Tuple 0 _) _ _)))
- | t == tUNIT                           = f == g
-isTailRecursive f (CRet (ECall g _ _))  = f == g
-isTailRecursive f (CRun _ c)            = isTailRecursive f c
-isTailRecursive f (CBind _ _ c)         = isTailRecursive f c
-isTailRecursive f (CUpd _ _ c)          = isTailRecursive f c
-isTailRecursive f (CUpdS _ _ _ c)       = isTailRecursive f c
-isTailRecursive f (CUpdA _ _ _ c)       = isTailRecursive f c
-isTailRecursive f (CSwitch _ alts)      = or [isTailRecursiveAlt f a | a <- alts]
-isTailRecursive f (CSeq c1 c2)          = isTailRecursive f c1 || isTailRecursive f c2
-isTailRecursive f (CWhile _ c1 c2)      = isTailRecursive f c2
-isTailRecursive _ _                     = False
+isTailCall f (ECall g _ _)		= f == g
+isTailCall f e				= False
 
-isTailRecursiveAlt f (ACon _ _ _ c)     = isTailRecursive f c
-isTailRecursiveAlt f (ALit _ c)         = isTailRecursive f c
-isTailRecursiveAlt f (AWild c)          = isTailRecursive f c
+isTailEnter x (EEnter (EVar y) (Prim Code _) _ _)
+					= x == y
+isTailEnter x e				= False
+
+isTailRecursive isT f (CBind False [(_, Val t e)] (CRet (ENew (Tuple 0 _) _ _)))
+ | t == tUNIT                           = isT f e
+isTailRecursive isT f (CRet e)  	= isT f e
+isTailRecursive isT f (CRun _ c)        = isTailRecursive isT f c
+isTailRecursive isT f (CBind _ _ c)     = isTailRecursive isT f c
+isTailRecursive isT f (CUpd _ _ c)      = isTailRecursive isT f c
+isTailRecursive isT f (CUpdS _ _ _ c)   = isTailRecursive isT f c
+isTailRecursive isT f (CUpdA _ _ _ c)   = isTailRecursive isT f c
+isTailRecursive isT f (CSwitch _ alts)  = or [isTailRecursiveAlt isT f a | a <- alts]
+isTailRecursive isT f (CSeq c1 c2)      = isTailRecursive isT f c1 || isTailRecursive isT f c2
+isTailRecursive isT f (CWhile _ c1 c2)  = isTailRecursive isT f c2
+isTailRecursive isT _ _                 = False
+
+isTailRecursiveAlt isT f (ACon _ _ _ c) = isTailRecursive isT f c
+isTailRecursiveAlt isT f (ALit _ c)     = isTailRecursive isT f c
+isTailRecursiveAlt isT f (AWild c)      = isTailRecursive isT f c
+
+doTailCall vs (ECall _ _ es)		= updateParams vs es
+
+doTailEnter vs (EEnter _ _ _ es)	= updateParams vs es
 
 
-redTailCall f vs (CBind False [(_, Val t (ECall g ts es))] (CRet (ENew (Tuple 0 _) _ _)))
-  | t == tUNIT && f == g                = updateParams vs es
-redTailCall f vs (CRet (ECall g _ es))
-  | f == g                              = updateParams vs es
-redTailCall f vs (CBind r bs c)         = liftM (CBind r bs) (redTailCall f vs c)
-redTailCall f vs (CRun e c)             = liftM (CRun e) (redTailCall f vs c)
-redTailCall f vs (CUpd y e c)           = liftM (CUpd y e) (redTailCall f vs c)
-redTailCall f vs (CUpdS e y v c)        = liftM (CUpdS e y v) (redTailCall f vs c)
-redTailCall f vs (CUpdA e i e' c)       = liftM (CUpdA e i e') (redTailCall f vs c)
-redTailCall f vs (CSwitch e alts)       = liftM (CSwitch e) (mapM (redTailAlt f vs) alts)
-redTailCall f vs (CSeq c c')            = liftM2 CSeq (redTailCall f vs c) (redTailCall f vs c')
-redTailCall f vs (CWhile e c c')        = liftM2 (CWhile e) (redTailCall f vs c) (redTailCall f vs c')
-redTailCall f _ c                       = return c
+redTailCall isT doT f vs (CBind False [(_, Val t e)] (CRet (ENew (Tuple 0 _) _ _)))
+  | t == tUNIT && isT f e        		= doT vs e
+redTailCall isT doT f vs (CRet e)
+  | isT f e                      		= doT vs e
+redTailCall isT doT f vs (CBind r bs c) 	= liftM (CBind r bs) (redTailCall isT doT f vs c)
+redTailCall isT doT f vs (CRun e c)     	= liftM (CRun e) (redTailCall isT doT f vs c)
+redTailCall isT doT f vs (CUpd y e c)   	= liftM (CUpd y e) (redTailCall isT doT f vs c)
+redTailCall isT doT f vs (CUpdS e y v c)        = liftM (CUpdS e y v) (redTailCall isT doT f vs c)
+redTailCall isT doT f vs (CUpdA e i e' c)       = liftM (CUpdA e i e') (redTailCall isT doT f vs c)
+redTailCall isT doT f vs (CSwitch e alts)       = liftM (CSwitch e) (mapM (redTailAlt isT doT f vs) alts)
+redTailCall isT doT f vs (CSeq c c')            = liftM2 CSeq (redTailCall isT doT f vs c) (redTailCall isT doT f vs c')
+redTailCall isT doT f vs (CWhile e c c')        = liftM (CWhile e c) (redTailCall isT doT f vs c')
+redTailCall isT doT f _ c                       = return c
 
-redTailAlt f vs (ACon y us te c)        = liftM (ACon y us te) (redTailCall f vs c)
-redTailAlt f vs (ALit l c)              = liftM (ALit l) (redTailCall f vs c)
-redTailAlt f vs (AWild c)               = liftM AWild (redTailCall f vs c)
+redTailAlt isT doT f vs (ACon y us te c)        = liftM (ACon y us te) (redTailCall isT doT f vs c)
+redTailAlt isT doT f vs (ALit l c)              = liftM (ALit l) (redTailCall isT doT f vs c)
+redTailAlt isT doT f vs (AWild c)               = liftM AWild (redTailCall isT doT f vs c)
 
 updateParams [] []                      = return CCont
 updateParams ((x,t):te) (e:es)
@@ -139,70 +161,68 @@ updateParams ((x,t):te) (e:es)
 
 {-
 
-  f (xs) {                         f (xs) {}
-     ...                               MUTLIST x = MUTLISTINIT()
-     return NIL                        while (1) {
+                                     f (xs) {}
+				       MUTLIST x = MUTLISTINIT()
+  f (xs) {                             while (1) {
      ...                                  ...
-     return CONS(e, f(es))                return MUTLISTEXTRACT(x)
+     return NIL                           return MUTLISTEXTRACT(x)
      ...                                  ...
-     return f(es)                         MUTLISTEXTEND(x,e); xs = es; continue
+     return CONS(e, f(es))                MUTLISTEXTEND(x,e); xs = es; continue
      ...                                  ...
-     return RAISE(n)                      xs = es; continue
+     return f(es)                         xs = es; continue  
      ...                                  ...
-  }                                       return RAISE(n)
-                                          ...
-                                       }
+     return RAISE(n)                      return RAISE(n)
+     ...                                  ...
+     return e                             return MUTLISTAPPEXTRACT(x,e)
+     ...                                  ...
+  }                                  } 
+
+
 -}
 
 
-isTailRecModCONS f (CRet (ECast _ (ENew (Prim CONS _) _ bs)))
-  | Just (Val _ (ECall g _ _)) <- lookup selT bs
-                                        = f == g
-isTailRecModCONS f (CRet (ECast _ (ENew (Prim NIL _) _ [])))
-                                        = True
-isTailRecModCONS f (CRet (ECall (Prim Raise _) _ _))
-                                        = True
-isTailRecModCONS f (CRet (ECall g _ _)) = f == g
-isTailRecModCONS f (CRun _ c)           = isTailRecModCONS f c
-isTailRecModCONS f (CBind _ _ c)        = isTailRecModCONS f c
-isTailRecModCONS f (CUpd _ _ c)         = isTailRecModCONS f c
-isTailRecModCONS f (CUpdS _ _ _ c)      = isTailRecModCONS f c
-isTailRecModCONS f (CUpdA _ _ _ c)      = isTailRecModCONS f c
-isTailRecModCONS f (CSwitch _ alts)     = and [isTailRecModCONSAlt f a | a <- alts]
-isTailRecModCONS f (CSeq c1 c2)         = isTailRecModCONS f c1 && isTailRecModCONS f c2
-isTailRecModCONS f (CWhile _ c1 c2)     = isTailRecModCONS f c2
-isTailRecModCONS f (CBreak)             = True
-isTailRecModCONS f (CCont)              = True
-isTailRecModCONS f (CRaise _)           = True
-isTailRecModCONS _ _                    = False
+isTailRecModCONS isT f (CRet (ECast _ (ENew (Prim CONS _) _ bs)))
+  | Just (Val _ e) <- lookup selTl bs   	= isT f e
+isTailRecModCONS isT f (CRun _ c)           	= isTailRecModCONS isT f c
+isTailRecModCONS isT f (CBind _ _ c)        	= isTailRecModCONS isT f c
+isTailRecModCONS isT f (CUpd _ _ c)         	= isTailRecModCONS isT f c
+isTailRecModCONS isT f (CUpdS _ _ _ c)      	= isTailRecModCONS isT f c
+isTailRecModCONS isT f (CUpdA _ _ _ c)      	= isTailRecModCONS isT f c
+isTailRecModCONS isT f (CSwitch _ alts)     	= or [isTailRecModCONSAlt isT f a | a <- alts]
+isTailRecModCONS isT f (CSeq c1 c2)         	= isTailRecModCONS isT f c1 || isTailRecModCONS isT f c2
+isTailRecModCONS isT f (CWhile _ c1 c2)     	= isTailRecModCONS isT f c2
+isTailRecModCONS isT f (CBreak)             	= True
+isTailRecModCONS isT f (CCont)              	= True
+isTailRecModCONS isT f (CRaise _)           	= True
+isTailRecModCONS isT f _                    	= False
 
-isTailRecModCONSAlt f (ACon _ _ _ c)    = isTailRecModCONS f c
-isTailRecModCONSAlt f (ALit _ c)        = isTailRecModCONS f c
-isTailRecModCONSAlt f (AWild c)         = isTailRecModCONS f c
+isTailRecModCONSAlt isT f (ACon _ _ _ c)    	= isTailRecModCONS isT f c
+isTailRecModCONSAlt isT f (ALit _ c)        	= isTailRecModCONS isT f c
+isTailRecModCONSAlt isT f (AWild c)         	= isTailRecModCONS isT f c
 
 
-redTailCallModCONS f x vs (CRet (ECast t (ENew (Prim CONS _) ts bs)))
-  | Just (Val _ (ECall g _ es)) <- lookup selT bs
-                                                = do c <- updateParams vs es
-                                                     return (CRun (ECall (prim MUTLISTEXTEND) ts [EVar x, e]) c)
-  where Val _ e					= lookup' bs selH
-redTailCallModCONS f x vs (CRet e@(ECast _ (ENew (Prim NIL _) ts [])))
-                                                = return (CRet (ECall (prim MUTLISTEXTRACT) ts [(EVar x)]))
-redTailCallModCONS f x vs (CRet (ECall g _ es))
-  | f == g					= updateParams vs es
-redTailCallModCONS f x vs (CBind r bs c)        = liftM (CBind r bs) (redTailCallModCONS f x vs c)
-redTailCallModCONS f x vs (CRun e c)            = liftM (CRun e) (redTailCallModCONS f x vs c)
-redTailCallModCONS f x vs (CUpd y e c)          = liftM (CUpd y e) (redTailCallModCONS f x vs c)
-redTailCallModCONS f x vs (CUpdS e y v c)       = liftM (CUpdS e y v) (redTailCallModCONS f x vs c)
-redTailCallModCONS f x vs (CUpdA e i e' c)      = liftM (CUpdA e i e') (redTailCallModCONS f x vs c)
-redTailCallModCONS f x vs (CSwitch e alts)      = liftM (CSwitch e) (mapM (redTailCallModCONSAlt f x vs) alts)
-redTailCallModCONS f x vs (CSeq c c')           = liftM2 CSeq (redTailCallModCONS f x vs c) (redTailCallModCONS f x vs c')
-redTailCallModCONS f x vs (CWhile e c c')       = liftM2 (CWhile e) (redTailCallModCONS f x vs c) (redTailCallModCONS f x vs c')
-redTailCallModCONS f x _ c                      = return c
+redTailCallModCONS isT doT f x t vs (CRet (ECast _ (ENew (Prim CONS _) _ bs)))
+  | Just (Val _ e) <- lookup selTl bs, isT f e		= do c <- doT vs e
+                                                     	     return (CRun (ECall (prim MUTLISTEXTEND) [t] [EVar x, e']) c)
+  where Val _ e'					= lookup' bs selHd
+redTailCallModCONS isT doT f x t vs (CRet e@(ECast _ (ENew (Prim NIL _) ts [])))
+                                                	= return (CRet (ECall (prim MUTLISTEXTRACT) [t] [(EVar x)]))
+redTailCallModCONS isT doT f x t vs (CRet e)
+  | isT f e						= doT vs e
+redTailCallModCONS isT doT f x t vs (CRet e)            = return (CRet (ECall (prim MUTLISTAPPEXTRACT) [t] [EVar x, e]))
+redTailCallModCONS isT doT f x t vs (CBind r bs c)      = liftM (CBind r bs) (redTailCallModCONS isT doT f x t vs c)
+redTailCallModCONS isT doT f x t vs (CRun e c)          = liftM (CRun e) (redTailCallModCONS isT doT f x t vs c)
+redTailCallModCONS isT doT f x t vs (CUpd y e c)        = liftM (CUpd y e) (redTailCallModCONS isT doT f x t vs c)
+redTailCallModCONS isT doT f x t vs (CUpdS e y v c)     = liftM (CUpdS e y v) (redTailCallModCONS isT doT f x t vs c)
+redTailCallModCONS isT doT f x t vs (CUpdA e i e' c)    = liftM (CUpdA e i e') (redTailCallModCONS isT doT f x t vs c)
+redTailCallModCONS isT doT f x t vs (CSwitch e alts)    = liftM (CSwitch e) (mapM (redTailCallModCONSAlt isT doT f x t vs) alts)
+redTailCallModCONS isT doT f x t vs (CSeq c c')         = liftM2 CSeq (redTailCallModCONS isT doT f x t vs c) (redTailCallModCONS isT doT f x t vs c')
+redTailCallModCONS isT doT f x t vs (CWhile e c c')     = liftM (CWhile e c) (redTailCallModCONS isT doT f x t vs c')
+redTailCallModCONS isT doT f x t vs c                   = return c
 
-redTailCallModCONSAlt f x vs (ACon y us te c)   = liftM (ACon y us te) (redTailCallModCONS f x vs c)
-redTailCallModCONSAlt f x vs (ALit l c)         = liftM (ALit l) (redTailCallModCONS f x vs c)
-redTailCallModCONSAlt f x vs (AWild c)          = liftM AWild (redTailCallModCONS f x vs c)
+redTailCallModCONSAlt isT doT f x t vs (ACon y us te c) = liftM (ACon y us te) (redTailCallModCONS isT doT f x t vs c)
+redTailCallModCONSAlt isT doT f x t vs (ALit l c)       = liftM (ALit l) (redTailCallModCONS isT doT f x t vs c)
+redTailCallModCONSAlt isT doT f x t vs (AWild c)        = liftM AWild (redTailCallModCONS isT doT f x t vs c)
 
 
 single x e                              = False -- length (filter (==x) (evars e)) == 1
@@ -366,7 +386,9 @@ redEnter env (ENew n _ bs) f ts es
   | CRet e <- c, not (refThis e)	= return (subst (vs `zip` ts) (subst (dom te `zip` es) e))
   where Fun vs t te c                   = lookup' bs f
 redEnter env (EClos vs _ te c) (Prim Code _) ts es
-  | CRet e <- c, not (refThis e)	= return (subst (vs `zip` ts) (subst (dom te `zip` es) e))
+  | CRet e <- c, 
+    all isEVal es,
+    not (refThis e)			= return (subst (vs `zip` ts) (subst (dom te `zip` es) e))
 redEnter env e f ts es                  = return (EEnter e f ts es)
 
 
@@ -439,8 +461,8 @@ redAssign env n e0 (ECall (Prim ListArray _) [t] [e])
   where constElems (ENew (Prim CONS _) _ bs)
                                     = do es <- constElems eb
                                          return (ea:es)
-          where Val _ ea            = lookup' bs selH
-                Val _ eb            = lookup' bs selT
+          where Val _ ea            = lookup' bs selHd
+                Val _ eb            = lookup' bs selTl
         constElems (ENew (Prim NIL _) _ bs)
                                     = Just []
         constElems _                = Nothing

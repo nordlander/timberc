@@ -321,6 +321,7 @@ data Prim                       =
 				| MUTLISTINIT           -- initial state of extendable lists
 				| MUTLISTEXTEND		-- add one element to the end
 				| MUTLISTEXTRACT	-- access the built-up list (no more MUTLISTEXTEND must follow afterwards)
+				| MUTLISTAPPEXTRACT	-- access the built-up list after appending a final tail
                                 
                                 | Float2POLY            -- Conversion macros required to circumvent C casting irreguliarity
                                 | POLY2Float

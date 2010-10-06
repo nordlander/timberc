@@ -60,7 +60,7 @@ k2jUpdateBind True (x, Val _ e)	= k2jName x <+> text "= UPDATE" <> parens (k2jNa
 k2jUpdateBind False b		= k2jBind b
 
 
-specialFuns 			= map prim [CharToInt, TimeMin, SecOf, MicrosecOf, MUTLISTINIT, MUTLISTEXTEND, MUTLISTEXTRACT]
+specialFuns 			= map prim [CharToInt, TimeMin, SecOf, MicrosecOf, MUTLISTINIT, MUTLISTEXTEND, MUTLISTEXTRACT, MUTLISTAPPEXTRACT]
 
 
 k2jExp (ECall (Prim CharToInt _) _ [e])
@@ -77,6 +77,8 @@ k2jExp (ECall (Prim MUTLISTEXTEND _) _ [e,e'])
 				= k2jExp e <> text ".push" <> parens (k2jExp e')
 k2jExp (ECall (Prim MUTLISTEXTRACT _) _ [e])
 				= k2jExp e
+k2jExp (ECall (Prim MUTLISTAPPEXTRACT _) _ [e,e'])
+				= k2jExp e <> text ".concat" <> parens (k2jExp e')
 k2jExp (ECall x _ [e1,e2])
   | isJsInfix x        		= k2jExp1 e1 <+> k2jName x <+> k2jExp1 e2
 k2jExp (ELit l)                 = k2jLit l
@@ -96,8 +98,8 @@ k2jExp2 (ECall x _ es)
   | not (isJsInfix x) && x `notElem` specialFuns
           			= k2jName x <> parens (commasep k2jExp es)
 k2jExp2 (ESel e l)
-  | l == selH			= k2jExp2 e <> text "[0]"
-  | l == selT			= k2jExp2 e <> text ".slice(1)"
+  | l == selHd			= k2jExp2 e <> text "[0]"
+  | l == selTl			= k2jExp2 e <> text ".slice(1)"
   | isCoerceLabel l		= k2jExp2 e
   | l == prim STATE		= k2jExp2 e
   | otherwise   	        = k2jExp2 e <> text "." <> k2jSelName l
@@ -135,10 +137,10 @@ k2jList es e			= brackets (commasep k2jExp (reverse es)) <> text ".concat" <> pa
 
 	
 headExp bs			= e
-  where Val _ e			= lookup' bs selH
+  where Val _ e			= lookup' bs selHd
 
 tailExp bs			= e
-  where Val _ e			= lookup' bs selT
+  where Val _ e			= lookup' bs selTl
 
 
 k2jSBinds bs			= foldr1 (\a b -> a <> comma $$ b) (map k2jSBind bs)
@@ -217,8 +219,8 @@ noBreakAlt (ALit _ c) 		= noBreak c
 noBreakAlt (AWild c) 		= noBreak c
 
 k2jUpd e s e'
-  | s == selH			= pre $$ k2jName x <> text "[0] =" <+> k2jExp e'
-  | s == selT			= pre $$ k2jName x <> text ".push.apply" <> parens (k2jName x <> text "," <> k2jExp e')
+  | s == selHd			= pre $$ k2jName x <> text "[0] =" <+> k2jExp e'
+  | s == selTl			= pre $$ k2jName x <> text ".push.apply" <> parens (k2jName x <> text "," <> k2jExp e')
   | otherwise			= k2jExp (ESel e s) <+> text "=" <+> k2jExp e'
   where (pre,x)			= k2jTemp e
 
