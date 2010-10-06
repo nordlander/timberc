@@ -101,7 +101,7 @@ tiModule (Module _ _ xs' es' ds' ws' [bs']) (Module v ns xs es ds ws bss)
                                      let env3 = insertDefaults (addTEnv0 (extsMap (es' ++ es)) env2) (pe'++pe) (xs'++xs)
                                          env4 = addCoercions (weqs1 ++ weqs' ++ weqs) env3
                                          weqs1 = eqnsOf bs1 ++ eqnsOf bs2
-					 teSpec = [] -- specializeInsts env4 pe weqs
+					 teSpec = specializeInsts env4 pe weqs
 				     -- tr ("### teSpec:\n" ++ render (nest 4 (vpr teSpec)))
 				     -- tr ("%%% bss:\n" ++ render (nest 4 (vpr (map (spec teSpec) bss))))
                                      (ss0,pe0,bs0) <- tiBindsList env4 (map (spec teSpec) bss)
