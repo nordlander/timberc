@@ -208,7 +208,8 @@ k2cValBinds (rec,bs)
         g (x, Val _ (ECast _ (ENew n [] bs)))
                                 = k2cStructBinds (ECast (tCon n) (EVar x)) n bs
         g (x, Val _ (EClos [] _ _ (CRet (ECall f [] _))))
-				= k2cExp (ESel (EVar x) (prim Code)) <+> text "=" <+> parens (parens (text "void(*)(void)") <> k2cName f) <> text ";"
+				= k2cExp (ESel (EVar x) (prim GCINFO)) <+> text "=" <+> k2cGCInfoName (prim CLOS) <> text ";" $$
+				  k2cExp (ESel (EVar x) (prim Code)) <+> text "=" <+> parens (parens (text "void(*)(void)") <> k2cName f) <> text ";"
         g _                     = empty
         vs                      = dom bs
         isSafe bs               = all isConst bs && strictBs bs `intersect` vs == []
