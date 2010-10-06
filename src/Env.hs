@@ -431,7 +431,7 @@ rank info (env,TFun [l] u)              = subrank (tFlat l) (tFlat u)
     subrank _ (TFun _ _, _)             = RUnif
     subrank (TId i,_) (TId j,_)         = RConCon i j                -- only one choice, highest rank
     subrank (TId i,_) (Tvar n,_)
-      | l==0 && b'==1                   = RUnif
+      | l==0 && b'==1 && n `notElem` vs = RUnif
       | l==0 && b==0 && not (isNeg v)   = ROrd 0 Pos i b'               -- no embeddings, only constant bounds, right polarity
       | approx && n `notElem` vs        = ROrd l Pos i b'              -- approximate in right direction if n not in environment
       | otherwise                       = RInv l Pos i               -- otherwise rank below v-v unification (dir only for env lookup)
@@ -440,7 +440,7 @@ rank info (env,TFun [l] u)              = subrank (tFlat l) (tFlat u)
             v                           = polarity pvs n             -- polarity of n in target type
 	    b'                          = length (filter (==n) lb')
     subrank (Tvar n,_) (TId i,_)
-      | l==0 && b'==1                   = RUnif
+      | l==0 && b'==1 && n `notElem` vs = RUnif
       | l==0 && b==0 && not (isPos v)   = ROrd 0 Neg i b'              -- no embeddings, only constant bounds, right polarity
       | approx && n `notElem` vs        = ROrd l Neg i b'              -- approximate in right direction if n not in environment
       | otherwise                       = RInv l Neg i               -- otherwise rank below v-v unification (dir only for env lookup)
