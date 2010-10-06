@@ -537,13 +537,19 @@ instance Subst Exp Name Exp where
     subst s (ESel l)            = ESel l
     subst s (EDo v t st)        = EDo v t (subst s st)
     subst s (ETempl v t st)     = ETempl v t (subst s st) 
-    subst s (EAct v st)         = EAct v (subst s st)
-    subst s (EReq v st)         = EReq v (subst s st)
+    subst s (EAct v st)         = EAct (subst s v) (subst s st)
+    subst s (EReq v st)         = EReq (subst s v) (subst s st)
     subst s (EAfter e e')       = EAfter (subst s e) (subst s e')
     subst s (EBefore e e')      = EBefore (subst s e) (subst s e')
     subst s (EForall qs st)     = EForall (subst s qs) (subst s st)
     subst s (ENew e)            = ENew (subst s e)
     subst s (EGen e)            = EGen (subst s e)
+
+instance Subst Name Name Exp where
+    subst s x			= case lookup x s of
+				     Just (EVar y) -> y
+				     Just e        -> internalError "Bad variable substitution" x
+				     Nothing       -> x
 
 instance Subst a Name a => Subst (Field a) Name a where
     subst s (Field l e)         = Field l (subst s e)
