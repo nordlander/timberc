@@ -155,7 +155,7 @@ redExp env c (ELet (Binds False te eqs) e)
                                 = do (te2,eqs2,e) <- alphaC te2 eqs2 e
                                      eqs2 <- redEqns env eqs2
                                      liftM (eLet te2 eqs2) (redExp env c (subst eqs1 e))
-  where (eqs1,eqs2)             = safeSubst (duplicates (evars e)) (strict e) eqs
+  where (eqs1,eqs2)             = safeSubst (dupVars e) (strict e) eqs
         te2                     = te `restrict` dom eqs2
 redExp env _ (ETempl x t te c)  = liftM (ETempl x t te) (redCmd env c)
 redExp env _ (EAct e e')        = liftM2 EAct (redExp env [] e) (redExp env [] e')
@@ -180,7 +180,7 @@ prodExp env (SelC l : c) (ERec _ eqs)
 prodExp env (AppC es : c) (ELam te e)
                                 = do (te2,eqs2,e) <- alphaC te2 eqs2 e
 				     liftM (eLet te2 eqs2) (redExp env c (subst eqs1 e))
-  where (eqs1,eqs2)             = safeSubst (duplicates (evars e)) (strict e) (dom te `zip` es)
+  where (eqs1,eqs2)             = safeSubst (dupVars e) (strict e) (dom te `zip` es)
         te2                     = te `restrict` dom eqs2
 prodExp env (AppC es : c) (EVar (Prim p a))
                                 = prodExp env c (redPrim p a es)
@@ -196,7 +196,7 @@ prodExp env c e                 = return (capp c e)
 
 safeSubst dups strictvs eqs     = partition safe eqs
   where 
-    safe (x,e)                  = smallValue e || ({-x `notElem` dups && -} (terminating e || x `elem` strictvs))
+    safe (x,e)                  = smallValue e || (x `notElem` dups && (terminating e || x `elem` strictvs))
 
 stricts es                      = concat (map strict es)
 strict (EVar x)                 = [x]
@@ -375,6 +375,35 @@ redCmd env (CLet bs@(Binds rec te eqs) c)
   where (xs,es)                 = unzip eqs
 redCmd env (CAss x e c)         = liftM2 (CAss x) (redExp env [] e) (redCmd env c)
 
+
+-- Variables that would lead to work duplication if inlined -----------------------------------------------
+	
+dupVars e			= duplicates (dvars e)
+  where dvars (EVar x)
+	  | isState x		= []
+	  | otherwise		= [x]
+	dvars (ECon _)		= []
+	dvars (ELit _)		= []
+	dvars (ESel e _)	= dvars e
+	dvars (EAp e es)	= concatMap dvars (e:es)
+	dvars (ELam te e)	= dupVars e \\ dom te
+	dvars (ELet bs e)	= concatMap dvars (e:es) \\ xs
+	  where (xs,es)		= unzip (eqnsOf bs)
+	dvars (ERec _ eqs)	= concatMap dvars (rng eqs)
+	dvars (ECase e alts)	= dvars e ++ concat [ dupVars e \\ evars p | Alt p e <- alts ]
+	dvars (EAct e e')	= dvars e ++ dvars e'
+	dvars (EReq e e')	= dvars e ++ dvars e'
+	dvars (EDo x _ c) 	= duplicates (dvarsC c) \\ [x]
+	dvars (ETempl x _ _ c) 	= duplicates (dvarsC c) \\ [x]
+	
+	dvarsC (CLet bs c) 	= (concatMap dvars es ++ dvarsC c) \\ xs
+	  where (xs,es)		= unzip (eqnsOf bs)
+	dvarsC (CGen x _ e c) 	= (dvars e ++ dvarsC c) \\ [x]
+	dvarsC (CAss _ e c) 	= dvars e ++ dvarsC c
+	dvarsC (CRet e) 	= dvars e
+	dvarsC (CExp e) 	= dvars e
+	
+	
 
 -- Comparing terms w.r.t. sizes ---------------------------------------------------------------------------
 
