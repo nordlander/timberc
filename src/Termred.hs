@@ -134,7 +134,7 @@ redExp env c (EVar x)           = case lookup x (eqns env) of
                                                     else prodExp env c (EVar x)
                                     _      -> do prodExp env c (EVar x)
 redExp env c (EAp e es)         = do es1 <- mapM (redExp env []) es
-                                     (bss,es2) <- extractBinds es1
+                                     (bss,es2) <- extractBinds e es1
 				     e3 <- redExp env (AppC es2 : c) e
                                      return (foldr ELet e3 bss)
 redExp env c (ESel e s)         = redExp env (SelC s : c) e
@@ -245,12 +245,17 @@ findLitAlt l (_ : alts)         = findLitAlt l alts
 
 -- Floating out let-bindings --------------------------------------------------------------------------------
 
-extractBinds []                 = return ([], [])
-extractBinds (ELet (Binds r te eqs) e : es)   
+extractBinds (EVar (Prim p _)) es
+  | p `elem` [Fatbar,LazyAnd,LazyOr]
+				= return ([], es)
+extractBinds _ es		= extractBinds' es
+
+extractBinds' []                = return ([], [])
+extractBinds' (ELet (Binds r te eqs) e : es)   
                                 = do (te,eqs,e) <- alphaC te eqs e
-                                     (bss,es') <- extractBinds es
+                                     (bss,es') <- extractBinds' es
                                      return (Binds r te eqs : bss, e:es')
-extractBinds (e : es)           = do (bss,es') <- extractBinds es
+extractBinds' (e : es)          = do (bss,es') <- extractBinds' es
                                      return (bss, e:es')
 
 
