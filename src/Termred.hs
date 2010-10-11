@@ -129,7 +129,7 @@ redExp env c (ELam te e)        = do e <- redExp env [] e
 redExp env c (ECon k)           = prodExp env c (ECon k)
 redExp env c (EVar x)           = case lookup x (eqns env) of
                                     Just e -> do e1 <- prodExp (delEqn x env) c e
-                                                 if size e1 <= size c + 10
+                                                 if size e1 <= size c + 2
                                                     then return e1
                                                     else prodExp env c (EVar x)
                                     _      -> do prodExp env c (EVar x)
