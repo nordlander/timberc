@@ -263,7 +263,7 @@ gcMUT                           = ELit (lInt 4)
 -- Generate gcinfo for structs
 gcinfo env ds                   = map f (prune ds (nulls env))
   where f (n,Struct vs te ext)  = (n, Val tPOLY (ECall (prim GCINFO) [] es))
-          where es | l_vs1 <= 4 = concat [ EVar n : gcSTD : pad l_es0 (ptrFields te vs) | vs <- sampleSpaces vs1 ]
+          where es | l_vs1 <= 4 = concat [ EVar n : gcSTD : pad l_es0 (ptrFields te vs) | vs <- sampleSpaces (reverse vs1) ]
                    | otherwise  = EVar n : gcBIG : es0 ++ concat (map bitRef (varFields te ext)) ++ [ELit (lInt 0)]
                 es0             = ptrFields te []
                 l_es0           = length es0
@@ -287,7 +287,6 @@ isPtr vs (n,ValT (TVar v _))    = v `notElem` vs
 isPtr vs (n,ValT (TCon k _))    = k `notElem` scalars
 isPtr vs (n,ValT (TClos _ _ _)) = True
 isPtr vs (n,ValT (TThis _))	= True
-isPtr vs (n,ValT (TThis _))     = True
 
 varFields te ext                = [ (n,v) | (n,ValT (TVar v _)) <- te ] ++ [ (n, vs!!(i-1)) | (n,ValT (TThis i)) <- te ]
   where vs			= equants ext
