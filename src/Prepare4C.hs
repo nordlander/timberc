@@ -287,7 +287,7 @@ isPtr vs (n,ValT (TVar v _))    = v `notElem` vs
 isPtr vs (n,ValT (TCon k _))    = k `notElem` scalars
 isPtr vs (n,ValT (TClos _ _ _)) = True
 isPtr vs (n,ValT (TThis _))	= True
-
+isPtr vs (n,ValT (TThis _))     = True
 
 varFields te ext                = [ (n,v) | (n,ValT (TVar v _)) <- te ] ++ [ (n, vs!!(i-1)) | (n,ValT (TThis i)) <- te ]
   where vs			= equants ext
