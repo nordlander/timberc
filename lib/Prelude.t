@@ -341,16 +341,16 @@ forallSeq1 f a b c = fE ai (bi-ai) ci
 
 forallListUnit f [] = do result ()
 forallListUnit f (x : xs) = do f x
-                               rs <- forallListUnit f xs
-                               result rs
+                               forallListUnit f xs
+                            --   result ()
 
 forallSeqUnit :: (a -> Cmd b c) -> a -> a -> Cmd b () \\ Enum a
 forallSeqUnit f a b = fS (fromEnum a) (fromEnum b)
   where fS ai bi
          | ai>bi = do result ()
          | otherwise = do f (toEnum ai)
-                          rs <- fS (ai+1)  bi
-                          result rs
+                          fS (ai+1)  bi
+                        --  result ()
 
 forallSeq1Unit :: (a -> Cmd b c) -> a -> a -> a -> Cmd b () \\ Enum a
 forallSeq1Unit f a b c = fE ai (bi-ai) ci
@@ -360,8 +360,8 @@ forallSeq1Unit f a b c = fE ai (bi-ai) ci
         fE ai bi ci 
           | (if bi > 0 then ai > ci else ai < ci) = do result ()
           | otherwise = do f (toEnum ai)
-                           rs <- fE (ai+bi) bi ci
-                           result rs
+                           fE (ai+bi) bi ci
+                          -- result rs
 
 
 -- Prelude support for arithmetic sequences ----------------
