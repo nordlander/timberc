@@ -318,7 +318,7 @@ primTEnv0                               = (prim TIMERTERM,  FunT []  [tInt] (tId
                                           (prim NEWREF,     FunT [a] [ta] (tRef ta)) :
                                           (prim STATEOF,    FunT [a] [tRef ta] ta) :
                                           (prim ASYNC,      FunT []  [tMsg,tTime,tTime] tUNIT) :
-                                          (prim LOCK,       FunT []  [tOID] tUNIT) :
+                                          (prim LOCK,       FunT []  [tOID] tOID) :
                                           (prim UNLOCK,     FunT []  [tOID] tUNIT) :
                                           (prim Inherit,    ValT tTime) :
                                           (prim EmptyArray, FunT [a] [tInt] (tArray ta)) :
@@ -363,14 +363,16 @@ isEVal (EVar _)				= True
 isEVal (ELit _)				= True
 isEVal (EThis)				= True
 isEVal (ECast _ e)			= isEVal e
-isEVal (ESel e _)			= isEVal e
+isEVal (ENew _ _ [])			= True
+isEVal (ESel e l)			= not (isState l) && isEVal e
 isEVal _				= False
 
 simpleExp (EVar _)                      = True
 simpleExp (ELit _)                      = True
-simpleExp (EClos _ _ _ _)		= True
-simpleExp (ENew _ _ bs)			= all simpleExp [ e | (_, Val _ e) <- bs ]
+simpleExp (EThis)			= True
 simpleExp (ECast _ e)                   = simpleExp e
+simpleExp (ENew _ _ bs)			= all simpleExp [ e | (_, Val _ e) <- bs ]
+simpleExp (EClos _ _ _ _)		= True
 simpleExp _                             = False
 
 
@@ -409,8 +411,11 @@ cUpd (x:xs) (e:es) c                    = CUpd x e (cUpd xs es c)
 
 lock t e                                = ECast t (ECall (prim LOCK) [] [ECast tOID e])
 
-unlock x c                              = cMap (CRun (ECall (prim UNLOCK) [] [e0]) . CRet) c
+unlock x t c                            = do y <- newName tempSym
+                                             return (cMap (ff y) c) 
   where e0                              = ECast tOID (EVar x)
+	ff y e | isEVal e		= CRun (ECall (prim UNLOCK) [] [e0]) (CRet e)
+	       | otherwise              = cBind [(y,Val t e)] (CRun (ECall (prim UNLOCK) [] [e0]) (CRet (EVar y)))
 
 
 cMap f (CRet e)                         = f e

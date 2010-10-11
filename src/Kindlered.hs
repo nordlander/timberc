@@ -266,15 +266,18 @@ redCmd env (CCont)                      = return CCont
 
 redGen False [(x,Val _ e)] c
   | isDummy x, 
-    False,
     Just cf <- redGenExp e []		= return (cf c)
+redGen False [(x,Val t (EEnter (EClos vs _ te c') (Prim Code _) ts es))] c
+  | not (refThis c') 			= do y <- newName functionSym
+					     return (cBind [(y, Fun vs t te c')] (cBind [(x,Val t (ECall y ts es))] c))
 redGen r bs c				= return (CBind r bs c)
 
 redGenExp (EEnter e (Prim Code _) ts es) ctxt
   | all isEVal es			= redGenExp e ((ts,es):ctxt)
+redGenExp (ECast _ e) ctxt		= redGenExp e ctxt
 redGenExp (EClos vs _ te c) ((ts,es):ctxt)
 					= redGenCmd (subst (vs `zip` ts) (subst (dom te `zip` es) c)) ctxt
-redGenExp _ _				= Nothing
+redGenExp e ctxt			= Nothing
 
 redGenCmd (CRet e) []
   | isEVal e				= Just id
@@ -287,7 +290,7 @@ redGenCmd (CUpdA e i e' c) ctxt		= liftM (CUpdA e i e' .) (redGenCmd c ctxt)
 redGenCmd (CWhile e c c') ctxt		= liftM (CWhile e c .) (redGenCmd c' ctxt)
 redGenCmd (CSwitch e alts) ctxt		= do alts' <- mapM (redGenAlt ctxt) alts
 					     return (CSeq (CSwitch e alts'))
-redGenCmd _ _				= Nothing
+redGenCmd c ctxt			= Nothing
 
 redGenAlt ctxt (ACon k vs te c) 	= do cf <- redGenCmd c ctxt
 					     return (ACon k vs te (cf CBreak))
@@ -345,16 +348,18 @@ redBreakAlt ctail (AWild c) 		= liftM (AWild) (redBreak c ctail)
 	
 
 redRet env (EEnter e f ts es)           = do c <- redRet env e
-                                             return (cMap (ff env f ts es) c)
+                                             return (cMap (mkEnt env f) c)
+  where mkEnt env (Prim Code _) (EClos vs t te c)
+	  | all isEVal es, 
+	    not (refThis c) 		= subst (vs `zip` ts) (subst (dom te `zip` es) c)
+	mkEnt env f (ENew n _ bs)
+	  | all isEVal es,
+	    not (refThis c)    		= subst (vs `zip` ts) (subst (dom te `zip` es) c)
+	  where Fun vs t te c           = lookup' bs f
+	mkEnt env f e                   = CRet (EEnter e f ts es)
 redRet env e                            = return (CRet e)
 
 
-ff env (Prim Code _) ts es (EClos vs t te c)
-  | all isEVal es && not (refThis c) 	= subst (vs `zip` ts) (subst (dom te `zip` es) c)
-ff env f ts es (ENew n _ bs)
-  | all isEVal es && not (refThis c)    = subst (vs `zip` ts) (subst (dom te `zip` es) c)
-  where Fun vs t te c                   = lookup' bs f
-ff env f ts es e                        = CRet (EEnter e f ts es)
 
 
 -- Convert a switch alternative

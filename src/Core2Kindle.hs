@@ -448,14 +448,16 @@ cFun env (EReq e (EDo x tx0 c))         = do (bf,e) <- cValExpT env tx e
                                              (t,c) <- cCmd (pushSelf x (addATEnv [(x,tx)] env)) c
                                              let bf' = Kindle.cBind [(x,Kindle.Val tx (Kindle.lock tx e))]
                                              y <- newName dummySym
-                                             return ([(y,Kindle.tInt)], t, bf (bf' (Kindle.unlock x c)))
+                                             c' <- Kindle.unlock x t c
+                                             return ([(y,Kindle.tInt)], t, bf (bf' c'))
   where tx                              = Kindle.tRef (cAType tx0)
 cFun env (EReq e e')                    = do (bf,tx,e) <- cValExp env e
                                              x <- newName selfSym
                                              (t,c) <- cCmdExp (pushSelf x (addATEnv [(x,tx)] env)) e'
                                              y <- newName dummySym
                                              let bf' = Kindle.cBind [(x,Kindle.Val tx (Kindle.lock tx e))]
-                                             return  ([(y,Kindle.tInt)], t, bf (bf' (Kindle.unlock x c)))
+					     c' <- Kindle.unlock x t c
+                                             return  ([(y,Kindle.tInt)], t, bf (bf' c'))
 cFun env e@(EAct _ _)                   = cAct env id id e
 cFun env e@(EAp e0 _) 
   | isPrim After e0 || isPrim Before e0 = cAct env id id e
@@ -648,8 +650,8 @@ mkSeq (t1,FunR g1 ts1) (t2,FunR g2 ts2) = (t1, FunR (\es -> Kindle.CSeq (g1 es) 
 -- Translate a Core.Cmd into a Kindle.Cmd
 cCmd env (CRet e)                       = do (bf,te,e) <- freezeState env e
                                              (bf',t,e) <- cValExp (addTEnv te env) e
-                                             if Kindle.simpleExp e then         -- No state references or non-termination in e
-                                                 return (t, bf (bf' (Kindle.CRet e)))   -- Can be ignored (see CGen alternative)
+                                             if Kindle.isEVal e then              -- No state references or non-termination in e
+                                                 return (t, bf (bf' (Kindle.CRet e)))
                                               else do
                                                  x <- newName tempSym
                                                  let bf'' = Kindle.cBind [(x, Kindle.Val t e)]
