@@ -50,14 +50,14 @@ data Import = Import Bool Name
             
 data Decl   = DKSig   Name Kind
 
-            | DData   Name [Name] [Type] (Maybe [Constr])
-            | DStruct Name [Name] [Type] (Maybe [Sig])
+            | DData   Name [Name] [Type] [Constr]
+            | DStruct Name [Name] [Type] [Sig]
             | DType   Name [Name] Type
 
-            | DTClass    [Name]
+            | DTClass    Name
             | DTypeClass Name [Name] [Type] (Maybe [Sig])
 
-            | DInst     [Name]
+            | DInst     Name
             | DInstance (Maybe Name) Type (Maybe [Bind])
 
             | DDflt    [(Name,Name)]
