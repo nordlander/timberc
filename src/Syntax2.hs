@@ -96,7 +96,7 @@ data Pred   = PQual Pred [Pred] [Quant]
             | PClass Type
             deriving (Eq,Show)
             
-data Quant =  Name (Maybe Kind)
+data Quant =  QVar Name (Maybe Kind)
             deriving (Eq,Show)
 
 data Lhs    = LFun Name [Pat]
