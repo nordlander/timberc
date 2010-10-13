@@ -70,7 +70,7 @@ data Decl   = DKSig   Name Kind
             | DExtern [Name]
             deriving  (Eq,Show)
 
-data Constr =  Constr Name [Type] [Pred]
+data Constr =  Constr Name [Type] [Pred] [Quant]
             deriving (Eq,Show)
 
 data Sig    = Sig [Name] Type
@@ -96,7 +96,8 @@ data Pred   = PQual Pred [Pred] [Quant]
             | PClass Type
             deriving (Eq,Show)
             
-data Quant = QVar Name (Maybe Kind)
+data Quant =  Name (Maybe Kind)
+            deriving (Eq,Show)
 
 data Lhs    = LFun Name [Pat]
             | LPat Pat
@@ -152,9 +153,8 @@ data Exp    = EVar    Name
             | EGen    Exp
             deriving  (Eq,Show)
 
-data Rhs a  = RExp    a
-            | RGrd    [GExp a]
-            | RWhere  (Rhs a) [Bind]
+data Rhs a  = RExp    a [Bind]
+            | RGrd    [GExp a] [Bind]
             deriving  (Eq,Show)
 
 data GExp a = GExp    [Qual] a
