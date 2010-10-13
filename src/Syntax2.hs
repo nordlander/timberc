@@ -50,12 +50,12 @@ data Import = Import Bool Name
             
 data Decl   = DKSig   Name Kind
 
-            | DData   Name [Name] [Type] [Constr]
-            | DStruct Name [Name] [Type] [Sig]
+            | DData   Name [Name] [Type] (Maybe [Constr])
+            | DStruct Name [Name] [Type] (Maybe [Sig])
             | DType   Name [Name] Type
 
             | DTClass    [Name]
-            | DTypeClass Name [Name] [Type] [Sig]
+            | DTypeClass Name [Name] [Type] (Maybe [Sig])
 
             | DInst     [Name]
             | DInstance (Maybe Name) Type (Maybe [Bind])
@@ -82,6 +82,7 @@ data Bind   = BSig    [Name] Type
 data Type   = TQual   Type [Pred]
 	    | TFun    [Type] Type
             | TTup    [Type]
+            | TParen  Type
             | TList   Type
             | TAp     Type Type
             | TCon    Name
@@ -112,6 +113,7 @@ data Field  = Field   Name Pat
 
 data Exp    = EVar    Name
             | EAp     Exp Exp
+            | EInfix  Exp Name Exp
             | ECon    Name
             | ESel    Exp Name
             | ELit    Lit
