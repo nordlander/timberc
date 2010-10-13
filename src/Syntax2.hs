@@ -55,10 +55,11 @@ data Decl   = DKSig   Name Kind
             | DType   Name [Name] Type
 
             | DTClass    Name
-            | DTypeClass Name [Name] [Type] (Maybe [Sig])
+            | DTypeClass Name [Name] [Type] [Sig]
 
             | DInst     Name
-            | DInstance (Maybe Name) Type (Maybe [Bind])
+            | DInstance (Maybe Name) Type [Bind]
+            | DDerive (Maybe Name) Type
 
             | DDflt    [(Name,Name)]
             | DDefault [(Type,Type)]
