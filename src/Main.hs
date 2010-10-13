@@ -193,8 +193,8 @@ Kindle2C:
 -}
 
 compileTimber clo ifs (sm,t_file) ti_file c_file h_file js_file
-                        = do let Syntax.Module n is _ _ = sm
-                             putStrLn ("[compiling "++ t_file++"]")
+                        = do putStrLn ("[compiling "++ t_file++"]")
+                             let Syntax.Module n is _ _ = sm
                              (imps,ifs') <- chaseIfaceFiles clo is ifs
                              let ((htxt,mtxt),ifc,jstxt) = runM (passes imps sm)
                              encodeCFile ti_file ifc
@@ -239,12 +239,13 @@ parse clo t_file        = do t_exists <- Directory.doesFileExist t_file
                              let syntax = runM (pass clo parser Parser txt)
                              return (syntax,t_file)
 
+compileAll :: CmdLineOpts -> Map Name (IFace,FilePath) -> [(Syntax.Module,FilePath)] -> IO (Map Name (IFace,FilePath))
 compileAll clo ifs []   = return ifs
 compileAll clo ifs (p@(ms,t_file):t_files)
                         = do res <- checkUpToDate clo t_file ti_file c_file h_file js_file (impNames ms)
                              if res then do 
                                  putStrLn ("[skipping " ++ t_file ++ " (output is up to date)]")
-                                 (ifc,_) <- decodeModule clo ti_file
+                                 ifc <- decodeModule clo ti_file
                                  compileAll clo ((name0 (takeBaseName t_file),ifc):ifs) t_files
                               else do
                                  ifs' <- compileTimber clo ifs (longName p) ti_file c_file h_file js_file
@@ -265,7 +266,7 @@ checkUpToDate clo t_file ti_file c_file h_file js_file imps
                              c_exists  <- Directory.doesFileExist c_file
                              h_exists  <- Directory.doesFileExist h_file
                              js_exists <- Directory.doesFileExist js_file
-                             if not ti_exists || not c_exists || not h_exists || js_exists then 
+                             if not ti_exists || not c_exists || not h_exists || not js_exists then 
                                  return False 
                               else do
                                  t_time  <- Directory.getModificationTime t_file
@@ -406,7 +407,7 @@ checkRoot clo ifs def       = do if1 <- getIFile rootMod
         getIFile m          = case lookup (name0 m) ifs of
                                 Just (ifc,_) -> return ifc
                                 Nothing -> do (ifc,_) <- decodeModule clo (modToPath m ++ ".ti")
-                                              return ifc
+                                              return (ifc :: IFace)
 
 ------------------------------------------------------------------------------
 
@@ -418,8 +419,8 @@ fatalErrorHandler e =  do putStrLn (show e)
 -- Getting import info ---------------------------------------------------------
 
 
-chaseImps                         :: (String -> IO (a,String)) -> (Bool -> (a,String) -> [(Name,Bool)]) -> String -> [Syntax.Import] -> Map Name (a,String) 
-                                     -> IO (Map Name (ImportInfo a), Map Name (a,String))
+chaseImps :: (String -> IO (a,String)) -> (Bool -> (a,String) -> [(Name,Bool)]) -> 
+             String -> [Syntax.Import] -> Map Name (a,String) -> IO (Map Name (ImportInfo a), Map Name (a,String))
 chaseImps readModule iNames suff imps ifs              
                                      = do bms <- mapM (readImport ifs) imps
                                           let newpairs = [p | (p,True) <- bms]
@@ -450,13 +451,7 @@ chaseImps readModule iNames suff imps ifs
         update _ []                = internalError0 "Main.update: did not find module"
         
 
-chaseIfaceFiles
-  :: CmdLineOpts
-     -> [Syntax.Import]
-     -> Map Name (IFace, FilePath)
-     -> IO
-          (Map Name (ImportInfo IFace),
-           Map Name (IFace, FilePath))
+chaseIfaceFiles :: CmdLineOpts -> [Syntax.Import] -> Map Name (IFace, FilePath) -> IO (Map Name (ImportInfo IFace), Map Name (IFace, FilePath))
 chaseIfaceFiles clo                 = chaseImps (decodeModule clo) impsOf2 ".ti"
   where impsOf2 b i                 = map (\(b',c) -> (c,b && b')) (impsOf (fst i))
                                           
@@ -466,13 +461,8 @@ impNames (Syntax.Module _ is _ _)    = map impName is
 impNames2 b (Syntax.Module _ is _ _,_)    
                                      = map  (\(Syntax.Import b' c) -> (c,b && b')) is
 
-chaseSyntaxFiles
-  :: CmdLineOpts
-     -> [Syntax.Import]
-     -> Map Name (Syntax.Module, FilePath)
-     -> IO
-          (Map Name (ImportInfo Syntax.Module),
-           Map Name (Syntax.Module, FilePath))
+chaseSyntaxFiles :: CmdLineOpts -> [Syntax.Import] -> Map Name (Syntax.Module, FilePath) -> 
+                    IO (Map Name (ImportInfo Syntax.Module), Map Name (Syntax.Module, FilePath))
 chaseSyntaxFiles clo                 = chaseImps readSyntax impNames2 ".t"
   where readSyntax f                 = (do cont <- readFile f
                                            currDir <- Directory.getCurrentDirectory

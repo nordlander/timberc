@@ -50,9 +50,11 @@ import Codec.Compression.BZip
 import qualified Data.ByteString.Lazy
 import qualified System.Directory as Directory
 
+decodeCFile :: FilePath -> IO IFace
 decodeCFile ti_file     = do str <- Data.ByteString.Lazy.readFile ti_file
-                             return(decode(decompress str)) 
+                             return (decode(decompress str)) 
 
+encodeCFile :: FilePath -> IFace -> IO ()
 encodeCFile ti_file ifc =  Data.ByteString.Lazy.writeFile ti_file (compress(encode ifc))
 
 {-
@@ -274,13 +276,13 @@ toHTML n (IFace rs ss (Module _ ns xs es ds ws [bs]) _ _) = text "<html><body>\n
          where (bs1,bs2)                = partition (flip elem ws . fst ) te
                                                   
         
-decodeModule clo f                      = (do ifc <- decodeCFile f
-                                              putStrLn ("[reading " ++ show f ++ "]")
+decodeModule clo f                      = (do putStrLn ("[reading " ++ show f ++ "]")
+                                              ifc <- decodeCFile f
                                               currDir <- Directory.getCurrentDirectory
                                               return (ifc,currDir ++ "/" ++ f)) `catch`  
                                                                        (\e -> do let libf = Config.libDir clo ++ "/" ++ f
-                                                                                 ifc <- decodeCFile libf
                                                                                  putStrLn ("[reading " ++ show libf ++ "]")
+                                                                                 ifc <- decodeCFile libf
                                                                                  return (ifc,libf))
 
 impsOf (IFace _ _ (Module _ ns _ _ _ _ _) _ _)  = ns
