@@ -80,7 +80,7 @@ data Bind   = BSig    [Name] Type
             | BEqn    Lhs (Rhs Exp)
             deriving  (Eq,Show)
 
-data Type   = TQual   Type [Pred]
+data Type   = TQual   Type [Pred] [Quant]
 	    | TFun    [Type] Type
             | TTup    [Type]
             | TParen  Type
@@ -91,11 +91,13 @@ data Type   = TQual   Type [Pred]
             | TWild
             deriving  (Eq,Show)
 
-data Pred   = PSub Type Type
+data Pred   = PQual Pred [Pred] [Quant]
+            | PSub Type Type
             | PClass Type
-            | PKind   Name (Maybe Kind)
             deriving (Eq,Show)
             
+data Quant = QVar Name (Maybe Kind)
+
 data Lhs    = LFun Name [Pat]
             | LPat Pat
             deriving (Eq,Show)
