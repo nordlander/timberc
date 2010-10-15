@@ -49,7 +49,9 @@ import PP
 import Common
 import Parser
 import qualified Syntax
-import qualified Syntax2
+--import qualified Syntax2
+--import qualified Syntax2Syntax2
+--import qualified Syntax22Syntax
 import qualified Core
 import Desugar1
 import Rename
@@ -197,6 +199,8 @@ compileTimber clo ifs (sm,t_file) ti_file c_file h_file js_file
                         = do putStrLn ("[compiling "++ t_file++"]")
                              let Syntax.Module n is _ _ = sm
                              (imps,ifs') <- chaseIfaceFiles clo is ifs
+                             -- let sm' = Syntax2Syntax2.s2Module sm
+                             --     sm'' = Syntax22Syntax.sModule sm'
                              let ((htxt,mtxt),ifc,jstxt) = runM (passes imps sm)
                              encodeCFile ti_file ifc
                              writeFile c_file mtxt

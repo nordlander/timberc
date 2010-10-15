@@ -104,10 +104,13 @@ data Lhs    = LFun Name [Pat]
             deriving (Eq,Show)
 
 data Pat    = PVar    Name (Maybe Type)
-            | PCon    Name [Pat]
+            | PCon    Name
+            | PInfix  Pat Pat Pat
+            | PAp     Pat Pat
             | PLit    Lit
             | PTup    [Pat]
             | PList   [Pat]
+            | PParen  Pat
             | PWild
             | PStruct (Maybe (Name,Bool)) [Field]
             deriving  (Eq,Show)
@@ -117,7 +120,7 @@ data Field  = Field   Name Pat
 
 data Exp    = EVar    Name
             | EAp     Exp Exp
-            | EInfix  Exp Name Exp
+            | EInfix  Exp Exp Exp
             | ECon    Name
             | ESel    Exp Name
             | ELit    Lit
