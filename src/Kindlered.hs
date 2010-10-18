@@ -193,9 +193,6 @@ isTailRecModCONS isT f (CUpdA _ _ _ c)      	= isTailRecModCONS isT f c
 isTailRecModCONS isT f (CSwitch _ alts)     	= or [isTailRecModCONSAlt isT f a | a <- alts]
 isTailRecModCONS isT f (CSeq c1 c2)         	= isTailRecModCONS isT f c1 || isTailRecModCONS isT f c2
 isTailRecModCONS isT f (CWhile _ c1 c2)     	= isTailRecModCONS isT f c2
-isTailRecModCONS isT f (CBreak)             	= True
-isTailRecModCONS isT f (CCont)              	= True
-isTailRecModCONS isT f (CRaise _)           	= True
 isTailRecModCONS isT f _                    	= False
 
 isTailRecModCONSAlt isT f (ACon _ _ _ c)    	= isTailRecModCONS isT f c
