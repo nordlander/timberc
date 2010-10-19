@@ -634,7 +634,8 @@ prFullId i			= text (showFull i)
 
 instance Pr Name where
   -- pr (Name s n m a)             = text (s ++ '_' : maybe (show n) id m)
-  pr n                          = text (show n)
+  pr n                          = if isSym n then parens d else d
+    where d			= text (show n)
 
 prExpl a                        = if explicit a then text "~" else empty
 

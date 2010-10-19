@@ -73,28 +73,23 @@ s2Bind (BEqn lh rh)                = Syntax2.BEqn (s2Lhs lh) (s2Rhs s2Exp rh)
 
 s2Type (TQual t ps)                = Syntax2.TQual (s2Type t) ps' qs
   where (ps',qs)                   = s2Preds ps
-s2Type t                           = s2Type0 t
+s2Type (TCon n)                    = Syntax2.TCon n
+s2Type (TVar n)                    = Syntax2.TVar n
+s2Type (TAp t1 t2)                 = Syntax2.TAp (s2Type t1) (s2Type t2)
+s2Type t@(TSub _ _)                = internalError "subtype constraint used as type" t
+s2Type TWild                       = Syntax2.TWild
+s2Type (TList t)                   = Syntax2.TList (s2Type t)
+s2Type (TTup ts)                   = Syntax2.TTup (map s2Type ts)
+s2Type (TFun ts t)                 = Syntax2.TFun (map s2Type ts) (s2Type t) 
 
-s2Type0 (TCon n)                    = Syntax2.TCon n
-s2Type0 (TVar n)                    = Syntax2.TVar n
-s2Type0 (TAp t1 t2)                 = Syntax2.TAp (s2Type0 t1) (s2Type0 t2)
-s2Type0 t@(TSub _ _)                = internalError "subtype constraint used as type" t
-s2Type0 TWild                       = Syntax2.TWild
-s2Type0 (TList t)                   = Syntax2.TList (s2Type0 t)
-s2Type0 (TTup ts)                   = Syntax2.TTup (map s2Type0 ts)
-s2Type0 (TFun ts t)                 = Syntax2.TFun (map s2Type0 ts) (s2Type0 t) 
-
-s2Preds ps                         = s2p ps [] []
-   where s2p [] rs qs              = (reverse rs, reverse qs)
-         s2p (PType (TSub t1 t2) : ps) rs qs
-                                   = s2p ps (Syntax2.PSub (s2Type0 t1) (s2Type0 t2) : rs) qs
-         s2p (PType (TQual t ps') : ps) rs qs
-                                   = s2p ps (Syntax2.PQual (mkPred t) ps'' qs' : rs) qs
-            where (ps'',qs')       = s2Preds ps'
-                  mkPred (TSub t1 t2) = Syntax2.PSub (s2Type0 t1) (s2Type0 t2)
-                  mkPred t            = Syntax2.PClass (s2Type0 t)
-         s2p (PType t : ps) rs qs  = s2p ps (Syntax2.PClass (s2Type t) : rs) qs
-         s2p (PKind n k : ps) rs qs= s2p ps rs (Syntax2.QVar n (Just k) : qs)
+s2Preds ps                         = ([ s2Pred t | PType t <- ps ], [ s2Quant n k | PKind n k <- ps ])
+   where s2Pred (TQual t ps')      = Syntax2.PQual (s2Pred t) ps qs
+           where (ps,qs)           = s2Preds ps'
+         s2Pred (TSub t1 t2)       = Syntax2.PSub (s2Type t1) (s2Type t2)
+         s2Pred t                  = case tFlat t of
+	                               (TCon n, ts) -> Syntax2.PClass n (map s2Type ts)
+	 s2Quant n KWild	   = Syntax2.QVar n
+	 s2Quant n k               = Syntax2.QVarSig n k
 
 s2Default (Default _ n1 n2)        = Syntax2.DDflt [(n1,n2)]
 s2Default (Derive n t)             = Syntax2.DDerive (Just n) (s2Type t)
@@ -104,18 +99,18 @@ s2Extern (Extern n t)              = [Syntax2.DExtern [n], Syntax2.DSig [n] (s2T
 s2Lhs (LFun n ps)                  = Syntax2.LFun n (map s2Pat ps)
 s2Lhs (LPat p)                     = Syntax2.LPat (s2Pat p)
 
-s2Pat (PVar n)                     = Syntax2.PVar n Nothing
+s2Pat (PVar n)                     = Syntax2.PVar n
 s2Pat (PAp (PAp p@(PCon c) p1) p2)
    | isSym c                       = Syntax2.PInfix (s2Pat p1) (Syntax2.PCon c) (s2Pat p2)
 s2Pat (PAp (PAp p@(PVar x) p1) p2)
-   | isSym x                       = Syntax2.PInfix (s2Pat p1) (Syntax2.PVar x Nothing) (s2Pat p2)
+   | isSym x                       = Syntax2.PInfix (s2Pat p1) (Syntax2.PVar x) (s2Pat p2)
 s2Pat (PAp p1 p2)                  = Syntax2.PAp (s2Pat p1) (s2Pat p2)
 s2Pat (PCon c)                     = Syntax2.PCon c       
 s2Pat (PLit lit)                   = Syntax2.PLit lit
 s2Pat (PTup ps)                    = Syntax2.PTup (map s2Pat ps)
 s2Pat (PList ps)                   = Syntax2.PList (map s2Pat ps)
 s2Pat PWild                        = Syntax2.PWild
-s2Pat (PSig (PVar n) t)            = Syntax2.PVar n (Just (s2Type t))
+s2Pat (PSig (PVar n) t)            = Syntax2.PVarSig n (s2Type t)
 s2Pat (PRec mnb fs)                = Syntax2.PStruct mnb (map s2Field fs)
 
 s2Exp (EVar n)                     = Syntax2.EVar n
@@ -130,7 +125,7 @@ s2Exp (EList es)                   = Syntax2.EList (map s2Exp es)
 s2Exp EWild                        = error "s2Exp: argument is EWild"
 s2Exp (ESig e t)                   = Syntax2.ESig (s2Exp e) (s2Type t)
 s2Exp (ERec mnb fs)                = Syntax2.EStruct mnb (map mkBind fs)
-   where mkBind (Field n e)        = Syntax2.BEqn (Syntax2.LPat (Syntax2.PVar n Nothing))
+   where mkBind (Field n e)        = Syntax2.BEqn (Syntax2.LPat (Syntax2.PVar n))
                                                   (Syntax2.RExp (s2Exp e) [])
 s2Exp (EBStruct mnb bs)            = Syntax2.EStruct mnb (map s2Bind bs)
 s2Exp (ELam ps e)                  = Syntax2.ELam (map s2Pat ps) (s2Exp e)

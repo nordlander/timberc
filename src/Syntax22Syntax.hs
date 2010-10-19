@@ -74,15 +74,15 @@ sSig (Sig ns t)                   = Syntax.Sig ns (sType t)
 
 sDflt b (n1,n2)                   = Default b n1 n2
 
-sQuant (QVar n (Just k))          = Syntax.PKind n k
-sQuant (QVar n Nothing)           = Syntax.PKind n Star
+sQuant (QVar n)                   = Syntax.PKind n KWild
+sQuant (QVarSig n k)              = Syntax.PKind n k
 
 sBind (BSig ns t)                 = Syntax.BSig ns (sType t)
 sBind (BEqn lh rh)                = Syntax.BEqn (sLhs lh) (sRhs sExp rh)
 
 
 sType (TQual t ps qs)              = Syntax.TQual (sType t) (map sPred ps ++ map sQuant qs)
-sType t                           = sType0 t
+sType t                            = sType0 t
 
 sType0 (TFun ts t)                 = Syntax.TFun (map sType0 ts) (sType0 t) 
 sType0 (TTup ts)                   = Syntax.TTup (map sType0 ts)
@@ -93,17 +93,16 @@ sType0 (TCon n)                    = Syntax.TCon n
 sType0 (TVar n)                    = Syntax.TVar n
 sType0 TWild                       = Syntax.TWild
 
-sPred (PQual p ps qs)              = Syntax.PType (Syntax.TQual (p2t p) (map sPred ps ++ map sQuant qs))
-   where p2t (PSub t1 t2)          = Syntax.TSub (sType t1) (sType t2)
-         p2t (PClass t)            = sType t
-sPred (PSub t1 t2)                 = Syntax.PType (Syntax.TSub (sType t1) (sType t2))
-sPred (PClass t)                   = Syntax.PType (sType t)
+sPred p                            = Syntax.PType (sPr p)
+  where sPr (PQual p ps qs)        = Syntax.TQual (sPr p) (map sPred ps ++ map sQuant qs)
+	sPr (PSub t1 t2)           = Syntax.TSub (sType t1) (sType t2)
+	sPr (PClass n ts)          = foldl Syntax.TAp (Syntax.TCon n) (map sType ts)
 
 sLhs (LFun n ps)                  = Syntax.LFun n (map sPat ps)
 sLhs (LPat p)                     = Syntax.LPat (sPat p)
 
-sPat (PVar n Nothing)             = Syntax.PVar n 
-sPat (PVar n (Just t))            = Syntax.PSig (Syntax.PVar n) (sType t) 
+sPat (PVar n)         		  = Syntax.PVar n 
+sPat (PVarSig n t)                = Syntax.PSig (Syntax.PVar n) (sType t) 
 sPat (PCon c)                     = Syntax.PCon c
 sPat (PInfix p1 p p2)             = Syntax.PAp (Syntax.PAp (sPat p) (sPat p1)) (sPat p2)
 sPat (PAp p1 p2)                  = Syntax.PAp (sPat p1) (sPat p2)
@@ -125,7 +124,7 @@ sExp (ETup es)                    = Syntax.ETup (map sExp es)
 sExp (EList es)                   = Syntax.EList (map sExp es)
 sExp (ESig e t)                   = Syntax.ESig (sExp e) (sType t)
 sExp (EStruct mnb@(Just (c,False)) bs) = Syntax.ERec mnb (map b2Field bs)
-   where b2Field (BEqn (LPat (PVar n Nothing)) (Syntax2.RExp e [])) = Syntax.Field n (sExp e)
+   where b2Field (BEqn (LPat (PVar n)) (Syntax2.RExp e [])) = Syntax.Field n (sExp e)
 sExp (EStruct mnb bs)             = Syntax.EBStruct mnb (map sBind bs)
 sExp (ELam ps e)                  = Syntax.ELam (map sPat ps) (sExp e)
 sExp (ELet bs e)                  = Syntax.ELet (map sBind bs) (sExp e)

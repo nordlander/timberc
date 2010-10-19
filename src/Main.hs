@@ -49,9 +49,9 @@ import PP
 import Common
 import Parser
 import qualified Syntax
---import qualified Syntax2
---import qualified Syntax2Syntax2
---import qualified Syntax22Syntax
+import qualified Syntax2
+import qualified Syntax2Syntax2
+import qualified Syntax22Syntax
 import qualified Core
 import Desugar1
 import Rename
