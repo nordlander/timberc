@@ -172,7 +172,7 @@ data Stmt   = SExp    Exp
             | SGen    Pat Exp
             | SBind   [Bind]
             | SAss    Pat Exp
-            | SIf     Exp Stmts
+            | SIf     Exp Stmts [(Exp,Stmts)] (Maybe Stmts)
             | SElsif  Exp Stmts
             | SElse   Stmts
             | SCase   Exp [Alt Stmts]
@@ -429,7 +429,7 @@ checkStmts ss
             cmds (RExp c)       = [c]
             cmds (RGrd gs)      = [ c | GExp qs c <- gs ]
             cmds (RWhere rh bs) = cmds rh
-    isRes (s@(SIf e c) : ss)
+    isRes (s@(SIf e c _ _) : ss)
       | and rs && null ss2      = True
       | and rs                  = errorTree "Illegal continuation after final 'if'" (Stmts ss2)
       | all not rs              = isRes ss2
@@ -584,12 +584,14 @@ instance Subst Stmt Name Exp where
     subst s (SBind bs)          = SBind (subst s bs)
     subst s (SAss p e)          = SAss p (subst s e)
 --    subst s (SForall qs st)     = SForall (subst s qs) (subst s st)
-    subst s (SIf e st)          = SIf (subst s e) (subst s st)
+    subst s (SIf e st elsifs els) = SIf (subst s e) (subst s st) (subst s elsifs) (subst s els)
     subst s (SElsif e st)       = SElsif (subst s e) (subst s st)
     subst s (SElse st)          = SElse (subst s st)
     subst s (SCase e alts)      = SCase (subst s e) (subst s alts)
     subst s (SMatch m)          = SMatch (subst s m)
 
+instance Subst (Exp,Stmts) Name Exp where
+    subst s (e,ss)		= (subst s e, subst s ss)
 
 instance Subst Type Name Type where
     subst s (TQual t ps)        = TQual (subst s t) (subst s ps)
@@ -842,12 +844,20 @@ instance Pr Stmt where
     pr (SGen p e)               = pr p <+> text "<-" <+> pr e
     pr (SBind bs)               = vpr bs $$ text "---------"
     pr (SAss p e)               = pr p <+> text ":=" <+> pr e
-    pr (SIf e ss)               = text "if" <+> pr e <+> text "then" $$ nest 4 (pr ss)
+    pr (SIf e ss elsifs els)    = text "if" <+> pr e <+> text "then" $$ nest 4 (pr ss) $$
+	                          vpr elsifs $$ pr els
     pr (SElsif e ss)            = text "elsif" <+> pr e <+> text "then" $$ nest 4 (pr ss)
     pr (SElse ss)               = text "else" $$ nest 4 (pr ss)
 --    pr (SForall qs ss)          = text "forall" <+> hpr ',' qs <+> text "do" $$ nest 4 (pr ss)
     pr (SCase e alts)           = text "case" <+> pr e <+> text "of" $$ nest 4 (vpr alts)
     pr (SMatch m)               = text "Match" <+> prn 12 m
+
+instance Pr (Exp,Stmts) where
+    pr (e,ss)                   = text "elsif" <+> pr e <+> text "then" $$ nest 4 (pr ss)
+
+instance Pr (Maybe Stmts) where
+    pr Nothing			= empty
+    pr (Just ss)		= text "else" $$ nest 4 (pr ss)
 
 
 -- Free variables ------------------------------------------------------------
@@ -941,7 +951,8 @@ instance Ids Stmts where
         identSs (SBind bs : ss)         = identSBind bs ss
         identSs (SAss p e : ss)         = idents e ++ (identSs ss \\ pvars p)
       --identSs (SForall qs ss' : ss)   = identQuals qs ++ (identSs ss' \\ bvars qs) ++ identSs ss
-        identSs (SIf e ss' : ss)        = idents e ++ idents ss' ++ identSs ss
+        identSs (SIf e ss' elsifs els : ss) 
+       					= idents e ++ idents ss' ++ idents elsifs ++ idents els ++ identSs ss
         identSs (SElsif e ss' : ss)     = idents e ++ idents ss' ++ identSs ss
         identSs (SElse ss' : ss)        = idents ss' ++ identSs ss
         identSs (SCase e as : ss)       = idents e ++ idents as ++ identSs ss
@@ -950,6 +961,12 @@ instance Ids Stmts where
         identSBind bs (SBind bs' : ss ) = identSBind (bs++bs') ss
         identSBind bs ss                = idents bs ++ (identSs ss \\ bvars bs)
 
+instance Ids (Exp,Stmts) where
+    idents (e,ss)		= idents e ++ idents ss
+
+instance Ids (Maybe Stmts) where
+    idents Nothing		= []
+    idents (Just ss)		= idents ss
 
 pvars p                         = evars p
 
@@ -1101,7 +1118,7 @@ instance HasPos Stmt where
   posInfo (SBind b)             = posInfo b
   posInfo (SAss p e)            = between (posInfo p) (posInfo e)
 --  posInfo (SForall qs ss)       = between (posInfo qs) (posInfo ss)
-  posInfo (SIf e ss)            = between (posInfo e) (posInfo ss)
+  posInfo (SIf e ss elsifs els) = between (posInfo e) (posInfo ss)
   posInfo (SElsif e ss)         = between (posInfo e) (posInfo ss)
   posInfo (SElse ss)            = posInfo ss
   posInfo (SCase e as)          = between (posInfo e) (posInfo as)
@@ -1350,7 +1367,7 @@ instance Binary Stmt where
   put (SBind a) = putWord8 3 >> put a
   put (SAss a b) = putWord8 4 >> put a >> put b
 --  put (SForall a b) = putWord8 5 >> put a >> put b
-  put (SIf a b) = putWord8 7 >> put a >> put b
+  put (SIf a b c d) = putWord8 7 >> put a >> put b >> put c >> put d
   put (SElsif a b) = putWord8 8 >> put a >> put b
   put (SElse a) = putWord8 9 >> put a
   put (SCase a b) = putWord8 10 >> put a >> put b
@@ -1363,7 +1380,7 @@ instance Binary Stmt where
       3 -> get >>= \a -> return (SBind a)
       4 -> get >>= \a -> get >>= \b -> return (SAss a b)
 --      5 -> get >>= \a -> get >>= \b -> return (SForall a b)
-      7 -> get >>= \a -> get >>= \b -> return (SIf a b)
+      7 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (SIf a b c d)
       8 -> get >>= \a -> get >>= \b -> return (SElsif a b)
       9 -> get >>= \a -> return (SElse a)
       10 -> get >>= \a -> get >>= \b -> return (SCase a b)

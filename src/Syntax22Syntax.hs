@@ -179,13 +179,13 @@ sStmts ss                         = Syntax.Stmts (stmts ss)
         stmts (SSig ns t : ss)     = Syntax.SBind [Syntax.BSig ns (sType t)] : stmts ss
         stmts (SAss p e : ss)      = Syntax.SAss (sPat p) (sExp e) : stmts ss
         stmts (SIf e th eis mbe : ss) 
-                           = Syntax.SIf (sExp e) (sStmts th) : map elsif eis ++ els mbe ++ stmts ss 
+                                   = Syntax.SIf (sExp e) (sStmts th) (map elsif eis) (els mbe) : stmts ss 
         stmts (SCase e as : ss)    = Syntax.SCase (sExp e) (map (sAlt sStmts) as) : stmts ss
         stmts []                   = []
 
-        elsif (e,ss)               = Syntax.SElsif (sExp e) (sStmts ss)
+        elsif (e,ss)               = (sExp e, sStmts ss)
 
-        els (Just ss)              = [Syntax.SElse (sStmts ss)]
-        els Nothing                = []
+        els (Just ss)              = Just (sStmts ss)
+        els Nothing                = Nothing
 
 

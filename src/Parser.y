@@ -579,11 +579,16 @@ stmt    :: { Stmt }
         | lhs '=' 'forall' quals 'new' exp10as  { SBind [BEqn $1 (RExp (EAp (EVar (prim New)) (forallClass $4 $6)))] }
         | pat ':=' exp                          { SAss $1 $3 }
         | 'result' exp                          { SRet $2 }
-        | 'if' exp 'then' stmtlist              { SIf $2 $4 }
-        | 'elsif' exp 'then' stmtlist           { SElsif $2 $4 }
-        | 'else' stmtlist                       { SElse $2 }
+        | 'if' exp 'then' stmtlist elsifs else  { SIf $2 $4 $5 $6 }
         | 'case' exp 'of' saltslist             { SCase $2 $4 }
      
+elsifs  :: { [(Exp,Stmts)] }
+        : 'elsif' exp 'then' stmtlist elsifs    { ($2,$4) : $5 }
+        | {- empty -}                           { [] }
+
+else    :: { Maybe Stmts }
+        : 'else' stmtlist                       { Just $2 }
+        | {- empty -}                           { Nothing }
 
 mexp    :: { Exp }
 --      : exp0as '::' type                      { ESig $1 $3 }

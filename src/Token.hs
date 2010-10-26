@@ -167,6 +167,7 @@ reserved_ids
         ( "where",     KW_Where )
       ]
 
+acceptColumnAlignedKeywords = ["elsif","else"]
 
 
 tab_length = 8 :: Int

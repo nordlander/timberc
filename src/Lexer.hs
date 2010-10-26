@@ -133,12 +133,15 @@ lexBOL cont s loc@(y,x) col state =
         -- Also pop the context here, so that we don't insert
         -- another close brace before the parser can pop it.
         cont VRightCurly s loc 0 (tail state)
-    else if need_semi_colon x state then
+    else if need_semi_colon x state && not (acceptAlign s) then
         -- tr' ("layout: inserting ';' at " ++ show loc ++ " " ++ show state ++ ", input: " ++ s ++ "\n") $
         cont SemiColon s loc col state
     else
         lexToken cont s loc col state
 
+acceptAlign s		 = x `elem` acceptColumnAlignedKeywords
+  where (x,_)		 = span isIdent s
+  
 
 need_close_curly x []    = False
 need_close_curly x (Layout n:Layout m:_)

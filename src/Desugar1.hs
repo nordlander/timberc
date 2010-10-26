@@ -384,10 +384,12 @@ instance Desugar1 Stmts where
                 doRhs (RWhere r bs)  = RWhere (doRhs r) bs
                 doGrd (GExp qs ss)   = GExp qs (eDo env ss)
         ds1S env (SMatch m : ss)     = SMatch (ds1 env m) : ds1S env ss
-        ds1S env (SIf e ss' : ss)    = doIf (EIf e (eDo env ss')) ss
+        ds1S env (SIf e ss' elsifs els : ss)    = doIf (EIf e (eDo env ss')) (map (uncurry SElsif) elsifs ++ (ff els ss))
           where doIf f (SElsif e ss':ss) = doIf (f . EIf e (eDo env ss')) ss
                 doIf f (SElse ss':ss)    = ds1S' env (SExp (f (eDo env ss')) : ss)
                 doIf f ss                = doIf f (SElse (Stmts []) : ss)
+                ff Nothing ss        = ss
+                ff (Just ss') ss     = SElse ss' : ss
         ds1S env (s@(SElsif _ _) : _)= errorTree "elsif without corresponding if" s
         ds1S env (s@(SElse _) : _)   = errorTree "else without corresponding if" s
 

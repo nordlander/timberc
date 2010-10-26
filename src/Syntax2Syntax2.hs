@@ -179,7 +179,8 @@ s2Stmts (Stmts ss)                 = stmts ss
         stmts (SGen p e : ss)      = Syntax2.SGen (s2Pat p) (s2Exp e) : stmts ss
         stmts (SBind bs : ss)      = map (e2s . s2Bind) bs ++ stmts ss         
         stmts (SAss p e : ss)      = Syntax2.SAss (s2Pat p) (s2Exp e) : stmts ss
-        stmts (SIf e ss' : ss)     = s2if (s2Exp e) (s2Stmts ss') [] ss 
+        stmts (SIf e ss' elsifs els: ss)
+                                   = Syntax2.SIf (s2Exp e) (s2Stmts ss') (map s2Elsif elsifs) (s2Els els) : stmts ss
         stmts (SCase e as : ss)    = Syntax2.SCase (s2Exp e) (map (s2Alt s2Stmts) as) : stmts ss
         stmts []                   = []
         -- should catch illegal elsif/else here
@@ -187,9 +188,7 @@ s2Stmts (Stmts ss)                 = stmts ss
         e2s (Syntax2.BEqn lh rh)   = Syntax2.SEqn lh rh
         e2s (Syntax2.BSig ns t)    = Syntax2.SSig ns t
 
-        s2if e th es (SElsif e' ss' : ss)
-                                   = s2if e th ((s2Exp e', s2Stmts ss') : es) ss
-        s2if e th es (SElse ss' : ss)
-                                   = Syntax2.SIf e th (reverse es) (Just (s2Stmts ss')) : stmts ss
-        s2if e th es ss            = Syntax2.SIf e th (reverse es) Nothing : stmts ss
+        s2Elsif (e,ss)             = (s2Exp e, s2Stmts ss)
+        s2Els Nothing		   = Nothing
+        s2Els (Just ss)            = Just (s2Stmts ss)
 
