@@ -38,15 +38,16 @@ module Syntax2 where
 
 import Common
 import Lexer
-import Fixity
 import PP
 import Data.Binary
+import Data.List(sort)
 import Control.Monad(liftM2)
 
 data Module = Module Name [Import] [Decl] [Decl]
             deriving  (Show)
 
-data Import = Import Bool Name
+data Import = Import     Name
+            | Use        Name
             deriving (Show)
             
 data Decl   = DKSig      Name Kind
@@ -62,8 +63,7 @@ data Decl   = DKSig      Name Kind
             | DInstance  (Maybe Name) Type [Bind]
             | DDerive    (Maybe Name) Type
 
-            | DDflt      [(Name,Name)]
-            | DDefault   [(Type,Type)]
+            | DDefault   [(Name,Name)]
 
             | DSig       [Name] Type
             | DEqn       Lhs (Rhs Exp)
@@ -72,6 +72,7 @@ data Decl   = DKSig      Name Kind
             deriving  (Eq,Show)
 
 data Constr = Constr  Name [Type] [Pred] [Quant]
+            | CInfix  Type Name Type [Pred] [Quant]
             deriving (Eq,Show)
 
 data Sig    = Sig     [Name] Type
@@ -143,13 +144,13 @@ data Exp    = EVar    Name
             | EAnd    Exp Exp
             | EOr     Exp Exp
 
-            | ESectR  Exp Name
-            | ESectL  Name Exp
+            | ESectR  Exp Exp   -- operator to the right
+            | ESectL  Exp Exp   -- operator to the left
             | ESelector Name
 
             | EDo     [Quals] (Maybe Name) (Maybe Name) Stmts 
             | EClass  [Quals] (Maybe Name) (Maybe Name) Stmts
-            | EAct    (Maybe Name) (Maybe Exp) Stmts -- 2nd argument is the optional deadline!
+            | EAct    (Maybe Exp) (Maybe Name) Stmts -- 1st argument is the optional deadline!
             | EReq    (Maybe Name) Stmts 
 
            -- pre-expressions, only allowed as unshadowed subexpressions of a Stmt
@@ -178,8 +179,8 @@ data Qual   = QExp    Exp
 
 type Stmts  = [Stmt]
 
-data Stmt   = SExp    Exp
-            | SRet    Exp
+data Stmt   = SRes    Exp
+            | SExp    Exp
             | SGen    Pat Exp
             | SSig    [Name] Type
             | SEqn    Lhs (Rhs Exp)
@@ -201,8 +202,8 @@ instance Pr Module where
 					  vpr ps
 
 instance Pr Import where
-   pr (Import True n)           	= text "import" <+> pr n
-   pr (Import False n)          	= text "use" <+> pr n
+   pr (Import n)	           	= text "import" <+> pr n
+   pr (Use n)          			= text "use" <+> pr n
 
 
 -- Declarations --------------------------------------------------------------
@@ -223,8 +224,7 @@ instance Pr Decl where
     pr (DInstance x t bs)		= text "instance" <+> prWit x <+> pr t <+> text "where" $$
                                           nest 4 (vpr bs)
 
-    pr (DDflt ns)			= text "default" <+> hpr ',' ns
-    pr (DDefault ts)            	= text "default" <+> hpr ',' ts
+    pr (DDefault ns)            	= text "default" <+> hpr ',' ns
 
     pr (DSig xs t)               	= hpr ',' xs <+> text "::" <+> pr t
     pr (DEqn lhs rhs)			= prEqn lhs (text "=") rhs
@@ -240,8 +240,6 @@ prWit (Just x)			= pr x <+> text "::"
 instance Pr (Name,Name) where
     pr (x,x')			= pr x <+> text "<" <+> pr x'
 
-instance Pr (Type,Type) where
-    pr (t,t')			= pr t <+> text "<" <+> pr t'
 
 -- Sub/supertypes -----------------------------------------------------------
 
@@ -256,7 +254,8 @@ prSubs ts                       = char '>' <+> hpr ',' ts
 
 
 instance Pr Constr where
-  pr (Constr c ts ps qs)        = pr c <+> hsep (map (prn 3) ts) <> prPreds ps qs
+  pr (Constr c ts ps qs)        = pr c <+> hsep (map (prn 3) ts) <+> prPreds ps qs
+  pr (CInfix t1 c t2 ps qs)	= pr t1 <+> pr c <+> pr t2 <+> prPreds ps qs
 
 
 prCons []                       = empty
@@ -273,7 +272,7 @@ instance Pr Sig where
 -- Predicates ------------------------------------------------------------
 
 instance Pr Pred where
-    pr (PQual p ps qs)		= pr p <> prPreds ps qs
+    pr (PQual p ps qs)		= pr p <+> prPreds ps qs
     pr (PSub t t')		= pr t <+> text "<" <+> pr t'
     pr (PClass n ts)           	= pr n <+> hsep (map pr ts)
 
@@ -283,13 +282,13 @@ instance Pr Quant where
 
 
 prPreds [] []                   = empty
-prPreds ps qs                   = text " \\\\" <+> sep (punctuate comma (map pr ps ++ map pr qs))
+prPreds ps qs                   = text "\\\\" <+> sep (punctuate comma (map pr ps ++ map pr qs))
 
 
 -- Types -----------------------------------------------------------------
 
 instance Pr Type where
-    pr (TQual t ps qs)       	= pr t <> prPreds ps qs
+    pr (TQual t ps qs)       	= pr t <+> prPreds ps qs
     pr (TFun ts t) 		= hsep (intersperse (text "->") (map pr (ts++[t])))
     pr (TAp t t')            	= pr t <+> pr t'
     pr (TCon c)              	= pr c
@@ -304,9 +303,7 @@ instance Pr Type where
 
 instance Pr Pat where
     pr (PAp p p')		= pr p <+> pr p'
-    pr (PInfix l (PCon k) r)	= pr l <+> prOp k <+> pr r
-    pr (PInfix l (PVar x) r)	= pr l <+> prOp x <+> pr r
-    pr (PInfix l op r)		= pr op <+> parens (pr l) <+> parens (pr r)
+    pr (PInfix l op r)		= pr l <+> prOpPat op <+> pr r
     pr (PCon k)			= pr k
     pr (PVarSig v t)	        = pr v <+> text "::" <+> pr t
     pr (PVar v)     	        = pr v
@@ -318,6 +315,8 @@ instance Pr Pat where
     pr (PList ps)           	= brackets (hpr ',' ps)
     pr (PParen p)           	= parens (pr p)
 
+prOpPat (PVar x) | isSym x	= pr x
+prOpPat p			= text "`" <> pr p <> text "`"
 
 -- Bindings ----------------------------------------------------------------
 
@@ -352,11 +351,9 @@ instance Pr Exp where
     pr (ECase e alts)        	= text "case" <+> pr e <+> text "of" $$ nest 2 (vpr alts)
     pr (EDo qs v t ss)       	= prForall qs <+> text "do" <> prN v <> prN t $$ nest 4 (pr ss)
     pr (EClass qs v t ss)    	= prForall qs <+> text "class" <> prN v <> prN t $$ nest 4 (pr ss)
-    pr (EAct v b ss)  		= prBefore b <+> text "action" <> prN v $$ nest 4 (pr ss) 
+    pr (EAct b v ss)  		= prBefore b <+> text "action" <> prN v $$ nest 4 (pr ss) 
     pr (EReq v ss)           	= text "request" <> prN v $$ nest 4 (pr ss) 
-    pr (EInfix l (ECon k) r)	= pr l <+> prOp k <+> pr r
-    pr (EInfix l (EVar x) r)	= pr l <+> prOp x <+> pr r
-    pr (EInfix l op r)		= pr op <+> parens (pr l) <+> parens (pr r)
+    pr (EInfix l op r)		= pr l <+> prOpExp op <+> pr r
     pr (ENew qs e)         	= prForall qs <+> text "new" <+> pr e
     pr (EGen e)             	= text "<-" <+> pr e
     pr (EAp e e')           	= pr e <+> pr e'
@@ -370,8 +367,8 @@ instance Pr Exp where
     pr (ENeg e)             	= text "-" <> pr e
     pr (ESig e t)           	= parens (pr e <+> text "::" <+> pr t)
     pr (ETup es)            	= parens (hpr ',' es)
-    pr (ESectR e op)        	= parens (pr e <> prOp op)
-    pr (ESectL op e)        	= parens (prOp op <> pr e)
+    pr (ESectR e op)        	= parens (pr e <> prOpExp op)
+    pr (ESectL op e)        	= parens (prOpExp op <> pr e)
     pr (ESelector l)        	= parens (text "." <> pr l)
     pr (EList es)           	= brackets (hpr ',' es)
     pr (ESeq e Nothing to)  	= brackets (pr e <> text ".." <> pr to)
@@ -379,6 +376,8 @@ instance Pr Exp where
     pr (EComp e qs)         	= brackets (empty <+> pr e <+> char '|' <+> hpr ',' qs)
     pr (EParen e)               = parens (prn 0 e)
 
+prOpExp (EVar x) | isSym x	= pr x
+prOpExp e			= text "`" <> pr e <> text "`"
 
 prN Nothing 			= empty 
 prN (Just v) 			= text "@" <> pr v
@@ -409,8 +408,8 @@ instance Pr [Stmt] where
     pr ss			= vpr ss
 
 instance Pr Stmt where
+    pr (SRes e)                 = text "result" <+> pr e
     pr (SExp e)                 = pr e
-    pr (SRet e)                 = text "result" <+> pr e
     pr (SGen p e)               = pr p <+> text "<-" <+> pr e
     pr (SSig xs t)              = hpr ',' xs <+> text "::" <+> pr t
     pr (SEqn lhs rhs)        	= prEqn lhs (text "=") rhs

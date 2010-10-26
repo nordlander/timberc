@@ -44,7 +44,8 @@ import qualified Syntax
 
 sModule (Module n is ds1 ds2)      = Syntax.Module n (map sImport is) (sDecls True ds1) (sDecls False ds2)
 
-sImport (Import b n)              = Syntax.Import b n
+sImport (Import n)                 = Syntax.Import True n
+sImport (Use n)                    = Syntax.Import False n
 
 sDecls b (DKSig n k : ds)           = Syntax.DKSig n k : sDecls b ds
 
@@ -59,8 +60,7 @@ sDecls b (DInst n : ds)             = Syntax.DInstance [n] : sDecls b ds
 sDecls b (DInstance mn t bs : ds)   = Syntax.DInst mn (sType t) (map sBind bs) : sDecls b ds
 sDecls b (DDerive (Just n) t : ds)  = Syntax.DDefault [Derive n (sType t)] : sDecls b ds
 
-sDecls b (DDefault _ : ds)          = error "sDecls: DDefault"
-sDecls b (DDflt defs : ds)          = Syntax.DDefault (map (sDflt b) defs) : sDecls b ds
+sDecls b (DDefault defs : ds)       = Syntax.DDefault (map (sDflt b) defs) : sDecls b ds
 sDecls b (DSig ns t : ds)           = Syntax.DBind [Syntax.BSig ns (sType t)] : sDecls b ds
 sDecls b (DEqn lh rh : ds)          = Syntax.DBind [Syntax.BEqn (sLhs lh) (sRhs sExp rh)] : sDecls b ds
 sDecls b (DExtern [n] : DSig [m] t : ds)
@@ -134,8 +134,10 @@ sExp (ENeg e)                     = Syntax.ENeg (sExp e)
 sExp (ESeq e1 Nothing e2)         = Syntax.ESeq (sExp e1) Nothing (sExp e2)
 sExp (ESeq e1 (Just e2) e3)       = Syntax.ESeq (sExp e1) (Just (sExp e2)) (sExp e3)
 sExp (EComp e [qs])               = Syntax.EComp (sExp e) (map sQual qs)
-sExp (ESectR e n)                 = Syntax.ESectR (sExp e) n
-sExp (ESectL n e)                 = Syntax.ESectL n (sExp e)
+sExp (ESectR e (EVar n))          = Syntax.ESectR (sExp e) n
+sExp (ESectR e (ECon n))          = Syntax.ESectR (sExp e) n
+sExp (ESectL (EVar n) e)          = Syntax.ESectL n (sExp e)
+sExp (ESectL (ECon n) e)          = Syntax.ESectL n (sExp e)
 sExp (EDo [qs] Nothing Nothing ss)= Syntax.EForall (map sQual qs) (sStmts ss)
 sExp (EDo [] mbn (Just c) ss)
                                   = Syntax.EDo mbn (Just (Syntax.TCon c)) (sStmts ss)
@@ -145,8 +147,8 @@ sExp (EClass [] mbn (Just c) ss)
 sExp (EClass [] mbn Nothing ss)   = Syntax.ETempl mbn Nothing (sStmts ss)
 sExp (EClass [qs] mbn (Just c) ss)   = Syntax.forallClass (map sQual qs) (Syntax.ETempl mbn (Just (Syntax.TCon c)) (sStmts ss))
 sExp (EClass [qs] mbn Nothing ss)    = Syntax.forallClass (map sQual qs) (Syntax.ETempl mbn Nothing (sStmts ss))
-sExp (EAct mbn Nothing ss)        = Syntax.EAct mbn (sStmts ss) 
-sExp (EAct mbn (Just e) ss)       = Syntax.EBefore (sExp e) (Syntax.EAct mbn (sStmts ss)) 
+sExp (EAct Nothing mbn ss)        = Syntax.EAct mbn (sStmts ss) 
+sExp (EAct (Just e) mbn ss)       = Syntax.EBefore (sExp e) (Syntax.EAct mbn (sStmts ss)) 
 sExp (EReq mbn ss)                = Syntax.EReq mbn (sStmts ss) 
 sExp (ESend (Just e1) e2)         = Syntax.EAfter (sExp e1) (sExp e2)    
 sExp (ENew [] e)                  = Syntax.ENew (sExp e)  -- forallnew
@@ -173,7 +175,7 @@ sQual (QLet bs)                   = Syntax.QLet (map sBind bs)
 
 sStmts ss                         = Syntax.Stmts (stmts ss)
   where stmts (SExp e : ss)        = Syntax.SExp (sExp e) : stmts ss
-        stmts (SRet e : ss)        = Syntax.SRet (sExp e) : stmts ss
+        stmts (SRes e : ss)        = Syntax.SRet (sExp e) : stmts ss
         stmts (SGen p e : ss)      = Syntax.SGen (sPat p) (sExp e) : stmts ss
         stmts (SEqn lh rh : ss)    = Syntax.SBind [Syntax.BEqn (sLhs lh) (sRhs sExp rh)]  : stmts ss
         stmts (SSig ns t : ss)     = Syntax.SBind [Syntax.BSig ns (sType t)] : stmts ss

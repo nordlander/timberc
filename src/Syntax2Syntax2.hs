@@ -43,7 +43,8 @@ import qualified Syntax2
 
 s2Module (Module n is ds1 ds2)     = Syntax2.Module n (map s2Import is) (s2Decls ds1) (s2Decls ds2)
 
-s2Import (Import b n)              = Syntax2.Import b n
+s2Import (Import True n)           = Syntax2.Import n
+s2Import (Import False n)          = Syntax2.Use n
 
 s2Decls (DKSig n k : ds)           = Syntax2.DKSig n k : s2Decls ds
 s2Decls (DData n vs ts cs : ds)    = Syntax2.DData n vs (map s2Type ts) (map s2Constr cs) : s2Decls ds
@@ -91,7 +92,7 @@ s2Preds ps                         = ([ s2Pred t | PType t <- ps ], [ s2Quant n 
 	 s2Quant n KWild	   = Syntax2.QVar n
 	 s2Quant n k               = Syntax2.QVarSig n k
 
-s2Default (Default _ n1 n2)        = Syntax2.DDflt [(n1,n2)]
+s2Default (Default _ n1 n2)        = Syntax2.DDefault [(n1,n2)]
 s2Default (Derive n t)             = Syntax2.DDerive (Just n) (s2Type t)
 
 s2Extern (Extern n t)              = [Syntax2.DExtern [n], Syntax2.DSig [n] (s2Type t)]
@@ -136,18 +137,18 @@ s2Exp (ENeg e)                     = Syntax2.ENeg (s2Exp e)
 s2Exp (ESeq e1 Nothing e2)         = Syntax2.ESeq (s2Exp e1) Nothing (s2Exp e2)
 s2Exp (ESeq e1 (Just e2) e3)       = Syntax2.ESeq (s2Exp e1) (Just (s2Exp e2)) (s2Exp e3)
 s2Exp (EComp e qs)                 = Syntax2.EComp (s2Exp e) [map s2Qual qs]
-s2Exp (ESectR e n)                 = Syntax2.ESectR (s2Exp e) n
-s2Exp (ESectL n e)                 = Syntax2.ESectL n (s2Exp e)
+s2Exp (ESectR e n)                 = Syntax2.ESectR (s2Exp e) (if isCon n then Syntax2.ECon n else Syntax2.EVar n)
+s2Exp (ESectL n e)                 = Syntax2.ESectL (if isCon n then Syntax2.ECon n else Syntax2.EVar n) (s2Exp e)
 s2Exp (ESelect e n)                = Syntax2.ESel (s2Exp e) n
 s2Exp (EDo mbn Nothing ss)         = Syntax2.EDo [] mbn Nothing (s2Stmts ss)
 s2Exp (EDo mbn (Just (TCon c)) ss) = Syntax2.EDo [] mbn (Just c) (s2Stmts ss)
 s2Exp (ETempl mbn Nothing ss)      = Syntax2.EClass [] mbn Nothing (s2Stmts ss)
 s2Exp (ETempl mbn (Just (TCon c)) ss) = Syntax2.EClass [] mbn (Just c) (s2Stmts ss)
-s2Exp (EAct mbn ss)                = Syntax2.EAct mbn Nothing (s2Stmts ss) 
+s2Exp (EAct mbn ss)                = Syntax2.EAct Nothing mbn (s2Stmts ss) 
 s2Exp (EReq mbn ss)                = Syntax2.EReq mbn (s2Stmts ss) 
 s2Exp (EAfter e1 e2)               = Syntax2.ESend (Just (s2Exp e1)) (s2Exp e2)
 s2Exp (EBefore e1 e2)              = case s2Exp e2 of
-                                        Syntax2.EAct mn _ e2' -> Syntax2.EAct mn (Just (s2Exp e1)) e2'
+                                        Syntax2.EAct _ mn e2' -> Syntax2.EAct (Just (s2Exp e1)) mn e2'
                                         _ -> error "before construct without action expr as 2nd argument"
 s2Exp (EForall qs ss)              = Syntax2.EDo [map s2Qual qs] Nothing Nothing (s2Stmts ss)  -- forallclass
 s2Exp (ENew e)                     = Syntax2.ENew [] (s2Exp e)  -- forallnew
@@ -175,7 +176,7 @@ s2Qual (QLet bs)                   = Syntax2.QLet (map s2Bind bs)
 
 s2Stmts (Stmts ss)                 = stmts ss
   where stmts (SExp e : ss)        = Syntax2.SExp (s2Exp e) : stmts ss
-        stmts (SRet e : ss)        = Syntax2.SRet (s2Exp e) : stmts ss
+        stmts (SRet e : ss)        = Syntax2.SRes (s2Exp e) : stmts ss
         stmts (SGen p e : ss)      = Syntax2.SGen (s2Pat p) (s2Exp e) : stmts ss
         stmts (SBind bs : ss)      = map (e2s . s2Bind) bs ++ stmts ss         
         stmts (SAss p e : ss)      = Syntax2.SAss (s2Pat p) (s2Exp e) : stmts ss
