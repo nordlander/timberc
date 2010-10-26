@@ -218,8 +218,10 @@ constrs :: { [Constr] }
 	| constr			        { [$1] }
 
 constr  :: { Constr }
-        : type consym type                      { CInfix $1 $2 $3 [] [] }
-        | type                                  { type2cons $1 }
+        : ftype consym ftype '\\\\' preds             { CInfix $1 $2 $3 $5 [] }
+        | ftype consym ftype '\\\\' quants            { CInfix $1 $2 $3 [] $5 }
+        | ftype consym ftype '\\\\' preds ',' quants  { CInfix $1 $2 $3 $5 $7 }
+        | type                                        { type2cons $1 }
 
 
 -- Signatures --------------------------------------------------------------
