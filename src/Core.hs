@@ -132,7 +132,7 @@ instance Show TVAR where
     show (TV (n,k))             = show n
 
 instance Pr TVAR where
-    pr (TV (n,k))               = pr n
+    pr (TV (n,k))               = text (show n)
 
 instance Binary TVAR where
   put (TV a) = put a

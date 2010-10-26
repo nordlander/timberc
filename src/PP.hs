@@ -56,12 +56,6 @@ class Pr a where
     dump x = putStr (render (pr x))
 
 
-instance Pr Int where 
-  pr = int
-
--- XXX Is this correct?
--- AJG It is needed by Main, but it looks wrong.
-
 instance Pr [Char] where
     pr a      = text a
 

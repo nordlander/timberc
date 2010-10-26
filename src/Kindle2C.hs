@@ -292,7 +292,7 @@ newCall t x ns                  = text "NEW" <+> parens (k2cType t <> text "," <
 
 
 k2cStructBinds e0 n bs
-  | isBigTuple n                = k2cExp2 e0 <> text "->size = " <+> pr (widthInclTags n) <> text ";" $$
+  | isBigTuple n                = k2cExp2 e0 <> text "->size = " <+> text (show (widthInclTags n)) <> text ";" $$
                                   vcat (map f bs)
   where f (Prim GCINFO _, _)    = k2cExp (ESel e0 (prim GCINFO)) <+> text "=" <+> k2cGCInfoName n <> text ";"
         f (x, Val t e)
@@ -432,7 +432,7 @@ k2cExp2 e                       = parens (k2cExp e)
 
 isBigTuple n                    = isTuple n && width n > 4
 
-k2cBigSel e l                   = k2cExp2 e <> text "->elems[" <> pr (lookup' bigLabelDict l) <> text "]"
+k2cBigSel e l                   = k2cExp2 e <> text "->elems[" <> text (show (lookup' bigLabelDict l)) <> text "]"
 
 bigLabelDict                    :: [(Name,Int)]
 bigLabelDict                    = f _ABCSupply abcSupply `zip` [0..]
