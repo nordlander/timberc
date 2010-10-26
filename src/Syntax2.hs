@@ -481,9 +481,9 @@ fixity 				:: String -> Fixity
 fixity op               	= case lookup op fixTable of
                             	    Just f  -> f
                             	    Nothing -> fixFromChars op
-  where fixTable        	= [ ("$",  Fixity RightAss 0),
-                                    (">>", Fixity LeftAss  1),
-				    (">>=",Fixity LeftAss  1),
+  where fixTable        	= [ ("$",  Fixity RightAss 2),
+                                    (">>", Fixity LeftAss  3),
+				    (">>=",Fixity LeftAss  3),
 				    ("==", Fixity NonAss   4),
 				    ("/=", Fixity NonAss   4),
 				    ("<",  Fixity NonAss   4),
