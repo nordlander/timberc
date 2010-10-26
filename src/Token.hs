@@ -77,6 +77,8 @@ Reserved operators
     | Tilde
     | Wildcard
     | Backslash2
+    | And
+    | Or
 {-
 
 Reserved Ids
@@ -85,31 +87,33 @@ Reserved Ids
     | KW_Action
     | KW_After
     | KW_Before
-    | KW_Case     
-    | KW_Class    
-    | KW_Data     
-    | KW_Default  
-    | KW_Do       
-    | KW_Else   
+    | KW_Case
+    | KW_Class
+    | KW_Data
+    | KW_Default
+    | KW_Deriving
+    | KW_Do
+    | KW_Else
     | KW_Elsif
     | KW_Extern
     | KW_Forall
     | KW_If
-    | KW_Import   
+    | KW_Import
     | KW_Instance
-    | KW_In       
+    | KW_In
     | KW_Let
     | KW_Module
-    | KW_New   
-    | KW_Of    
-    | KW_Private   
+    | KW_New
+    | KW_Of
+    | KW_Private
     | KW_Request
     | KW_Result
+    | KW_Send
     | KW_Struct
-    | KW_Then     
-    | KW_Type  
+    | KW_Then
+    | KW_Type
     | KW_Typeclass
-    | KW_Use   
+    | KW_Use
     | KW_Where
     | EOF
       deriving (Eq, Show)
@@ -129,7 +133,9 @@ reserved_ops
         ( "<-", LeftArrow ), 
         ( "->", RightArrow ),
         ( "_",  Wildcard ),
-        ( "\\\\", Backslash2 )
+        ( "\\\\", Backslash2 ),
+        ( "&&", And ),
+        ( "||", Or )
       ]
 
 
@@ -139,31 +145,33 @@ reserved_ids
         ( "action",    KW_Action ),
         ( "after",     KW_After ),
         ( "before",    KW_Before ),
-        ( "case",      KW_Case ),     
-        ( "class",     KW_Class ),    
+        ( "case",      KW_Case ),
+        ( "class",     KW_Class ),
         ( "data",      KW_Data ),
-        ( "default",   KW_Default),   
-        ( "do",        KW_Do ),       
+        ( "default",   KW_Default),
+        ( "deriving",  KW_Deriving),
+        ( "do",        KW_Do ),
         ( "else",      KW_Else ),
         ( "elsif",     KW_Elsif ),
-        ( "extern",    KW_Extern ),     
+        ( "extern",    KW_Extern ),
         ( "forall",    KW_Forall ),
         ( "if",        KW_If ),
         ( "import",    KW_Import ),
-        ( "instance",  KW_Instance ),     
-        ( "in",        KW_In ),       
-        ( "let",       KW_Let ),      
-        ( "module",    KW_Module ),   
+        ( "instance",  KW_Instance ),
+        ( "in",        KW_In ),
+        ( "let",       KW_Let ),
+        ( "module",    KW_Module ),
         ( "new",       KW_New ),
         ( "of",        KW_Of ),
         ( "private",   KW_Private ),
         ( "request",   KW_Request ),
         ( "result",    KW_Result ),
+        ( "send",      KW_Send ),
         ( "struct",    KW_Struct ),
-        ( "then",      KW_Then ),     
-        ( "type",      KW_Type ),  
-        ( "typeclass", KW_Typeclass ),  
-        ( "use",       KW_Use ),   
+        ( "then",      KW_Then ),
+        ( "type",      KW_Type ),
+        ( "typeclass", KW_Typeclass ),
+        ( "use",       KW_Use ),
         ( "where",     KW_Where )
       ]
 

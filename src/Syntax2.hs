@@ -423,3 +423,118 @@ prElsif (e,ss)			= text "elsif" <+> pr e <+> text "then" $$ nest 4 (pr ss)
 prElse Nothing			= empty
 prElse (Just ss)		= text "else" $$ nest 4 (pr ss)
 
+
+-- Parser helpers ---------------------------------------------------------
+
+mkModule c (is,ds,ps)           = Module c is ds ps
+
+tFun [] t                       = t
+tFun ts t                       = TFun ts t
+
+type2cons t                     = case t of
+	                            TQual t' ps qs -> t2c t' ps qs
+	                            _              -> t2c t [] []
+  where t2c t ps qs		= case tFlat t of
+                                    (TCon c,ts) -> Constr c ts ps qs
+                                    _           -> error ("Bad type constructor in " ++ render (pr t))
+
+tFlat t                         = flat t []
+  where flat (TAp t1 t2) ts     = flat t1 (t2:ts)
+        flat t ts               = (t,ts)
+
+eFlat e                         = flat e []
+  where flat (EAp e e') es      = flat e (e':es)
+        flat e es               = (e,es)
+
+exp2lhs e                       = case eFlat e of
+                                    (EVar v, ps) | not (null ps) -> LFun v (map exp2pat ps)
+                                    _                            -> LPat (exp2pat e)
+
+exp2pat (EVar (Name "_" 0 _ _)) = PWild
+exp2pat (EVar x)        	= PVar x
+exp2pat (ESig (EVar x) t) 	= PVarSig x t
+exp2pat (ECon c) 		= PCon c
+exp2pat (ELit l)		= PLit l
+exp2pat (EAp p1 p2)		= PAp (exp2pat p1) (exp2pat p2)
+exp2pat (EInfix l op r)		= PInfix (exp2pat l) (exp2pat op) (exp2pat r)
+exp2pat (ENeg (ELit (LInt p i))) = PLit (LInt p (-i))
+exp2pat (ENeg (ELit (LRat p r))) = PLit (LRat p (-r))
+exp2pat (ETup ps)       	= PTup (map exp2pat ps)
+exp2pat (EParen p)		= PParen (exp2pat p)
+exp2pat (EList ps)		= PList (map exp2pat ps)
+exp2pat (EStruct h bs)		= PStruct h (map bind2field bs)
+  where bind2field (BEqn (LPat (PVar l)) (RExp p []))
+                                = Field l (exp2pat p)
+        bind2field f            = error ("Illegal struct field: " ++ render (pr f))
+exp2pat p			= error ("Illegal pattern: " ++ render (pr p))
+
+
+
+
+type Precedence         	= Int
+data Associativity      	= LeftAss | RightAss | NonAss deriving (Eq,Show)
+
+data Fixity             	= Fixity Associativity Precedence deriving (Eq,Show)
+
+data OpExp              	= Nil Exp | Cons OpExp Exp Exp -- Cons l op r
+
+fixity 				:: String -> Fixity
+fixity op               	= case lookup op fixTable of
+                            	    Just f  -> f
+                            	    Nothing -> fixFromChars op
+  where fixTable        	= [ ("$",  Fixity RightAss 0),
+                                    (">>", Fixity LeftAss  1),
+				    (">>=",Fixity LeftAss  1),
+				    ("==", Fixity NonAss   4),
+				    ("/=", Fixity NonAss   4),
+				    ("<",  Fixity NonAss   4),
+				    ("<=", Fixity NonAss   4),
+				    (">",  Fixity NonAss   4),
+				    (">=", Fixity NonAss   4),
+				    (":",  Fixity RightAss 5),
+				    ("++", Fixity RightAss 5),
+				    ("+",  Fixity LeftAss  6),
+				    ("-",  Fixity LeftAss  6),
+				    ("*",  Fixity LeftAss  7),
+				    ("/",  Fixity LeftAss  7),
+				    ("div",Fixity LeftAss  7),
+				    ("mod",Fixity LeftAss  7),
+				    ("^",  Fixity RightAss 8),
+				    ("@",  Fixity RightAss 9)
+                          	  ]
+        fixFromChars op 	= case sort (nub (intersect op "+-*/<>")) of
+                            	    "<"  -> Fixity NonAss  4
+                            	    ">"  -> Fixity NonAss  4
+                            	    "<>" -> Fixity NonAss  4
+                            	    "+"  -> Fixity LeftAss 6
+                            	    "-"  -> Fixity LeftAss 6
+                            	    "+-" -> Fixity LeftAss 6
+                	    	    "*"  -> Fixity LeftAss 7
+                	    	    "/"  -> Fixity LeftAss 7
+                	    	    "*/" -> Fixity LeftAss 7
+                            	    _    -> Fixity LeftAss 9
+
+{-
+Transforms a tree of infix expressions as produced by the parser 
+(i.e., with all operators treated as left associative and of equal precedence) 
+to a new tree reflecting operator associativity and precedence as given by
+the function fixity.
+
+Invariant: at each call to push, the second and third arguments have
+the same length.
+-}
+
+transFix :: OpExp -> Exp
+transFix e                          	= push e [] []
+  where push (Cons l o r) (o':os) es
+          | prec == prec' && (ass /= ass' || ass == NonAss)
+                                    	= error ("Operator associativity ambiguity with operators " ++ render (pr o) ++ " and " ++ render (pr o'))
+          | prec < prec' || (prec == prec' && ass == RightAss)
+                                    	= push (Cons l o (EInfix r o' (head es))) os (tail es)
+          where Fixity ass  prec    	= fixity (show o)
+                Fixity ass' prec'   	= fixity (show o')
+        push (Cons l o r) os es     	= push l (o:os) (r:es)
+        push (Nil e) os es          	= popAll os (e:es)
+         
+        popAll (o:os) (e1:e2:es)    	= popAll os (EInfix e1 o e2:es)
+        popAll [] es           		= head es
