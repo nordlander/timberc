@@ -174,16 +174,16 @@ topdecl :: { Decl }
         | 'data' conid tyvars optsubs optcs                { DData $2 (reverse $3) $4 $5 }
         | 'struct' conid tyvars optsups optsigs            { DStruct $2 (reverse $3) $4 $5 }
         | 'typeclass' conid tyvars sups optsigs            { DTypeClass $2 (reverse $3) $4 $5 }
-        | 'typeclass' id                                   { DTClass $2 }
-        | 'instance' var '::' type 'where' bindlist        { DInstance (Just $2) $4 $6 }
+        | 'typeclass' conid                                { DTClass $2 }
+        | 'instance' varid '::' type 'where' bindlist      { DInstance (Just $2) $4 $6 }
         | 'instance' type 'where' bindlist                 { DInstance Nothing $2 $4 }
-        | 'instance' id                                    { DInst $2 }
-        | 'deriving' 'instance' var '::' type              { DDerive (Just $3) $5 }
+        | 'instance' varid                                 { DInst $2 }
+        | 'deriving' 'instance' varid '::' type            { DDerive (Just $3) $5 }
         | 'deriving' 'instance' type                       { DDerive Nothing $3 }
         | 'default' defaults                               { DDefault (reverse $2) }
-        | 'extern' vars                                    { DExtern (reverse $2) }
-        | vars '::' type		                   { DSig (reverse $1) $3 }
-        | lhs rhs 					   { DEqn $1 $2 }
+        | 'extern' varlist                                 { DExtern (reverse $2) }
+        | varlist '::' type		                   { DSig (reverse $1) $3 }
+        | pat rhs 					   { DEqn $1 $2 }
 
 sups :: { [Type] }
         : '<' types				{ reverse $2 }
@@ -203,8 +203,10 @@ tyvars  :: { [Name] }
         | {- empty -}				{ [] }
 
 defaults ::  { [(Name,Name)] }
-        : defaults ',' var '<' var              { ($3,$5) : $1 }
-        | var '<' var                           { [($1,$3)] }
+        : defaults ',' varid '<' varid          { ($3,$5) : $1 }
+        | defaults ',' btype                    { $1 }
+        | varid '<' varid                       { [($1,$3)] }
+        | btype                                 { [] }
  
 
 -- Datatype declarations ---------------------------------------------------
@@ -239,7 +241,7 @@ sigs	:: { [Sig] }
         | sig					{ [$1] }
 
 sig	:: { Sig }
-        : vars '::' type	                { Sig (reverse $1) $3 }
+        : varlist '::' type	                { Sig (reverse $1) $3 }
 
 
 -- Bindings ----------------------------------------------------------------
@@ -253,15 +255,14 @@ binds   :: { [Bind] }
         | bind					{ [$1] }
         
 bind    :: { Bind }
-	: vars '::' type	                { BSig (reverse $1) $3 }
-        | lhs rhs 				{ BEqn $1 $2 }
+	: varlist '::' type	                { BSig (reverse $1) $3 }
+        | pat rhs 				{ BEqn $1 $2 }
 
-vars	:: { [Name] }
-	: vars ',' var				{ $3 : $1 }
-        | var					{ [$1] }
-
-lhs     :: { Lhs }
-        : exp0s                                 { exp2lhs $1 }
+varlist	:: { [Name] }
+	: varlist ',' varid			{ $3 : $1 }
+	| varlist ',' '(' varsym ')'            { $4 : $1 }
+        | varid					{ [$1] }
+        | '(' varsym ')'                        { [$2] }
 
 rhs	:: { Rhs Exp }
 	: '=' exp optbinds		    	{ RExp $2 $3 }
@@ -295,12 +296,12 @@ btypes  :: { [Type] }
         | btype                                 { [$1] }
 
 btype   :: { Type }
-        : btype  atype                          { TAp $1 $2 }
+        : btype atype                           { TAp $1 $2 }
         | atype                                 { $1 }
 
 atype   :: { Type }
 	: varid					{ TVar $1 }
-	| con                                   { TCon $1 }
+	| conid                                 { TCon $1 }
 	| atype0                                { $1 }
 	
 atype0  :: { Type }
@@ -332,10 +333,22 @@ preds	:: { [Pred] }
         | pred					{ [$1] }
         
 pred	:: { Pred }
-        : con atypes                            { PClass $1 $2 }
-        | con atypes '<' btype                  { PSub (foldl TAp (TCon $1) $2) $4 }
+        : conid atypes                          { PClass $1 $2 }
+        | conid atypes '<' btype                { PSub (foldl TAp (TCon $1) $2) $4 }
         | varid atypes '<' btype                { PSub (foldl TAp (TVar $1) $2) $4 }
-        | atype0 atypes '<' btype               { PSub (foldl TAp $1 $2) $4}
+        | '[' ']' atypes '<' btype              { PSub (foldl TAp (TCon (prim LIST)) $3) $5 }
+        | '(' commas ')' atypes '<' btype       { PSub (foldl TAp (TCon (tuple ($2+1))) $4) $6 }
+        | '(' ')' atypes '<' btype              { PSub (foldl TAp (TCon (tuple 0)) $3) $5 }
+--        | '(' type ')' atypes '<' btype         { PSub (foldl TAp $2 $4) $6 }
+--        | '(' types ')' '<' btype               { PSub (TTup (reverse $2)) $5 }
+        | '[' type ']' '<' btype                { PSub (TList $2) $5 }
+        | '(' qpred ')'                         { $2 }
+
+qpred    :: { Pred }
+        : pred '\\\\' preds                     { PQual $1 (reverse $3) [] }
+        | pred '\\\\' quants                    { PQual $1 [] (reverse $3) }
+        | pred '\\\\' preds ',' quants          { PQual $1 (reverse $3) (reverse $5) }
+        | pred                                  { $1 }
 
 quants  :: { [Quant] }
         : quants ',' quant                      { $3 : $1 }
@@ -361,9 +374,9 @@ exp     :: { Exp }
         : exp0a '::' btype                                 { ESig $1 $3 }
         | exp0                                             { $1}
         | 'struct' layout_on binds close                   { EStruct Nothing (reverse $3) }
-        | con 'struct' layout_on binds close               { EStruct (Just ($1,False)) (reverse $4) }
-        | con 'struct' layout_on binds ';' '..' close      { EStruct (Just ($1,True)) (reverse $4) }
-        | con 'struct' layout_on '..' close                { EStruct (Just ($1,True)) [] }
+        | conid 'struct' layout_on binds close             { EStruct (Just ($1,False)) (reverse $4) }
+        | conid 'struct' layout_on binds ';' '..' close    { EStruct (Just ($1,True)) (reverse $4) }
+        | conid 'struct' layout_on '..' close              { EStruct (Just ($1,True)) [] }
 
 exp0    :: { Exp }
         : exp000a                               { $1 }
@@ -423,29 +436,29 @@ exp10a  :: { Exp }
         | exp10as                               { $1 }
 
 exp10as :: { Exp }
-        : fexp                                     { $1 }
-        | forall 'do' stmtlist                     { EDo $1 Nothing Nothing $3 }
-        | forall 'do' '@' var stmtlist             { EDo $1 (Just $4) Nothing $5 }
-        | forall 'do' '@' con stmtlist             { EDo $1 Nothing (Just $4) $5 }
-        | forall 'do' '@' var '@' con stmtlist     { EDo $1 (Just $4) (Just $6) $7 }
-        | forall 'class' stmtlist                  { EClass $1 Nothing Nothing $3 }
-        | forall 'class' '@' var stmtlist          { EClass $1 (Just $4) Nothing $5 }
-        | forall 'class' '@' con stmtlist          { EClass $1 Nothing (Just $4) $5 }
-        | forall 'class' '@' var '@' con stmtlist  { EClass $1 (Just $4) (Just $6) $7 }
-        | before 'action' stmtlist                 { EAct $1 Nothing $3 }
-        | before 'action' '@' var stmtlist         { EAct $1 (Just $4) $5 }
-        | 'request' stmtlist                       { EReq Nothing $2 }
-        | 'request' '@' var stmtlist               { EReq (Just $3) $4 }
+        : fexp                                         { $1 }
+        | forall 'do' stmtlist                         { EDo $1 Nothing Nothing $3 }
+        | forall 'do' '@' varid stmtlist               { EDo $1 (Just $4) Nothing $5 }
+        | forall 'do' '@' conid stmtlist               { EDo $1 Nothing (Just $4) $5 }
+        | forall 'do' '@' varid '@' conid stmtlist     { EDo $1 (Just $4) (Just $6) $7 }
+        | forall 'class' stmtlist                      { EClass $1 Nothing Nothing $3 }
+        | forall 'class' '@' varid stmtlist            { EClass $1 (Just $4) Nothing $5 }
+        | forall 'class' '@' conid stmtlist            { EClass $1 Nothing (Just $4) $5 }
+        | forall 'class' '@' varid '@' conid stmtlist  { EClass $1 (Just $4) (Just $6) $7 }
+        | before 'action' stmtlist                     { EAct $1 Nothing $3 }
+        | before 'action' '@' var stmtlist             { EAct $1 (Just $4) $5 }
+        | 'request' stmtlist                           { EReq Nothing $2 }
+        | 'request' '@' var stmtlist                   { EReq (Just $3) $4 }
       
-  	| con '{' layout_off binds '}'             { EStruct (Just ($1,True)) (reverse $4) } 
-        | con '{' layout_off binds '..' '}'        { EStruct (Just ($1,False)) (reverse $4) } 
-        | con '{' layout_off binds ';' '..' '}'    { EStruct (Just ($1,False)) (reverse $4) } 
-        | con '{' layout_off '..' '}'              { EStruct (Just ($1,False)) [] } 
-	| con '{' layout_off  '}'		   { EStruct (Just ($1,True)) [] }
+  	| conid '{' layout_off binds '}'               { EStruct (Just ($1,True)) (reverse $4) } 
+        | conid '{' layout_off binds '..' '}'          { EStruct (Just ($1,False)) (reverse $4) } 
+        | conid '{' layout_off binds ';' '..' '}'      { EStruct (Just ($1,False)) (reverse $4) } 
+        | conid '{' layout_off '..' '}'                { EStruct (Just ($1,False)) [] } 
+	| conid '{' layout_off  '}'		       { EStruct (Just ($1,True)) [] }
 
-	| after 'send' exp10a                      { ESend $1 $3 }
-	| forall 'new' exp10a                      { ENew $1 $3 }
-        | '<-' exp10a                              { EGen $2 }
+	| after 'send' exp10a                          { ESend $1 $3 }
+	| forall 'new' exp10a                          { ENew $1 $3 }
+        | '<-' exp10a                                  { EGen $2 }
 
 
 forall  :: { [Quals] }
@@ -479,7 +492,10 @@ aexp    :: { Exp }
 bexp    :: { Exp }
         : var                                   { EVar $1 }
         | '_'                                   { EVar (name0 "_") }
-        | con                                   { ECon $1 }
+        | conid                                 { ECon $1 }
+        | '(' consym ')'                        { ECon $2 }
+        | '~' conid                             { ECon (annotExplicit $2) }
+        | '~' '(' consym ')'                    { ECon (annotExplicit $3) }
         | lit                                   { ELit $1 }
         | '(' '.' var ')'                       { ESelector $3 }
         | '(' exp ')'                           { $2 }
@@ -595,8 +611,8 @@ stmts   :: { Stmts }
 stmt    :: { Stmt }
         : pat '<-' exp                          { SGen $1 $3 }
         | mexp                                  { SExp $1 }
-        | vars '::' type                        { SSig $1 $3 }
-        | lhs rhs                               { SEqn $1 $2 }
+        | varlist '::' type                     { SSig $1 $3 }
+        | pat rhs                               { SEqn $1 $2 }
         | pat ':=' exp                          { SAss $1 $3 }
         | 'result' exp                          { SRes $2 }
         | 'if' exp 'then' stmtlist elsif else   { SIf $2 $4 $5 $6 }
@@ -678,16 +694,6 @@ var     :: { Name }
         | '(' varsym ')'                        { $2 }
         | '~' varid                             { annotExplicit $2 }
         | '~' '(' varsym ')'                    { annotExplicit $3 }
-
-con     :: { Name }
-        : conid                                 { $1 }
-        | '(' consym ')'                        { $2 }
-        | '~' conid                             { annotExplicit $2 }
-        | '~' '(' consym ')'                    { annotExplicit $3 }
-
-id      :: { Name }
-        : varid                                 { $1 }
-        | conid                                 { $1 }
 
 varid   :: { Name }
         : VARID                                 {% do l <- getSrcLoc; return (name l $1) }

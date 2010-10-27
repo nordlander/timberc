@@ -97,8 +97,9 @@ s2Default (Derive n t)             = Syntax2.DDerive (Just n) (s2Type t)
 
 s2Extern (Extern n t)              = [Syntax2.DExtern [n], Syntax2.DSig [n] (s2Type t)]
 
-s2Lhs (LFun n ps)                  = Syntax2.LFun n (map s2Pat ps)
-s2Lhs (LPat p)                     = Syntax2.LPat (s2Pat p)
+s2Lhs (LFun n [p1,p2]) | isSym n   = Syntax2.PInfix (s2Pat p1) (Syntax2.PVar n) (s2Pat p2)
+s2Lhs (LFun n ps)                  = foldl Syntax2.PAp (Syntax2.PVar n) (map s2Pat ps)
+s2Lhs (LPat p)                     = s2Pat p
 
 s2Pat (PVar n)                     = Syntax2.PVar n
 s2Pat (PAp (PAp p@(PCon c) p1) p2)
@@ -126,8 +127,7 @@ s2Exp (EList es)                   = Syntax2.EList (map s2Exp es)
 s2Exp EWild                        = error "s2Exp: argument is EWild"
 s2Exp (ESig e t)                   = Syntax2.ESig (s2Exp e) (s2Type t)
 s2Exp (ERec mnb fs)                = Syntax2.EStruct mnb (map mkBind fs)
-   where mkBind (Field n e)        = Syntax2.BEqn (Syntax2.LPat (Syntax2.PVar n))
-                                                  (Syntax2.RExp (s2Exp e) [])
+   where mkBind (Field n e)        = Syntax2.BEqn (Syntax2.PVar n) (Syntax2.RExp (s2Exp e) [])
 s2Exp (EBStruct mnb bs)            = Syntax2.EStruct mnb (map s2Bind bs)
 s2Exp (ELam ps e)                  = Syntax2.ELam (map s2Pat ps) (s2Exp e)
 s2Exp (ELet bs e)                  = Syntax2.ELet (map s2Bind bs) (s2Exp e)

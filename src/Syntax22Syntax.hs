@@ -98,8 +98,11 @@ sPred p                            = Syntax.PType (sPr p)
 	sPr (PSub t1 t2)           = Syntax.TSub (sType t1) (sType t2)
 	sPr (PClass n ts)          = foldl Syntax.TAp (Syntax.TCon n) (map sType ts)
 
-sLhs (LFun n ps)                  = Syntax.LFun n (map sPat ps)
-sLhs (LPat p)                     = Syntax.LPat (sPat p)
+sLhs p0				  = flat p0 []
+  where flat (PInfix p1 op p2) ps = flat op (p1:p2:ps)
+        flat (PAp p p') ps        = flat p (p':ps)
+        flat (PVar n) ps          = Syntax.LFun n (map sPat (reverse ps))
+        flat _ _                  = Syntax.LPat (sPat p0)
 
 sPat (PVar n)         		  = Syntax.PVar n 
 sPat (PVarSig n t)                = Syntax.PSig (Syntax.PVar n) (sType t) 
@@ -124,7 +127,7 @@ sExp (ETup es)                    = Syntax.ETup (map sExp es)
 sExp (EList es)                   = Syntax.EList (map sExp es)
 sExp (ESig e t)                   = Syntax.ESig (sExp e) (sType t)
 sExp (EStruct mnb@(Just (c,False)) bs) = Syntax.ERec mnb (map b2Field bs)
-   where b2Field (BEqn (LPat (PVar n)) (Syntax2.RExp e [])) = Syntax.Field n (sExp e)
+   where b2Field (BEqn (PVar n) (Syntax2.RExp e [])) = Syntax.Field n (sExp e)
 sExp (EStruct mnb bs)             = Syntax.EBStruct mnb (map sBind bs)
 sExp (ELam ps e)                  = Syntax.ELam (map sPat ps) (sExp e)
 sExp (ELet bs e)                  = Syntax.ELet (map sBind bs) (sExp e)

@@ -66,7 +66,7 @@ data Decl   = DKSig      Name Kind
             | DDefault   [(Name,Name)]
 
             | DSig       [Name] Type
-            | DEqn       Lhs (Rhs Exp)
+            | DEqn       Pat (Rhs Exp)
 
             | DExtern    [Name]
             deriving  (Eq,Show)
@@ -79,7 +79,7 @@ data Sig    = Sig     [Name] Type
             deriving (Eq,Show)
 
 data Bind   = BSig    [Name] Type
-            | BEqn    Lhs (Rhs Exp)
+            | BEqn    Pat (Rhs Exp)
             deriving  (Eq,Show)
 
 data Type   = TQual   Type [Pred] [Quant]
@@ -100,10 +100,6 @@ data Pred   = PQual   Pred [Pred] [Quant]
             
 data Quant  = QVar    Name
             | QVarSig Name Kind
-            deriving (Eq,Show)
-
-data Lhs    = LFun    Name [Pat]
-            | LPat    Pat
             deriving (Eq,Show)
 
 data Pat    = PVar    Name
@@ -183,7 +179,7 @@ data Stmt   = SRes    Exp
             | SExp    Exp
             | SGen    Pat Exp
             | SSig    [Name] Type
-            | SEqn    Lhs (Rhs Exp)
+            | SEqn    Pat (Rhs Exp)
             | SAss    Pat Exp
             | SIf     Exp Stmts [(Exp,Stmts)] (Maybe Stmts)
             | SCase   Exp [Alt Stmts]
@@ -227,7 +223,7 @@ instance Pr Decl where
     pr (DDefault ns)            	= text "default" <+> hpr ',' ns
 
     pr (DSig xs t)               	= hpr ',' xs <+> text "::" <+> pr t
-    pr (DEqn lhs rhs)			= prEqn lhs (text "=") rhs
+    pr (DEqn p rhs)			= prEqn p (text "=") rhs
 
     pr (DExtern xs)             	= text "extern" <+> hpr ',' xs
 
@@ -322,11 +318,11 @@ prOpPat p			= text "`" <> pr p <> text "`"
 
 instance Pr Bind where
     pr (BSig xs t)              = hpr ',' xs <+> text "::" <+> pr t
-    pr (BEqn lhs rhs)        	= prEqn lhs (text "=") rhs
+    pr (BEqn p rhs)        	= prEqn p (text "=") rhs
 
-prEqn lhs eq (RExp e bs)	= pr lhs <+> eq <+> pr e $$
+prEqn p eq (RExp e bs)		= pr p <+> eq <+> pr e $$
 				  nest 2 (prWhere bs)
-prEqn lhs eq (RGrd gs bs)	= pr lhs $$
+prEqn p eq (RGrd gs bs)		= pr p $$
                                   nest 2 (vcat (map (prGuard eq) gs)) $$
 			  	  nest 2 (prWhere bs)
 
@@ -334,10 +330,6 @@ prGuard eq (GExp qs e)          = char '|' <+> hpr ',' qs <+> eq <+> pr e
 
 prWhere []			= empty
 prWhere bs			= text "where" <+> vpr bs
-
-instance Pr Lhs where
-   pr (LFun v ps)               = pr v <+> hsep (map pr ps)
-   pr (LPat p)                  = pr p
 
 
 -- Expressions -------------------------------------------------------------
@@ -412,7 +404,7 @@ instance Pr Stmt where
     pr (SExp e)                 = pr e
     pr (SGen p e)               = pr p <+> text "<-" <+> pr e
     pr (SSig xs t)              = hpr ',' xs <+> text "::" <+> pr t
-    pr (SEqn lhs rhs)        	= prEqn lhs (text "=") rhs
+    pr (SEqn p rhs)        	= prEqn p (text "=") rhs
     pr (SAss p e)               = pr p <+> text ":=" <+> pr e
     pr (SIf e ss elsifs ss')  	= text "if" <+> pr e <+> text "then" $$ nest 4 (pr ss) $$ vcat (map prElsif elsifs) $$ prElse ss'
     pr (SCase e alts)           = text "case" <+> pr e <+> text "of" $$ nest 4 (vpr alts)
@@ -441,14 +433,6 @@ tFlat t                         = flat t []
   where flat (TAp t1 t2) ts     = flat t1 (t2:ts)
         flat t ts               = (t,ts)
 
-eFlat e                         = flat e []
-  where flat (EAp e e') es      = flat e (e':es)
-        flat e es               = (e,es)
-
-exp2lhs e                       = case eFlat e of
-                                    (EVar v, ps) | not (null ps) -> LFun v (map exp2pat ps)
-                                    _                            -> LPat (exp2pat e)
-
 exp2pat (EVar (Name "_" 0 _ _)) = PWild
 exp2pat (EVar x)        	= PVar x
 exp2pat (ESig (EVar x) t) 	= PVarSig x t
@@ -462,7 +446,7 @@ exp2pat (ETup ps)       	= PTup (map exp2pat ps)
 exp2pat (EParen p)		= PParen (exp2pat p)
 exp2pat (EList ps)		= PList (map exp2pat ps)
 exp2pat (EStruct h bs)		= PStruct h (map bind2field bs)
-  where bind2field (BEqn (LPat (PVar l)) (RExp p []))
+  where bind2field (BEqn (PVar l) (RExp p []))
                                 = Field l (exp2pat p)
         bind2field f            = error ("Illegal struct field: " ++ render (pr f))
 exp2pat p			= error ("Illegal pattern: " ++ render (pr p))
