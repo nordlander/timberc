@@ -147,7 +147,7 @@ t2Exp env (ELam te e)           = do te <- tRefresh te
                                      (s,rh,e) <- t2Exp (addTEnv te env) e
                                      return (s, F (subst s (rng te)) rh, ELam te e)
 t2Exp env (EAp e es)            = do (s,rh,e) <- t2Exp env e
-                                     t2Ap env s rh e es
+	                             t2Ap env s rh e es
 t2Exp env (ELet bs e)           = do bs <- tRefresh bs
                                      (s1,bs) <- t2Binds env bs
                                      (s2,rh,e) <- t2Exp (addTEnv (subst s1 (tsigsOf bs)) env) e

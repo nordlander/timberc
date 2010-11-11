@@ -1296,6 +1296,6 @@ wrC eqns (CAss x e c)           = liftM2 (CAss x) (wr eqns e) (wrC eqns c)
 
 
 
-isWReduce x                     = isCoercion x || isAssumption x || isEtaExp x || isWitness x
+isWReduce x                     = isCoercion x || isAssumption x || isEtaExp x || isWitness x || isDummy x
 
 

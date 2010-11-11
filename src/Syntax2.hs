@@ -69,6 +69,7 @@ data Decl   = DKSig      Name Kind
             | DEqn       Pat (Rhs Exp)
 
             | DExtern    [Name]
+            | DExternSig [Name] Type
             deriving  (Eq,Show)
 
 data Constr = Constr  Name [Type] [Pred] [Quant]
@@ -226,6 +227,7 @@ instance Pr Decl where
     pr (DEqn p rhs)			= prEqn p (text "=") rhs
 
     pr (DExtern xs)             	= text "extern" <+> hpr ',' xs
+    pr (DExternSig xs t)             	= text "extern" <+> hpr ',' xs <+> text "::" <+> pr t
 
 unless True _			= empty
 unless False p			= p
@@ -311,7 +313,8 @@ instance Pr Pat where
     pr (PList ps)           	= brackets (hpr ',' ps)
     pr (PParen p)           	= parens (pr p)
 
-prOpPat (PVar x) | isSym x	= pr x
+prOpPat (PVar x) | isSym x	= prOp x
+prOpPat (PCon x) | isSym x      = prOp x
 prOpPat p			= text "`" <> pr p <> text "`"
 
 -- Bindings ----------------------------------------------------------------
@@ -341,11 +344,13 @@ instance Pr Exp where
                                     nest 3 (text "then" <+> pr e1 $$
                                             text "else" <+> pr e2)
     pr (ECase e alts)        	= text "case" <+> pr e <+> text "of" $$ nest 2 (vpr alts)
-    pr (EDo qs v t ss)       	= prForall qs <+> text "do" <> prN v <> prN t $$ nest 4 (pr ss)
+    pr (EDo qs v t ss)       	= prForall qs <+> text "do" <> prN v <> prN t $$ nest 3 (pr ss)
     pr (EClass qs v t ss)    	= prForall qs <+> text "class" <> prN v <> prN t $$ nest 4 (pr ss)
     pr (EAct b v ss)  		= prBefore b <+> text "action" <> prN v $$ nest 4 (pr ss) 
     pr (EReq v ss)           	= text "request" <> prN v $$ nest 4 (pr ss) 
     pr (EInfix l op r)		= pr l <+> prOpExp op <+> pr r
+    pr (EOr e1 e2)              = pr e1 <+> text "||" <+> pr e2
+    pr (EAnd e1 e2)		= pr e1 <+> text "&&" <+> pr e2
     pr (ENew qs e)         	= prForall qs <+> text "new" <+> pr e
     pr (EGen e)             	= text "<-" <+> pr e
     pr (EAp e e')           	= pr e <+> pr e'
@@ -363,12 +368,13 @@ instance Pr Exp where
     pr (ESectL op e)        	= parens (prOpExp op <> pr e)
     pr (ESelector l)        	= parens (text "." <> pr l)
     pr (EList es)           	= brackets (hpr ',' es)
-    pr (ESeq e Nothing to)  	= brackets (pr e <> text ".." <> pr to)
-    pr (ESeq e (Just b) to) 	= brackets (pr e <> comma <> pr b <> text ".." <> pr to)
+    pr (ESeq e Nothing to)  	= brackets (pr e <+> text ".." <+> pr to)
+    pr (ESeq e (Just b) to) 	= brackets (pr e <> comma <> pr b <+> text ".." <+> pr to)
     pr (EComp e qs)         	= brackets (empty <+> pr e <+> char '|' <+> hpr ',' qs)
     pr (EParen e)               = parens (prn 0 e)
 
-prOpExp (EVar x) | isSym x	= pr x
+prOpExp (EVar x) | isSym x	= prOp x
+prOpExp (ECon x) | isSym x      = prOp x
 prOpExp e			= text "`" <> pr e <> text "`"
 
 prN Nothing 			= empty 
@@ -417,7 +423,9 @@ prElse (Just ss)		= text "else" $$ nest 4 (pr ss)
 
 -- Parser helpers ---------------------------------------------------------
 
-mkModule c (is,ds,ps)           = Module c is ds ps
+mkModule c (is,ds,ps)
+  | str c == "Prelude"          = Module c [] ds ps
+  | otherwise                   = Module c (Import (name0 "Prelude") : is) ds ps
 
 tFun [] t                       = t
 tFun ts t                       = TFun ts t
@@ -460,12 +468,17 @@ data Associativity      	= LeftAss | RightAss | NonAss deriving (Eq,Show)
 data Fixity             	= Fixity Associativity Precedence deriving (Eq,Show)
 
 data OpExp              	= Nil Exp | Cons OpExp Exp Exp -- Cons l op r
+                                deriving (Show, Eq)
 
-fixity 				:: String -> Fixity
-fixity op               	= case lookup op fixTable of
+fixity (ECon x)			= fixity' x
+fixity (EVar x)               	= fixity' x
+fixity _			= Fixity LeftAss 9
+	
+fixity' n			= case lookup str fixTable of
                             	    Just f  -> f
-                            	    Nothing -> fixFromChars op
-  where fixTable        	= [ ("$",  Fixity RightAss 2),
+                            	    Nothing -> fixFromChars str
+  where str			= show n
+	fixTable        	= [ ("$",  Fixity RightAss 2),
                                     (">>", Fixity LeftAss  3),
 				    (">>=",Fixity LeftAss  3),
 				    ("==", Fixity NonAss   4),
@@ -485,7 +498,7 @@ fixity op               	= case lookup op fixTable of
 				    ("^",  Fixity RightAss 8),
 				    ("@",  Fixity RightAss 9)
                           	  ]
-        fixFromChars op 	= case sort (nub (intersect op "+-*/<>")) of
+        fixFromChars op 	= case sort (nub (intersect str "+-*/<>")) of
                             	    "<"  -> Fixity NonAss  4
                             	    ">"  -> Fixity NonAss  4
                             	    "<>" -> Fixity NonAss  4
@@ -514,8 +527,8 @@ transFix e                          	= push e [] []
                                     	= error ("Operator associativity ambiguity with operators " ++ render (pr o) ++ " and " ++ render (pr o'))
           | prec < prec' || (prec == prec' && ass == RightAss)
                                     	= push (Cons l o (EInfix r o' (head es))) os (tail es)
-          where Fixity ass  prec    	= fixity (show o)
-                Fixity ass' prec'   	= fixity (show o')
+          where Fixity ass  prec    	= fixity o
+                Fixity ass' prec'   	= fixity o'
         push (Cons l o r) os es     	= push l (o:os) (r:es)
         push (Nil e) os es          	= popAll os (e:es)
          

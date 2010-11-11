@@ -61,10 +61,13 @@ sDecls b (DInstance mn t bs : ds)   = Syntax.DInst mn (sType t) (map sBind bs) :
 sDecls b (DDerive (Just n) t : ds)  = Syntax.DDefault [Derive n (sType t)] : sDecls b ds
 
 sDecls b (DDefault defs : ds)       = Syntax.DDefault (map (sDflt b) defs) : sDecls b ds
+sDecls b (DExtern [n] : DSig [m] t : ds)
+  | m == n                          = Syntax.DExtern [Extern n (sType t)] : sDecls b ds
+sDecls b (DSig [m] t : DExtern [n] : ds)
+  | m == n                          = Syntax.DExtern [Extern n (sType t)] : sDecls b ds
+sDecls b (DExternSig ns t : ds)     = Syntax.DExtern [Extern n (sType t) | n <- ns ] : sDecls b ds
 sDecls b (DSig ns t : ds)           = Syntax.DBind [Syntax.BSig ns (sType t)] : sDecls b ds
 sDecls b (DEqn lh rh : ds)          = Syntax.DBind [Syntax.BEqn (sLhs lh) (sRhs sExp rh)] : sDecls b ds
-sDecls b (DExtern [n] : DSig [m] t : ds)
-  |m==n                           = Syntax.DExtern [Extern n (sType t)] : sDecls b ds
 sDecls b []                         = []
 
 sConstr (Constr n ts ps qs)       = Syntax.Constr n (map sType ts) (map sPred ps ++ map sQuant qs)
@@ -101,7 +104,7 @@ sPred p                            = Syntax.PType (sPr p)
 sLhs p0				  = flat p0 []
   where flat (PInfix p1 op p2) ps = flat op (p1:p2:ps)
         flat (PAp p p') ps        = flat p (p':ps)
-        flat (PVar n) ps          = Syntax.LFun n (map sPat (reverse ps))
+        flat (PVar n) ps          = Syntax.LFun n (map sPat ps)
         flat _ _                  = Syntax.LPat (sPat p0)
 
 sPat (PVar n)         		  = Syntax.PVar n 
@@ -114,10 +117,13 @@ sPat (PTup ps)                    = Syntax.PTup (map sPat ps)
 sPat (PList ps)                   = Syntax.PList (map sPat ps)
 sPat PWild                        = Syntax.PWild
 sPat (PStruct mnb fs)             = Syntax.PRec mnb (map sField fs)
+sPat (PParen p)			  = sPat p
 
 
 sExp (EVar n)                     = Syntax.EVar n
 sExp (EInfix e1 e e2)             = Syntax.EAp (Syntax.EAp (sExp e) (sExp e1)) (sExp e2) 
+sExp (EOr e1 e2)		  = Syntax.EAp (Syntax.EAp (Syntax.EVar (name0 "||")) (sExp e1)) (sExp e2)
+sExp (EAnd e1 e2)		  = Syntax.EAp (Syntax.EAp (Syntax.EVar (name0 "&&")) (sExp e1)) (sExp e2)
 sExp (EAp e1 e2)                  = Syntax.EAp (sExp e1) (sExp e2)  -- infix expressions not identified
 sExp (ECon c)                     = Syntax.ECon c
 sExp (ESel e n)                   = Syntax.ESelect (sExp e) n
@@ -156,6 +162,7 @@ sExp (EReq mbn ss)                = Syntax.EReq mbn (sStmts ss)
 sExp (ESend (Just e1) e2)         = Syntax.EAfter (sExp e1) (sExp e2)    
 sExp (ENew [] e)                  = Syntax.ENew (sExp e)  -- forallnew
 sExp (EGen e)                     = Syntax.EGen (sExp e)
+sExp (EParen e)			  = sExp e
 sExp e                            = error ("sExp: " ++ show e)
 
 sField (Field n p)                = Syntax.Field n (sPat p)

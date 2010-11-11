@@ -48,7 +48,7 @@ desugar2 m = localStore (dsModule m)
 -- Modules ------------------------------------------------------------------
 
 --dsModule :: Module -> M s Module
-dsModule (Module c is ds ps)    = do ds <- dsDecls ds
+dsModule (Module c is ds ps)    = do ds <- dsDecls (Just (str c)) ds
                                      return (Module c is ds ps)
 
 
@@ -56,25 +56,25 @@ dsModule (Module c is ds ps)    = do ds <- dsDecls ds
 
 
 
-dsDecls []                      = return []
-dsDecls (d@(DKSig _ _) : ds)    = liftM (d :) (dsDecls ds)
-dsDecls (DData c vs bs cs : ds) = liftM (DData c vs (map dsQualBaseType bs) (map dsConstr cs) :) (dsDecls ds)
-dsDecls (DRec i c vs bs ss:ds)  = liftM (DRec i c vs (map dsQualBaseType bs) (map dsSig ss) :) (dsDecls ds)
-dsDecls (DType c vs t : ds)     = liftM (DType c vs (dsType t) :) (dsDecls ds)
-dsDecls (DInstance vs : ds)     = liftM (DInstance vs :) (dsDecls ds)
-dsDecls (DInst c t bs : ds)	= do ls' <- mapM (\n -> newNameMod (fromMod n) (str n)) ls
-				     bs' <- dsBinds Nothing (subst (ls `zip` ls') bs)
-				     let e = ERec m (zipWith (\l l' -> Field l (EVar l')) ls ls')
-				     liftM (DInstance [x] :) (liftM (DBind (BSig [x] t' : BEqn (LFun x []) (RExp e) : bs') :) (dsDecls ds))
-  where ls			= nub (bvars bs)
-  	t'			= dsQualPred t
-	m			= Just (type2head t', True)
-	Just x			= c
-dsDecls (DTClass vs : ds)       = dsDecls ds
-dsDecls (DDefault ts : ds)      = liftM (DDefault (map dsDefault ts) :) (dsDecls ds) 
-dsDecls (DExtern es : ds)       = liftM (DExtern (map dsExtern es) :) (dsDecls ds) 
-dsDecls (DBind bs : ds)         = do bs <- dsBinds Nothing bs
-                                     liftM (DBind bs :) (dsDecls ds)
+dsDecls m []                      = return []
+dsDecls m (d@(DKSig _ _) : ds)    = liftM (d :) (dsDecls m ds)
+dsDecls m (DData c vs bs cs : ds) = liftM (DData c vs (map dsQualBaseType bs) (map dsConstr cs) :) (dsDecls m ds)
+dsDecls m (DRec i c vs bs ss:ds)  = liftM (DRec i c vs (map dsQualBaseType bs) (map dsSig ss) :) (dsDecls m ds)
+dsDecls m (DType c vs t : ds)     = liftM (DType c vs (dsType t) :) (dsDecls m ds)
+dsDecls m (DInstance vs : ds)     = liftM (DInstance vs :) (dsDecls m ds)
+dsDecls m (DInst w t bs : ds)	  = do ls' <- mapM (\l -> newNameMod m (str l)) ls
+				       bs' <- dsBinds Nothing (subst (ls `zip` ls') bs)
+				       let e = ERec c (zipWith (\l l' -> Field l (EVar l')) ls ls')
+				       liftM (DInstance [x] :) (liftM (DBind (BSig [x] t' : BEqn (LFun x []) (RExp e) : bs') :) (dsDecls m ds))
+  where ls			  = nub (bvars bs)
+  	t'			  = dsQualPred t
+	c			  = Just (type2head t', True)
+	Just x			  = w
+dsDecls m (DTClass vs : ds)       = dsDecls m ds
+dsDecls m (DDefault ts : ds)      = liftM (DDefault (map dsDefault ts) :) (dsDecls m ds) 
+dsDecls m (DExtern es : ds)       = liftM (DExtern (map dsExtern es) :) (dsDecls m ds) 
+dsDecls m (DBind bs : ds)         = do bs <- dsBinds Nothing bs
+                                       liftM (DBind bs :) (dsDecls m ds)
         
 
 dsConstr (Constr c ts ps)       = Constr c (map dsQualType ts) (map dsQual ps)

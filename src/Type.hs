@@ -140,7 +140,8 @@ tiBindsList env (bs:bss)        = do (ss1, pe1, bs1) <- tiBinds env bs
 
                                      
 tiBinds env (Binds _ [] [])     = return ([], [], nullBinds)
-tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ showids xs ++ ", at line: " ++ show (pos (fst(head te))))
+tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ showids xs)
+                                     -- tr (render (nest 4 (vpr eqs)))
                                      -- tr ("rec: " ++ show rec ++ ", mono: " ++ show mono)
                                      -- tr (render (nest 8 (vpr te)))
                                      -- tr ("assuming\n" ++ render (nest 4 (vpr (typeEnv env))))

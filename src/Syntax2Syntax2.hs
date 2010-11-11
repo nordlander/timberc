@@ -57,7 +57,7 @@ s2Decls (DInstance ns : ds)        = map Syntax2.DInst ns ++ s2Decls ds
 s2Decls (DInst mn t bs : ds)       = Syntax2.DInstance mn (s2Type t) (map s2Bind bs) : s2Decls ds
 s2Decls (DTClass ns : ds)          = map Syntax2.DTClass ns ++ s2Decls ds
 s2Decls (DBind bs : ds)            = map s2BindD bs ++ s2Decls ds
-s2Decls (DExtern es : ds)          = concatMap s2Extern es ++ s2Decls ds 
+s2Decls (DExtern es : ds)          = map s2Extern es ++ s2Decls ds 
 s2Decls []                         = []
 
 s2Constr (Constr n ts ps)          = Syntax2.Constr n (map s2Type ts) ps' qs
@@ -95,7 +95,7 @@ s2Preds ps                         = ([ s2Pred t | PType t <- ps ], [ s2Quant n 
 s2Default (Default _ n1 n2)        = Syntax2.DDefault [(n1,n2)]
 s2Default (Derive n t)             = Syntax2.DDerive (Just n) (s2Type t)
 
-s2Extern (Extern n t)              = [Syntax2.DExtern [n], Syntax2.DSig [n] (s2Type t)]
+s2Extern (Extern n t)              = Syntax2.DExternSig [n] (s2Type t)
 
 s2Lhs (LFun n [p1,p2]) | isSym n   = Syntax2.PInfix (s2Pat p1) (Syntax2.PVar n) (s2Pat p2)
 s2Lhs (LFun n ps)                  = foldl Syntax2.PAp (Syntax2.PVar n) (map s2Pat ps)

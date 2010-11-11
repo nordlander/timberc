@@ -634,15 +634,16 @@ prFullId i			= text (showFull i)
 
 instance Pr Name where
   -- pr (Name s n m a)             = text (s ++ '_' : maybe (show n) id m)
-  pr n                          = if isSym n then parens d else d
-    where d			= text (show n)
+  pr n                          = prId n
 
 prExpl a                        = if explicit a then text "~" else empty
 
 
-prId i                          = if isSym i then parens (pr i) else pr i
+prId i                          = if isSym i then parens d else d
+  where d			= text (showFull i)
 
-prOp i                          = if isSym i then pr i else backQuotes (pr i)
+prOp i                          = if isSym i then d else backQuotes d
+  where d			= text (show i)
 
 prId2 (Prim p _)                = text (strRep2 p)
 prId2 (Tuple n _)               = text ("TUP" ++ show n)
