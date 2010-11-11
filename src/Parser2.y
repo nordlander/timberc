@@ -171,9 +171,16 @@ topdecls :: { [Decl] }
 topdecl :: { Decl }
         : conid '::' kind		        	   { DKSig $1 $3 }
         | 'type' conid tyvars '=' type	                   { DType $2 (reverse $3) $5 }
-        | 'data' conid tyvars optsubs optcs                { DData $2 (reverse $3) $4 $5 }
-        | 'struct' conid tyvars optsups optsigs            { DStruct $2 (reverse $3) $4 $5 }
-        | 'typeclass' conid tyvars sups optsigs            { DTypeClass $2 (reverse $3) $4 $5 }
+        | 'data' conid tyvars subs '=' constrs             { DData $2 (reverse $3) $4 $6 }
+        | 'data' conid tyvars '=' constrs                  { DData $2 (reverse $3) [] $5 }
+        | 'data' conid tyvars subs                         { DData $2 (reverse $3) $4 [] }
+        | 'data' conid tyvars                              { DData $2 (reverse $3) [] [] }
+        | 'struct' conid tyvars sups 'where' siglist       { DStruct $2 (reverse $3) $4 $6 }
+        | 'struct' conid tyvars 'where' siglist            { DStruct $2 (reverse $3) [] $5 }
+        | 'struct' conid tyvars sups                       { DStruct $2 (reverse $3) $4 [] }
+        | 'typeclass' conid tyvars sups 'where' siglist    { DTypeClass $2 (reverse $3) $4 $6 }
+        | 'typeclass' conid tyvars 'where' siglist         { DTypeClass $2 (reverse $3) [] $5 }
+        | 'typeclass' conid tyvars sups                    { DTypeClass $2 (reverse $3) $4 [] }
         | 'typeclass' conid                                { DTClass $2 }
         | 'instance' varid '::' type 'where' bindlist      { DInstance (Just $2) $4 $6 }
         | 'instance' type 'where' bindlist                 { DInstance Nothing $2 $4 }
@@ -182,6 +189,7 @@ topdecl :: { Decl }
         | 'deriving' 'instance' type                       { DDerive Nothing $3 }
         | 'default' defaults                               { DDefault (reverse $2) }
         | 'extern' varlist                                 { DExtern (reverse $2) }
+        | 'extern' varlist '::' type                       { DExternSig (reverse $2) $4 }
         | varlist '::' type		                   { DSig (reverse $1) $3 }
         | pat rhs 					   { DEqn $1 $2 }
 
@@ -189,14 +197,9 @@ sups :: { [Type] }
         : '<' types				{ reverse $2 }
         | '<' type				{ [$2] }
 
-optsups :: { [Type] }
-        : sups                                  { $1 }
-        | {- empty -}				{ [] }
-
-optsubs :: { [Type] }
+subs :: { [Type] }
         : '>' types				{ reverse $2 }
         | '>' type				{ [$2] }
-        | {- empty -}				{ [] }
 
 tyvars  :: { [Name] }
         : tyvars varid				{ $2 : $1 }
@@ -204,17 +207,13 @@ tyvars  :: { [Name] }
 
 defaults ::  { [(Name,Name)] }
         : defaults ',' varid '<' varid          { ($3,$5) : $1 }
-        | defaults ',' btype                    { $1 }
+        | defaults ',' cpred                    { $1 }
         | varid '<' varid                       { [($1,$3)] }
-        | btype                                 { [] }
+        | cpred                                 { [] }
  
 
 -- Datatype declarations ---------------------------------------------------
 
-optcs   :: { [Constr] }
-        : '=' constrs				{ reverse $2 }
-        | {- empty -}				{ [] }
-        
 constrs :: { [Constr] }
 	: constrs '|' constr	                { $3 : $1 }
 	| constr			        { [$1] }
@@ -228,10 +227,6 @@ constr  :: { Constr }
 
 -- Signatures --------------------------------------------------------------
 
-optsigs :: { [Sig] }
-        : 'where' siglist	      		{ $2 }
-        | {- empty -}				{ [] }
-        
 siglist :: { [Sig] }
         : '{' layout_off sigs '}'		{ reverse $3 }
         |     layout_on  sigs close		{ reverse $2 }
@@ -333,16 +328,19 @@ preds	:: { [Pred] }
         | pred					{ [$1] }
         
 pred	:: { Pred }
-        : conid atypes                          { PClass $1 $2 }
+	: cpred                                 { $1 }
         | conid atypes '<' btype                { PSub (foldl TAp (TCon $1) $2) $4 }
         | varid atypes '<' btype                { PSub (foldl TAp (TVar $1) $2) $4 }
+        | '[' type ']' '<' btype                { PSub (TList $2) $5 }
         | '[' ']' atypes '<' btype              { PSub (foldl TAp (TCon (prim LIST)) $3) $5 }
-        | '(' commas ')' atypes '<' btype       { PSub (foldl TAp (TCon (tuple ($2+1))) $4) $6 }
-        | '(' ')' atypes '<' btype              { PSub (foldl TAp (TCon (tuple 0)) $3) $5 }
 --        | '(' type ')' atypes '<' btype         { PSub (foldl TAp $2 $4) $6 }
 --        | '(' types ')' '<' btype               { PSub (TTup (reverse $2)) $5 }
-        | '[' type ']' '<' btype                { PSub (TList $2) $5 }
+	| '(' commas ')' atypes '<' btype       { PSub (foldl TAp (TCon (tuple ($2+1))) $4) $6 }
+	| '(' ')' atypes '<' btype              { PSub (foldl TAp (TCon (tuple 0)) $3) $5 }
         | '(' qpred ')'                         { $2 }
+
+cpred   :: { Pred }
+	: conid atypes                          { PClass $1 $2 }
 
 qpred    :: { Pred }
         : pred '\\\\' preds                     { PQual $1 (reverse $3) [] }
@@ -498,7 +496,7 @@ bexp    :: { Exp }
         | '~' '(' consym ')'                    { ECon (annotExplicit $3) }
         | lit                                   { ELit $1 }
         | '(' '.' var ')'                       { ESelector $3 }
-        | '(' exp ')'                           { $2 }
+        | '(' exp ')'                           { EParen $2 }
         | '(' exps ')'                          { ETup (reverse $2) } 
         | '[' list ']'                          { $2 }
         | '(' exp10a op ')'                     { ESectR $2 $3 }
