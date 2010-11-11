@@ -640,7 +640,7 @@ prExpl a                        = if explicit a then text "~" else empty
 
 
 prId i                          = if isSym i then parens d else d
-  where d			= text (showFull i)
+  where d			= text (show i)
 
 prOp i                          = if isSym i then d else backQuotes d
   where d			= text (show i)
