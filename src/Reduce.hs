@@ -332,7 +332,8 @@ solve r g gs
                                              -- tr (render (nest 4 (vpr (rng gs))))
                                              -- tr ("Witness graph: " ++ show (findWG r g))
                                              try r (Left msg) (findWG r g) (logHistory g) gs
-  where msg                             = typeError Solve (fst g) ("Cannot solve typing constraint "++render(prPred (snd g)))
+  where msg                             = typeError Solve (fst g) ("Cannot solve typing constraint\n" ++ 
+                                                                   render (nest 4 (vcat (map prPred (map snd (g:gs))))))
 
 
 try r accum wg g gs
