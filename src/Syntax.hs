@@ -639,6 +639,8 @@ instance Pr Decl where
     pr (DInstance ns)           = text "instance" <+> hpr ',' ns 
     pr (DInst (Just x) t bs)	= text "instance" <+> prId x <+> text "::" <+> pr t <+> text "where" $$
 				  nest 4 (vpr bs)
+    pr (DInst Nothing t bs)	= text "instance" <+> pr t <+> text "where" $$
+				  nest 4 (vpr bs)
     pr (DTClass ns)             = text "typeclass" <+> hpr ',' ns 
     pr (DBind bs)               = vpr bs
     pr (DExtern es)             = text "extern" <+> hpr ',' es
