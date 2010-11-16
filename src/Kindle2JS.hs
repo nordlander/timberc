@@ -122,9 +122,10 @@ k2jExp2 (ENew x _ [(_,Val _ e)])
 k2jExp2 (ENew (Prim Ref _) _ _)	= text "{ LOCKED: false }"
 k2jExp2 (ENew x _ [])		= k2jConsStr x
 k2jExp2 (ENew x _ bs)           = text "{" $$
-                                  nest 4 (k2jName (prim Tag) <+> text ":" <+> k2jConsStr x <> text "," $$
+                                  nest 4 (tagBind $$
 					  k2jSBinds bs) $$
                                   text "}"
+  where tagBind			= if isTuple x then empty else k2jName (prim Tag) <+> text ":" <+> k2jConsStr x <> text ","
 k2jExp2 e                       = parens (k2jExp e)
 
 
