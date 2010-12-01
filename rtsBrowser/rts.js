@@ -10,6 +10,12 @@ Array.prototype.concat = function(tail) {
 	}
 }
 
+function normString(a) {
+        if (typeof(a) != 'string')
+                return a.join("")
+        else return a
+}
+
 function RAISE (err) {
 	switch (err) {
 		case 1: throw 'Pattern-match error'
