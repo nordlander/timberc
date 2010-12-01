@@ -6,20 +6,17 @@ typeclass Binary a where
   get :: [Bin] -> (a,[Bin])
 
 
-instance binaryUnit :: Binary ()
-binaryUnit = struct
+instance binaryUnit :: Binary () where
   get bs = ((),bs)
 
 
-instance binaryEither :: Binary (Either a b) \\ Binary a, Binary b
-binaryEither = struct
+instance binaryEither :: Binary (Either a b) \\ Binary a, Binary b where
   get (B0 : bs) = (Left x,bs')  where (x,bs') = get bs
   get (B1 : bs) = (Right y,bs') where (y,bs') = get bs
 
 
-instance binaryBin :: Binary Bin
-binaryBin = struct
-              get bs = case get bs of (x,bs') -> (toBin x,bs')
+instance binaryBin :: Binary Bin where
+  get bs = case get bs of (x,bs') -> (toBin x,bs')
 
 toBin :: Either () () -> Bin
 toBin (Left a)  = B0

@@ -47,7 +47,7 @@ import Config
 import Execution
 import PP
 import Common
-import Parser
+import qualified Parser
 import qualified Syntax
 
 import qualified Parser2
@@ -202,9 +202,9 @@ compileTimber clo ifs (sm,t_file) ti_file c_file h_file js_file
                         = do putStrLn ("[compiling "++ t_file++"]")
                              let Syntax.Module n is _ _ = sm
                              (imps,ifs') <- chaseIfaceFiles clo is ifs
-                             let sm' = Syntax2Syntax2.s2Module sm
-                                 sm'' = Syntax22Syntax.sModule sm'
---                             let ((htxt,mtxt),ifc,jstxt) = runM (passes imps sm'')
+                             let sm2 = Syntax2Syntax2.s2Module sm
+                                 sm1 = Syntax22Syntax.sModule sm2
+--                             let ((htxt,mtxt),ifc,jstxt) = runM (passes imps sm1)
                              let ((htxt,mtxt),ifc,jstxt) = runM (passes imps sm)
                              encodeCFile ti_file ifc
                              writeFile c_file mtxt
@@ -245,8 +245,8 @@ pass clo m p a          = do -- tr ("Pass " ++ show p ++ " ...")
 parse clo t_file        = do t_exists <- Directory.doesFileExist t_file
                              Monad.when (not t_exists) (fail ("File " ++ t_file ++ " does not exist."))
                              txt <- readFile t_file
-                             let syntax = runM (pass clo parser Parser txt)
-                             return (syntax,t_file)
+                             let syntax = doParse' clo txt
+                             return (syntax, t_file)
 
 compileAll :: CmdLineOpts -> Map Name (IFace,FilePath) -> [(Syntax.Module,FilePath)] -> IO (Map Name (IFace,FilePath))
 compileAll clo ifs []   = return ifs
@@ -372,14 +372,19 @@ compileProg clo cfg t_files = do ps <- mapM (parse clo) t_files
                                      o_files  = map (++ ".o") basenames
                                  Monad.when(not (null basenames)) (do r <- checkRoot clo ifs (last basenames)
                                                                       if target clo == "Browser" then 
-								           linkHTML cfg clo r basefiles
+								           linkHTML cfg clo r (map (++ ".js") basefiles)
                                                                        else
                                                                            linkO cfg clo r o_files)
                                  return []
 
+doParse txt      = Syntax22Syntax.sModule (runM (Parser2.parser txt))
+doParse' clo txt = Syntax22Syntax.sModule (runM (pass clo Parser2.parser Parser txt))
+--doParse txt      = runM (Parser.parser txt)
+--doParse' clo txt = runM (pass clo Parser.parser Parser txt)
+
 
 makeProg clo cfg t_file     = do txt <- readFile t_file
-                                 let ms@(Syntax.Module n is _ _) = runM (parser txt)
+                                 let ms@(Syntax.Module n is _ _) = doParse txt
                                  currDir <- Directory.getCurrentDirectory
                                  (imps,ss) <- chaseSyntaxFiles clo is [(n,(ms,currDir ++ "/" ++ t_file))]
                                  let cs = compile_order imps
@@ -475,7 +480,7 @@ chaseSyntaxFiles :: CmdLineOpts -> [Syntax.Import] -> Map Name (Syntax.Module, F
 chaseSyntaxFiles clo                 = chaseImps readSyntax impNames2 ".t"
   where readSyntax f                 = (do cont <- readFile f
                                            currDir <- Directory.getCurrentDirectory
-                                           let sm = runM (parser cont)
+                                           let sm = doParse cont
                                            return (sm,currDir ++ "/" ++ f)) `catch`
                                                                   (\ e -> do  let libf = Config.libDir clo ++ "/" ++ f
                                                                               t_exists <- Directory.doesFileExist libf

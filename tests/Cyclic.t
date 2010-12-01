@@ -7,10 +7,10 @@ struct S where
     str :: String
     ref :: S
     
-f r 0 = { val = 1, str = "A", ref = r }
+f r 0 = { val = 1; str = "A"; ref = r }
 f r n = f r (n-1)
 
-g r 0 = { val = 2, str = r.str ++ "B", ref = r }
+g r 0 = { val = 2; str = r.str ++ "B"; ref = r }
 g r n = g r (n-1)
 
 s1 = f s2 3

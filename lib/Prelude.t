@@ -126,21 +126,21 @@ instance eqBool :: Eq Bool where
 typeclass Ord a < Eq a where
   (<),(<=),(>),(>=) :: a -> a -> Bool
 
-instance ordInt :: Ord Int = Ord {..}
-  where Eq {..} = eqInt
+instance ordInt :: Ord Int where
+        Eq {..} = eqInt
         (<)  = primIntLT
         (<=) = primIntLE
         (>)  = primIntGT
         (>=) = primIntGE
 
-instance ordFloat :: Ord Float = Ord {..}
-  where Eq {..} = eqFloat
+instance ordFloat :: Ord Float where
+        Eq {..} = eqFloat
         (<)  = primFloatLT
         (<=) = primFloatLE
         (>)  = primFloatGT
         (>=) = primFloatGE
 
-instance ordChar :: Ord Char = struct
+instance ordChar :: Ord Char where
         a <  b = ord a <  ord b
         a <= b = ord a <= ord b
         a >  b = ord a >  ord b
@@ -148,15 +148,15 @@ instance ordChar :: Ord Char = struct
         (==) = eqChar.(==)
         (/=) = eqChar.(/=)
 
-instance ordTime :: Ord Time = Ord {..}
-  where Eq {..} = eqTime
+instance ordTime :: Ord Time where
+        Eq {..} = eqTime
         (<)  = primTimeLT
         (<=) = primTimeLE
         (>)  = primTimeGT
         (>=) = primTimeGE
 
-instance ordUnit :: Ord () = Ord{..}
-  where Eq{..} = eqUnit
+instance ordUnit :: Ord () where
+        Eq{..} = eqUnit
         _ < _  = False
         _ <= _ = True
         _ > _  = False

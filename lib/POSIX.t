@@ -79,8 +79,8 @@ struct Sockets where
     connect :: Host -> Port -> (Socket -> Class Connection) -> Request ()
     listen  :: Port -> (Socket -> Class Connection) -> Request Closable
 
-instance showHost :: Show Host
-showHost = struct
+instance showHost :: Show Host where
     show (Host nm) = nm
     
-extern posix :: World -> Class Env
+posix :: World -> Class Env
+extern posix

@@ -51,5 +51,5 @@ root w = class
    result action
       forall i <- args do
          env.inet.tcp.connect (Host (env.argv!i)) port (client (p.report i) (p.report i))
-      after (sec 2) p.finish
+      after (sec 2) send p.finish
 

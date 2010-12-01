@@ -7,6 +7,6 @@ f3 x = f2 x
 
 a3 = A1     
 
-r3 = R2 { sel = 3, sel2 = 4} 
+r3 = R2 { sel = 3; sel2 = 4} 
 
 

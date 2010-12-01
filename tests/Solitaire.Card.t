@@ -4,15 +4,14 @@ data Rank = Ace | King | Queen | Jack | Num Int
 
 data Suit = Spades | Hearts | Diamonds | Clubs
 
-instance showRank :: Show Rank
-showRank = struct
+instance showRank :: Show Rank where
   show Ace     = "Ace"
   show King    = "King"
   show Queen   = "Queen"
   show Jack    = "Jack"
   show (Num n) = "Num " ++ show n
 
-default showSuit :: Show Suit 
+deriving instance showSuit :: Show Suit 
 
 type Pos = (Int,Int)
 
@@ -25,8 +24,7 @@ struct Card where
   setPos :: Pos -> Action
   getPos :: Request Pos
 
-instance showCard :: Show Card 
-showCard = struct
+instance showCard :: Show Card where
   show c = show c.rank ++ " " ++ show c.suit
 
 card :: Rank -> Suit -> Pos -> Class Card

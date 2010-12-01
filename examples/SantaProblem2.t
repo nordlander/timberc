@@ -27,7 +27,7 @@ helper env rand announce confirm msg =
     class
         doSomethingElse = action
             t <- rand.next
-            after (millisec (t `mod` 3000 + 3000)) action
+            after (millisec (t `mod` 3000 + 3000)) send action
                 announce helpSanta
             
         helpSanta = action

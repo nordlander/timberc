@@ -19,7 +19,7 @@ helper env rand announce msg =
             
         doSomethingElse = action
             t <- rand.next
-            after (millisec (t `mod` 3000 + 3000)) (announce helpSanta)
+            after millisec (t `mod` 3000 + 3000) send announce helpSanta
         
         result Helper {..}
                 

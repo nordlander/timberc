@@ -241,12 +241,12 @@ struct CanvasElement a c < Element a c where
 	clearRect :: Int -> Int -> Int -> Int -> Request ()
 	
 
-struct ContextWebGL --
+-- struct ContextWebGL
 
-data WebGLAttribute --
+-- data WebGLAttribute
 
 data NotYetContent =
-   	IFRAME	-- 
+    IFRAME	-- 
   | OBJECT	--
   | MEDIA	--
 

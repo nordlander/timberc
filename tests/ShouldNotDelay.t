@@ -19,6 +19,6 @@ typeclass AApplicative m where
 
 -- Should not trigger the delay rule rewrite becuse the rret selector is locally 
 -- polymorphic, and hence a value of arity > 0.
-instance aapp :: AApplicative Maybe = AApplicative {..}
-  where rret = aapp.rret
+instance aapp :: AApplicative Maybe where
+  rret = aapp.rret
 

@@ -11,10 +11,10 @@ one row, indicating number of bulls and cows.
 
 data Colour = Red | Blue | Green | Yellow | Black | White
 
-default eqColour :: Eq Colour
-        showColour :: Show Colour 
-        parseColour :: Parse Colour
-        eqAnswer :: Eq Answer
+deriving instance eqColour :: Eq Colour
+deriving instance showColour :: Show Colour 
+deriving instance parseColour :: Parse Colour
+deriving instance eqAnswer :: Eq Answer
 
 type Guess = [Colour]
 

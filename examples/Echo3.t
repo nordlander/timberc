@@ -11,7 +11,7 @@ root w = class
 
    tick = action
       env.stdout.write current
-      after (sec 1) tick
+      after sec 1 send tick
 
    result action
       env.stdin.installR save
