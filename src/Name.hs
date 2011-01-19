@@ -355,10 +355,6 @@ primSels                        = map primKeyValue [MIN____SELS .. MAX____SELS]
                                   
 primKeyValue p                  = (name0 (strRep p), prim p)
 
-rigidNames		                = map rigidKeyValue [IndexArray, LazyAnd, LazyOr]
-
-rigidKeyValue p			        = (strRep p, prim p)
-
 lowPrims                        = [New,Sec,Millisec,Microsec,Nanosec,Raise,Catch,Baseline,Deadline,Next,
                                    Infinity,Reset,Sample,SecOf,MicrosecOf,Abort,
                                    Sqrt,Log,Log10,Exp,Sin,Cos,Tan,Asin,Acos,Atan,Sinh,Cosh]
@@ -452,12 +448,10 @@ cSym p                          = text (strRep2 p)
 noAnnot                         = Annot { location = Nothing, explicit = False, stateVar = False, 
                                           generated = False, suppress = False,  public = False}
 
--- This function is used (only) by the parser to build Names
-name l (q,s)                    = case lookup s rigidNames of
-                                    Just n -> n 
-                                    Nothing -> Name s 0 (m q) (noAnnot {location = Just l, public = False})
-                                       where m "" = Nothing
-                                             m q = Just q
+-- These functions are used (only) by the parser to build Names
+qname l (q,s)                   = Name s 0 (Just q) (noAnnot {location = Just l})
+name l s                        = Name s 0 Nothing (noAnnot {location = Just l})
+
 joinString [x]                  = x
 joinString (x : xs)             = x ++ '.' : joinString xs                             
 

@@ -108,6 +108,7 @@ data Pat    = PVar    Name
             | PCon    Name
             | PInfix  Pat Pat Pat
             | PAp     Pat Pat
+            | PIndex  Pat Pat
             | PLit    Lit
             | PTup    [Pat]
             | PList   [Pat]
@@ -128,6 +129,7 @@ data Exp    = EVar    Name
             | ETup    [Exp]
             | EParen  Exp
             | EList   [Exp]
+            | EIndex  Exp Exp
             | ESig    Exp Type
             | EStruct (Maybe (Name,Bool)) [Bind]
             | ELam    [Pat] Exp
@@ -302,6 +304,7 @@ instance Pr Type where
 instance Pr Pat where
     pr (PAp p p')		= pr p <+> pr p'
     pr (PInfix l op r)		= pr l <+> prOpPat op <+> pr r
+    pr (PIndex p p')            = pr p <> text "!" <> pr p'
     pr (PCon k)			= pr k
     pr (PVarSig v t)	        = pr v <+> text "::" <+> pr t
     pr (PVar v)     	        = pr v
@@ -349,6 +352,7 @@ instance Pr Exp where
     pr (EAct b v ss)  		= prBefore b <+> text "action" <> prN v $$ nest 4 (pr ss) 
     pr (EReq v ss)           	= text "request" <> prN v $$ nest 4 (pr ss) 
     pr (EInfix l op r)		= pr l <+> prOpExp op <+> pr r
+    pr (EIndex e e')            = pr e <> text "!" <> pr e'
     pr (EOr e1 e2)              = pr e1 <+> text "||" <+> pr e2
     pr (EAnd e1 e2)		= pr e1 <+> text "&&" <+> pr e2
     pr (ENew qs e)         	= prForall qs <+> text "new" <+> pr e
@@ -447,6 +451,7 @@ exp2pat (ESig (EVar x) t) 	= PVarSig x t
 exp2pat (ECon c) 		= PCon c
 exp2pat (ELit l)		= PLit l
 exp2pat (EAp p1 p2)		= PAp (exp2pat p1) (exp2pat p2)
+exp2pat (EIndex p1 p2)          = PIndex (exp2pat p1) (exp2pat p2)
 exp2pat (EInfix l op r)		= PInfix (exp2pat l) (exp2pat op) (exp2pat r)
 exp2pat (ENeg (ELit (LInt p i))) = PLit (LInt p (-i))
 exp2pat (ENeg (ELit (LRat p r))) = PLit (LRat p (-r))

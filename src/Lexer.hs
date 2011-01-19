@@ -235,7 +235,7 @@ lexToken cont (c:s) loc@(y,x') x state =
                   Just keyword -> case q of
                                     "" -> forward l_vid keyword rest
                                     _ -> Failed "illegal qualified name"
-                  Nothing      -> forward l_vid (VarId (q,vid)) rest
+                  Nothing      -> forward l_vid (qchoose VarId QVarId q vid) rest
 
       lexQualName q c s = let (contail, rest) = span isIdent s
                               con             = join q (c:contail)
@@ -246,7 +246,7 @@ lexToken cont (c:s) loc@(y,x') x state =
                                   | isLower c' -> lexVarId con c' rest'
                                   | isSymbol c' -> lexSymbol con c' rest'
                                   | otherwise -> Failed "illegal qualified name"
-                               _ -> forward l_con (ConId (q,c:contail)) rest
+                               _ -> forward l_con (qchoose ConId QConId q (c:contail)) rest
                   
       lexSymbol q c s = let (symtail, rest) = span isSymbol s
                             sym             = c:symtail
@@ -256,9 +256,11 @@ lexToken cont (c:s) loc@(y,x') x state =
                                     "" -> forward l_sym t rest
                                     _ -> Failed "illegal qualified name"
                                 Nothing -> case c of
-                                 ':' -> forward l_sym (ConSym (q,sym)) rest
-                                 _   -> forward l_sym (VarSym (q,sym)) rest
+                                 ':' -> forward l_sym (qchoose ConSym QConSym q sym) rest
+                                 _   -> forward l_sym (qchoose VarSym QVarSym q sym) rest
 
+      qchoose k _ "" s = k s
+      qchoose _ k q s  = k (q,s)
 
 lexInt ('0':o:d:r) | toLower o == 'o' && isOctDigit d
     = let (ds, rs) = span isOctDigit r

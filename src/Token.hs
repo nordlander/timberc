@@ -37,10 +37,14 @@ import Data.Char
 
 
 data Token 
-    = VarId      (String,String)
-    | ConId      (String,String)
-    | VarSym     (String,String)
-    | ConSym     (String,String)
+    = VarId      String
+    | ConId      String
+    | VarSym     String
+    | ConSym     String
+    | QVarId     (String,String)
+    | QConId     (String,String)
+    | QVarSym    (String,String)
+    | QConSym    (String,String)
     | IntTok     String
     | FloatTok   String
     | Character  Char
@@ -79,6 +83,7 @@ Reserved operators
     | Backslash2
     | And
     | Or
+    | Index
 {-
 
 Reserved Ids
@@ -135,7 +140,8 @@ reserved_ops
         ( "_",  Wildcard ),
         ( "\\\\", Backslash2 ),
         ( "&&", And ),
-        ( "||", Or )
+        ( "||", Or ),
+        ( "!",  Index)
       ]
 
 

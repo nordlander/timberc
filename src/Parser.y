@@ -47,15 +47,15 @@ import Fixity
 }
 
 %token
-        VARID 	 { VarId $$ }
-	CONID	 { ConId $$ }
-        '-'	 { VarSym ("","-") }
-        '<'      { VarSym ("","<") }
-        '>'      { VarSym ("",">") }
-        '*'	 { VarSym ("","*") }
-        '@'      { VarSym ("","@") }
-	VARSYM	 { VarSym $$ }
-	CONSYM	 { ConSym $$ }
+        VARID 	 { QVarId $$ }
+	CONID	 { QConId $$ }
+        '-'	 { QVarSym ("","-") }
+        '<'      { QVarSym ("","<") }
+        '>'      { QVarSym ("",">") }
+        '*'	 { QVarSym ("","*") }
+        '@'      { QVarSym ("","@") }
+	VARSYM	 { QVarSym $$ }
+	CONSYM	 { QConSym $$ }
 	INT	 { IntTok $$ }
 	RATIONAL { FloatTok $$ }
  	CHAR	 { Character $$ }
@@ -668,22 +668,22 @@ id      :: { Name }
         | conid                                 { $1 }
 
 op0     :: { Name }
-        : VARSYM0                               {% do l <- getSrcLoc; return (name l $1) }
+        : VARSYM0                               {% do l <- getSrcLoc; return (qname l $1) }
         | '`' varid '`'                         { $2 }
         | conop                                 { $1 }
 
 
 varid   :: { Name }
-        : loc VARID                             { name $1 $2 }
+        : loc VARID                             { qname $1 $2 }
 
 conid   :: { Name }
-        : loc CONID                             { name $1 $2 }
+        : loc CONID                             { qname $1 $2 }
 
 varsym  :: { Name }
-        : VARSYM1                               {% do l <- getSrcLoc; return (name l $1) }
+        : VARSYM1                               {% do l <- getSrcLoc; return (qname l $1) }
 
 consym  :: { Name }
-        : loc CONSYM                            { name $1 $2 }
+        : loc CONSYM                            { qname $1 $2 }
 
 
 
