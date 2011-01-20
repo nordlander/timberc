@@ -47,14 +47,13 @@ import Config
 import Execution
 import PP
 import Common
-import qualified Parser
-import qualified Syntax
+--import qualified Parser
+--import qualified Syntax
 
 import qualified Parser2
 import qualified Syntax2
 import qualified Syntax2Syntax2
 import qualified Syntax22Syntax
-
 import qualified Core
 import Desugar1
 import Rename
@@ -200,12 +199,11 @@ Kindle2C:
 
 compileTimber clo ifs (sm,t_file) ti_file c_file h_file js_file
                         = do putStrLn ("[compiling "++ t_file++"]")
-                             let Syntax.Module n is _ _ = sm
+                             let Syntax2.Module n is _ _ = sm
                              (imps,ifs') <- chaseIfaceFiles clo is ifs
-                             let sm2 = Syntax2Syntax2.s2Module sm
-                                 sm1 = Syntax22Syntax.sModule sm2
---                             let ((htxt,mtxt),ifc,jstxt) = runM (passes imps sm1)
-                             let ((htxt,mtxt),ifc,jstxt) = runM (passes imps sm)
+                             let sm1 = Syntax22Syntax.sModule sm
+                             let ((htxt,mtxt),ifc,jstxt) = runM (passes imps sm sm1)
+--                             let ((htxt,mtxt),ifc,jstxt) = runM (passes imps sm)
                              encodeCFile ti_file ifc
                              writeFile c_file mtxt
                              writeFile h_file htxt
@@ -214,7 +212,8 @@ compileTimber clo ifs (sm,t_file) ti_file c_file h_file js_file
                                                 writeAPI (rmSuffix ".ti" ti_file) ifc
                                                 return ((n,(ifc,t_file)):ifs')
                               else return ((n,(ifc,t_file)):ifs')
-  where passes imps par = do (e0,e1,e2,e3,e4) <- initEnvs imps
+  where passes imps s2 par 
+                        = do (e0,e1,e2,e3,e4,e5) <- initEnvs imps
                              let m = mergeMod e2 e4
                              (d1,a0) <- pass clo (desugar1 e0)                Desugar1  par
                              rn      <- pass clo (renameM e1 (fst a0))        Rename    d1
@@ -231,7 +230,7 @@ compileTimber clo ifs (sm,t_file) ti_file c_file h_file js_file
                              ll      <- pass clo (lambdalift e3)              LLift     ki'
                              pc      <- pass clo (prepare4c m e3)             Prepare4C ll
                              c       <- pass clo kindle2c                     K2C       pc
-                             return (c, ifaceMod a0 tc2 ds, js)
+                             return (c, ifaceMod a0 tc2 ds s2, js)
 
         
 pass clo m p a          = do -- tr ("Pass " ++ show p ++ " ...")
@@ -248,7 +247,7 @@ parse clo t_file        = do t_exists <- Directory.doesFileExist t_file
                              let syntax = doParse' clo txt
                              return (syntax, t_file)
 
-compileAll :: CmdLineOpts -> Map Name (IFace,FilePath) -> [(Syntax.Module,FilePath)] -> IO (Map Name (IFace,FilePath))
+compileAll :: CmdLineOpts -> Map Name (IFace,FilePath) -> [(Syntax2.Module,FilePath)] -> IO (Map Name (IFace,FilePath))
 compileAll clo ifs []   = return ifs
 compileAll clo ifs (p@(ms,t_file):t_files)
                         = do res <- checkUpToDate clo t_file ti_file c_file h_file js_file (impNames ms)
@@ -265,9 +264,9 @@ compileAll clo ifs (p@(ms,t_file):t_files)
         h_file          = base ++ ".h"
         js_file         = base ++ ".js"
         qm              = takeBaseName t_file
-        longName (Syntax.Module m a b c,t)
+        longName (Syntax2.Module m a b c,t)
           | reverse (takeWhile (/= '.') (reverse qm)) == str m 
-                        = (Syntax.Module (name0 qm) a b c, t_file)
+                        = (Syntax2.Module (name0 qm) a b c, t_file)
           | otherwise   = errorIds "Module name not last constructor id in file name" [m]
 
 checkUpToDate clo t_file ti_file c_file h_file js_file imps
@@ -377,16 +376,16 @@ compileProg clo cfg t_files = do ps <- mapM (parse clo) t_files
                                                                            linkO cfg clo r o_files)
                                  return []
 
-doParse txt      = Syntax22Syntax.sModule (runM (Parser2.parser txt))
-doParse' clo txt = Syntax22Syntax.sModule (runM (pass clo Parser2.parser Parser txt))
+doParse txt      = runM (Parser2.parser txt)
+doParse' clo txt =  runM (pass clo Parser2.parser Parser txt)
 --doParse txt      = runM (Parser.parser txt)
 --doParse' clo txt = runM (pass clo Parser.parser Parser txt)
 
 
 makeProg clo cfg t_file     = do txt <- readFile t_file
-                                 let ms@(Syntax.Module n is _ _) = doParse txt
+                                 let ms@(Syntax2.Module n is _ _) = doParse txt
                                  currDir <- Directory.getCurrentDirectory
-                                 (imps,ss) <- chaseSyntaxFiles clo is [(n,(ms,currDir ++ "/" ++ t_file))]
+                                 (imps,ss) <- chaseSyntax2Files clo is [(n,(ms,currDir ++ "/" ++ t_file))]
                                  let cs = compile_order imps
                                      is = filter nonDummy cs
                                      ps = map (\(n,ii) -> (snd ii,modToPath (str n)++".t")) is ++ [(ms,t_file)]
@@ -402,7 +401,7 @@ makeProg clo cfg t_file     = do txt <- readFile t_file
    				      linkHTML cfg clo{outfile = root_path} r js_files
 	                          else
 	                              linkO cfg clo{outfile = root_path} r o_files
-  where nonDummy (_,(_,Syntax.Module n _ _ _)) 
+  where nonDummy (_,(_,Syntax2.Module n _ _ _)) 
                             = str n /= ""
         root_path           = rmSuffix ".t" t_file
 
@@ -434,7 +433,7 @@ fatalErrorHandler e =  do putStrLn (show e)
 
 
 chaseImps :: (String -> IO (a,String)) -> (Bool -> (a,String) -> [(Name,Bool)]) -> 
-             String -> [Syntax.Import] -> Map Name (a,String) -> IO (Map Name (ImportInfo a), Map Name (a,String))
+             String -> [Syntax2.Import] -> Map Name (a,String) -> IO (Map Name (ImportInfo a), Map Name (a,String))
 chaseImps readModule iNames suff imps ifs              
                                      = do bms <- mapM (readImport ifs) imps
                                           let newpairs = [p | (p,True) <- bms]
@@ -445,9 +444,12 @@ chaseImps readModule iNames suff imps ifs
                                         Nothing -> do ifc <- readModule f
                                                       return (ifc,True)
                                           where f = modToPath(str c) ++ suff
-        readImport ifs (Syntax.Import b c) 
+        readImport ifs (Syntax2.Import c) 
                                      = do (ifc,isNew) <- readIfile ifs c
-                                          return ((c,(b,ifc)),isNew)
+                                          return ((c,(True,ifc)),isNew)
+        readImport ifs (Syntax2.Use c) 
+                                     = do (ifc,isNew) <- readIfile ifs c
+                                          return ((c,(False,ifc)),isNew)
         chaseRecursively ifs ms []= return (map (\(n,(b,(i,f))) -> (n,(b,i))) ms,ifs)
         chaseRecursively ifs ms (p@(r,unQual) : rs)
                                      = case lookup r ms of
@@ -465,19 +467,21 @@ chaseImps readModule iNames suff imps ifs
         update _ []                = internalError0 "Main.update: did not find module"
         
 
-chaseIfaceFiles :: CmdLineOpts -> [Syntax.Import] -> Map Name (IFace, FilePath) -> IO (Map Name (ImportInfo IFace), Map Name (IFace, FilePath))
+chaseIfaceFiles :: CmdLineOpts -> [Syntax2.Import] -> Map Name (IFace, FilePath) -> IO (Map Name (ImportInfo IFace), Map Name (IFace, FilePath))
 chaseIfaceFiles clo                 = chaseImps (decodeModule clo) impsOf2 ".ti"
   where impsOf2 b i                 = map (\(b',c) -> (c,b && b')) (impsOf (fst i))
                                           
-impName (Syntax.Import b c)          = c
-impNames (Syntax.Module _ is _ _)    = map impName is
+impName (Syntax2.Import c)          = c
+impName (Syntax2.Use c)             = c
+impNames (Syntax2.Module _ is _ _)       = map impName is
 
-impNames2 b (Syntax.Module _ is _ _,_)    
-                                     = map  (\(Syntax.Import b' c) -> (c,b && b')) is
+impNames2 b (Syntax2.Module _ is _ _,_)  = map f is
+  where f (Syntax2.Import c) = (c,b)
+        f (Syntax2.Use c)    = (c,False)
 
-chaseSyntaxFiles :: CmdLineOpts -> [Syntax.Import] -> Map Name (Syntax.Module, FilePath) -> 
-                    IO (Map Name (ImportInfo Syntax.Module), Map Name (Syntax.Module, FilePath))
-chaseSyntaxFiles clo                 = chaseImps readSyntax impNames2 ".t"
+chaseSyntax2Files :: CmdLineOpts -> [Syntax2.Import] -> Map Name (Syntax2.Module, FilePath) -> 
+                    IO (Map Name (ImportInfo Syntax2.Module), Map Name (Syntax2.Module, FilePath))
+chaseSyntax2Files clo                = chaseImps readSyntax impNames2 ".t"
   where readSyntax f                 = (do cont <- readFile f
                                            currDir <- Directory.getCurrentDirectory
                                            let sm = doParse cont
@@ -485,13 +489,13 @@ chaseSyntaxFiles clo                 = chaseImps readSyntax impNames2 ".t"
                                                                   (\ e -> do  let libf = Config.libDir clo ++ "/" ++ f
                                                                               t_exists <- Directory.doesFileExist libf
                                                                               if t_exists 
-                                                                                then return (Syntax.Module (name0 "") [] [] [],libf) 
+                                                                                then return (Syntax2.Module (name0 "") [] [] [],libf) 
                                                                                 else fail ("File "++ f ++ " does not exist."))
                                                                               
 
 transImps (_,ifc)                  = map snd (impsOf ifc)
 
-compile_order imps                   = case topSort (impNames . snd)  imps of 
+compile_order imps                 = case topSort (impNames . snd)  imps of 
                                          Left ms  -> errorIds "Mutually recursive modules" ms
                                          Right is -> is
 

@@ -39,6 +39,7 @@ import Data.Binary
 import Rename 
 import Core
 import qualified Syntax
+import qualified Syntax2
 import Decls
 import PP
 import qualified Core2Kindle 
@@ -72,7 +73,8 @@ data IFace = IFace { recordEnv   :: Map Name [Name],                -- exported 
                      mod1        :: Module,                         -- Exported types, type signatures for exported toplevel values
                                                                     -- and equations
                      mod2        :: Module,                         -- private types and thype signatures of Core module
-                     kdeclEnv    :: Kindle.Decls                    -- Kindle form of declarations
+                     kdeclEnv    :: Kindle.Decls,                   -- Kindle form of declarations
+                     smod        :: Syntax2.Module
                    }
            deriving (Show)
 
@@ -86,11 +88,11 @@ The function checks that the public part is closed (does not mention private dat
 the IFace.
 -}
  
-ifaceMod                   :: (Map Name [Name], Map Name ([Name], Syntax.Type)) -> Module -> Kindle.Decls -> IFace
-ifaceMod (rs,ss) (Module m ns xs es ds ws bss) kds
+ifaceMod                   :: (Map Name [Name], Map Name ([Name], Syntax.Type)) -> Module -> Kindle.Decls -> Syntax2.Module -> IFace
+ifaceMod (rs,ss) (Module m ns xs es ds ws bss) kds sm
    | not(null vis2)                  = errorIds "Private types visible in interface" vis2
    | not(null ys)                    = errorTree "Public default declaration mentions private instance" (head ys)
-   | otherwise                       = IFace rs ss (Module m ns xs1 es1 ds1 ws1 [bs1]) (Module m [] xs2 es2 ds2 ws2 [bs2]) kds
+   | otherwise                       = IFace rs ss (Module m ns xs1 es1 ds1 ws1 [bs1]) (Module m [] xs2 es2 ds2 ws2 [bs2]) kds sm
   where Types ke te                  = ds
         Binds r ts eqs                = concatBinds bss
         (xs1,xs2)                    = partition (\(Default pub _ _) -> pub) xs
@@ -119,7 +121,7 @@ isAbstract (_,_)                     = False     -- this makes abstract types wi
 -- Building environments in which to compile the current module -----------------------------------------------
 {- 
    Input to initEnvs is a map as built by chaseIFaceFiles;
-   output is four tuples of data suitable for various compiler passes.
+   output is six tuples of data suitable for various compiler passes.
 -}
 type ImportInfo a                     =  (Bool, a)
 
@@ -128,19 +130,21 @@ type Desugar1Env     = (Map Name [Name], Map Name Name, Map Name ([Name], Syntax
 type RenameEnv       = (Map Name [Name], Map Name Name, Map Name Name, Map Name Name, Map Name Name)
 type CheckEnv        = Module
 type KindleEnv       = Map Name Kindle.Decl
+type StaticEnv       = Map Name (ImportInfo Syntax2.Module)
 
-initEnvs             :: Map a (ImportInfo IFace) -> M s (Desugar1Env, RenameEnv, CheckEnv, KindleEnv,Module)
+initEnvs             :: Map Name (ImportInfo IFace) -> M s (Desugar1Env, RenameEnv, CheckEnv, KindleEnv,Module,StaticEnv)
 initEnvs bms         = do ims <- mapM (mkEnv . snd) bms
                           let ((rs,ss,rnL,rnT,rnE,rnC),m1,m2,kds) 
                                = foldr mergeIFace (([],[],[],[],[],[]),nullMod,nullMod,[]) ims
-                          return ((rs,rnL,ss),(rs,rnL,rnT,rnE,rnC),m1,kds,m2)
+                              is = map (\(n,(b,i)) -> (n,(b,syntaxMod i))) bms
+                          return ((rs,rnL,ss),(rs,rnL,rnT,rnE,rnC),m1,kds,m2,is)
 
   where mergeIFace ((rs1,ss1,rnL1,rnT1,rnE1,rnC1),m11,m21,kds1)
                  ((rs2,ss2,rnL2,rnT2,rnE2,rnC2),m12,m22,kds2) 
                                      = ((rs1 ++ rs2, ss1 ++ ss2, mergeRenamings2 rnL1 rnL2, 
                                        mergeRenamings2 rnT1 rnT2, mergeRenamings2 rnE1 rnE2, mergeRenamings2 rnC1 rnC2),
                                        mergeMod m11 m12,mergeMod m21 m22, kds1 ++ kds2)
-        mkEnv (unQual,IFace rs ss m1 m2 kds) 
+        mkEnv (unQual,IFace rs ss m1 m2 kds _) 
                                      = do rss <- mkRenamings unQual rs ss m1
                                           return (rss,m1,m2,kds)
 
@@ -207,13 +211,13 @@ instance LocalTypes Constr where
 -- Binary -------------------------------------------------------------------------------
 
 instance Binary IFace  where
-  put (IFace a b c d e) = put a >> put b >> put c >> put d >> put e
-  get = get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> return (IFace a b c d e)
+  put (IFace a b c d e f) = put a >> put b >> put c >> put d >> put e >> put f
+  get = get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> get >>= \f -> return (IFace a b c d e f)
 
 -- Printing -----------------------------------------------------------------------------
 
 instance Pr IFace where
-  pr (IFace rs ss (Module _ ns xs _ ds1 ws [bs]) _ kds) =
+  pr (IFace rs ss (Module _ ns xs _ ds1 ws [bs]) _ kds _) =
                                   text "Imported/used modules: " <+> prImports ns $$
                                   text "Default declarations: " <+> hpr ',' xs $$
                                   text ("Record types and their selectors: "++show rs) $$
@@ -249,7 +253,7 @@ listIface clo f                   = do (ifc,f) <- decodeModule clo f
 
 writeAPI modul ifc             = writeFile (modul ++ ".html") (render(toHTML modul (ifc :: IFace)))
 
-toHTML n (IFace rs ss (Module _ ns xs es ds ws [bs]) _ _) = text "<html><body>\n" $$
+toHTML n (IFace rs ss (Module _ ns xs es ds ws [bs]) _ _ _) = text "<html><body>\n" $$
                                           text ("<h2>API for module "++n++"</h2>\n") $$
                                           section ns "Imported modules" prImports $$
                                           section xs "Default declarations" (hpr ',') $$
@@ -285,7 +289,7 @@ decodeModule clo f                      = (do putStrLn ("[reading " ++ show f ++
                                                                                  ifc <- decodeCFile libf
                                                                                  return (ifc,libf))
 
-impsOf (IFace _ _ (Module _ ns _ _ _ _ _) _ _)  = ns
-tEnv (IFace _ _ (Module _ _ _ _ ts _ _) _ _)  = ts
-valEnv (IFace _ _ (Module _ _ _ _ _ _ [bs]) _ _)  = bs
-
+impsOf (IFace _ _ (Module _ ns _ _ _ _ _) _ _ _)  = ns
+tEnv (IFace _ _ (Module _ _ _ _ ts _ _) _ _ _)  = ts
+valEnv (IFace _ _ (Module _ _ _ _ _ _ [bs]) _ _ _)  = bs
+syntaxMod (IFace _ _ _ _ _ m)  = m
