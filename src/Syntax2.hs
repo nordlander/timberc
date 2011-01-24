@@ -46,8 +46,8 @@ import Control.Monad(liftM2)
 data Module = Module Name [Import] [Decl] [Decl]
             deriving  (Show)
 
-data Import = Import     Name
-            | Use        Name
+data Import = Import     NameRef
+            | Use        NameRef
             deriving (Show)
             
 data Decl   = DKSig      Name Kind
@@ -56,14 +56,14 @@ data Decl   = DKSig      Name Kind
             | DStruct    Name [Name] [Type] [Sig]
             | DType      Name [Name] Type
 
-            | DTClass    Name
+            | DTClass    NameRef
             | DTypeClass Name [Name] [Type] [Sig]
 
-            | DInst      Name
+            | DInst      NameRef
             | DInstance  (Maybe Name) Type [Bind]
             | DDerive    (Maybe Name) Type
 
-            | DDefault   [(Name,Name)]
+            | DDefault   [(NameRef,NameRef)]
 
             | DSig       [Name] Type
             | DEqn       Pat (Rhs Exp)
@@ -89,14 +89,14 @@ data Type   = TQual   Type [Pred] [Quant]
             | TParen  Type
             | TList   Type
             | TAp     Type Type
-            | TCon    Name
+            | TCon    NameRef
             | TVar    Name
             | TWild
             deriving  (Eq,Show)
 
 data Pred   = PQual   Pred [Pred] [Quant]
             | PSub    Type Type
-            | PClass  Name [Type]
+            | PClass  NameRef [Type]
             deriving (Eq,Show)
             
 data Quant  = QVar    Name
@@ -105,33 +105,35 @@ data Quant  = QVar    Name
 
 data Pat    = PVar    Name
             | PVarSig Name Type
-            | PCon    Name
+            | PCon    NameRef
             | PInfix  Pat Pat Pat
             | PAp     Pat Pat
-            | PIndex  Pat Pat
+            | PIndex  Pat Exp
             | PLit    Lit
             | PTup    [Pat]
             | PList   [Pat]
             | PParen  Pat
             | PWild
-            | PStruct (Maybe (Name,Bool)) [Field]
+            | PStruct (Maybe (NameRef,Bool)) [Field]
             deriving  (Eq,Show)
 
-data Field  = Field   Name Pat
+data Field  = Field   NameRef Pat
             deriving (Eq,Show)
 
-data Exp    = EVar    Name
+data Exp    = EVar    NameRef
             | EAp     Exp Exp
             | EInfix  Exp Exp Exp
-            | ECon    Name
-            | ESel    Exp Name
+            | ECon    NameRef
+            | ESel    Exp NameRef
             | ELit    Lit
             | ETup    [Exp]
             | EParen  Exp
             | EList   [Exp]
+            | EListUpdate [(Exp,Exp)]
             | EIndex  Exp Exp
             | ESig    Exp Type
-            | EStruct (Maybe (Name,Bool)) [Bind]
+            | EStruct (Maybe (NameRef,Bool)) [Bind]
+            | EStructUpdate (Maybe NameRef) [Bind]
             | ELam    [Pat] Exp
             | ELet    [Bind] Exp
             | ECase   Exp [Alt Exp]
@@ -145,12 +147,12 @@ data Exp    = EVar    Name
 
             | ESectR  Exp Exp   -- operator to the right
             | ESectL  Exp Exp   -- operator to the left
-            | ESelector Name
+            | ESelector NameRef
 
-            | EDo     [Quals] (Maybe Name) (Maybe Name) Stmts 
-            | EClass  [Quals] (Maybe Name) (Maybe Name) Stmts
-            | EAct    (Maybe Exp) (Maybe Name) Stmts -- 1st argument is the optional deadline!
-            | EReq    (Maybe Name) Stmts 
+            | EDo     [Quals] (Maybe Name) (Maybe NameRef) Stmts 
+            | EClass  [Quals] (Maybe Name) (Maybe NameRef) Stmts
+            | EAct    (Maybe Exp) (Maybe NameRef) Stmts -- 1st argument is the optional deadline!
+            | EReq    (Maybe NameRef) Stmts 
 
            -- pre-expressions, only allowed as unshadowed subexpressions of a Stmt
             | ESVar   Name
@@ -365,6 +367,8 @@ instance Pr Exp where
     pr (ELit l)             	= pr l
     pr (EStruct Nothing bs) 	= braces (hpr ';' bs)
     pr (EStruct (Just h) bs) 	= pr (fst h) <+> braces (hpr ';' bs <+> (if snd h then empty else text ".."))
+    pr (EStructUpdate Nothing bs) = braces (hpr ';' bs <> text ";" <+> text "_")
+    pr (EStructUpdate (Just c) bs) = pr c <+> braces (hpr ';' bs <> text ";" <+> text "_")
     pr (ENeg e)             	= text "-" <> pr e
     pr (ESig e t)           	= parens (pr e <+> text "::" <+> pr t)
     pr (ETup es)            	= parens (hpr ',' es)
@@ -375,7 +379,11 @@ instance Pr Exp where
     pr (ESeq e Nothing to)  	= brackets (pr e <+> text ".." <+> pr to)
     pr (ESeq e (Just b) to) 	= brackets (pr e <> comma <> pr b <+> text ".." <+> pr to)
     pr (EComp e qs)         	= brackets (empty <+> pr e <+> char '|' <+> hpr ',' qs)
+    pr (EListUpdate lmap)       = brackets (hpr ';' lmap)
     pr (EParen e)               = parens (prn 0 e)
+
+instance Pr (Exp,Exp) where
+    pr (i,e)                    = pr i <+> text "->" <+> pr e
 
 prOpExp (EVar x) | isSym x	= prOp x
 prOpExp (ECon x) | isSym x      = prOp x
@@ -555,6 +563,7 @@ instance Binary Pat where
   put (PCon a) = putWord8 8 >> put a
   put (PVarSig a b) = putWord8 9 >> put a >> put b
   put (PVar a) = putWord8 10 >> put a
+  put (PIndex a b) = putWord8 11 >> put a >> put b
   get = do
     tag_ <- getWord8
     case tag_ of
@@ -569,6 +578,7 @@ instance Binary Pat where
       8 -> get >>= \a -> return (PCon a)
       9 -> get >>= \a -> get >>= \b -> return (PVarSig a b)
       10 -> get >>= \a -> return (PVar a)
+      11 -> get >>= \a -> get >>= \b -> return (PIndex a b)
 
 instance Binary Field where
   put (Field a b) = putWord8 0 >> put a >> put b
@@ -609,6 +619,9 @@ instance Binary Exp where
   put (EInfix a b c) = putWord8 28 >> put a >> put b >> put c
   put (EAp a b) = putWord8 29 >> put a >> put b
   put (EVar a) = putWord8 30 >> put a
+  put (EListUpdate a) = putWord8 31 >> put a
+  put (EIndex a b) = putWord8 32 >> put a >> put b
+  put (EStructUpdate a b) = putWord8 33 >> put a >> put b
   get = do
     tag_ <- getWord8
     case tag_ of
@@ -643,6 +656,9 @@ instance Binary Exp where
       28 -> get >>= \a -> get >>= \b -> get >>= \c -> return (EInfix a b c)
       29 -> get >>= \a -> get >>= \b -> return (EAp a b)
       30 -> get >>= \a -> return (EVar a)
+      31 -> get >>= \a -> return (EListUpdate a)
+      32 -> get >>= \a -> get >>= \b -> return (EIndex a b)
+      33 -> get >>= \a -> get >>= \b -> return (EStructUpdate a b)
 
 instance (Binary a) => Binary (Rhs a) where
   put (RGrd a b) = putWord8 0 >> put a >> put b
@@ -726,7 +742,7 @@ exp2pat (ESig (EVar x) t) 	= PVarSig x t
 exp2pat (ECon c) 		= PCon c
 exp2pat (ELit l)		= PLit l
 exp2pat (EAp p1 p2)		= PAp (exp2pat p1) (exp2pat p2)
-exp2pat (EIndex p1 p2)          = PIndex (exp2pat p1) (exp2pat p2)
+exp2pat (EIndex p e)            = PIndex (exp2pat p) e
 exp2pat (EInfix l op r)		= PInfix (exp2pat l) (exp2pat op) (exp2pat r)
 exp2pat (ENeg (ELit (LInt p i))) = PLit (LInt p (-i))
 exp2pat (ENeg (ELit (LRat p r))) = PLit (LRat p (-r))

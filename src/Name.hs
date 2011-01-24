@@ -45,6 +45,8 @@ import Data.Binary
 
 -- The type of names ---------------------------------------------------------------------
 
+type NameRef                    = Name
+
 data Name                       = Name  { str :: String, tag :: Int, fromMod :: Maybe String, annot :: Annot }
                                 | Prim  { con :: Prim, annot :: Annot }
                                 | Tuple { width :: Int, annot :: Annot }

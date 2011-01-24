@@ -382,9 +382,9 @@ exp     :: { Exp }
         | anyconid 'struct' layout_on binds close            { EStruct (Just ($1,False)) (reverse $4) }
         | anyconid 'struct' layout_on binds ';' '..' close   { EStruct (Just ($1,True)) (reverse $4) }
         | anyconid 'struct' layout_on '..' close             { EStruct (Just ($1,True)) [] }
-        | anyvarid 'struct' layout_on binds close            { EStruct (Just ($1,False)) (reverse $4) }
-        | anyvarid 'struct' layout_on binds ';' '..' close   { EStruct (Just ($1,True)) (reverse $4) }
-        | anyvarid 'struct' layout_on '..' close             { EStruct (Just ($1,True)) [] }
+
+        | 'struct' layout_on binds ';' '_' close             { EStructUpdate Nothing (reverse $3) }
+        | anyconid 'struct' layout_on binds ';' '_' close    { EStructUpdate (Just $1) (reverse $4) }
 
 exp0    :: { Exp }
         : exp000a                               { $1 }
@@ -429,23 +429,21 @@ opExpb  :: { OpExp }
 	| exp10a op exp10b	                { Cons (Nil $1) $2 $3 }
 
 op      :: { Exp }
-        : qvarsym                               { EVar $1 }
-        | varsym                                { EVar $1 }
-        | qconsym                               { ECon $1 }
-        | consym                                { ECon $1 }
+        : anyvarsym                             { EVar $1 }
+        | anyconsym                             { ECon $1 }
 	| '`' fexp '`'                          { $2 }
 
 op0     :: { Exp }
-        : qvarsym                               { EVar $1 }
-        | varsym0                               { EVar $1 }
-        | qconsym                               { ECon $1 }
-        | consym                                { ECon $1 }
+        : anyvarsym0                            { EVar $1 }
+        | anyconsym                             { ECon $1 }
 	| '`' fexp '`'                          { $2 }
 
 exp10a  :: { Exp }
         : 'case' exp 'of' altslist              { ECase $2 $4 }
         | '{' layout_off binds '}'              { EStruct Nothing (reverse $3) }
         | exp10as                               { $1 }
+
+        | '{' layout_off binds ';' '_' '}'      { EStructUpdate Nothing (reverse $3) }
 
 exp10as :: { Exp }
         : fexp                                           { $1 }
@@ -462,26 +460,17 @@ exp10as :: { Exp }
         | 'request' stmtlist                             { EReq Nothing $2 }
         | 'request' '@' varid stmtlist                   { EReq (Just $3) $4 }
       
-  	| anyconid '{' layout_off binds '}'              { EStruct (Just ($1,True)) (reverse $4) } 
+        | anyconid '{' layout_off binds '}'              { EStruct (Just ($1,True)) (reverse $4) } 
         | anyconid '{' layout_off binds '..' '}'         { EStruct (Just ($1,False)) (reverse $4) } 
         | anyconid '{' layout_off binds ';' '..' '}'     { EStruct (Just ($1,False)) (reverse $4) } 
         | anyconid '{' layout_off '..' '}'               { EStruct (Just ($1,False)) [] } 
-	| anyconid '{' layout_off  '}'	                 { EStruct (Just ($1,True)) [] }
+        | anyconid '{' layout_off  '}'	                 { EStruct (Just ($1,True)) [] }
 
-  	| anyvarid '{' layout_off binds '}'              { EList [] } 
-
-  	| fexp '[' maps ']'                              { EList [] } 
+        | anyconid '{' layout_off binds ';' '_' '}'      { EStructUpdate (Just $1) (reverse $4) } 
 
 	| after 'send' exp10a                            { ESend $1 $3 }
 	| forall 'new' exp10a                            { ENew $1 $3 }
         | '<-' exp10a                                    { EGen $2 }
-
-maps    :: { [Bind] }
-        : maps ',' map                          { $3 : $1 }
-        | map                                   { [$1] }
-
-map     :: { Bind }
-        : fexp '->' exp                         { BEqn PWild (RExp $3 []) }
 
 forall  :: { [Quals] }
         : 'forall' qualss                       { (reverse $2) }
@@ -537,11 +526,9 @@ lit     :: { Lit }
 
 conref  :: { Name }
         : anyconid                              { $1 }
-        | '(' qconsym ')'                       { $2 }
-        | '(' consym ')'                        { $2 }
+        | '(' anyconsym ')'                     { $2 }
         | '~' anyconid                          { annotExplicit $2 }
-        | '~' '(' qconsym ')'                   { annotExplicit $3 }
-        | '~' '(' consym ')'                    { annotExplicit $3 }
+        | '~' '(' anyconsym ')'                 { annotExplicit $3 }
 
 varref  :: { Name }
 	: anyvarid                              { $1 }
@@ -561,11 +548,19 @@ list    :: { Exp }
         | exp '..' exp                          { ESeq $1 Nothing $3 }
         | exp ',' exp '..' exp                  { ESeq $1 (Just $3) $5 }
         | exp '|' qualss                        { EComp $1 (reverse $3) }
+        | maps                                  { EListUpdate (reverse $1) }
 
 exps    :: { [Exp] }
         : exps ',' exp                          { $3 : $1 }
         | exp ',' exp                           { [$3,$1] }
- 
+
+maps    :: { [(Exp,Exp)] }
+        : maps ',' map                          { $3 : $1 }
+        | map                                   { [$1] }
+
+map     :: { (Exp,Exp) }
+        : exp '->' exp                          { ($1, $3) }
+
 
 -- List comprehensions ---------------------------------------------------------
 
@@ -731,12 +726,9 @@ apat    :: { Pat }
 varid  :: { Name }
         : VARID                                 {% do l <- getSrcLoc; return (name l $1) }
 
-qvarid  :: { Name }
-        : QVARID                                {% do l <- getSrcLoc; return (qname l $1) }
-
 anyvarid :: { Name }
 	: varid                                 { $1 }
-        | qvarid                                { $1 }
+        | QVARID                                {% do l <- getSrcLoc; return (qname l $1) }
 
 varsym :: { Name }
         : VARSYM1                               {% do l <- getSrcLoc; return (name l $1) }
@@ -759,24 +751,28 @@ VARSYM0 :: { String }
 qvarsym :: { Name }
         : QVARSYM                               {% do l <- getSrcLoc; return (qname l $1) }
 
+anyvarsym :: { Name }
+        : varsym                                { $1 }
+        | qvarsym                               { $1 }
+
+anyvarsym0 :: { Name }
+        : varsym0                               { $1 }
+        | qvarsym                               { $1 }
 
 
 conid  :: { Name }
         : CONID                                 {% do l <- getSrcLoc; return (name l $1) }
 
-qconid  :: { Name }
-        : QCONID                                {% do l <- getSrcLoc; return (qname l $1) }
-
 anyconid :: { Name }
         : conid                                 { $1 }
-        | qconid                                { $1 }
+        | QCONID                                {% do l <- getSrcLoc; return (qname l $1) }
 
 consym :: { Name }
         : CONSYM                                {% do l <- getSrcLoc; return (name l $1) }
 
-qconsym  :: { Name }
-        : QCONSYM                               {% do l <- getSrcLoc; return (qname l $1) }
-
+anyconsym :: { Name }
+        : consym                                { $1 }
+        | QCONSYM                               {% do l <- getSrcLoc; return (qname l $1) }
         
 
 -- Layout ---------------------------------------------------------------------
