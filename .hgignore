@@ -1,0 +1,12 @@
+# use glob syntax.
+syntax: glob
+
+*.o
+*.hi
+*.ti
+tests/*.c
+tests/*.h
+tests/*.js
+examples/*.c
+examples/*.h
+examples/*.js
