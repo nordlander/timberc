@@ -10,3 +10,8 @@ tests/*.js
 examples/*.c
 examples/*.h
 examples/*.js
+dist
+*.html
+*.log
+*.status
+*.cfg
