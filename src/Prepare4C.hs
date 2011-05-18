@@ -505,7 +505,7 @@ pFunField ty (_,ts0,t0) env vs t te c
                                      c <- pCmd0 (setThis y (addVals ((y,ty):te) env')) t0 c
                                      f <- newName functionSym
                                      addToStore (f, Fun [] t0' ((y,pAType ty):te1') (cBind bs1 c))
-				     return (t0', te', CRet (ECall f [] (EThis : map EVar (dom te1'))))
+				     return (t0', te1', CRet (ECall f [] (EThis : map EVar (dom te1'))))
   where t0'			= pAType t0
 
 
