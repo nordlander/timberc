@@ -213,8 +213,10 @@ k2cValBinds (rec,bs)
         g _                     = empty
         vs                      = dom bs
         isSafe bs               = all isConst bs && strictBs bs `intersect` vs == []
+        isConst (_, Fun _ _ _ _)                  = True
         isConst (_, Val _ (ENew _ _ _))           = True
         isConst (_, Val _ (ECast _ (ENew _ _ _))) = True
+        isConst (_, Val _ (EClos _ _ _ _))        = True
         isConst _                                 = False
 k2cValBinds (_,bs)              = text ("{   Array roots = CYCLIC_BEGIN(" ++ show size ++ "," ++ show n_upd ++ ");") $$
                                   nest 4 (vcat (zipWith f [0..] bs) $$
@@ -241,6 +243,7 @@ k2cValBinds (_,bs)              = text ("{   Array roots = CYCLIC_BEGIN(" ++ sho
 				= update u i $$
 				  newCall t x [prim CLOS] $$
 				  k2cExp (rootInd i) <+> text "=" <+> k2cExp (ECast tPOLY (EVar x)) <> text ";" $$
+				  k2cExp (ESel (EVar x) (prim GCINFO)) <+> text "=" <+> k2cGCInfoName (prim CLOS) <> text ";" $$
 				  k2cExp (ESel (EVar x) (prim Code)) <+> text "=" <+> parens (parens (text "void(*)(void)") <> k2cName f) <> text ";"
         g i u (x, Val t e)      = update u i $$
                                   k2cName x <+> text "=" <+> k2cExp e <> text ";" $$
