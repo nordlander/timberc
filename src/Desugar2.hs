@@ -188,6 +188,9 @@ dsEqns vs ((LPat (PVar v), r):eqns)
 				= dsEqns vs ((LFun v [], r):eqns)
 dsEqns vs ((LPat (PRec _ ps),RExp (EVar v)):eqns)
 				= dsEqns vs ([ (LPat p, RExp (ESelect (EVar v) l)) | Field l p <- ps ] ++ eqns)
+
+dsEqns vs ((LPat p,rh):eqns)
+  | null (pvars p)              = errorTree "Bad left-hand side in pattern-binding" p
 dsEqns vs ((LPat p,RExp e0@(EVar v)):eqns)
                                 = do p' <- dsPat p      -- Checks validity
                                      sels <- mapM sel vs'
@@ -195,7 +198,7 @@ dsEqns vs ((LPat p,RExp e0@(EVar v)):eqns)
   where vs'                     = pvars p
         sel v'                  = do vs'' <- newNamesPos dummySym vs'
                                      v'' <- newNamePos paramSym v'
-                                     return (LFun v' [], RExp (selectFrom e0 (zip (v':vs') (v'':vs'')) p (EVar v')))
+                                     return (LFun v' [], RExp (selectFrom e0 p (EVar v')))
 dsEqns vs ((LPat p,rh):eqns)    = do v <- newNamePos patSym p
                                      eqns <- dsEqns vs ((LPat p, RExp (EVar v)) : eqns)
                                      e <- dsExp vs (rh2exp rh)
@@ -240,7 +243,7 @@ rh2exp (RExp e)                 = e
 rh2exp (RWhere rh bs)           = ELet bs (rh2exp rh)
 rh2exp rh                       = ECase unit [Alt unitP rh]
 
-selectFrom e0 s p e             = ECase e0 [Alt (subst (mapSnd PVar s) p) (RExp (subst (mapSnd EVar s) e))]
+selectFrom e0 p e               = ECase e0 [Alt p (RExp e)]
 
 getAndClearStore                = do ss <- currentStore
                                      clearStore
@@ -381,12 +384,8 @@ dsSs cl (s@(SAss p e) : ss)
                                      ss <- dsSs cl ss
                                      return (ss' ++ SAss p e : ss)
   | otherwise                   = do v0 <- newNamePos tempSym p
-                                     assigns <- mapM (assign (EVar v0)) sigvs
-                                     dsSs cl (SBind [BEqn (LFun v0 []) (RExp e)] : assigns ++ ss)
-  where assign e0 sigv          = do let PVar v = unsig sigv
-                                     vs' <- newNamesPos dummySym vs
-                                     v' <- newNamePos paramSym v
-                                     return (SAss sigv (selectFrom e0 (zip (v:vs) (v':vs')) p0 (pat2exp (unsig sigv))))
+                                     dsSs cl (SBind [BEqn (LFun v0 []) (RExp e)] : map (assign (EVar v0)) sigvs ++ ss)
+  where assign e0 sigv          = SAss sigv (selectFrom e0 p0 (pat2exp (unsig sigv)))
         p0                      = unsig p
         sigvs                   = sigvars p
         vs                      = pvars sigvs
