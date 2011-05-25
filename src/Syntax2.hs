@@ -151,8 +151,8 @@ data Exp    = EVar    NameRef
 
             | EDo     [Quals] (Maybe Name) (Maybe NameRef) Stmts 
             | EClass  [Quals] (Maybe Name) (Maybe NameRef) Stmts
-            | EAct    (Maybe Exp) (Maybe NameRef) Stmts -- 1st argument is the optional deadline!
-            | EReq    (Maybe NameRef) Stmts 
+            | EAct    (Maybe Exp) (Maybe Name) (Maybe NameRef) Stmts -- 1st argument is the optional deadline!
+            | EReq    (Maybe Name) (Maybe NameRef) Stmts 
 
            -- pre-expressions, only allowed as unshadowed subexpressions of a Stmt
             | ESVar   Name
@@ -351,8 +351,8 @@ instance Pr Exp where
     pr (ECase e alts)        	= text "case" <+> pr e <+> text "of" $$ nest 2 (vpr alts)
     pr (EDo qs v t ss)       	= prForall qs <+> text "do" <> prN v <> prN t $$ nest 3 (pr ss)
     pr (EClass qs v t ss)    	= prForall qs <+> text "class" <> prN v <> prN t $$ nest 4 (pr ss)
-    pr (EAct b v ss)  		= prBefore b <+> text "action" <> prN v $$ nest 4 (pr ss) 
-    pr (EReq v ss)           	= text "request" <> prN v $$ nest 4 (pr ss) 
+    pr (EAct b v t ss)  	= prBefore b <+> text "action" <> prN v <> prN t $$ nest 4 (pr ss) 
+    pr (EReq v t ss)           	= text "request" <> prN v <> prN t $$ nest 4 (pr ss) 
     pr (EInfix l op r)		= pr l <+> prOpExp op <+> pr r
     pr (EIndex e e')            = pr e <> text "!" <> pr e'
     pr (EOr e1 e2)              = pr e1 <+> text "||" <+> pr e2
@@ -592,8 +592,8 @@ instance Binary Exp where
   put (ESend a b) = putWord8 1 >> put a >> put b
   put (ENew a b) = putWord8 2 >> put a >> put b
   put (ESVar a) = putWord8 3 >> put a
-  put (EReq a b) = putWord8 4 >> put a >> put b
-  put (EAct a b c) = putWord8 5 >> put a >> put b >> put c
+  put (EReq a b c) = putWord8 4 >> put a >> put b >> put c
+  put (EAct a b c d) = putWord8 5 >> put a >> put b >> put c >> put d
   put (EClass a b c d) = putWord8 6 >> put a >> put b >> put c >> put d
   put (EDo a b c d) = putWord8 7 >> put a >> put b >> put c >> put d
   put (ESelector a) = putWord8 8 >> put a
@@ -629,8 +629,8 @@ instance Binary Exp where
       1 -> get >>= \a -> get >>= \b -> return (ESend a b)
       2 -> get >>= \a -> get >>= \b -> return (ENew a b)
       3 -> get >>= \a -> return (ESVar a)
-      4 -> get >>= \a -> get >>= \b -> return (EReq a b)
-      5 -> get >>= \a -> get >>= \b -> get >>= \c -> return (EAct a b c)
+      4 -> get >>= \a -> get >>= \b -> get >>= \c -> return (EReq a b c)
+      5 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (EAct a b c d)
       6 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (EClass a b c d)
       7 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (EDo a b c d)
       8 -> get >>= \a -> return (ESelector a)

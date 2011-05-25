@@ -144,11 +144,11 @@ s2Exp (EDo mbn Nothing ss)         = Syntax2.EDo [] mbn Nothing (s2Stmts ss)
 s2Exp (EDo mbn (Just (TCon c)) ss) = Syntax2.EDo [] mbn (Just c) (s2Stmts ss)
 s2Exp (ETempl mbn Nothing ss)      = Syntax2.EClass [] mbn Nothing (s2Stmts ss)
 s2Exp (ETempl mbn (Just (TCon c)) ss) = Syntax2.EClass [] mbn (Just c) (s2Stmts ss)
-s2Exp (EAct mbn ss)                = Syntax2.EAct Nothing mbn (s2Stmts ss) 
-s2Exp (EReq mbn ss)                = Syntax2.EReq mbn (s2Stmts ss) 
+s2Exp (EAct mbn ss)                = Syntax2.EAct Nothing mbn Nothing (s2Stmts ss) 
+s2Exp (EReq mbn ss)                = Syntax2.EReq mbn Nothing (s2Stmts ss) 
 s2Exp (EAfter e1 e2)               = Syntax2.ESend (Just (s2Exp e1)) (s2Exp e2)
 s2Exp (EBefore e1 e2)              = case s2Exp e2 of
-                                        Syntax2.EAct _ mn e2' -> Syntax2.EAct (Just (s2Exp e1)) mn e2'
+                                        Syntax2.EAct _ mn mn' e2' -> Syntax2.EAct (Just (s2Exp e1)) mn mn' e2'
                                         _ -> error "before construct without action expr as 2nd argument"
 s2Exp (EForall qs ss)              = Syntax2.EDo [map s2Qual qs] Nothing Nothing (s2Stmts ss)  -- forallclass
 s2Exp (ENew e)                     = Syntax2.ENew [] (s2Exp e)  -- forallnew

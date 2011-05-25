@@ -188,10 +188,10 @@ topdecl :: { Decl }
         | 'typeclass' conid tyvars sups 'where' siglist    { DTypeClass $2 (reverse $3) $4 $6 }
         | 'typeclass' conid tyvars 'where' siglist         { DTypeClass $2 (reverse $3) [] $5 }
         | 'typeclass' conid tyvars sups                    { DTypeClass $2 (reverse $3) $4 [] }
-        | 'typeclass' conid                                { DTClass $2 }
+        | 'typeclass' anyconid                             { DTClass $2 }
         | 'instance' varid '::' type 'where' bindlist      { DInstance (Just $2) $4 $6 }
         | 'instance' type 'where' bindlist                 { DInstance Nothing $2 $4 }
-        | 'instance' varid                                 { DInst $2 }
+        | 'instance' anyvarid                              { DInst $2 }
         | 'deriving' 'instance' varid '::' type            { DDerive (Just $3) $5 }
         | 'deriving' 'instance' type                       { DDerive Nothing $3 }
         | 'default' defaults                               { DDefault (reverse $2) }
@@ -446,31 +446,35 @@ exp10a  :: { Exp }
         | '{' layout_off binds ';' '_' '}'      { EStructUpdate Nothing (reverse $3) }
 
 exp10as :: { Exp }
-        : fexp                                           { $1 }
-        | forall 'do' stmtlist                           { EDo $1 Nothing Nothing $3 }
-        | forall 'do' '@' varid stmtlist                 { EDo $1 (Just $4) Nothing $5 }
-        | forall 'do' '@' anyconid stmtlist              { EDo $1 Nothing (Just $4) $5 }
-        | forall 'do' '@' varid '@' anyconid stmtlist    { EDo $1 (Just $4) (Just $6) $7 }
-        | forall 'class' stmtlist                        { EClass $1 Nothing Nothing $3 }
-        | forall 'class' '@' varid stmtlist              { EClass $1 (Just $4) Nothing $5 }
-        | forall 'class' '@' anyconid stmtlist           { EClass $1 Nothing (Just $4) $5 }
-        | forall 'class' '@' varid '@' anyconid stmtlist { EClass $1 (Just $4) (Just $6) $7 }
-        | before 'action' stmtlist                       { EAct $1 Nothing $3 }
-        | before 'action' '@' varid stmtlist             { EAct $1 (Just $4) $5 }
-        | 'request' stmtlist                             { EReq Nothing $2 }
-        | 'request' '@' varid stmtlist                   { EReq (Just $3) $4 }
+        : fexp                                             { $1 }
+        | forall 'do' stmtlist                             { EDo $1 Nothing Nothing $3 }
+        | forall 'do' '@' varid stmtlist                   { EDo $1 (Just $4) Nothing $5 }
+        | forall 'do' '@' anyconid stmtlist                { EDo $1 Nothing (Just $4) $5 }
+        | forall 'do' '@' varid '@' anyconid stmtlist      { EDo $1 (Just $4) (Just $6) $7 }
+        | forall 'class' stmtlist                          { EClass $1 Nothing Nothing $3 }
+        | forall 'class' '@' varid stmtlist                { EClass $1 (Just $4) Nothing $5 }
+        | forall 'class' '@' anyconid stmtlist             { EClass $1 Nothing (Just $4) $5 }
+        | forall 'class' '@' varid '@' anyconid stmtlist   { EClass $1 (Just $4) (Just $6) $7 }
+        | before 'action' stmtlist                         { EAct $1 Nothing Nothing $3 }
+        | before 'action' '@' varid stmtlist               { EAct $1 (Just $4) Nothing $5 }
+        | before 'action' '@' anyconid stmtlist            { EAct $1 Nothing (Just $4) $5 }
+        | before 'action' '@' varid '@' anyconid stmtlist  { EAct $1 (Just $4) (Just $6) $7 }
+        | 'request' stmtlist                               { EReq Nothing Nothing $2 }
+        | 'request' '@' varid stmtlist                     { EReq (Just $3) Nothing $4 }
+        | 'request' '@' anyconid stmtlist                  { EReq Nothing (Just $3) $4 }
+        | 'request' '@' varid '@' anyconid stmtlist        { EReq (Just $3) (Just $5) $6 }
       
-        | anyconid '{' layout_off binds '}'              { EStruct (Just ($1,True)) (reverse $4) } 
-        | anyconid '{' layout_off binds '..' '}'         { EStruct (Just ($1,False)) (reverse $4) } 
-        | anyconid '{' layout_off binds ';' '..' '}'     { EStruct (Just ($1,False)) (reverse $4) } 
-        | anyconid '{' layout_off '..' '}'               { EStruct (Just ($1,False)) [] } 
-        | anyconid '{' layout_off  '}'	                 { EStruct (Just ($1,True)) [] }
+        | anyconid '{' layout_off binds '}'                { EStruct (Just ($1,True)) (reverse $4) } 
+        | anyconid '{' layout_off binds '..' '}'           { EStruct (Just ($1,False)) (reverse $4) } 
+        | anyconid '{' layout_off binds ';' '..' '}'       { EStruct (Just ($1,False)) (reverse $4) } 
+        | anyconid '{' layout_off '..' '}'                 { EStruct (Just ($1,False)) [] } 
+        | anyconid '{' layout_off  '}'	                   { EStruct (Just ($1,True)) [] }
 
-        | anyconid '{' layout_off binds ';' '_' '}'      { EStructUpdate (Just $1) (reverse $4) } 
+        | anyconid '{' layout_off binds ';' '_' '}'        { EStructUpdate (Just $1) (reverse $4) } 
 
-	| after 'send' exp10a                            { ESend $1 $3 }
-	| forall 'new' exp10a                            { ENew $1 $3 }
-        | '<-' exp10a                                    { EGen $2 }
+	| after 'send' exp10a                              { ESend $1 $3 }
+	| forall 'new' exp10a                              { ENew $1 $3 }
+        | '<-' exp10a                                      { EGen $2 }
 
 forall  :: { [Quals] }
         : 'forall' qualss                       { (reverse $2) }
