@@ -415,17 +415,17 @@ exp0b	:: { Exp }
 	| exp10b			        { $1 }
 	  
 opExpa  :: { OpExp }
-        : opExpa op '-' exp10a	                { Cons $1 $2 (ENeg $4) }
+        : opExpa op MINUS exp10a                { Cons $1 $2 (ENeg $4) }
         | opExpa op exp10a	                { Cons $1 $2 $3 }
-        | '-' exp10a			        { Nil (ENeg $2) }
-        | exp10a op '-' exp10a	                { Cons (Nil $1) $2 (ENeg $4) }
+        | MINUS exp10a			        { Nil (ENeg $2) }
+        | exp10a op MINUS exp10a                { Cons (Nil $1) $2 (ENeg $4) }
         | exp10a op exp10a		        { Cons (Nil $1) $2 $3 }
 	  
 opExpb  :: { OpExp }
-        : opExpa op '-' exp10b	                { Cons $1 $2 (ENeg $4) }
+        : opExpa op MINUS exp10b                { Cons $1 $2 (ENeg $4) }
 	| opExpa op exp10b	                { Cons $1 $2 $3 }
-	| '-' exp10b		                { Nil (ENeg $2) }
-	| exp10a op '-' exp10b	                { Cons (Nil $1) $2 (ENeg $4) }
+	| MINUS exp10b		                { Nil (ENeg $2) }
+	| exp10a op MINUS exp10b                { Cons (Nil $1) $2 (ENeg $4) }
 	| exp10a op exp10b	                { Cons (Nil $1) $2 $3 }
 
 op      :: { Exp }
@@ -519,10 +519,10 @@ cexp    :: { Exp }
         | '(' ')'                               { ECon (tuple 0) }
 
 lit     :: { Lit }
-        : INT                                   {% do l <- getSrcLoc; return (LInt (Just l) (readInteger $1)) }
-        | RATIONAL                              {% do l <- getSrcLoc; return (LRat (Just l) (readRational $1)) }
-        | CHAR                                  {% do l <- getSrcLoc; return (LChr (Just l) $1) }
-        | STRING                                {% do l <- getSrcLoc; return (LStr (Just l) $1) }
+        : loc INT                               { LInt (Just $1) (readInteger $2) }
+        | loc RATIONAL                          { LRat (Just $1) (readRational $2) }
+        | loc CHAR                              { LChr (Just $1) $2 }
+        | loc STRING                            { LStr (Just $1) $2 }
 
 conref  :: { Name }
         : anyconid                              { $1 }
@@ -693,19 +693,18 @@ exp0bs	:: { Exp }
 	| exp10bs			        { $1 }
 	  
 opExpas  :: { OpExp }
-        : opExpas op '-' exp10as                { Cons $1 $2 (ENeg $4) }
+        : opExpas op MINUS exp10as              { Cons $1 $2 (ENeg $4) }
         | opExpas op exp10as	                { Cons $1 $2 $3 }
-        | '-' exp10as			        { Nil (ENeg $2) }
-        | exp10as op '-' exp10as                { Cons (Nil $1) $2 (ENeg $4) }
+        | MINUS exp10as	                        { Nil (ENeg $2) }
+        | exp10as op MINUS exp10as              { Cons (Nil $1) $2 (ENeg $4) }
         | exp10as op exp10as		        { Cons (Nil $1) $2 $3 }
 	  
 opExpbs  :: { OpExp }
-        : opExpas op '-' exp10bs                { Cons $1 $2 (ENeg $4) }
+        : opExpas op MINUS exp10bs              { Cons $1 $2 (ENeg $4) }
 	| opExpas op exp10bs	                { Cons $1 $2 $3 }
-	| '-' exp10bs		                { Nil (ENeg $2) }
-	| exp10as op '-' exp10bs                { Cons (Nil $1) $2 (ENeg $4) }
+	| MINUS exp10bs	                        { Nil (ENeg $2) }
+	| exp10as op MINUS exp10bs              { Cons (Nil $1) $2 (ENeg $4) }
 	| exp10as op exp10bs	                { Cons (Nil $1) $2 $3 }
-
 
 
 -- Patterns ----------------------------------------------------------------
@@ -723,33 +722,36 @@ apat    :: { Pat }
 
 -- Variables, Constructors and Operators ------------------------------------
 
+loc    :: { (Int,Int) }
+        : {- empty -}                           {% getSrcLoc }
+
 varid  :: { Name }
-        : VARID                                 {% do l <- getSrcLoc; return (name l $1) }
+        : loc VARID                             { name $1 $2 }
 
 anyvarid :: { Name }
 	: varid                                 { $1 }
-        | QVARID                                {% do l <- getSrcLoc; return (qname l $1) }
+        | loc QVARID                            { qname $1 $2 }
 
 varsym :: { Name }
-        : VARSYM1                               {% do l <- getSrcLoc; return (name l $1) }
+        : VARSYM0                               { $1 }
+        | MINUS					{ $1 }
 
 varsym0 :: { Name }
-        : VARSYM0                               {% do l <- getSrcLoc; return (name l $1) }
+        : VARSYM0                               { $1 }
 
-VARSYM1 :: { String }
-	: VARSYM0				{ $1 }
-	| '-'					{ "-" }
+VARSYM0 :: { Name }
+        : loc VARSYM                            { name $1 $2 }
+        | loc '<'                               { name $1 "<" }
+        | loc '>'                               { name $1 ">" }
+        | loc '*'                               { name $1 "*" }
+        | loc '@'                               { name $1 "@" }
+        | loc '\\\\'				{ name $1 "\\\\" }
 
-VARSYM0 :: { String }
-        : VARSYM                                { $1 }
-        | '<'                                   { "<" }
-        | '>'                                   { ">" }
-        | '*'                                   { "*" }
-        | '@'                                   { "@" }
-        | '\\\\'				{ "\\\\" }
-
+MINUS   :: { Name }
+	: loc '-'                               { name $1 "-" }
+	
 qvarsym :: { Name }
-        : QVARSYM                               {% do l <- getSrcLoc; return (qname l $1) }
+        : loc QVARSYM                           { qname $1 $2 }
 
 anyvarsym :: { Name }
         : varsym                                { $1 }
@@ -759,20 +761,19 @@ anyvarsym0 :: { Name }
         : varsym0                               { $1 }
         | qvarsym                               { $1 }
 
-
 conid  :: { Name }
-        : CONID                                 {% do l <- getSrcLoc; return (name l $1) }
+        : loc CONID                             { name $1 $2 }
 
 anyconid :: { Name }
         : conid                                 { $1 }
-        | QCONID                                {% do l <- getSrcLoc; return (qname l $1) }
+        | loc QCONID                            { qname $1 $2 }
 
 consym :: { Name }
-        : CONSYM                                {% do l <- getSrcLoc; return (name l $1) }
+        : loc CONSYM                            { name $1 $2 }
 
 anyconsym :: { Name }
         : consym                                { $1 }
-        | QCONSYM                               {% do l <- getSrcLoc; return (qname l $1) }
+        | loc QCONSYM                           { qname $1 $2 }
         
 
 -- Layout ---------------------------------------------------------------------
