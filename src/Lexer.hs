@@ -230,12 +230,11 @@ lexToken cont (c:s) loc@(y,x') x state =
       lexVarId q c s = let (vidtail, rest) = span isIdent s
                            vid             = c:vidtail
                            l_vid           = len q vid
-              in
-                  case lookup vid reserved_ids of
-                  Just keyword -> case q of
+                       in case lookup vid reserved_ids of
+                               Just keyword -> case q of
                                     "" -> forward l_vid keyword rest
                                     _ -> Failed "illegal qualified name"
-                  Nothing      -> forward l_vid (qchoose VarId QVarId q vid) rest
+                               Nothing      -> forward l_vid (qchoose VarId QVarId q vid) rest
 
       lexQualName q c s = let (contail, rest) = span isIdent s
                               con             = join q (c:contail)
