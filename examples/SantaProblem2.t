@@ -8,10 +8,10 @@ module SantaProblem2 where
        rand = new baseGen (microsecOf env.startTime)
        santa = new santaClaus env
        secretary = new semaphore santa.announce santa.confirm
-       shepherdRin  = new batch 9 (secretary.lock @ Reindeer)
-       shepherdRout = new batch 9 (secretary.unlock @ Reindeer)
-       shepherdEin  = new batch 3 (secretary.lock @ Elves)
-       shepherdEout = new batch 3 (secretary.unlock @ Elves)
+       shepherdRin  = new batch 9 (secretary.lock ° Reindeer)
+       shepherdRout = new batch 9 (secretary.unlock ° Reindeer)
+       shepherdEin  = new batch 3 (secretary.lock ° Elves)
+       shepherdEout = new batch 3 (secretary.unlock ° Elves)
        reindeer = forall n <- [1..10] new helper env rand shepherdRin shepherdRout (rMsg n)
        elves    = forall n <- [1..9] new helper env rand shepherdEin shepherdEout (eMsg n)
        result action

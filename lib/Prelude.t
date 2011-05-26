@@ -542,7 +542,7 @@ curry f x y         = f (x,y)
 uncurry            :: (a -> b -> c) -> (a,b) -> c
 uncurry f (x,y)     = f x y
 
-f @ g               = \x -> f (g x)
+f ° g               = \x -> f (g x)
 
 -- Boolean and numeric functions ---------------------------
 

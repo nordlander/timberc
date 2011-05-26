@@ -187,7 +187,7 @@ acceptColumnAlignedKeywords = ["elsif","else"]
 tab_length = 8 :: Int
 
 isIdent  c = isAlpha c || isDigit c || c == '\'' || c == '_'
-isSymbol c = elem c ":!#$%&*+./<=>?@\\^|-~"
+isSymbol c = elem c ":!#$%&*+./<=>?@\\^|-~°"
 
 data LexInt =
       Decimal     (String,String)
