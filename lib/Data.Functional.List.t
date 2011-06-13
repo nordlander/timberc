@@ -41,8 +41,8 @@ deleteBy eq x []    = []
 deleteBy eq x (y:ys)= if x `eq` y then ys else y:deleteBy eq x ys
 
 
-(\\)               :: [a] -> [a] -> [a] \\ Eq a
-(\\)                = foldl (flip delete)
+diff               :: [a] -> [a] -> [a] \\ Eq a
+diff                = foldl (flip delete)
 
 elemBy, notElemBy  :: (a -> a -> Bool) -> a -> [a] -> Bool
 elemBy eq _ []      = False

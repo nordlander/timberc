@@ -37,6 +37,7 @@
 module Syntax22Syntax where
 
 import Common
+import PP
 import Syntax2 
 import qualified Syntax
 
@@ -70,7 +71,8 @@ sDecls b (DSig ns t : ds)           = Syntax.DBind [Syntax.BSig ns (sType t)] : 
 sDecls b (DEqn lh rh : ds)          = Syntax.DBind [Syntax.BEqn (sLhs lh) (sRhs sExp rh)] : sDecls b ds
 sDecls b []                         = []
 
-sConstr (Constr n ts ps qs)       = Syntax.Constr n (map sType ts) (map sPred ps ++ map sQuant qs)
+sConstr (Constr n ts qs ps)       = Syntax.Constr n (map sType ts) (map sPred ps ++ map sQuant qs)
+sConstr (CInfix t n t' qs ps)     = Syntax.Constr n (map sType [t,t']) (map sPred ps ++ map sQuant qs)
 
 
 sSig (Sig ns t)                   = Syntax.Sig ns (sType t)
@@ -84,7 +86,7 @@ sBind (BSig ns t)                 = Syntax.BSig ns (sType t)
 sBind (BEqn lh rh)                = Syntax.BEqn (sLhs lh) (sRhs sExp rh)
 
 
-sType (TQual t ps qs)              = Syntax.TQual (sType t) (map sPred ps ++ map sQuant qs)
+sType (TQual t qs ps)              = Syntax.TQual (sType t) (map sPred ps ++ map sQuant qs)
 sType t                            = sType0 t
 
 sType0 (TFun ts t)                 = Syntax.TFun (map sType0 ts) (sType0 t) 
@@ -97,7 +99,7 @@ sType0 (TVar n)                    = Syntax.TVar n
 sType0 TWild                       = Syntax.TWild
 
 sPred p                            = Syntax.PType (sPr p)
-  where sPr (PQual p ps qs)        = Syntax.TQual (sPr p) (map sPred ps ++ map sQuant qs)
+  where sPr (PQual p qs ps)        = Syntax.TQual (sPr p) (map sPred ps ++ map sQuant qs)
 	sPr (PSub t1 t2)           = Syntax.TSub (sType t1) (sType t2)
 	sPr (PClass n ts)          = foldl Syntax.TAp (Syntax.TCon n) (map sType ts)
 
@@ -119,6 +121,7 @@ sPat (PList ps)                   = Syntax.PList (map sPat ps)
 sPat PWild                        = Syntax.PWild
 sPat (PStruct mnb fs)             = Syntax.PRec mnb (map sField fs)
 sPat (PParen p)			  = sPat p
+sPat p                            = error ("#####PAT: " ++ render (pr p))
 
 
 sExp (EVar n)                     = Syntax.EVar n

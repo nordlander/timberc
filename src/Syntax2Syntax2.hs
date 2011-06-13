@@ -60,8 +60,8 @@ s2Decls (DBind bs : ds)            = map s2BindD bs ++ s2Decls ds
 s2Decls (DExtern es : ds)          = map s2Extern es ++ s2Decls ds 
 s2Decls []                         = []
 
-s2Constr (Constr n ts ps)          = Syntax2.Constr n (map s2Type ts) ps' qs
-   where (ps',qs)                   = s2Preds ps
+s2Constr (Constr n ts ps)          = Syntax2.Constr n (map s2Type ts) qs ps'
+   where (qs, ps')                  = s2Preds ps
 
 s2Sig (Sig ns t)                   = Syntax2.Sig ns (s2Type t)
 
@@ -72,8 +72,8 @@ s2Bind (BSig ns t)                 = Syntax2.BSig ns (s2Type t)
 s2Bind (BEqn lh rh)                = Syntax2.BEqn (s2Lhs lh) (s2Rhs s2Exp rh)
 
 
-s2Type (TQual t ps)                = Syntax2.TQual (s2Type t) ps' qs
-  where (ps',qs)                   = s2Preds ps
+s2Type (TQual t ps)                = Syntax2.TQual (s2Type t) qs ps'
+  where (qs,ps')                   = s2Preds ps
 s2Type (TCon n)                    = Syntax2.TCon n
 s2Type (TVar n)                    = Syntax2.TVar n
 s2Type (TAp t1 t2)                 = Syntax2.TAp (s2Type t1) (s2Type t2)
@@ -83,9 +83,9 @@ s2Type (TList t)                   = Syntax2.TList (s2Type t)
 s2Type (TTup ts)                   = Syntax2.TTup (map s2Type ts)
 s2Type (TFun ts t)                 = Syntax2.TFun (map s2Type ts) (s2Type t) 
 
-s2Preds ps                         = ([ s2Pred t | PType t <- ps ], [ s2Quant n k | PKind n k <- ps ])
-   where s2Pred (TQual t ps')      = Syntax2.PQual (s2Pred t) ps qs
-           where (ps,qs)           = s2Preds ps'
+s2Preds ps                         = ([ s2Quant n k | PKind n k <- ps ], [ s2Pred t | PType t <- ps ])
+   where s2Pred (TQual t ps')      = Syntax2.PQual (s2Pred t) qs ps
+           where (qs,ps)           = s2Preds ps'
          s2Pred (TSub t1 t2)       = Syntax2.PSub (s2Type t1) (s2Type t2)
          s2Pred t                  = case tFlat t of
 	                               (TCon n, ts) -> Syntax2.PClass n (map s2Type ts)

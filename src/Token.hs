@@ -78,7 +78,6 @@ Reserved operators
     | Bar
     | LeftArrow
     | RightArrow
-    | Tilde
     | Wildcard
     | Backslash2
     | And
@@ -127,7 +126,6 @@ Reserved Ids
 reserved_ops :: [(String, Token)]
 reserved_ops
     = [
-        ("~", Tilde),
         ( ".",  Dot ),    
         ( "..", DotDot ),    
         ( "::", DoubleColon ),

@@ -69,7 +69,6 @@ import Syntax2
 
 Symbols
 -}
-        '~'     { Tilde }
 	'('	{ LeftParen }
 	')'	{ RightParen }
 	';'	{ SemiColon }
@@ -185,6 +184,7 @@ topdecl :: { Decl }
         | 'struct' conid tyvars sups 'where' siglist       { DStruct $2 (reverse $3) $4 $6 }
         | 'struct' conid tyvars 'where' siglist            { DStruct $2 (reverse $3) [] $5 }
         | 'struct' conid tyvars sups                       { DStruct $2 (reverse $3) $4 [] }
+        | 'struct' conid tyvars                            { DStruct $2 (reverse $3) [] [] }
         | 'typeclass' conid tyvars sups 'where' siglist    { DTypeClass $2 (reverse $3) $4 $6 }
         | 'typeclass' conid tyvars 'where' siglist         { DTypeClass $2 (reverse $3) [] $5 }
         | 'typeclass' conid tyvars sups                    { DTypeClass $2 (reverse $3) $4 [] }
@@ -210,6 +210,7 @@ subs :: { [Type] }
 
 tyvars  :: { [Name] }
         : tyvars varid				{ $2 : $1 }
+        | tyvars '(' varid '::' kind ')'        { $3 : $1 }
         | {- empty -}				{ [] }
 
 defaults ::  { [(Name,Name)] }
@@ -226,9 +227,9 @@ constrs :: { [Constr] }
 	| constr			        { [$1] }
 
 constr  :: { Constr }
-        : ftype consym ftype '\\\\' preds             { CInfix $1 $2 $3 $5 [] }
-        | ftype consym ftype '\\\\' quants            { CInfix $1 $2 $3 [] $5 }
-        | ftype consym ftype '\\\\' preds ',' quants  { CInfix $1 $2 $3 $5 $7 }
+        : ftype consym ftype '\\\\' preds             { CInfix $1 $2 $3 [] $5 }
+        | ftype consym ftype '\\\\' quants            { CInfix $1 $2 $3 $5 [] }
+        | ftype consym ftype '\\\\' quants ',' preds  { CInfix $1 $2 $3 $5 $7 }
         | type                                        { type2cons $1 }
 
 
@@ -284,10 +285,14 @@ optbinds :: { [Bind] }
 
 -- Types ---------------------------------------------------------------------
 
+type00  :: { Type }
+        : type                                  { $1 }
+        | btype '::' kind                       { TSig $1 $3 }
+
 type    :: { Type }
-        : ftype '\\\\' preds                    { TQual $1 (reverse $3) [] }
-        | ftype '\\\\' quants                   { TQual $1 [] (reverse $3) }
-        | ftype '\\\\' preds ',' quants         { TQual $1 (reverse $3) (reverse $5) }
+        : ftype '\\\\' preds                    { TQual $1 [] (reverse $3) }
+        | ftype '\\\\' quants                   { TQual $1 (reverse $3) [] }
+        | ftype '\\\\' quants ',' preds         { TQual $1 (reverse $3) (reverse $5) }
         | ftype                                 { $1 }
 
 ftype   :: { Type }
@@ -312,7 +317,7 @@ atype0  :: { Type }
 --	| '(' '->' ')'	                	{ TCon (prim ARROW) }
 	| '(' commas ')'			{ TCon (tuple ($2+1)) }
         | '(' ')'				{ TCon (tuple 0) }
-        | '(' type ')'                          { TParen $2 }
+        | '(' type00 ')'                        { TParen $2 }
 	| '(' types ')'				{ TTup (reverse $2) }
 	| '[' type ']'				{ TList $2 }
 
@@ -350,9 +355,9 @@ cpred   :: { Pred }
 	: anyconid atypes                       { PClass $1 $2 }
 
 qpred    :: { Pred }
-        : pred '\\\\' preds                     { PQual $1 (reverse $3) [] }
-        | pred '\\\\' quants                    { PQual $1 [] (reverse $3) }
-        | pred '\\\\' preds ',' quants          { PQual $1 (reverse $3) (reverse $5) }
+        : pred '\\\\' preds                     { PQual $1 [] (reverse $3) }
+        | pred '\\\\' quants                    { PQual $1 (reverse $3) [] }
+        | pred '\\\\' quants ',' preds          { PQual $1 (reverse $3) (reverse $5) }
         | pred                                  { $1 }
 
 quants  :: { [Quant] }
@@ -494,10 +499,19 @@ exp10b :: { Exp }
 
 exp10bs :: { Exp }
         : '\\' apats '->' exp                   { ELam (reverse $2) $4 }
+        | '\\\\' tpats apats '->' exp           { EBigLam (reverse $2) (reverse $3) $5 }
+        | '\\\\' apats '->' exp                 { EBigLam [] (reverse $2) $4 }
+        | '\\\\' tpats '->' exp                 { EBigLam (reverse $2) [] $4 }
         | 'let' bindlist 'in' exp               { ELet $2 $4 }
+
+tpats :: { [Quant] }
+        : tpats '{' quant '}'                   { $3 : $1 }
+        | '{' quant '}'                         { [$2] }
 
 fexp    :: { Exp }
         : fexp aexp                             { EAp $1 $2 }
+        | fexp '@' aexp                         { EPAp $1 $3 }
+        | fexp '@' '{' type00 '}'               { ETAp $1 $4 }
         | aexp                                  { $1 }
 
 aexp    :: { Exp }
@@ -527,20 +541,6 @@ lit     :: { Lit }
         | loc RATIONAL                          { LRat (Just $1) (readRational $2) }
         | loc CHAR                              { LChr (Just $1) $2 }
         | loc STRING                            { LStr (Just $1) $2 }
-
-conref  :: { Name }
-        : anyconid                              { $1 }
-        | '(' anyconsym ')'                     { $2 }
-        | '~' anyconid                          { annotExplicit $2 }
-        | '~' '(' anyconsym ')'                 { annotExplicit $3 }
-
-varref  :: { Name }
-	: anyvarid                              { $1 }
-        | '(' varsym ')'                        { $2 }
-        | '(' qvarsym ')'                       { $2 }
-        | '~' anyvarid                          { annotExplicit $2 }
-        | '~' '(' varsym ')'                    { annotExplicit $3 }
-        | '~' '(' qvarsym ')'                   { annotExplicit $3 }
 
 
 -- List expressions -------------------------------------------------------------
@@ -726,8 +726,14 @@ apat    :: { Pat }
 
 -- Variables, Constructors and Operators ------------------------------------
 
-loc    :: { (Int,Int) }
-        : {- empty -}                           {% getSrcLoc }
+conref  :: { Name }
+        : anyconid                              { $1 }
+        | '(' anyconsym ')'                     { $2 }
+
+varref  :: { Name }
+	: anyvarid                              { $1 }
+        | '(' varsym ')'                        { $2 }
+        | '(' qvarsym ')'                       { $2 }
 
 varid  :: { Name }
         : loc VARID                             { name $1 $2 }
@@ -748,8 +754,6 @@ VARSYM0 :: { Name }
         | loc '<'                               { name $1 "<" }
         | loc '>'                               { name $1 ">" }
         | loc '*'                               { name $1 "*" }
-        | loc '@'                               { name $1 "@" }
-        | loc '\\\\'				{ name $1 "\\\\" }
 
 MINUS   :: { Name }
 	: loc '-'                               { name $1 "-" }
@@ -781,6 +785,9 @@ anyconsym :: { Name }
         
 
 -- Layout ---------------------------------------------------------------------
+
+loc    :: { (Int,Int) }
+        : {- empty -}                           {% getSrcLoc }
 
 close :: { () }
         : vccurly                               { () } -- context popped in lexer.
