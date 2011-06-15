@@ -7,6 +7,6 @@ root w = class
     t := []
     start = action
         env.stdout.write "Tick\n"
-        t := (after (sec 1) send start) : t
-        head t
+        t := start : t
+        after (sec 1) send head t
     result start
