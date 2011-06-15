@@ -195,8 +195,6 @@ sQual (QLet bs)                   = Syntax.QLet (map sBind bs)
 sStmts ss                         = Syntax.Stmts (stmts ss)
   where stmts (SExp (ESend e1 e2) : ss) = Syntax.SExp (sSend e1 e2) : stmts ss
         stmts (SExp e : ss)        = Syntax.SExp (sExp e) : stmts ss
-        stmts (SGen p (ESend e1 e2) : ss)
-                                   = Syntax.SGen (sPat p) (sSend e1 e2) : stmts ss
         stmts (SGen p e : ss)      = Syntax.SGen (sPat p) (sExp e) : stmts ss
         stmts (SRes e : ss)        = Syntax.SRet (sExp e) : stmts ss
         stmts (SEqn lh rh : ss)    = Syntax.SBind [Syntax.BEqn (sLhs lh) (sRhs sExp rh)]  : stmts ss
