@@ -33,7 +33,7 @@
 -- ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 -- POSSIBILITY OF SUCH DAMAGE.
 
-module Common (module Common, module Name, isDigit) where
+module Common (module Common, module Name, module Name2, isDigit) where
 
 import PP
 import qualified Data.List as List
@@ -43,6 +43,7 @@ import Control.Exception
 import Data.Char
 import Config
 import Name
+import Name2
 import Data.Typeable
 import Data.Binary
 import Debug.Trace

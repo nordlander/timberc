@@ -40,6 +40,7 @@ import Token
 import Lexer
 import ParseMonad
 import Syntax2
+import Prim
 
 
 
@@ -145,7 +146,7 @@ Reserved Ids
 -- Module Header ------------------------------------------------------------
 
 module  :: { Module }
-        : 'module' anyconid 'where' body	{ mkModule $2 $4 }
+        : 'module' conid 'where' body           { mkModule $2 $4 }
 
 body    :: { ([Import],[Decl],[Decl]) }
         : '{' layout_off imports topdecls '}' private	{ (reverse $3,reverse $4, $6) }
@@ -164,8 +165,8 @@ imports :: { [Import] }
         | {- empty -}                           { [] }
 
 import  :: { Import }
-        : 'import' anyconid                     { Import (modId $2) }
-        | 'use' anyconid                        { Use (modId $2) }
+        : 'import' anyconid                     { Import $2 }
+        | 'use' anyconid                        { Use $2 }
 
 
 -- Top-level declarations ---------------------------------------------------
@@ -208,12 +209,12 @@ subs :: { [Type] }
         : '>' types				{ reverse $2 }
         | '>' type				{ [$2] }
 
-tyvars  :: { [Name] }
+tyvars  :: { [Name2] }
         : tyvars varid				{ $2 : $1 }
         | tyvars '(' varid '::' kind ')'        { $3 : $1 }
         | {- empty -}				{ [] }
 
-defaults ::  { [(Name,Name)] }
+defaults ::  { [(QName2,QName2)] }
         : defaults ',' anyvarid '<' anyvarid    { ($3,$5) : $1 }
         | defaults ',' cpred                    { $1 }
         | anyvarid '<' anyvarid                 { [($1,$3)] }
@@ -261,7 +262,7 @@ bind    :: { Bind }
 	: varlist '::' type	                { BSig (reverse $1) $3 }
         | pat rhs 				{ BEqn $1 $2 }
 
-varlist	:: { [Name] }
+varlist	:: { [Name2] }
 	: varlist ',' varid			{ $3 : $1 }
 	| varlist ',' '(' varsym ')'            { $4 : $1 }
         | varid					{ [$1] }
@@ -313,10 +314,10 @@ atype   :: { Type }
 	
 atype0  :: { Type }
 	: '_'                                   { TWild }
-        | '[' ']'				{ TCon (prim LIST) }
---	| '(' '->' ')'	                	{ TCon (prim ARROW) }
-	| '(' commas ')'			{ TCon (tuple ($2+1)) }
-        | '(' ')'				{ TCon (tuple 0) }
+        | '[' ']'				{ TCon Prim.list }
+--	| '(' '->' ')'	                	{ TCon Prim.arrow }
+	| '(' commas ')'			{ TTupC ($2+1) }
+        | '(' ')'				{ TTupC 0 }
         | '(' type00 ')'                        { TParen $2 }
 	| '(' types ')'				{ TTup (reverse $2) }
 	| '[' type ']'				{ TList $2 }
@@ -344,11 +345,11 @@ pred	:: { Pred }
         | anyconid atypes '<' btype             { PSub (foldl TAp (TCon $1) $2) $4 }
         | varid atypes '<' btype                { PSub (foldl TAp (TVar $1) $2) $4 }
         | '[' type ']' '<' btype                { PSub (TList $2) $5 }
-        | '[' ']' atypes '<' btype              { PSub (foldl TAp (TCon (prim LIST)) $3) $5 }
+        | '[' ']' atypes '<' btype              { PSub (foldl TAp (TCon Prim.list) $3) $5 }
 --        | '(' type ')' atypes '<' btype         { PSub (foldl TAp $2 $4) $6 }
 --        | '(' types ')' '<' btype               { PSub (TTup (reverse $2)) $5 }
-	| '(' commas ')' atypes '<' btype       { PSub (foldl TAp (TCon (tuple ($2+1))) $4) $6 }
-	| '(' ')' atypes '<' btype              { PSub (foldl TAp (TCon (tuple 0)) $3) $5 }
+	| '(' commas ')' atypes '<' btype       { PSub (foldl TAp (TTupC ($2+1)) $4) $6 }
+	| '(' ')' atypes '<' btype              { PSub (foldl TAp (TTupC 0) $3) $5 }
         | '(' qpred ')'                         { $2 }
 
 cpred   :: { Pred }
@@ -525,7 +526,7 @@ bexp    :: { Exp }
 
 cexp    :: { Exp }
         : varref                                { EVar $1 }
-        | '_'                                   { EVar (name0 "_") }
+        | '_'                                   { EVar (qname2 "_") }
         | lit                                   { ELit $1 }
         | '(' '.' varref ')'                    { ESelector $3 }
         | '(' exp ')'                           { EParen $2 }
@@ -533,8 +534,8 @@ cexp    :: { Exp }
         | '[' list ']'                          { $2 }
         | '(' exp10a op ')'                     { ESectR $2 $3 }
         | '(' op0 fexp ')'                      { ESectL $2 $3 }
-        | '(' commas ')'                        { ECon (tuple ($2+1)) }
-        | '(' ')'                               { ECon (tuple 0) }
+        | '(' commas ')'                        { ETupC ($2+1) }
+        | '(' ')'                               { ETupC 0 }
 
 lit     :: { Lit }
         : loc INT                               { LInt (Just $1) (readInteger $2) }
@@ -726,62 +727,59 @@ apat    :: { Pat }
 
 -- Variables, Constructors and Operators ------------------------------------
 
-conref  :: { Name }
+conref  :: { QName2 }
         : anyconid                              { $1 }
         | '(' anyconsym ')'                     { $2 }
 
-varref  :: { Name }
+varref  :: { QName2 }
 	: anyvarid                              { $1 }
-        | '(' varsym ')'                        { $2 }
+        | '(' varsym ')'                        { noqual $2 }
         | '(' qvarsym ')'                       { $2 }
 
-varid  :: { Name }
-        : loc VARID                             { name $1 $2 }
+varid  :: { Name2 }
+        : loc VARID                             { namePos $1 $2 }
 
-anyvarid :: { Name }
-	: varid                                 { $1 }
-        | loc QVARID                            { qname $1 $2 }
+anyvarid :: { QName2 }
+	: varid                                 { noqual $1 }
+        | loc QVARID                            { qnamePos $1 $2 }
 
-varsym :: { Name }
-        : VARSYM0                               { $1 }
+varsym :: { Name2 }
+        : varsym0                               { $1 }
         | MINUS					{ $1 }
 
-varsym0 :: { Name }
-        : VARSYM0                               { $1 }
+varsym0 :: { Name2 }
+        : loc VARSYM                            { namePos $1 $2 }
+        | loc '<'                               { namePos $1 "<" }
+        | loc '>'                               { namePos $1 ">" }
+        | loc '*'                               { namePos $1 "*" }
 
-VARSYM0 :: { Name }
-        : loc VARSYM                            { name $1 $2 }
-        | loc '<'                               { name $1 "<" }
-        | loc '>'                               { name $1 ">" }
-        | loc '*'                               { name $1 "*" }
-
-MINUS   :: { Name }
-	: loc '-'                               { name $1 "-" }
+MINUS   :: { Name2 }
+	: loc '-'                               { namePos $1 "-" }
 	
-qvarsym :: { Name }
-        : loc QVARSYM                           { qname $1 $2 }
+qvarsym :: { QName2 }
+        : loc QVARSYM                           { qnamePos $1 $2 }
 
-anyvarsym :: { Name }
-        : varsym                                { $1 }
+anyvarsym :: { QName2 }
+        : varsym                                { noqual $1 }
         | qvarsym                               { $1 }
 
-anyvarsym0 :: { Name }
-        : varsym0                               { $1 }
+anyvarsym0 :: { QName2 }
+        : varsym0                               { noqual $1 }
         | qvarsym                               { $1 }
 
-conid  :: { Name }
-        : loc CONID                             { name $1 $2 }
+conid  :: { Name2 }
+        : loc CONID                             { namePos $1 $2 }
 
-anyconid :: { Name }
-        : conid                                 { $1 }
-        | loc QCONID                            { qname $1 $2 }
+anyconid :: { QName2 }
+        : conid                                 { noqual $1 }
+        | loc QCONID                            { qnamePos $1 $2 }
 
-consym :: { Name }
-        : loc CONSYM                            { name $1 $2 }
+consym :: { Name2 }
+        : loc CONSYM                            { namePos $1 $2 }
 
-anyconsym :: { Name }
-        : consym                                { $1 }
-        | loc QCONSYM                           { qname $1 $2 }
+anyconsym :: { QName2 }
+        : consym                                { noqual $1 }
+        | loc QCONSYM                           { qnamePos $1 $2 }
         
 
 -- Layout ---------------------------------------------------------------------

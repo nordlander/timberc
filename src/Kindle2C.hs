@@ -447,7 +447,7 @@ widthInclTags n                 = w + ((w+31) `div` 32)
 
 k2cName (Prim p _)              = k2cPrim p
 k2cName n | isBigTuple n        = text "TUPLE"
-          | otherwise           = prId3 n
+          | otherwise           = prIdV3 n
 
 k2cGCInfoName n                 = text gcinfoSym <> k2cName n
 

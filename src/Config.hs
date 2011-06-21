@@ -309,6 +309,7 @@ parseCfg file
 -- | The different compiler passes.
 -- XXX Should not be in this file.
 data Pass            = Parser
+                     | SyntaxConv
                      | Desugar1
                      | Rename
                      | Desugar2

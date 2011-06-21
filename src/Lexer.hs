@@ -259,7 +259,7 @@ lexToken cont (c:s) loc@(y,x') x state =
                                  _   -> forward l_sym (qchoose VarSym QVarSym q sym) rest
 
       qchoose k _ "" s = k s
-      qchoose _ k q s  = k (q,s)
+      qchoose _ k q s  = k (q++'.':s)
 
 lexInt ('0':o:d:r) | toLower o == 'o' && isOctDigit d
     = let (ds, rs) = span isOctDigit r

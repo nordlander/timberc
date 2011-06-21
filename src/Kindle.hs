@@ -759,7 +759,7 @@ instance Subst Alt Name AType where
 -- Tentative concrete syntax ------------------------------------------------------------------------------
 
 instance Pr Module where
-    pr (Module m ns es ds bs)            =text "module" <+> prId2 m <+> text "where" $$
+    pr (Module m ns es ds bs)            =text "module" <+> prIdV2 m <+> text "where" $$
                                           text "import" <+> hpr ',' ns $$
                                           text "extern" <+> vpr es $$
                                           vpr ds $$ 
@@ -771,7 +771,7 @@ instance Pr (Module,a) where
 
 
 instance Pr (Name, Decl) where
-    pr (c, Struct vs te lnk)            = text "struct" <+> prId2 c <+> prTyvars vs <+> text "{" $$
+    pr (c, Struct vs te lnk)            = text "struct" <+> prIdV2 c <+> prTyvars vs <+> text "{" $$
                                           nest 4 (vpr te) $$
                                           text "}" <+> pr lnk
 
@@ -786,13 +786,13 @@ instance Pr Link where
 
 
 instance Pr (Name, Type) where
-    pr (x, ValT t)                      = pr t <+> prId2 x <> text ";"
-    pr (x, FunT vs ts t)                = prTyvars vs <+> pr t <+> prId2 x <> parens (commasep pr ts) <> text ";"
+    pr (x, ValT t)                      = pr t <+> prIdV2 x <> text ";"
+    pr (x, FunT vs ts t)                = prTyvars vs <+> pr t <+> prIdV2 x <> parens (commasep pr ts) <> text ";"
 
 
 instance Pr AType where
-    pr (TCon c ts)                      = prId2 c <> prTyargs ts
-    pr (TVar v ts)                      = prId2 v <> prTyargs ts
+    pr (TCon c ts)                      = prIdV2 c <> prTyargs ts
+    pr (TVar v ts)                      = prIdV2 v <> prTyargs ts
     pr (TClos vs ts t)			= prTyvars vs <+> parens (pr t) <> text "CLOS" <> prTyargs ts
     pr (TThis i)                        = text ('#' : show i)
 
@@ -800,12 +800,12 @@ prTyargs []                             = empty
 prTyargs ts                             = text "<" <> commasep pr ts <> text ">"
 
 instance Pr (Name, AType) where
-    pr (x, t)                           = pr t <+> prId2 x
+    pr (x, t)                           = pr t <+> prIdV2 x
 
 
 instance Pr (Name, Bind) where
-    pr (x, Val t e)                     = pr t <+> prId2 x <+> text "=" <+> pr e <> text ";"
-    pr (x, Fun vs t te c)               = prTyvars vs <+> pr t <+> prId2 x <+> parens (commasep pr te) <+> text "{" $$
+    pr (x, Val t e)                     = pr t <+> prIdV2 x <+> text "=" <+> pr e <> text ";"
+    pr (x, Fun vs t te c)               = prTyvars vs <+> pr t <+> prIdV2 x <+> parens (commasep pr te) <+> text "{" $$
                                           nest 4 (pr c) $$
                                           text "}"
 
@@ -815,7 +815,7 @@ instance Pr Cmd where
                                           pr c
     pr (CBind r bs c)                   = vpr bs $$
                                           pr c
-    pr (CUpd x e c)                     = prId2 x <+> text "=" <+> pr e <> text ";" $$
+    pr (CUpd x e c)                     = prIdV2 x <+> text "=" <+> pr e <> text ";" $$
                                           pr c
     pr (CUpdS e x e' c)                 = pr (ESel e x) <+> text "=" <+> pr e' <> text ";" $$
                                           pr c
@@ -845,42 +845,42 @@ prScope c                               = text "{" <+> pr c $$
                                           text "}"
 
 instance Pr Alt where
-    pr (ACon x vs [] c)                 = prId2 x <+> prTyvars vs <> text ":" <+> prScope c
-    pr (ACon x vs te c)                 = prId2 x <+> prTyvars vs <+> parens (commasep pr te) <> text ":" <+> prScope c
+    pr (ACon x vs [] c)                 = prIdV2 x <+> prTyvars vs <> text ":" <+> prScope c
+    pr (ACon x vs te c)                 = prIdV2 x <+> prTyvars vs <+> parens (commasep pr te) <> text ":" <+> prScope c
     pr (ALit l c)                       = pr l <> text ":" <+> prScope c
     pr (AWild c)                        = text "default:" <+> prScope c
 
 
 instance Pr Exp where
     prn 0 (ECall x [] [e1,e2])
-      | isInfix x && isSym x            = prn 1 e1 <+> prId2 x <+> prn 1 e2
+      | isInfix x && isSym x            = prn 1 e1 <+> prIdV2 x <+> prn 1 e2
     prn 0 (ELit l)                      = prn 0 l
     prn 0 e                             = prn 1 e
 
 
     prn 1 (ECall x [] [e])
-      | isUnaryOp x && isSym x          = prId2 x <> prn 1 e
+      | isUnaryOp x && isSym x          = prIdV2 x <> prn 1 e
     prn 1 (ECast t e)                   = parens (pr t) <> prn 1 e
     prn 1 e                             = prn 2 e
 
-    prn 2 (EVar x)                      = prId2 x
+    prn 2 (EVar x)                      = prIdV2 x
     prn 2 (EThis)                       = text "this"
     prn 2 (ELit l)                      = prn 1 l
     prn 2 (EClos vs t te c)             = prTyvars vs <+> pr t <+> text "CLOSURE" <+> parens (commasep pr te) <+> text "{" $$
                                           nest 4 (pr c) $$
                                           text "}"
     prn 2 (ENew x ts bs)
-      | all isVal bs                    = text "new" <+> prId2 x <> prTyargs ts <+> text "{" <> commasep prInit bs <> text "}"
-    prn 2 (ENew x ts bs)                = text "new" <+> prId2 x <> prTyargs ts <+> text "{" $$
+      | all isVal bs                    = text "new" <+> prIdV2 x <> prTyargs ts <+> text "{" <> commasep prInit bs <> text "}"
+    prn 2 (ENew x ts bs)                = text "new" <+> prIdV2 x <> prTyargs ts <+> text "{" $$
                                           nest 4 (vpr bs) $$
                                           text "}"
-    prn 2 (ECall x ts es)               = prId2 x <> prTyargs ts <> parens (commasep pr es)
-    prn 2 (ESel e l)                    = prn 2 e <> text "->" <> prId2 l
-    prn 2 (EEnter e x ts es)            = prn 2 e <> text "->" <> prId2 x <> prTyargs ts <> parens (commasep pr es)
+    prn 2 (ECall x ts es)               = prIdV2 x <> prTyargs ts <> parens (commasep pr es)
+    prn 2 (ESel e l)                    = prn 2 e <> text "->" <> prIdV2 l
+    prn 2 (EEnter e x ts es)            = prn 2 e <> text "->" <> prIdV2 x <> prTyargs ts <> parens (commasep pr es)
     prn 2 e                             = parens (prn 0 e)
 
 
-prInit (x, Val t e)                     = prId2 x <+> text "=" <+> pr e
+prInit (x, Val t e)                     = prIdV2 x <+> text "=" <+> pr e
 prInit b                                = pr b
 
 

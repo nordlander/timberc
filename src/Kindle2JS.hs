@@ -11,7 +11,7 @@ kindle2js m                     = return (render (k2jModule m))
 k2jModule (Module n ns es _ bs) = k2jExtern n es $$ vcat (map k2jBinds (groupMap bs))
         
 k2jExtern n []			= empty
-k2jExtern n _			= empty -- text "includeScript" <> parens (text ("'" ++ modToPath (str n) ++ ".extern.js'"))
+k2jExtern n _			= empty -- text "includeScript" <> parens (text ("'" ++ nameToPath n ++ ".extern.js'"))
 
 
 k2jBinds (False, bs)            = vcat (map k2jBind bs)
@@ -162,7 +162,7 @@ k2jCmd (CRun e c)               = k2jExp e $$
                                   k2jCmd c
 k2jCmd (CBind r bs c)           = vcat (map k2jBinds (groupMap bs)) $$
                                   k2jCmd c
-k2jCmd (CUpd x e c)             = prId2 x <+> text "=" <+> k2jExp e $$
+k2jCmd (CUpd x e c)             = prIdV2 x <+> text "=" <+> k2jExp e $$
                                   k2jCmd c
 k2jCmd (CUpdS e s e' c) 	= k2jUpd e s e' $$
 				  k2jCmd c
@@ -333,7 +333,7 @@ k2jConsStr n			= text "'" <> k2jConsName n <> text "'"
 k2jConsName (Prim p _)		= k2jPrim p
 k2jConsName n@(Name s t m a)
   | all isOK s			= text (toJS s)
-  | otherwise			= prId3 n
+  | otherwise			= prIdV3 n
   where isOK c			= isAlpha c || c == '_'
 	toJS ('_':s)		= toJS' s
 	toJS s			= toJS' s
@@ -346,7 +346,7 @@ k2jConsName (Tuple n _)		= text ("tuple"++show n)
 k2jSelName (Prim p _)		= k2jPrim p
 k2jSelName n@(Name s t m a)
   | okForC s && s `notElem` jsKeys = text s
-  | otherwise			= prId3 n
+  | otherwise			= prIdV3 n
 
 jsKeys				= ["break","catch","continue","debugger","finally","for","function","instanceof","return","switch",
 				   "this","throw","try","typeof","var","void","with"]
@@ -357,7 +357,7 @@ isJsInfix x			= isInfix x || timeOp x
 				  
 
 k2jName (Prim p _)              = k2jPrim p
-k2jName n                       = prId3 n
+k2jName n                       = prIdV3 n
 
 
 k2jPrim Tag			= text "tagName"

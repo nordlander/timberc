@@ -377,9 +377,9 @@ strRep UniArray                 = "uniarray"
 strRep SizeArray                = "size"
 strRep TIMERTYPE                = "Timer"
 strRep TIMERTERM                = "timer"
-strRep p                        = strRep2 p
+strRep p                        = strRepV2 p
                                 
-strRep2 p
+strRepV2 p
   | p `elem` lowPrims           = toLower (head s) : tail s
   | isConPrim p || invisible p  = s
   | otherwise                   = "prim" ++ s
@@ -442,7 +442,7 @@ cSym LazyAnd                    = text "&&"
 cSym PidEQ                      = text "=="
 cSym PidNE                      = text "!="
 
-cSym p                          = text (strRep2 p)
+cSym p                          = text (strRepV2 p)
 
 
 -- Name construction ------------------------------------------------------------
@@ -641,32 +641,32 @@ prId i                          = if isSym i then parens d else d
 prOp i                          = if isSym i then d else backQuotes d
   where d			= text (show i)
 
-prId2 (Prim p _)                = text (strRep2 p)
-prId2 (Tuple n _)               = text ("TUP" ++ show n)
-prId2 n                         = prId n
+prIdV2 (Prim p _)               = text (strRepV2 p)
+prIdV2 (Tuple n _)              = text ("TUP" ++ show n)
+prIdV2 n                        = prId n
 
 
-prId3 n@(Name s t m a)
+prIdV3 n@(Name s t m a)
   | t == 0 || isCoerceLabel n || isCoerceConstr n 
                                 = text (s ++ maybe "" (('_' :) . modToundSc) m)
 {-
-prId3 (Name s t (Just _) a)
+prIdV3 (Name s t (Just _) a)
   | not (public a)            = text (id ++ '_':show t ++ suff)
   where 
     id                          = if okForC s then s else "_sym"
     suff                        = if okForC s then "" else  "/* "++s++" */"
 -}
-prId3 (Name s n m a)            = text (id ++ tag ++ mod ++ suff)
+prIdV3 (Name s n m a)           = text (id ++ tag ++ mod ++ suff)
   where 
     id                          = if okForC s then s else "_sym"
     tag                         = if mod=="" || generated a || id=="_sym"  then '_':show n else ""
     suff                        = if take 4 id == "_sym" then "/* "++s++" */" else ""
     mod                         = maybe "" (('_' :) . modToundSc) m
-prId3 n                         = prId2 n
+prIdV3 n                        = prIdV2 n
 
 okForC cs                       = all (\c -> isAlphaNum c || c=='_') cs
 
-name2str n                      = render (prId3 n)
+name2str n                      = render (prIdV3 n)
 
 modToPath m                     = m -- concat (List.intersperse "/" (splitString m))
 

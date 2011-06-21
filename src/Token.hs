@@ -41,10 +41,10 @@ data Token
     | ConId      String
     | VarSym     String
     | ConSym     String
-    | QVarId     (String,String)
-    | QConId     (String,String)
-    | QVarSym    (String,String)
-    | QConSym    (String,String)
+    | QVarId     String
+    | QConId     String
+    | QVarSym    String
+    | QConSym    String
     | IntTok     String
     | FloatTok   String
     | Character  Char

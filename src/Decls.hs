@@ -131,9 +131,9 @@ desub env ds                            = do (ds',pes,eqs) <- fmap unzip3 (mapM 
                                                  s  = (l, Scheme (R t) [] ke)
                                              return (p, eq, s)
 
-coerceConstr t t0                       = coerceConstrSym ++ "_" ++ render (prId3 (tId(tHead t))) ++ "_" ++ render (prId3 (tId (tHead t0)))
+coerceConstr t t0                       = coerceConstrSym ++ "_" ++ render (prIdV3 (tId(tHead t))) ++ "_" ++ render (prIdV3 (tId (tHead t0)))
 
-coerceLabel t0 t                        = coerceLabelSym  ++ "_" ++ render (prId3 (tId(tHead t0))) ++ "_" ++ render (prId3 (tId (tHead t)))
+coerceLabel t0 t                        = coerceLabelSym  ++ "_" ++ render (prIdV3 (tId(tHead t0))) ++ "_" ++ render (prIdV3 (tId (tHead t)))
 
 {-
 
