@@ -1,7 +1,7 @@
-module CardPile where
+module SolitaireCardPile where
 
-import Data.Objects.Stack
-import Solitaire.Card
+import DataObjectsStack
+import SolitaireCard
 
 struct CardPile < Stack Card where
   canTake :: Card -> Request Bool

@@ -1,4 +1,4 @@
-module Card where
+module SolitaireCard where
 
 data Rank = Ace | King | Queen | Jack | Num Int
 
