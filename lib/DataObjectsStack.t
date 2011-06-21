@@ -31,7 +31,7 @@
 -- ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 -- POSSIBILITY OF SUCH DAMAGE.
 
-module Stack where
+module DataObjectsStack where
 
 struct Stack a where 
   push :: a -> Action

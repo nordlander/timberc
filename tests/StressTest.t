@@ -1,7 +1,7 @@
 module StressTest where
 
 import POSIX
-import Data.Functional.List
+import DataFunctionalList
 
 port = Port 12345 
 

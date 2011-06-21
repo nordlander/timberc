@@ -31,7 +31,7 @@
 -- ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 -- POSSIBILITY OF SUCH DAMAGE.
 
-module List where
+module DataFunctionalList where
 
 delete             :: a -> [a] -> [a] \\ Eq a
 delete              = deleteBy (==)

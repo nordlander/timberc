@@ -1,6 +1,6 @@
 module Observer where
 
-import Data.Functional.List
+import DataFunctionalList
 
 updateAll a [] = do
 updateAll a (o : os) = do o.update a

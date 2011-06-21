@@ -7,7 +7,7 @@
 module PingTimeServers where
 
 import POSIX
-import Data.Functional.List
+import DataFunctionalList
 
 port = Port 13  -- standard port for time servers
 

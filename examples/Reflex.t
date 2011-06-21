@@ -25,7 +25,7 @@ root w = class
    enter _ = action
       case state of
         Idle ->         waitingTime = sec 2 + millisec (<-gen.next `mod` 2000)
-                        msg <- after waitingTime send action
+                        msg = after waitingTime send action
                            tmr.reset
                            setStatePrint Counting "Go!!!"
                         setStatePrint (Waiting msg) "Wait..."

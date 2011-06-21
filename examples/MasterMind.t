@@ -1,6 +1,6 @@
 module MasterMind where
 
-import Data.Functional.List
+import DataFunctionalList
 import RandomGenerator
 import POSIX
 
