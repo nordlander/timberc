@@ -282,10 +282,10 @@ checkUpToDate clo t_file ti_file c_file h_file js_file imps
                                  ti_OKs <- mapM (tiOK ti_time) imps
                                  return (t_time < ti_time && t_time < c_time && t_time < h_time && t_time < js_time && and ti_OKs)
   | otherwise           = return False
-  where tiOK ti_time1 n = do let ti_file = modToPath (render (pr n)) ++ ".ti"
+  where tiOK ti_time1 n = do let ti_file = qnstring n ++ ".ti"
                              ti_exists <- Directory.doesFileExist ti_file
                              if (not ti_exists) then do
-                                let lti_file = Config.libDir clo ++ "/" ++ modToPath (render (pr n)) ++ ".ti"
+                                let lti_file = Config.libDir clo ++ "/" ++ qnstring n ++ ".ti"
                                 lti_exists <- Directory.doesFileExist lti_file
                                 if (not lti_exists) then
                                    internalError0 ("Cannot find interface file " ++ ti_file)
@@ -385,7 +385,7 @@ makeProg clo cfg t_file     = do txt <- readFile t_file
                                  (imps,ss) <- chaseSyntax2Files clo is [(noqual n,(ms,currDir ++ "/" ++ t_file))]
                                  let cs = compile_order imps
                                      is = filter nonDummy cs
-                                     ps = map (\(n,ii) -> (snd ii,modToPath (show n)++".t")) is ++ [(ms,t_file)]
+                                     ps = map (\(n,ii) -> (snd ii, qnstring n ++ ".t")) is ++ [(ms,t_file)]
                                  ifs <- compileAll clo [] ps
                                  r <- checkRoot clo ifs (rmDirs root_path)
                                  let basefiles = map (rmSuffix ".t" . snd) ps
@@ -399,7 +399,7 @@ makeProg clo cfg t_file     = do txt <- readFile t_file
 	                          else
 	                              linkO cfg clo{outfile = root_path} r o_files
   where nonDummy (_,(_,Syntax2.Module n _ _ _)) 
-                            = show n /= ""
+                            = nstring n /= ""
         root_path           = rmSuffix ".t" t_file
 
 
@@ -417,7 +417,7 @@ checkRoot clo ifs def       = do if1 <- getIFile rootMod
                                 _ -> fail ("Cannot locate root \"" ++ (root clo) ++ "\" in module " ++ rootMod)
         getIFile m          = case lookup (s2QN (name0 m)) ifs of
                                 Just (ifc,_) -> return ifc
-                                Nothing -> do (ifc,_) <- decodeModule clo (modToPath m ++ ".ti")
+                                Nothing -> do (ifc,_) <- decodeModule clo (m ++ ".ti")
                                               return (ifc :: IFace)
 
 ------------------------------------------------------------------------------
@@ -441,7 +441,7 @@ chaseImps readModule iNames suff imps ifs
                                         Just ifc -> return (ifc,False)
                                         Nothing -> do ifc <- readModule f
                                                       return (ifc,True)
-                                          where f = modToPath (render (pr c)) ++ suff
+                                          where f = qnstring c ++ suff
         readImport ifs (Syntax2.Import c) 
                                      = do (ifc,isNew) <- readIfile ifs c
                                           return ((c,(True,ifc)),isNew)

@@ -55,7 +55,7 @@ k2hModule (Module n ns es ds bs)= hHeader n ns $$$
                                   k2cInitProcStub n <> text ";" $$$
                                   hFooter n (null es)
   
-k2cImport n                     = text "#include \"" <> text (modToPath (str n) ++ ".h\"")
+k2cImport n                     = text "#include \"" <> text (str n ++ ".h\"")
 
 
 hHeader n []                    = includeGuard n $$ text "#include \"rts.h\"" $$ text "#include \"timber.h\""
@@ -63,9 +63,9 @@ hHeader n ns                    = includeGuard n $$ vcat (map k2cImport ns)
 
 includeGuard n                  = text ("#ifndef " ++ g) $$
 	                              text ("#define " ++ g)
-  where g                       = map toUpper (modToundSc (str n)) ++ "_H_"
+  where g                       = map toUpper (name2str n) ++ "_H_"
                          
-hFooter n b                     = (if b then empty else text "#include \"" <> text (modToPath (str n)) <> text ".extern.h\"") $$ text "#endif\n"
+hFooter n b                     = (if b then empty else text "#include \"" <> text (str n) <> text ".extern.h\"") $$ text "#endif\n"
 
 k2cDeclStubs isH ds             = vcat (map f ds)
   where f (n, _)
@@ -131,8 +131,8 @@ k2cModule (Module n ns es ds bs)= cHeader (null es) n $$$
 k2cSize n                       = text "WORDS(sizeof(struct" <+> k2cName n <> text "))"
 
 
-cHeader b n                     = text "#include \"" <> text (modToPath (str n)) <> text ".h\"" $$
-                                  if b then empty else text "#include \"" <> text (modToPath (str n)) <> text ".extern.c\""
+cHeader b n                     = text "#include \"" <> text (str n) <> text ".h\"" $$
+                                  if b then empty else text "#include \"" <> text (str n) <> text ".extern.c\""
 cFooter n                       = text "\n"
 
 
@@ -155,10 +155,10 @@ k2cValBindStubsC bs             = vcat (map f bs)
   where f (x, Val t e)          = k2cType t <+> k2cName x <> text ";"
 
 
-k2cInitProcStub n               = text "void _init_" <> text (modToundSc (str n)) <+> text "()"
+k2cInitProcStub n               = text "void _init_" <> text (name2str n) <+> text "()"
 
 k2cInitImports ns               = vcat (map f ns)
-  where f n                     = text "_init_" <> text (modToundSc (str n)) <> text "();"
+  where f n                     = text "_init_" <> text (name2str n) <> text "();"
 
 k2cOnce p                       = text "static int INITIALIZED = 0;" $$
                                   text "if (!INITIALIZED) {" $$

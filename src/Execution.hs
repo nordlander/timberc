@@ -93,7 +93,7 @@ linkO global_cfg clo r o_files =
                              cfg <- foldr ((=<<) . fileCfg clo) (return global_cfg) o_files
                              let rootId     = name2str r
                                  Just rMod = fromMod r
-                                 initId     = "_init_" ++ modToundSc rMod
+                                 initId     = "_init_" ++ rMod
                                  cmd = cCompiler cfg
                                        ++ linkFlags cfg
                                        ++ compileFlags cfg

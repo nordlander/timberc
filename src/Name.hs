@@ -648,7 +648,7 @@ prIdV2 n                        = prId n
 
 prIdV3 n@(Name s t m a)
   | t == 0 || isCoerceLabel n || isCoerceConstr n 
-                                = text (s ++ maybe "" (('_' :) . modToundSc) m)
+                                = text (s ++ maybe "" ('_' :) m)
 {-
 prIdV3 (Name s t (Just _) a)
   | not (public a)            = text (id ++ '_':show t ++ suff)
@@ -661,16 +661,12 @@ prIdV3 (Name s n m a)           = text (id ++ tag ++ mod ++ suff)
     id                          = if okForC s then s else "_sym"
     tag                         = if mod=="" || generated a || id=="_sym"  then '_':show n else ""
     suff                        = if take 4 id == "_sym" then "/* "++s++" */" else ""
-    mod                         = maybe "" (('_' :) . modToundSc) m
+    mod                         = maybe "" ('_' :) m
 prIdV3 n                        = prIdV2 n
 
 okForC cs                       = all (\c -> isAlphaNum c || c=='_') cs
 
 name2str n                      = render (prIdV3 n)
-
-modToPath m                     = m -- concat (List.intersperse "/" (splitString m))
-
-modToundSc m                    = concat (Data.List.intersperse "_" (splitString m))
 
 packName n                      = show n
 
