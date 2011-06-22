@@ -44,11 +44,11 @@ import Data.List(sort)
 import Control.Monad(liftM2)
 
 data Module = Module Name2 [Import] [Decl] [Decl]
-            deriving  (Show)
+            deriving (Eq,Show)
 
 data Import = Import     QName2
-            | Use        QName2
-            deriving (Show)
+            | Use        (Maybe Name2) QName2
+            deriving (Eq,Show)
             
 data Decl   = DKSig      Name2 Kind
 
@@ -70,6 +70,8 @@ data Decl   = DKSig      Name2 Kind
 
             | DExtern    [Name2]
             | DExternSig [Name2] Type
+            
+            | DModule    Module
             deriving  (Eq,Show)
 
 data Constr = Constr  Name2 [Type] [Quant] [Pred]
@@ -206,15 +208,25 @@ data Stmt   = SRes    Exp
 -- Modules -------------------------------------------------------------------
 
 instance Pr Module where
-    pr (Module c is ds ps)      	= text "module" <+> pr c <+> text "where" $$ 
+  pr (Module c is ds []) | null [ m | DModule m <- ds ]
+                                        = text "module" <+> pr c <+> text "where" $$ 
 					  vpr is $$ 
-					  vpr ds $$
+					  vpr ds
+  pr m                                  = prModule m
+					  
+prModule (Module c is ds [])            = text "module" <+> pr c <+> text "where" $$ 
+					  nest 4 (vpr is) $$ 
+					  nest 4 (vpr ds)
+prModule (Module c is ds ps)      	= text "module" <+> pr c <+> text "where" $$ 
+					  nest 4 (vpr is) $$ 
+					  nest 4 (vpr ds) $$
                                   	  text "private" $$ 
-					  vpr ps
+					  nest 4 (vpr ps)
 
 instance Pr Import where
    pr (Import n)	           	= text "import" <+> pr n
-   pr (Use n)          			= text "use" <+> pr n
+   pr (Use Nothing n)          		= text "use" <+> pr n
+   pr (Use (Just n1) n2)                = text "use" <+> pr n1 <+> text "=" <+> pr n2
 
 
 -- Declarations --------------------------------------------------------------
@@ -242,6 +254,9 @@ instance Pr Decl where
 
     pr (DExtern xs)             	= text "extern" <+> hpr ',' xs
     pr (DExternSig xs t)             	= text "extern" <+> hpr ',' xs <+> text "::" <+> pr t
+    
+    pr (DModule m)                      = prModule m
+
 
 unless True _			= empty
 unless False p			= p
@@ -461,12 +476,12 @@ instance Binary Module where
       0 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (Module a b c d)
 
 instance Binary Import where
-  put (Use a) = putWord8 0 >> put a
+  put (Use a b) = putWord8 0 >> put a >> put b
   put (Import a) = putWord8 1 >> put a
   get = do
     tag_ <- getWord8
     case tag_ of
-      0 -> get >>= \a -> return (Use a)
+      0 -> get >>= \a -> get >>= \b -> return (Use a b)
       1 -> get >>= \a -> return (Import a)
 
 instance Binary Decl where
@@ -484,6 +499,7 @@ instance Binary Decl where
   put (DStruct a b c d) = putWord8 11 >> put a >> put b >> put c >> put d
   put (DData a b c d) = putWord8 12 >> put a >> put b >> put c >> put d
   put (DKSig a b) = putWord8 13 >> put a >> put b
+  put (DModule a) = putWord8 14 >> put a
   get = do
     tag_ <- getWord8
     case tag_ of
@@ -501,6 +517,7 @@ instance Binary Decl where
       11 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (DStruct a b c d)
       12 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (DData a b c d)
       13 -> get >>= \a -> get >>= \b -> return (DKSig a b)
+      14 -> get >>= \a -> return (DModule a)
 
 instance Binary Constr where
   put (CInfix a b c d e) = putWord8 0 >> put a >> put b >> put c >> put d >> put e
@@ -754,10 +771,6 @@ instance Binary Stmt where
 
 
 -- Parser helpers ---------------------------------------------------------
-
-mkModule c@(Plain "Prelude" _) (is,ds,ps)
-                                = Module c [] ds ps
-mkModule c (is,ds,ps)           = Module c (Import (qname2 "Prelude") : is) ds ps
 
 tFun [] t                       = t
 tFun ts t                       = TFun ts t

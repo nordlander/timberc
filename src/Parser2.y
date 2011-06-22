@@ -146,7 +146,7 @@ Reserved Ids
 -- Module Header ------------------------------------------------------------
 
 module  :: { Module }
-        : 'module' conid 'where' body           { mkModule $2 $4 }
+        : 'module' conid 'where' body           { let (is,ds,ps) = $4 in Module $2 is ds ps }
 
 body    :: { ([Import],[Decl],[Decl]) }
         : '{' layout_off imports topdecls '}' private	{ (reverse $3,reverse $4, $6) }
@@ -166,7 +166,8 @@ imports :: { [Import] }
 
 import  :: { Import }
         : 'import' anyconid                     { Import $2 }
-        | 'use' anyconid                        { Use $2 }
+        | 'use' anyconid                        { Use Nothing $2 }
+        | 'use' conid '=' anyconid              { Use (Just $2) $4 }
 
 
 -- Top-level declarations ---------------------------------------------------
@@ -200,6 +201,7 @@ topdecl :: { Decl }
         | 'extern' varlist '::' type                       { DExternSig (reverse $2) $4 }
         | varlist '::' type		                   { DSig (reverse $1) $3 }
         | pat rhs 					   { DEqn $1 $2 }
+        | module                                           { DModule $1 }
 
 sups :: { [Type] }
         : '<' types				{ reverse $2 }

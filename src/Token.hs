@@ -179,7 +179,7 @@ reserved_ids
         ( "where",     KW_Where )
       ]
 
-acceptColumnAlignedKeywords = ["elsif","else"]
+acceptColumnAlignedKeywords = ["elsif","else","where","private"]
 
 
 tab_length = 8 :: Int

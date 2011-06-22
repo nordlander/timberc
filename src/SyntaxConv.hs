@@ -40,15 +40,14 @@ import Common
 import PP
 import Syntax2 
 import qualified Syntax
-import qualified Name
 
 
 syntaxconv m                       = return (sModule m)
 
-sModule (Module n is ds1 ds2)      = Syntax.Module (sName n) (map sImport is) (sDecls True ds1) (sDecls False ds2)
+sModule (Module n is ds1 ds2)      = Syntax.mkModule (sName n) (map sImport is, sDecls True ds1, sDecls False ds2)
 
 sImport (Import n)                 = Syntax.Import True (sQName n)
-sImport (Use n)                    = Syntax.Import False (sQName n)
+sImport (Use Nothing n)            = Syntax.Import False (sQName n)
 
 sDecls b (DKSig n k : ds)           = Syntax.DKSig (sName n) k : sDecls b ds
 
@@ -216,8 +215,8 @@ sStmts ss                         = Syntax.Stmts (stmts ss)
         els Nothing                = Nothing
 
 
-sName (Plain s pos)             = Name.Name { str = s, tag = 0, fromMod = Nothing, annot = posAnnot pos }
-sName (Tagged s i)              = Name.Name { str = s, tag = i, fromMod = Nothing, annot = noAnnot }
+sName (Plain s pos)             = Name { str = s, tag = 0, fromMod = Nothing, annot = posAnnot pos }
+sName (Tagged s i)              = Name { str = s, tag = i, fromMod = Nothing, annot = noAnnot }
 
 
 posAnnot pos                    = noAnnot { location = sPos pos }

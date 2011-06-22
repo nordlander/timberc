@@ -199,7 +199,7 @@ Kindle2C:
 compileTimber clo ifs (sm,t_file) ti_file c_file h_file js_file
                         = do putStrLn ("[compiling "++ t_file++"]")
                              let Syntax2.Module n is _ _ = sm
-                             (imps,ifs') <- chaseIfaceFiles clo is ifs
+                             (imps,ifs') <- chaseIfaceFiles clo (imports2 n is) ifs
                              let ((htxt,mtxt),ifc,jstxt) = runM (passes imps sm)
                              encodeCFile ti_file ifc
                              writeFile c_file mtxt
@@ -382,7 +382,7 @@ doParse' clo txt =  runM (pass clo Parser2.parser Parser txt)
 makeProg clo cfg t_file     = do txt <- readFile t_file
                                  let ms@(Syntax2.Module n is _ _) = doParse txt
                                  currDir <- Directory.getCurrentDirectory
-                                 (imps,ss) <- chaseSyntax2Files clo is [(noqual n,(ms,currDir ++ "/" ++ t_file))]
+                                 (imps,ss) <- chaseSyntax2Files clo (imports2 n is) [(noqual n,(ms,currDir ++ "/" ++ t_file))]
                                  let cs = compile_order imps
                                      is = filter nonDummy cs
                                      ps = map (\(n,ii) -> (snd ii, qnstring n ++ ".t")) is ++ [(ms,t_file)]
@@ -445,7 +445,7 @@ chaseImps readModule iNames suff imps ifs
         readImport ifs (Syntax2.Import c) 
                                      = do (ifc,isNew) <- readIfile ifs c
                                           return ((c,(True,ifc)),isNew)
-        readImport ifs (Syntax2.Use c) 
+        readImport ifs (Syntax2.Use _ c) 
                                      = do (ifc,isNew) <- readIfile ifs c
                                           return ((c,(False,ifc)),isNew)
         chaseRecursively ifs ms []= return (map (\(n,(b,(i,f))) -> (n,(b,i))) ms,ifs)
@@ -471,12 +471,15 @@ chaseIfaceFiles clo                 = chaseImps (decodeModule clo) impsOf2 ".ti"
   where impsOf2 b i                 = map (\(b',c) -> (s2QN c,b && b')) (impsOf (fst i))
                                           
 impName (Syntax2.Import c)          = c
-impName (Syntax2.Use c)             = c
+impName (Syntax2.Use _ c)           = c
 impNames (Syntax2.Module _ is _ _)  = map impName is
 
 impNames2 b (Syntax2.Module _ is _ _,_)  = map f is
   where f (Syntax2.Import c) = (c,b)
-        f (Syntax2.Use c)    = (c,False)
+        f (Syntax2.Use _ c)  = (c,False)
+
+imports2 (Plain "Prelude" _) is = []
+imports2 _ is                   = Syntax2.Import (qname2 "Prelude") : is
 
 chaseSyntax2Files :: CmdLineOpts -> [Syntax2.Import] -> Map QName2 (Syntax2.Module, FilePath) -> 
                     IO (Map QName2 (ImportInfo Syntax2.Module), Map QName2 (Syntax2.Module, FilePath))
