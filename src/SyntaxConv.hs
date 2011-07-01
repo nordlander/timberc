@@ -51,12 +51,12 @@ sImport (Use Nothing n)            = Syntax.Import False (sQName n)
 
 sDecls b (DKSig n k : ds)           = Syntax.DKSig (sName n) k : sDecls b ds
 
-sDecls b (DData n vs ts cs : ds)    = Syntax.DData (sName n) (map sName vs) (map sType ts) (map sConstr cs) : sDecls b ds
-sDecls b (DType n vs t : ds)        = Syntax.DType (sName n) (map sName vs) (sType t) : sDecls b ds
-sDecls b (DStruct n vs ts ss : ds)  = Syntax.DRec False (sName n) (map sName vs) (map sType ts) (map sSig ss) : sDecls b ds
+sDecls b (DData n vs ts cs : ds)    = Syntax.DData (sName n) (map sQuant2Name vs) (map sType ts) (map sConstr cs) : sDecls b ds
+sDecls b (DType n vs t : ds)        = Syntax.DType (sName n) (map sQuant2Name vs) (sType t) : sDecls b ds
+sDecls b (DStruct n vs ts ss : ds)  = Syntax.DRec False (sName n) (map sQuant2Name vs) (map sType ts) (map sSig ss) : sDecls b ds
 
 sDecls b (DTClass n : ds)           = Syntax.DTClass [sQName n] : sDecls b ds
-sDecls b (DTypeClass n vs ts ss : ds)= Syntax.DRec True (sName n) (map sName vs) (map sType ts) (map sSig ss) : sDecls b ds
+sDecls b (DTypeClass n vs ts ss : ds)= Syntax.DRec True (sName n) (map sQuant2Name vs) (map sType ts) (map sSig ss) : sDecls b ds
 
 sDecls b (DInst n : ds)             = Syntax.DInstance [sQName n] : sDecls b ds
 sDecls b (DInstance mn t bs : ds)   = Syntax.DInst (sMN mn) (sType t) (map sBind bs) : sDecls b ds
@@ -79,6 +79,9 @@ sConstr (CInfix t n t' qs ps)     = Syntax.Constr (sName n) (map sType [t,t']) (
 sSig (Sig ns t)                   = Syntax.Sig (map sName ns) (sType t)
 
 sDflt b (n1,n2)                   = Default b (sQName n1) (sQName n2)
+
+sQuant2Name (QVar n)              = sName n
+sQuant2Name (QVarSig n _)         = sName n
 
 sQuant (QVar n)                   = Syntax.PKind (sName n) KWild
 sQuant (QVarSig n k)              = Syntax.PKind (sName n) k

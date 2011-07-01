@@ -211,9 +211,9 @@ subs :: { [Type] }
         : '>' types				{ reverse $2 }
         | '>' type				{ [$2] }
 
-tyvars  :: { [Name2] }
-        : tyvars varid				{ $2 : $1 }
-        | tyvars '(' varid '::' kind ')'        { $3 : $1 }
+tyvars  :: { [Quant] }
+        : tyvars varid				{ QVar $2 : $1 }
+        | tyvars '(' varid '::' kind ')'        { QVarSig $3 $5 : $1 }
         | {- empty -}				{ [] }
 
 defaults ::  { [(QName2,QName2)] }
@@ -316,8 +316,8 @@ atype   :: { Type }
 	
 atype0  :: { Type }
 	: '_'                                   { TWild }
-        | '[' ']'				{ TCon Prim.list }
---	| '(' '->' ')'	                	{ TCon Prim.arrow }
+        | '[' ']'				{ TCon Prim.nList }
+--	| '(' '->' ')'	                	{ TCon Prim.tArrow }
 	| '(' commas ')'			{ TTupC ($2+1) }
         | '(' ')'				{ TTupC 0 }
         | '(' type00 ')'                        { TParen $2 }
@@ -347,7 +347,7 @@ pred	:: { Pred }
         | anyconid atypes '<' btype             { PSub (foldl TAp (TCon $1) $2) $4 }
         | varid atypes '<' btype                { PSub (foldl TAp (TVar $1) $2) $4 }
         | '[' type ']' '<' btype                { PSub (TList $2) $5 }
-        | '[' ']' atypes '<' btype              { PSub (foldl TAp (TCon Prim.list) $3) $5 }
+        | '[' ']' atypes '<' btype              { PSub (foldl TAp (TCon Prim.nList) $3) $5 }
 --        | '(' type ')' atypes '<' btype         { PSub (foldl TAp $2 $4) $6 }
 --        | '(' types ')' '<' btype               { PSub (TTup (reverse $2)) $5 }
 	| '(' commas ')' atypes '<' btype       { PSub (foldl TAp (TTupC ($2+1)) $4) $6 }

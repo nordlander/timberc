@@ -52,12 +52,12 @@ data Import = Import     QName2
             
 data Decl   = DKSig      Name2 Kind
 
-            | DData      Name2 [Name2] [Type] [Constr]
-            | DStruct    Name2 [Name2] [Type] [Sig]
-            | DType      Name2 [Name2] Type
+            | DData      Name2 [Quant] [Type] [Constr]
+            | DStruct    Name2 [Quant] [Type] [Sig]
+            | DType      Name2 [Quant] Type
 
             | DTClass    QName2
-            | DTypeClass Name2 [Name2] [Type] [Sig]
+            | DTypeClass Name2 [Quant] [Type] [Sig]
 
             | DInst      QName2
             | DInstance  (Maybe Name2) Type [Bind]
