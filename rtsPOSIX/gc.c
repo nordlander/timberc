@@ -107,7 +107,11 @@ void initheap() {
 
 void pruneStaticHeap() {
         ADDR lim0 = hp;
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1070
+        ADDR base0 = base;
+#else
         ADDR base0 = realloc(base, BYTES(hp - base));   // Let current heap shrink to its current size
+#endif
         if (base0 != base)
                 panic("Cannot shrink static heap to current size");
         staticHeap = heapchain;                         // Remember the static chain (for debugging only)
