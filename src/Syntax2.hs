@@ -197,6 +197,7 @@ data Stmt   = SRes    Exp
             | SGen    Pat Exp
             | SSig    [Name2] Type
             | SEqn    Pat (Rhs Exp)
+            | SLet    [Bind]
             | SAss    Pat Exp
             | SIf     Exp Stmts [(Exp,Stmts)] (Maybe Stmts)
             | SCase   Exp [Alt Stmts]
@@ -309,7 +310,7 @@ instance Pr Quant where
 
 
 prPreds [] []                   = empty
-prPreds qs ps                   = text "\\\\" <+> sep (punctuate comma (map pr qs ++ map pr qs))
+prPreds qs ps                   = text "\\\\" <+> sep (punctuate comma (map pr qs ++ map pr ps))
 
 
 -- Types -----------------------------------------------------------------
@@ -457,6 +458,7 @@ instance Pr Stmt where
     pr (SGen p e)               = pr p <+> text "<-" <+> pr e
     pr (SSig xs t)              = hpr ',' xs <+> text "::" <+> pr t
     pr (SEqn p rhs)        	= prEqn p (text "=") rhs
+    pr (SLet bs)                = text "let" <+> vpr bs
     pr (SAss p e)               = pr p <+> text ":=" <+> pr e
     pr (SIf e ss elsifs ss')  	= text "if" <+> pr e <+> text "then" $$ nest 4 (pr ss) $$ vcat (map prElsif elsifs) $$ prElse ss'
     pr (SCase e alts)           = text "case" <+> pr e <+> text "of" $$ nest 4 (vpr alts)
@@ -754,9 +756,10 @@ instance Binary Stmt where
   put (SAss a b) = putWord8 2 >> put a >> put b
   put (SEqn a b) = putWord8 3 >> put a >> put b
   put (SSig a b) = putWord8 4 >> put a >> put b
-  put (SGen a b) = putWord8 5 >> put a >> put b
-  put (SExp a) = putWord8 6 >> put a
-  put (SRes a) = putWord8 7 >> put a
+  put (SLet a) = putWord8 5 >> put a
+  put (SGen a b) = putWord8 6 >> put a >> put b
+  put (SExp a) = putWord8 7 >> put a
+  put (SRes a) = putWord8 8 >> put a
   get = do
     tag_ <- getWord8
     case tag_ of
@@ -765,9 +768,10 @@ instance Binary Stmt where
       2 -> get >>= \a -> get >>= \b -> return (SAss a b)
       3 -> get >>= \a -> get >>= \b -> return (SEqn a b)
       4 -> get >>= \a -> get >>= \b -> return (SSig a b)
-      5 -> get >>= \a -> get >>= \b -> return (SGen a b)
-      6 -> get >>= \a -> return (SExp a)
-      7 -> get >>= \a -> return (SRes a)
+      5 -> get >>= \a -> return (SLet a)
+      6 -> get >>= \a -> get >>= \b -> return (SGen a b)
+      7 -> get >>= \a -> return (SExp a)
+      8 -> get >>= \a -> return (SRes a)
 
 
 -- Parser helpers ---------------------------------------------------------
@@ -873,7 +877,8 @@ transFix :: OpExp -> Exp
 transFix e                          	= push e [] []
   where push (Cons l o r) (o':os) es
           | prec == prec' && (ass /= ass' || ass == NonAss)
-                                    	= error ("Operator associativity ambiguity with operators " ++ render (pr o) ++ " and " ++ render (pr o'))
+                                    	= error ("Operator associativity ambiguity with operators " ++ 
+                                    	         render (pr o) ++ " and " ++ render (pr o'))
           | prec < prec' || (prec == prec' && ass == RightAss)
                                     	= push (Cons l o (EInfix r o' (head es))) os (tail es)
           where Fixity ass  prec    	= fixity o

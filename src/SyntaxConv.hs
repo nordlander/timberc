@@ -206,6 +206,7 @@ sStmts ss                         = Syntax.Stmts (stmts ss)
         stmts (SRes e : ss)        = Syntax.SRet (sExp e) : stmts ss
         stmts (SEqn lh rh : ss)    = Syntax.SBind [Syntax.BEqn (sLhs lh) (sRhs sExp rh)]  : stmts ss
         stmts (SSig ns t : ss)     = Syntax.SBind [Syntax.BSig (map sName ns) (sType t)] : stmts ss
+        stmts (SLet bs : ss)       = Syntax.SBind (map sBind bs) : stmts ss
         stmts (SAss p e : ss)      = Syntax.SAss (sPat p) (sExp e) : stmts ss
         stmts (SIf e th eis mbe : ss) 
                                    = Syntax.SIf (sExp e) (sStmts th) (map elsif eis) (els mbe) : stmts ss 

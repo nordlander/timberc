@@ -312,10 +312,7 @@ btype   :: { Type }
 atype   :: { Type }
 	: varid                                 { TVar $1 }
 	| anyconid                              { TCon $1 }
-	| atype0                                { $1 }
-	
-atype0  :: { Type }
-	: '_'                                   { TWild }
+	| '_'                                   { TWild }
         | '[' ']'				{ TCon Prim.nList }
 --	| '(' '->' ')'	                	{ TCon Prim.tArrow }
 	| '(' commas ')'			{ TTupC ($2+1) }
@@ -653,6 +650,7 @@ stmt    :: { Stmt }
         : pat '<-' exp                          { SGen $1 $3 }
         | mexp                                  { SExp $1 }
         | varlist '::' type                     { SSig $1 $3 }
+        | 'let' bindlist                        { SLet $2 }
         | pat rhs                               { SEqn $1 $2 }
         | pat ':=' exp                          { SAss $1 $3 }
         | 'result' exp                          { SRes $2 }
