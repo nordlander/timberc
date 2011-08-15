@@ -656,8 +656,7 @@ Env_POSIX posix_POSIX(World w, Int dummy) {
 
 void sendSelect(int active) {
   if (eventThread==NULL) {
-    struct Handler handler = {&evMsg, eventLoop};
-    eventThread = addHandler(&handler);  
+    eventThread = runAsSeparateThread(eventLoop, &evMsg);  
   } else {
     if (!active) {
       pthread_kill(eventThread->id, SIGSELECT);

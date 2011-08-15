@@ -213,14 +213,8 @@ struct Scanner {
 
 void addRootScanner(Scanner ls);
 
-struct Handler {
-  Msg msg;
-  void *(*f) (void *);
-};
-
-typedef struct Handler *Handler;
-
-Thread addHandler(Handler h);
+Thread runAsSeparateThread(void*(*fun)(void*), Msg m);
+void runAsMainContinuation(void(*fun)(void));
 
 int getArgc();
 char **getArgv();

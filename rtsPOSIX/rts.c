@@ -154,6 +154,7 @@ void *garbageCollector(void *arg) {
         pthread_cond_wait(&current_thread->trigger, &rts);
         gc();
     }
+    return (void*)0;
 }
 
 
@@ -331,6 +332,7 @@ void *run(void *arg) {
             pthread_cond_wait(&current_thread->trigger, &rts);
         }
     }
+    return (void*)0;
 }
 
 // Major primitives ---------------------------------------------------------------------
@@ -455,6 +457,7 @@ void *timerHandler(void *arg) {
             TIMERSET(timerQ->baseline, now);
         ENABLE(rts);
     }
+    return (void*)0;
 }
 
 void scanTimerQ() {
@@ -507,30 +510,49 @@ void scanRoots() {
 // Command line args ----------------------------------------------------------------------------------
 
 int argc0;
-
 char **argv0;
 
 int getArgc() {
-  return argc0;
+    return argc0;
 }
 
 char **getArgv() {
-  return argv0;
+    return argv0;
 }
+
 // Main thread handling -------------------------------------------------------------------------------
 
-Thread addHandler(Handler h) {
-  Thread t = newThread(h->msg,sched_get_priority_max(SCHED_RR),h->f,pagesize);
-  return t;
-}
 pthread_cond_t sleepVar;
+void (*mainContinuation) (void) = NULL;
+
+void runAsMainContinuation(void(*fun)(void)) {
+    DISABLE(rts);
+    if (mainContinuation)
+        panic("Multiple main continuations");
+    mainContinuation = fun;
+    ENABLE(rts);
+}
+
 
 void sleep_rts() {
-  DISABLE(rts);
-  pthread_cond_wait(&sleepVar,&rts);
+    DISABLE(rts);
+    if (!mainContinuation)
+        pthread_cond_wait(&sleepVar, &rts);
+    if (!mainContinuation)
+        panic("Main thread woke up with no continuation");
+    ENABLE(rts);
+    (*mainContinuation)();
 }
 
 // Initialization -------------------------------------------------------------------------------------
+
+Thread runAsSeparateThread(void*(*fun)(void*), Msg m) {
+    Thread t = NULL;
+    DISABLE(rts);
+    t = newThread(m, sched_get_priority_max(SCHED_RR), fun, pagesize);
+    ENABLE(rts);
+    return t;
+}
 
 Int getNumberOfProcessors() {
 #if defined(HAVE_SYSCONF) && defined(_SC_NPROCESSORS_ONLN)
