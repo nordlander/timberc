@@ -212,6 +212,7 @@ struct Scanner {
 };
 
 void addRootScanner(Scanner ls);
+extern int rootsDirty;
 
 Thread runAsSeparateThread(void(*fun)(Thread), Msg m);
 void runAsMainContinuation(void(*fun)(void));
@@ -219,7 +220,7 @@ void runAsMainContinuation(void(*fun)(void));
 int getArgc();
 char **getArgv();
 void init_rts(int argc, char **argv);
-void sleep_rts();
+void mainCont();
 void pruneStaticHeap();
 
 #endif

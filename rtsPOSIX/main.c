@@ -50,5 +50,5 @@ int main(int argc, char **argv) {
     pruneStaticHeap();
     Time_Time_to_Msg prog = (Time_Time_to_Msg)ROOT((World)0,0);
     prog->Code(prog, Inherit, Inherit);
-    sleep_rts();
+    mainCont();
 }

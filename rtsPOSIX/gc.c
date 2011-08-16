@@ -88,11 +88,8 @@ ADDR staticHeap;                        // heap (chain) containing only statical
 
 char emergency = 0;                     // flag signalling heap overflow during gc
 
-void scanRoots(void);
-void scanTimerQ(void);
-extern int envRootsDirty;
-extern int timerQdirty;
 
+// Heap management ------------------------------------------------------------------------------------
 
 void initheap() {
         base = allocwords(HEAPSIZE);
@@ -198,6 +195,9 @@ ADDR force2(WORD size, ADDR last, ADDR info) {          // Overflow in tospace
         return a;
 }
 
+
+// Copying and scanning ------------------------------------------------------------------------------------
+
 ADDR copystateful(ADDR obj, ADDR info) {
         WORD i = STATIC_SIZE(info);
         ADDR dest, datainfo = IND0(obj+i);              // actual mutable struct follows right after the Ref struct
@@ -300,6 +300,30 @@ ADDR scan(ADDR obj) {
         return (ADDR)0;                 // Not reached
 }
 
+
+// Scanning roots -------------------------------------------------------------------------------------
+
+int rootsDirty = 0;
+Scanner scanners = NULL;
+
+void addRootScanner(Scanner ls) {
+    ls->next = scanners;
+    scanners = ls;
+}
+
+void scanRoots() {
+    Scanner s = scanners;
+
+    rootsDirty = 0;
+    while(s) {
+        s->f();
+        s = s->next;
+    }
+}
+
+
+// Running one GC pass ---------------------------------------------------------------------------------------
+
 void gc() {
         heapchain2 = (ADDR)allocwords(HEAPSIZE);       // allocate tospace (initial segment)
         base2 = heapchain2;
@@ -310,14 +334,11 @@ void gc() {
         scanbase = base2;
         ENABLE(rts);
         
-        envRootsDirty = 1;
-        timerQdirty = 1;
+        rootsDirty = 1;
 
         while (1) {
-                if (envRootsDirty)
+                if (rootsDirty)
                         scanRoots();
-                if (timerQdirty)
-                        scanTimerQ();
 
                 while (1) {
                         while (ISODD(hp2));             // spin while a mutator is allocating a write barrier
@@ -331,8 +352,8 @@ void gc() {
                 }
 
                 DISABLE(rts);
-                if ((scanp == hp2) && (envRootsDirty+timerQdirty+nactive == 0)) // still done and everybody else is asleep?
-                        break;                                                  // Continue with exclusive rts access
+                if ((scanp == hp2) && (rootsDirty+nactive == 0)) // still done and everybody else is asleep?
+                        break;                                   // Continue with exclusive rts access
                 ENABLE(rts);
         }
         
@@ -362,6 +383,9 @@ int heapLevel(int steps) {
     acc += hp-base;
     return acc / (HEAPSIZE/steps);
 }
+
+
+// Initialization -------------------------------------------------------------------------------------
 
 void gcInit() {
 #if defined(__APPLE__)

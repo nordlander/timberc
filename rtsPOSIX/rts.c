@@ -367,7 +367,7 @@ Msg ASYNC( Msg m, Time bl, Time dl ) {
         
     if (LESS(now, m->baseline)) {           //  TIMERQ_PROLOGUE();
         enqueueByBaseline(m, &timerQ);
-        timerQdirty = 1;
+        rootsDirty = 1;
         if (timerQ == m)
             TIMERSET(m->baseline, now);     //  TIMERQ_EPILOGUE();
     } else if (!activate(m,0))
@@ -424,8 +424,6 @@ POLY Raise(BITS32 polyTag, Int err) {
 
 // timerQ handling ------------------------------------------------------------------------------------
 
-int timerQdirty;
-
 void timerHandler(Thread current_thread) {
     struct sched_param param;
     param.sched_priority = current_thread->prio;
@@ -455,7 +453,6 @@ void timerHandler(Thread current_thread) {
 }
 
 void scanTimerQ() {
-        timerQdirty = 0;
         DISABLE(rts);
         if (timerQ) {
                 timerQ = (Msg)copy((ADDR)timerQ);
@@ -474,24 +471,8 @@ void scanTimerQ() {
         ENABLE(rts);
 }
 
-// Scanning roots -------------------------------------------------------------------------------------
+struct Scanner timerQscanner = { scanTimerQ, NULL };
 
-Scanner scanners = NULL;
-
-void addRootScanner(Scanner ls) {
-  ls->next = scanners;
-  scanners = ls;
-}
-
-void scanRoots() {
-    Scanner s = scanners;
-
-    envRootsDirty=0;
-    while(s) {
-      s->f();
-      s = s->next;
-    }
-}
 
 // Arrays ---------------------------------------------------------------------------------------------
 
@@ -528,7 +509,7 @@ void runAsMainContinuation(void(*fun)(void)) {
 }
 
 
-void sleep_rts() {
+void mainCont() {
     DISABLE(rts);
     if (!mainContinuation)
         pthread_cond_wait(&sleepVar, &rts);
@@ -591,6 +572,7 @@ void init_rts(int argc, char **argv) {
         NTHREADS = MAXTHREADS;
     
     gcInit();
+    addRootScanner(&timerQscanner);
     gcThread = newThread(NULL, prio_min, garbageCollector, pagesize);
     newThread(NULL, prio_max, timerHandler, pagesize);
     

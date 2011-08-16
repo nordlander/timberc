@@ -123,8 +123,6 @@ String_Time_Time_to_Msg  rdTable   [FD_SETSIZE] ;
 Time_Time_to_Msg         wrTable   [FD_SETSIZE] ;
 SockData                 sockTable [FD_SETSIZE];
 
-int envRootsDirty;
-
 struct Msg evMsg = { NULL, 0, { 0, 0 }, { INF, 0 }, NULL };
 
 pthread_mutex_t envmut;
@@ -270,7 +268,7 @@ UNIT installR_fun (RFile_POSIX this, CLOS hand, Int dummy) {
   Int active = FD_ISSET(desc,&readUsed);
   String_Time_Time_to_Msg handler = (String_Time_Time_to_Msg)hand;
   ADD_RDTABLE(desc,handler);
-  envRootsDirty = 1;
+  rootsDirty = 1;
   maxDesc = desc > maxDesc ? desc : maxDesc;  
   sendSelect(active);
   ENABLE(envmut);
@@ -311,7 +309,7 @@ UNIT installW_fun (WFile_POSIX this, CLOS act, Int dummy) {
   Int active = FD_ISSET(desc,&writeUsed);
   Time_Time_to_Msg action = (Time_Time_to_Msg)act;
   ADD_WRTABLE(desc,action);
-  envRootsDirty = 1;
+  rootsDirty = 1;
   maxDesc = desc > maxDesc ? desc : maxDesc;  
   sendSelect(active);
   ENABLE(envmut);
@@ -407,7 +405,7 @@ Int new_socket (Socket_Int_to_Connection handler) {
   d->GCINFO =__GC__SockData;
   d->handler = handler;
   sockTable[sock] = d;
-  envRootsDirty = 1;
+  rootsDirty = 1;
   return sock;
 }  
 
@@ -537,7 +535,7 @@ void scanEnvRoots () {
         ENABLE(envmut);
 }
 
-struct Scanner scanner = {scanEnvRoots, NULL};
+struct Scanner envRootScanner = {scanEnvRoots, NULL};
 
 
 // --------- Event loop ----------------------------------------------
@@ -586,7 +584,7 @@ void eventLoop (Thread current_thread) {
 	                    NEW(SockData,sockTable[sock],WORDS(sizeof(struct SockData)));
 	                    sockTable[sock]->handler = sockTable[i]->handler;
 	                    sockTable[sock]->addr = addr;
-                            envRootsDirty = 1;
+                            rootsDirty = 1;
 	                    maxDesc = sock > maxDesc ? sock : maxDesc;
 	                    setupConnection(sock);
 	                }
@@ -661,5 +659,5 @@ void _init_external_POSIX(void) {
     startTime.sec = evMsg.baseline.tv_sec;
     startTime.usec = evMsg.baseline.tv_usec;
 
-    addRootScanner(&scanner);
+    addRootScanner(&envRootScanner);
 }
