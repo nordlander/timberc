@@ -119,20 +119,20 @@ k2cType (TClos _ _ _)		= k2cName (prim CLOS)
   "Constant initializer" is presently interpreted as literals only for lack of better understanding.
 -}
 
-k2cModule (Module n ns es ds bs)= cHeader (null es) n $$$
+k2cModule (Module n ns es ds bs)= cHeader es n $$$
                                   k2cDeclStubs False ds $$$
                                   k2cDecls False ds $$$
                                   k2cBindStubsC bs $$$
                                   k2cTopBinds bs $$$
-                                  k2cInitProc n ns bs $$$
+                                  k2cInitProc n ns es bs $$$
                                   cFooter n
 
 
 k2cSize n                       = text "WORDS(sizeof(struct" <+> k2cName n <> text "))"
 
 
-cHeader b n                     = text "#include \"" <> text (str n) <> text ".h\"" $$
-                                  if b then empty else text "#include \"" <> text (str n) <> text ".extern.c\""
+cHeader es n                    = text "#include \"" <> text (str n) <> text ".h\"" $$
+                                  if null es then empty else text "#include \"" <> text (str n) <> text ".extern.c\""
 cFooter n                       = text "\n"
 
 
@@ -166,8 +166,10 @@ k2cOnce p                       = text "static int INITIALIZED = 0;" $$
                                   text "}"
 
 
-k2cInitProc n ns bs             = k2cInitProcStub n <+> text "{" $$
-	                              nest 4 (k2cOnce (k2cInitImports ns $$ vcat (map k2cValBinds' (groupMap bs)))) $$
+k2cInitProc n ns es bs          = k2cInitProcStub n <+> text "{" $$
+	                          nest 4 (k2cOnce (k2cInitImports ns $$ 
+	                                           vcat (map k2cValBinds' (groupMap bs)) $$
+	                                           if null es then empty else text ("_init_external_" ++ name2str n ++ "();"))) $$
                                   text "}"
   where k2cValBinds' (r,bs)     = k2cValBinds (r, filter isInitVal bs)
         isInitVal (_,Val _ (ECall (Prim GCINFO _) _ _))

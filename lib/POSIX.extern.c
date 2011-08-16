@@ -519,7 +519,7 @@ void kill_handler () {
 
 
 
-Env_POSIX env                   = &env_struct;
+Env_POSIX env0                  = &env_struct;
 
 // ------- Copying for gc -----------------------------------------------
 
@@ -612,11 +612,26 @@ void eventLoop (Thread current_thread) {
     }
 }
 
+//---------- Event loop start and signalling -----------------------------------
+
+void sendSelect(int active) {
+  if (eventThread==NULL) {
+    eventThread = runAsSeparateThread(eventLoop, &evMsg);  
+  } else {
+    if (!active) {
+      pthread_kill(eventThread->id, SIGSELECT);
+    }
+  }
+}
+
 // --------- Initialization ----------------------------------------------------
 
 
 Env_POSIX posix_POSIX(World w, Int dummy) {
-  if (!env->argv_POSIX) {
+    return env0;
+}
+
+void _init_external_POSIX(void) {
     pthread_mutex_init(&envmut, &glob_mutexattr);
   
     FD_ZERO(&readUsed);
@@ -637,7 +652,7 @@ Env_POSIX posix_POSIX(World w, Int dummy) {
     int i;
     for (i=0; i<argc; i++)
         arr->elems[i] = (POLY)getStr(argv[i]);
-    env->argv_POSIX = arr;
+    env0->argv_POSIX = arr;
   
     fcntl(0, F_SETFL, O_NONBLOCK);
     fcntl(1, F_SETFL, O_NONBLOCK);
@@ -647,19 +662,4 @@ Env_POSIX posix_POSIX(World w, Int dummy) {
     startTime.usec = evMsg.baseline.tv_usec;
 
     addRootScanner(&scanner);
-  }
-  return env;
 }
-
-//---------- Event loop start and signalling -----------------------------------
-
-void sendSelect(int active) {
-  if (eventThread==NULL) {
-    eventThread = runAsSeparateThread(eventLoop, &evMsg);  
-  } else {
-    if (!active) {
-      pthread_kill(eventThread->id, SIGSELECT);
-    }
-  }
-}
-
