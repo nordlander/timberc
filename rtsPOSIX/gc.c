@@ -385,6 +385,27 @@ int heapLevel(int steps) {
 }
 
 
+// The GC thread --------------------------------------------------------------------------------------
+
+Thread gcThread;
+
+void gcStart(void) {
+    pthread_cond_signal(&gcThread->trigger);
+}
+
+void garbageCollector(Thread current_thread) {
+    pthread_setspecific(current_key, current_thread);
+    struct sched_param param;
+    param.sched_priority = current_thread->prio;
+    pthread_setschedparam(current_thread->id, SCHED_RR, &param);
+    DISABLE(rts);
+    while (1) {
+        pthread_cond_wait(&current_thread->trigger, &rts);
+        gc();
+    }
+}
+
+
 // Initialization -------------------------------------------------------------------------------------
 
 void gcInit() {
@@ -400,5 +421,6 @@ void gcInit() {
     initheap();                                     // Allocate base (= heapchain)
     pthread_cond_init(&alloc, 0);
     pthread_cond_init(&alloc2, 0);
+    gcThread = newThread(NULL, prio_min, garbageCollector, pagesize);
 }
 

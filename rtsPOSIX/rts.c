@@ -135,25 +135,7 @@ void panic(char *str) {
 
 // Memory management --------------------------------------------------------------------------------
 
-Thread gcThread;
-
 #include "gc.c"
-
-void gcStart(void) {
-    pthread_cond_signal(&gcThread->trigger);
-}
-
-void garbageCollector(Thread current_thread) {
-    pthread_setspecific(current_key, current_thread);
-    struct sched_param param;
-    param.sched_priority = current_thread->prio;
-    pthread_setschedparam(current_thread->id, SCHED_RR, &param);
-    DISABLE(rts);
-    while (1) {
-        pthread_cond_wait(&current_thread->trigger, &rts);
-        gc();
-    }
-}
 
 
 // Cyclic data handling -----------------------------------------------------------------------------
@@ -573,7 +555,6 @@ void init_rts(int argc, char **argv) {
     
     gcInit();
     addRootScanner(&timerQscanner);
-    gcThread = newThread(NULL, prio_min, garbageCollector, pagesize);
     newThread(NULL, prio_max, timerHandler, pagesize);
     
     ENABLE(rts);
