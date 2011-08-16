@@ -213,7 +213,7 @@ struct Scanner {
 
 void addRootScanner(Scanner ls);
 
-Thread runAsSeparateThread(void*(*fun)(void*), Msg m);
+Thread runAsSeparateThread(void(*fun)(Thread), Msg m);
 void runAsMainContinuation(void(*fun)(void));
 
 int getArgc();

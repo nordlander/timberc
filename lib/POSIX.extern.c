@@ -542,8 +542,7 @@ struct Scanner scanner = {scanEnvRoots, NULL};
 
 // --------- Event loop ----------------------------------------------
 
-void *eventLoop (void *arg) {
-    Thread current_thread = (Thread)arg;
+void eventLoop (Thread current_thread) {
     pthread_setspecific(current_key, current_thread);
     struct sched_param param;
     param.sched_priority = current_thread->prio;
@@ -564,7 +563,7 @@ void *eventLoop (void *arg) {
         int r = select(maxDesc+1, &readFds, &writeFds, NULL, NULL);
         DISABLE(envmut);
         if (r >= 0) {
-            TIMERGET(evMsg.baseline);
+            TIMERGET(current_thread->msg->baseline);
             for(i=0; i<maxDesc+1; i++) {
 	            if (FD_ISSET(i, &readFds)) {
 	                if (rdTable[i]) {

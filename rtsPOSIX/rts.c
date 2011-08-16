@@ -103,7 +103,7 @@ int prio_min, prio_max;
 #define PRIO(t)         (t ? t->prio : )
 
 
-Thread newThread(Msg m, int prio, void *(*fun)(void *), int stacksize) {
+Thread newThread(Msg m, int prio, void (*fun)(Thread), int stacksize) {
     Thread t = NULL;
     if (nthreads < NTHREADS) {
         t = &threads[nthreads++];
@@ -117,7 +117,7 @@ Thread newThread(Msg m, int prio, void *(*fun)(void *), int stacksize) {
         if (stacksize > 0)
                 pthread_attr_setstacksize(&attr, BYTES(stacksize));
         pthread_cond_init(&t->trigger, NULL);
-        pthread_create(&t->id, &attr, fun, t);
+        pthread_create(&t->id, &attr, (void*(*)(void*))fun, t);
     }
     return t;
 }
@@ -143,8 +143,7 @@ void gcStart(void) {
     pthread_cond_signal(&gcThread->trigger);
 }
 
-void *garbageCollector(void *arg) {
-    Thread current_thread = (Thread)arg;
+void garbageCollector(Thread current_thread) {
     pthread_setspecific(current_key, current_thread);
     struct sched_param param;
     param.sched_priority = current_thread->prio;
@@ -154,7 +153,6 @@ void *garbageCollector(void *arg) {
         pthread_cond_wait(&current_thread->trigger, &rts);
         gc();
     }
-    return (void*)0;
 }
 
 
@@ -227,7 +225,7 @@ int midPrio(Thread prev, Thread next) {
 }
 
 
-void *run(void*);
+void run(Thread);
 
 Thread getThread(Msg m, int prio) {
     Thread t = sleepQ;
@@ -301,8 +299,7 @@ void deactivate(Thread t) {
     // fprintf(stderr, "\n");
 }
 
-void *run(void *arg) {
-    Thread current_thread = (Thread)arg;
+void run(Thread current_thread) {
     pthread_setspecific(current_key, current_thread);
     struct sched_param param;
     param.sched_priority = current_thread->prio;
@@ -332,7 +329,6 @@ void *run(void *arg) {
             pthread_cond_wait(&current_thread->trigger, &rts);
         }
     }
-    return (void*)0;
 }
 
 // Major primitives ---------------------------------------------------------------------
@@ -430,8 +426,7 @@ POLY Raise(BITS32 polyTag, Int err) {
 
 int timerQdirty;
 
-void *timerHandler(void *arg) {
-    Thread current_thread = (Thread)arg;
+void timerHandler(Thread current_thread) {
     struct sched_param param;
     param.sched_priority = current_thread->prio;
     pthread_setschedparam(current_thread->id, SCHED_RR, &param);
@@ -457,7 +452,6 @@ void *timerHandler(void *arg) {
             TIMERSET(timerQ->baseline, now);
         ENABLE(rts);
     }
-    return (void*)0;
 }
 
 void scanTimerQ() {
@@ -546,7 +540,7 @@ void sleep_rts() {
 
 // Initialization -------------------------------------------------------------------------------------
 
-Thread runAsSeparateThread(void*(*fun)(void*), Msg m) {
+Thread runAsSeparateThread(void(*fun)(Thread), Msg m) {
     Thread t = NULL;
     DISABLE(rts);
     t = newThread(m, sched_get_priority_max(SCHED_RR), fun, pagesize);
