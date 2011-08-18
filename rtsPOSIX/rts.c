@@ -92,6 +92,8 @@ struct Thread thread0 = { NULL, &msg0, 0,  };
 
 struct Thread threads[MAXTHREADS];
 
+pthread_mutex_t rts;
+pthread_mutexattr_t glob_mutexattr;
 pthread_mutexattr_t obj_mutexattr;
 
 sigset_t all_sigs;
