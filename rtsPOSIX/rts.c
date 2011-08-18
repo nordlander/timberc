@@ -100,8 +100,6 @@ pthread_key_t current_key;
 
 int prio_min, prio_max;
 
-#define PRIO(t)         (t ? t->prio : )
-
 
 Thread newThread(Msg m, int prio, void (*fun)(Thread), int stacksize) {
     Thread t = NULL;
@@ -184,18 +182,6 @@ Msg dequeue(Msg *queue) {
                 panic("Empty queue");
         return m;
 }
-
-UNIT ABORT(BITS32 polytag, Msg m, Ref dummy){
-    m->Code = NULL;
-    ADDR info;
-    do {
-        info = IND0((ADDR)m);
-        if (ISFORWARD(info))
-            ((Msg)info)->Code = NULL;
-    } while (info != IND0((ADDR)m));
-    return (UNIT)0;
-}
-
 
 
 // Thread management ------------------------------------------------------------------------
@@ -384,6 +370,18 @@ UNIT UNLOCK( OID to ) {
 }
 
 
+UNIT ABORT(BITS32 polytag, Msg m, Ref dummy){
+    m->Code = NULL;
+    ADDR info;
+    do {
+        info = IND0((ADDR)m);
+        if (ISFORWARD(info))
+            ((Msg)info)->Code = NULL;
+    } while (info != IND0((ADDR)m));
+    return (UNIT)0;
+}
+
+
 
 // Exception handling ----------------------------------------------------------------------------------
 
@@ -506,7 +504,7 @@ void mainCont() {
 Thread runAsSeparateThread(void(*fun)(Thread), Msg m) {
     Thread t = NULL;
     DISABLE(rts);
-    t = newThread(m, sched_get_priority_max(SCHED_RR), fun, pagesize);
+    t = newThread(m, prio_max, fun, pagesize);
     ENABLE(rts);
     return t;
 }

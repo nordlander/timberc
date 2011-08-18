@@ -128,8 +128,8 @@ void INITREF(Ref);
 
 extern WORD __GC__Ref[];
 
-pthread_mutex_t rts;
-pthread_mutexattr_t glob_mutexattr;
+extern pthread_mutex_t rts;
+extern pthread_mutexattr_t glob_mutexattr;
 
 
 #define SIGSELECT SIGUSR1
