@@ -123,7 +123,7 @@ String_Time_Time_to_Msg  rdTable   [FD_SETSIZE] ;
 Time_Time_to_Msg         wrTable   [FD_SETSIZE] ;
 SockData                 sockTable [FD_SETSIZE];
 
-struct Msg evMsg = { NULL, 0, { 0, 0 }, { INF, 0 }, NULL };
+struct Msg evMsg = { NULL, 0, { 0, 0 }, { 0, 0 }, NULL };
 
 pthread_mutex_t envmut;
 
@@ -656,6 +656,7 @@ void _init_external_POSIX(void) {
     fcntl(1, F_SETFL, O_NONBLOCK);
 
     TIMERGET(evMsg.baseline);
+    evMsg.deadline = absInfinity;
     startTime.sec = evMsg.baseline.tv_sec;
     startTime.usec = evMsg.baseline.tv_usec;
 

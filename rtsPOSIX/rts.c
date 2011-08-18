@@ -86,7 +86,9 @@ Thread sleepQ           = NULL;
 int nactive             = 0;
 int nthreads            = 0;
 
-struct Msg msg0 = { NULL, 0, { 0, 0 }, { INF, 0 }, NULL };
+AbsTime absInfinity     = { 0x7fffffff, 999999 };
+
+struct Msg msg0 = { NULL, 0, { 0, 0 }, { 0, 0 }, NULL };
 
 struct Thread thread0 = { NULL, &msg0, 0,  };
 
@@ -150,39 +152,30 @@ void panic(char *str) {
 
 // Queue management ------------------------------------------------------------------------------
 
-void enqueueByDeadline(Msg p, Msg *queue) {
-        Msg prev = NULL, q = *queue;
+void enqueueMsgQ(Msg p) {
+        Msg prev = NULL, q = msgQ;
         while (q && LESSEQ(q->deadline, p->deadline)) {
                 prev = q;
                 q = q->next;
         }
         p->next = q;
         if (prev == NULL)
-                *queue = p;
+                msgQ = p;
         else
                 prev->next = p;
 }
 
-void enqueueByBaseline(Msg p, Msg *queue) {
-        Msg prev = NULL, q = *queue;
+void enqueueTimerQ(Msg p) {
+        Msg prev = NULL, q = timerQ;
         while (q && LESSEQ(q->baseline, p->baseline)) {
                 prev = q;
                 q = q->next;
         }
         p->next = q;
         if (prev == NULL)
-                *queue = p;
+                timerQ = p;
         else
                 prev->next = p;
-}
-
-Msg dequeue(Msg *queue) {
-        Msg m = *queue;
-        if (m)
-                *queue = m->next;
-        else
-                panic("Empty queue");
-        return m;
 }
 
 
@@ -306,42 +299,29 @@ void run(Thread current_thread) {
 Msg ASYNC( Msg m, Time bl, Time dl ) {
     DISABLE(rts);
 
-    AbsTime now;
-    TIMERGET(now);
     Thread current_thread = CURRENT();
     // fprintf(stderr, "Working thread %d in ASYNC\n", (int)current_thread);
+
     m->baseline = current_thread->msg->baseline;
-    switch ((Int)bl) {
-	    case INHERIT: break;
-        case TIME_INFINITY:
-	        m->baseline.tv_sec = INF;
-	        m->baseline.tv_usec = 0;
-	        break;
-        default:
-            ADD(m->baseline, bl);
-            if (LESS(m->baseline, now))
-                m->baseline = now;
-    }
-    switch((Int)dl) {
-	    case INHERIT: 
-	        m->deadline = current_thread->msg->deadline;
-            break;
-	    case TIME_INFINITY:
-	        m->deadline.tv_sec = INF;
-	        m->deadline.tv_usec = 0;
-	        break;
-	    default:
-	        m->deadline = m->baseline;
-                ADD(m->deadline, dl);
-	}
-        
+    if (bl)
+        ADD(m->baseline, bl);
+    if (dl) {
+	    m->deadline = m->baseline;
+        ADD(m->deadline, dl);
+	} else if (LESS(m->baseline, current_thread->msg->deadline))
+	    m->deadline = current_thread->msg->deadline;
+	else
+        m->deadline = absInfinity;
+
+    AbsTime now;
+    TIMERGET(now);
     if (LESS(now, m->baseline)) {           //  TIMERQ_PROLOGUE();
-        enqueueByBaseline(m, &timerQ);
+        enqueueTimerQ(m);
         rootsDirty = 1;
         if (timerQ == m)
             TIMERSET(m->baseline, now);     //  TIMERQ_EPILOGUE();
     } else if (!activate(m,0))
-        enqueueByDeadline(m, &msgQ);
+        enqueueMsgQ(m);
 
     ENABLE(rts);
     return m;
@@ -422,10 +402,11 @@ void timerHandler(Thread current_thread) {
         AbsTime now;
         TIMERGET(now);
         while (timerQ && LESSEQ(timerQ->baseline, now)) {
-            Msg m = dequeue(&timerQ);
+            Msg m = timerQ;
+            timerQ = timerQ->next;
             if (m->Code) {
                 if (!activate(m,0))
-                    enqueueByDeadline(m, &msgQ);
+                    enqueueMsgQ(m);
             }
         }
         if (timerQ)
@@ -539,6 +520,8 @@ void init_rts(int argc, char **argv) {
     pthread_setspecific(current_key, &thread0);
     thread0.id = pthread_self();
     TIMERGET(msg0.baseline);
+    msg0.deadline = absInfinity;
+    
     sigemptyset(&all_sigs);
     sigaddset(&all_sigs, SIGALRM);
     sigaddset(&all_sigs, SIGSELECT);

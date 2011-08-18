@@ -727,12 +727,6 @@ primTypeEnv             = [ (prim NIL,          scheme1 [] (tList a)),
                             (prim PidEQ,        scheme0 [tOID,tOID] tBool),
                             (prim PidNE,        scheme0 [tOID,tOID] tBool),
 
-                            (prim Sec,          scheme0 [tInt] tTime),
-                            (prim Millisec,     scheme0 [tInt] tTime),
-                            (prim Microsec,     scheme0 [tInt] tTime),
-                            (prim Nanosec,      scheme0 [tInt] tTime),
-                            (prim Infinity,     scheme0 [] tTime),
-
                             (prim Sqrt,         scheme0 [tFloat] tFloat),
                             (prim Log,          scheme0 [tFloat] tFloat),
                             (prim Log10,        scheme0 [tFloat] tFloat),
@@ -749,7 +743,6 @@ primTypeEnv             = [ (prim NIL,          scheme1 [] (tList a)),
                                 
                             (prim TimePlus,     scheme0 [tTime,tTime] tTime),
                             (prim TimeMinus,    scheme0 [tTime,tTime] tTime),
-                            (prim TimeMin,      scheme0 [tTime,tTime] tTime),
                                 
                             (prim TimeEQ,       scheme0 [tTime,tTime] tBool),
                             (prim TimeNE,       scheme0 [tTime,tTime] tBool),
@@ -764,10 +757,12 @@ primTypeEnv             = [ (prim NIL,          scheme1 [] (tList a)),
                             (prim TIMERTERM,    scheme0 [] (tClass tTimer)),
                             (prim Reset,        Scheme (R (tRequest tUnit)) [Scheme (R tTimer) [] []] []),
                             (prim Sample,       Scheme (R (tRequest tTime)) [Scheme (R tTimer) [] []] []),
+
                             (prim Sec,          scheme0 [tInt] tTime),
                             (prim Millisec,     scheme0 [tInt] tTime),
                             (prim Microsec,     scheme0 [tInt] tTime),
                             (prim Nanosec,      scheme0 [tInt] tTime),
+
                             (prim SecOf,        scheme0 [tTime] tInt),
                             (prim MicrosecOf,   scheme0 [tTime] tInt),
                             
@@ -824,8 +819,7 @@ primTypeEnv             = [ (prim NIL,          scheme1 [] (tList a)),
                             
                           ]
 
-primTypeEnv1            =   (prim Inherit,      scheme0 [] tTime) : primTypeEnv
-        
+
 a                       = TId (name0 "a")
 b                       = TId (name0 "b")
         

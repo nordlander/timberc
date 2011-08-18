@@ -224,13 +224,11 @@ data Prim                       =
                                 | Millisec
                                 | Microsec
                                 | Nanosec
-                                | Infinity
                                 | SecOf
                                 | MicrosecOf
                                 
                                 | TimePlus
                                 | TimeMinus
-                                | TimeMin
                                 
                                 | TimeEQ
                                 | TimeNE
@@ -358,7 +356,7 @@ primSels                        = map primKeyValue [MIN____SELS .. MAX____SELS]
 primKeyValue p                  = (name0 (strRep p), prim p)
 
 lowPrims                        = [New,Sec,Millisec,Microsec,Nanosec,Raise,Catch,Baseline,Deadline,Next,
-                                   Infinity,Reset,Sample,SecOf,MicrosecOf,Abort,
+                                   Reset,Sample,SecOf,MicrosecOf,Abort,
                                    Sqrt,Log,Log10,Exp,Sin,Cos,Tan,Asin,Acos,Atan,Sinh,Cosh]
 
 strRep LIST                     = "[]"

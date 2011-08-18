@@ -96,9 +96,9 @@ union FloatCast {
 #define SETBIT(n)       (1 << n)
 #define COPYBIT(x,m,n)  (((x >> m) & 1) << n)
 
-#define INF             0x7fffffff
-
 typedef struct timeval AbsTime;
+
+extern AbsTime absInfinity;
 
 typedef struct Ref *Ref;
 
@@ -187,12 +187,7 @@ Int secOf(Time t);
 Int microsecOf (Time t);
 
 #define Inherit ((Time)0)
-#define Infinity ((Time)1)
 
-#define INHERIT 0
-#define TIME_INFINITY 1
-
-Time primTimeMin(Time t1, Time t2);
 Time primTimePlus(Time t1, Time t2);
 Time primTimeMinus(Time t1, Time t2);
 

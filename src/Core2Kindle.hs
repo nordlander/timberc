@@ -485,15 +485,11 @@ cFun env e                              = do (t,r) <- cBody env e
 -- Translate an action expression into a Core.Cmd
 cAct env fa fb (EAp e0 [e,e'])
   | isPrim After e0                     = do (bf,e1) <- cValExpT env Kindle.tTime e
-                                             (te,t,c) <- cAct env (sum e1 . fa) fb e'
+                                             (te,t,c) <- cAct env (const e1) fb e'
                                              return (te, t, bf c)
   | isPrim Before e0                    = do (bf,e1) <- cValExpT env Kindle.tTime e
-                                             (te,t,c) <- cAct env fa (min e1 . fb) e'
+                                             (te,t,c) <- cAct env fa (const e1) e'
                                              return (te, t, bf c)
-  where sum (Kindle.EVar (Prim Inherit _)) a = a
-        sum e1 a                             = Kindle.ECall (prim TimePlus) [] [e1,a]
-        min (Kindle.EVar (Prim Inherit _)) a = a
-        min e1 b                             = Kindle.ECall (prim TimeMin) [] [e1,b]
 cAct env fa fb (EAct e e')              = do (_,_,c) <- cFun env (EReq e e')
                                              -- Ignore returned te (must be unused) and result type (will be replaced below)
                                              a  <- newName paramSym
@@ -809,12 +805,10 @@ cExp env (EAp e0 [e])
 cExp env (EAp e0 [e,e'])
   | isPrim After e0                     = do (bf,e1) <- cValExpT env Kindle.tTime e
                                              (bf',t,f,ts) <- cFunExp env e'
-                                             return (bf . bf', t, FunR (\[a,b] -> f [sum a e1, b]) ts)
+                                             return (bf . bf', t, FunR (\[a,b] -> f [e1, b]) ts)
   | isPrim Before e0                    = do (bf,e1) <- cValExpT env Kindle.tTime e
                                              (bf',t,f,ts) <- cFunExp env e'
-                                             return (bf . bf', t, FunR (\[a,b] -> f [a, min b e1]) ts)
-  where sum a e1                        = Kindle.ECall (prim TimePlus) [] [a,e1]
-        min b e1                        = Kindle.ECall (prim TimeMin) [] [b,e1]
+                                             return (bf . bf', t, FunR (\[a,b] -> f [a, e1]) ts)
 cExp env (EAp e es) 
   | not (isPrim Match e)                = do (bf,t,f,ts) <- cFunExp env e
                                              appFun env bf t f ts es

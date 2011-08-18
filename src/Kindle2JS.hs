@@ -60,13 +60,11 @@ k2jUpdateBind True (x, Val _ e)	= k2jName x <+> text "= UPDATE" <> parens (k2jNa
 k2jUpdateBind False b		= k2jBind b
 
 
-specialFuns 			= map prim [CharToInt, TimeMin, SecOf, MicrosecOf, MUTLISTINIT, MUTLISTEXTEND, MUTLISTEXTRACT, MUTLISTAPPEXTRACT]
+specialFuns 			= map prim [CharToInt,SecOf,MicrosecOf,MUTLISTINIT,MUTLISTEXTEND,MUTLISTEXTRACT,MUTLISTAPPEXTRACT]
 
 
 k2jExp (ECall (Prim CharToInt _) _ [e])
 				= k2jExp2 e <> text ".charCodeAt(0)"
-k2jExp (ECall (Prim TimeMin _) _ [e1,e2])
-				= k2jExp1 e1 <+> text "<=" <+> k2jExp1 e2 <> text "?" <+> k2jExp1 e1 <+> text ":" <+> k2jExp1 e2
 k2jExp (ECall (Prim SecOf _) _ [e])
 				= text "Math.floor" <> parens (k2jExp1 e <+> text "/ 1000")
 k2jExp (ECall (Prim MicrosecOf _) _ [e])
@@ -371,7 +369,6 @@ k2jPrim Sec			= text "1000*"
 k2jPrim Millisec		= empty
 k2jPrim Microsec		= text "1E-3*"
 k2jPrim Nanosec			= text "1E-6*"
-k2jPrim Infinity                = text "Infinity"
 
 k2jPrim TimePlus		= text "+"
 k2jPrim TimeMinus		= text "-"

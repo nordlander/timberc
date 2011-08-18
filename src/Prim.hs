@@ -115,6 +115,7 @@ tenv            = mk (TFun [tInt,tInt] tInt)            [intPlus,intMinus,intTim
                   mk (TFun [tFloat,tFloat] tFloat)      [floatPlus,floatMinus,floatTimes,floatDiv] ++
                   mk (TFun [tFloat] tFloat)             [floatNeg] ++
                   mk (TFun [tFloat,tFloat] tBool)       [floatEQ,floatNE,floatLT,floatLE,floatGT,floatGE] ++
+                  
                   mk (TFun [tOid,tOid] tBool)           [oidEQ,oidNE] ++
                   
                   mk (TFun [tBits8,tBits8] tBits8)      [and8,or8,exor8] ++
@@ -132,9 +133,14 @@ tenv            = mk (TFun [tInt,tInt] tInt)            [intPlus,intMinus,intTim
                   mk (TFun [tBits32,tInt] tBits32)      [shiftl32,shiftr32,shiftra32,set32,clr32] ++
                   mk (TFun [tBits32,tInt] tBool)        [tst32] ++
                   
-                  mk (TFun [tFloat] tFloat)             [sqrt,log,log10,exp,sin,cos,tan,asin,acos,atan,sinh,cosh,tanh] ++
-                  mk (TFun [tFloat] tString)            [showFloat] ++
+                  mk (TFun [tTime,tTime] tTime)         [timePlus,timeMinus] ++
+                  mk (TFun [tTime,tTime] tBool)         [timeEQ,timeNE,timeGT,timeGE,timeLT,timeLE] ++
+                  mk (TFun [tInt] tTime)                [sec,millisec,microsec,nanosec] ++
+                  mk (TFun [tTime] tInt)                [secOf,microsecOf] ++
                   
+                  mk (TFun [tFloat] tFloat)             [sqrt,log,log10,exp,sin,cos,tan,asin,acos,atan,sinh,cosh,tanh] ++
+
+                  mk (TFun [tFloat] tString)            [showFloat] ++                  
                   mk (TFun [tFloat] tInt)               [floatToInt] ++
                   mk (TFun [tInt] tFloat)               [intToFloat] ++
                   mk (TFun [tChar] tInt)                [charToInt] ++
@@ -261,6 +267,27 @@ set32           = prim "set32"
 clr32           = prim "clr32"
 tst32           = prim "tst32"
 
+timePlus        = prim "timePlus"
+timeMinus       = prim "timeMinus"
+timeTimes       = prim "timeTimes"
+timeDiv         = prim "timeDiv"
+timeMod         = prim "timeMod"
+timeEQ          = prim "timeEQ"
+timeNE          = prim "timeNE"
+timeGT          = prim "timeGT"
+timeGE          = prim "timeGE"
+timeLT          = prim "timeLT"
+timeLE          = prim "timeLE"
+
+sec             = prim "sec"
+millisec        = prim "millisec"
+microsec        = prim "microsec"
+nanosec         = prim "nanosec"
+secOf           = prim "secOf"
+millisecOf      = prim "millisecOf"
+microsecOf      = prim "microsecOf"
+nanosecOf       = prim "nanosecOf"
+
 sqrt            = prim "sqrt"
 log             = prim "log"
 log10           = prim "log10"
@@ -274,9 +301,8 @@ atan            = prim "atan"
 sinh            = prim "sinh"
 cosh            = prim "cosh"
 tanh            = prim "tanh"
+
 showFloat       = prim "showFloat"
-
-
 floatToInt      = prim "floatToInt"
 intToFloat      = prim "intToFloat"
 charToInt       = prim "charToInt"

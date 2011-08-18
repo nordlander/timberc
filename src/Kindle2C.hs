@@ -460,7 +460,6 @@ k2cPrim FloatToInt              = text "(Int)"
 k2cPrim CharToInt               = text "(Int)"
 k2cPrim IntToChar               = text "(Char)"
 
-k2cPrim Infinity                = text "Infinity"
 k2cPrim Raise                   = text "Raise"
 k2cPrim Abort                   = text "ABORT"
 k2cPrim CLOS			= text "CLOS"
