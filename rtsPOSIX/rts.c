@@ -40,7 +40,6 @@
 #include <sys/time.h>
 #include <string.h>
 #include "rts.h"
-#include "timber.h"
 
 #define MAXTHREADS      12          // Static maximum
 
@@ -69,6 +68,9 @@
                           } \
                           (a).tv_sec -= (b).tv_sec; \
                         }
+
+
+#define CURRENT()       ((Thread)pthread_getspecific(current_key))
 
 
 // Thread management --------------------------------------------------------------------------------

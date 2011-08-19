@@ -93,8 +93,8 @@ WORD __GC__RIGHT[]      = {
         HEAD(RIGHT),                    0,0
         };
 
-WORD __GC__Timer[]      = {
-        HEAD(Timer),    0
+WORD __GC__TIMERTYPE[]  = {
+        HEAD(TIMERTYPE),    0
         };
 
 /*

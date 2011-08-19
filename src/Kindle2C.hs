@@ -58,8 +58,7 @@ k2hModule (Module n ns es ds bs)= hHeader n ns $$$
 k2cImport n                     = text "#include \"" <> text (str n ++ ".h\"")
 
 
-hHeader n []                    = includeGuard n $$ text "#include \"rts.h\"" $$ text "#include \"timber.h\""
-hHeader n ns                    = includeGuard n $$ vcat (map k2cImport ns) 
+hHeader n ns                    = includeGuard n $$ text "#include \"timber.h\"" $$ vcat (map k2cImport ns) 
 
 includeGuard n                  = text ("#ifndef " ++ g) $$
 	                              text ("#define " ++ g)
@@ -99,8 +98,8 @@ k2cBindStubsH bs                 = vcat (map f bs)
 
 
 -- Generate types
-k2cType (TCon (Prim TRUE _) _)  = text "TRUETYPE"
-k2cType (TCon (Prim FALSE _) _) = text "FALSETYPE"
+k2cType (TCon (Prim TRUE _) _)  = k2cName (prim Bool)
+k2cType (TCon (Prim FALSE _) _) = k2cName (prim Bool)
 k2cType (TCon n _)              = k2cName n
 k2cType (TVar _ _)              = k2cType tPOLY
 k2cType (TClos _ _ _)		= k2cName (prim CLOS)
