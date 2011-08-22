@@ -48,7 +48,7 @@
 #define UNIT TUP0
 #define POLY ADDR
 
-#define OID ADDR
+#define OID Ref
 #define BITS8 unsigned char
 #define BITS16 unsigned short
 #define BITS32 unsigned int
@@ -178,7 +178,8 @@ extern WORD __GG__Time[] ;
 
 struct Msg {
   WORD *GCINFO;
-  Int (*Code)(Msg);
+  UNIT (*Code)(Msg,OID);
+  OID Obj;
   AbsTime baseline;
   AbsTime deadline;
   Msg next;
@@ -217,7 +218,7 @@ extern WORD __GC__Ref[];
 
 #define STATEOF(ref)    (((ADDR)(ref))+WORDS(sizeof(struct Ref)))
 
-void INITREF(Ref);
+void INITREF(OID);
 
 
 
@@ -282,7 +283,7 @@ Int   strEq (LIST s1, LIST s2) ;
 
 
 MUTLIST MUTLISTINIT(BITS32);
-UNIT MUTLISTEXTEND(BITS32,MUTLIST,POLY);
+UNIT    MUTLISTEXTEND(BITS32,MUTLIST,POLY);
 #define MUTLISTEXTRACT(polytag,x)  (x->anchor)
 #define MUTLISTAPPEXTRACT(polytag,x,e) (*x->current = e, x->anchor)
 

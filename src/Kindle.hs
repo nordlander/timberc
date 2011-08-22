@@ -274,7 +274,8 @@ primDecls                               = (prim Bool,      Struct []    []      
                                           (prim LEFT,      Struct [a,b] [(a,ValT ta)]           (Extends (tEITHER ta tb) [])) :
                                           (prim RIGHT,     Struct [a,b] [(a,ValT tb)]           (Extends (tEITHER ta tb) [])) :
 
-                                          (prim Msg,       Struct []        [(prim Code, FunT [] [] tUNIT),
+                                          (prim Msg,       Struct []        [(prim Code, FunT [] [tOID] tUNIT),
+                                                                             (prim Obj, ValT tOID),
                                                                              (prim Baseline, ValT (tId AbsTime)),
                                                                              (prim Deadline, ValT (tId AbsTime)),
                                                                              (prim Next, ValT (tId Msg))]         Top) :

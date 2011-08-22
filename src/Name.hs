@@ -308,6 +308,7 @@ data Prim                       =
                                 | STATEOF               -- shortcut alternative to the above
                                 
                                 | Code                  -- selectors of primitive struct Msg
+                                | Obj
                                 | Baseline
                                 | Deadline
                                 | Next

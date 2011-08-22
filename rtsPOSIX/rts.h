@@ -37,15 +37,13 @@
 #include <signal.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/time.h>
 #include "config.h"
 #include "timber.h"
 
 #define DISABLE(mutex)  pthread_mutex_lock(&mutex)
 #define ENABLE(mutex)   pthread_mutex_unlock(&mutex)
 #define TIMERGET(x)     gettimeofday(&x, NULL)
-
-
-extern AbsTime absInfinity;
 
 
 typedef struct Thread *Thread;
@@ -60,16 +58,17 @@ struct Thread {
    int placeholders;       // for use during cyclic data construction
 };
 
+extern struct Thread threads[];
 extern pthread_mutex_t rts;
 extern pthread_mutexattr_t glob_mutexattr;
+extern pthread_key_t current_key;
+extern AbsTime absInfinity;
 
 
 #define SIGSELECT SIGUSR1
 
-
-
-
-extern pthread_key_t current_key;
+Thread runAsSeparateThread(void(*fun)(Thread), Msg m);
+void runAsMainContinuation(void(*fun)(void));
 
 
 
@@ -83,9 +82,6 @@ struct Scanner {
 
 void addRootScanner(Scanner ls);
 extern int rootsDirty;
-
-Thread runAsSeparateThread(void(*fun)(Thread), Msg m);
-void runAsMainContinuation(void(*fun)(void));
 
 int getArgc();
 char **getArgv();

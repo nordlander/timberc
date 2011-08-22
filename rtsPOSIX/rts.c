@@ -90,7 +90,7 @@ int nthreads            = 0;
 
 AbsTime absInfinity     = { 0x7fffffff, 999999 };
 
-struct Msg msg0 = { NULL, 0, { 0, 0 }, { 0, 0 }, NULL };
+struct Msg msg0 = { NULL, NULL, NULL, { 0, 0 }, { 0, 0 }, NULL };
 
 struct Thread thread0 = { NULL, &msg0, 0,  };
 
@@ -273,12 +273,14 @@ void run(Thread current_thread) {
     DISABLE(rts);
     while (1) {
         Msg this = current_thread->msg;
-
         ENABLE(rts);
-        Int (*code)(Msg) = this->Code;
         
+        this->Obj = LOCK(this->Obj);
+        UNIT (*code)(Msg,OID) = this->Code;
         if (code)
-            code(this);
+            code(this, this->Obj);
+        UNLOCK(this->Obj);
+            
         DISABLE(rts);
         deactivate(current_thread);
 
@@ -330,18 +332,18 @@ Msg ASYNC( Msg m, Time bl, Time dl ) {
 }
 
 
-void INITREF( Ref obj ) {
+void INITREF( OID obj ) {
         obj->GCINFO = __GC__Ref;
         pthread_mutex_init(&obj->mut, &obj_mutexattr);
         obj->STATE = (ADDR)STATEOF(obj);                              // actually unused, but keep it clean
 }
 
 OID LOCK( OID to ) {
-    Ref r = (Ref)to;
+    OID r = to;
     pthread_mutex_lock(&(r->mut));
     GC_PROLOGUE(to);
-    if (to != (OID)r) {
-        pthread_mutex_lock(&(((Ref)to)->mut));
+    if (to != r) {
+        pthread_mutex_lock(&(to->mut));
         pthread_mutex_unlock(&(r->mut));
     }
     return to;
@@ -349,7 +351,7 @@ OID LOCK( OID to ) {
 
 UNIT UNLOCK( OID to ) {
     GC_EPILOGUE(to);
-    pthread_mutex_unlock(&(((Ref)to)->mut));
+    pthread_mutex_unlock(&(to->mut));
     return (UNIT)0;
 }
 

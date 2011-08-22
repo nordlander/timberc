@@ -490,17 +490,15 @@ cAct env fa fb (EAp e0 [e,e'])
   | isPrim Before e0                    = do (bf,e1) <- cValExpT env Kindle.tTime e
                                              (te,t,c) <- cAct env fa (const e1) e'
                                              return (te, t, bf c)
-cAct env fa fb (EAct e e')              = do (_,_,c) <- cFun env (EReq e e')
-                                             -- Ignore returned te (must be unused) and result type (will be replaced below)
+cAct env fa fb (EAct e e')              = do (bf,tx,e) <- cValExp env e
+                                             (te,t,c) <- cFun env e'
                                              a  <- newName paramSym
                                              b  <- newName paramSym
                                              m  <- newName tempSym
-                                             let c1  = Kindle.cBind bs (Kindle.CRet e1)
-                                                 c2  = Kindle.cmap (\_ -> Kindle.unit) c
+                                             let bs' = [(prim Code, Kindle.Fun [] t te c), (prim Obj, Kindle.Val tx e)]
                                                  bs  = [(m, Kindle.Val Kindle.tMsg (Kindle.ENew (prim Msg) [] bs'))]
-                                                 bs' = [(prim Code, Kindle.Fun [] Kindle.tUNIT [] c2)]
-                                                 es  = [Kindle.EVar m, fa (Kindle.EVar a), fb (Kindle.EVar b)]
-                                                 e1  = Kindle.ECall (prim ASYNC) [] es
+                                                 e1  = Kindle.ECall (prim ASYNC) [] [Kindle.EVar m, fa (Kindle.EVar a), fb (Kindle.EVar b)]
+                                                 c1  = Kindle.cBind bs (Kindle.CRet e1)
                                              return ([(a,Kindle.tTime),(b,Kindle.tTime)], Kindle.tMsg, c1)
 cAct env fa fb e                        = do (bf,t0,f,[ta,tb]) <- cFunExp env e
                                              a  <- newName paramSym

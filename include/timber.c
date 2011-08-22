@@ -100,12 +100,13 @@ WORD __GC__TIMERTYPE[]  = {
 /*
 struct Msg {
   Int (*Code)(Msg);
+  Ref Obj;
   AbsTime baseline;
   AbsTime deadline;
   Msg next;
 };
 */
-WORD __GC__Msg[]        = {WORDS(sizeof(struct Msg)), GC_STD, 0};       // sole pointer field "next" is custom handled by the gc
+WORD __GC__Msg[]        = {WORDS(sizeof(struct Msg)), GC_STD, OFF(Msg,Obj), 0}; // special pointer field "next" is custom handled by the gc
 
 WORD __GC__Ref[]        = {WORDS(sizeof(struct Ref)), GC_MUT, OFF(Ref,STATE), 0,
                            WORDS(sizeof(struct Ref)), GC_MUT, 0,              0 };

@@ -123,7 +123,7 @@ String_Time_Time_to_Msg  rdTable   [FD_SETSIZE] ;
 Time_Time_to_Msg         wrTable   [FD_SETSIZE] ;
 SockData                 sockTable [FD_SETSIZE];
 
-struct Msg evMsg = { NULL, 0, { 0, 0 }, { 0, 0 }, NULL };
+struct Msg evMsg = { NULL, NULL, NULL, { 0, 0 }, { 0, 0 }, NULL };
 
 pthread_mutex_t envmut;
 
