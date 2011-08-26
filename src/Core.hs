@@ -512,7 +512,7 @@ instance Entered Exp where
     entered (EAp e es)          = entered' e ++ entered es
     entered (ELet bs e)         = entered bs ++ (entered e \\ bvars bs)
     entered (ECase e alts)      = entered e ++ entered alts
-    entered (ERec c eqs)        = entered eqs
+    entered (ERec c eqs)        = entered eqs ++ [ x | (_, EVar x) <- eqs ]
     entered (ELit _)            = []
     entered (EAct e e')         = entered e ++ entered e'
     entered (EReq e e')         = entered e ++ entered e'
