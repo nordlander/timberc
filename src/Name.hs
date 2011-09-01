@@ -315,7 +315,7 @@ data Prim                       =
                                 | Deadline
                                 
                                 | AbsTime               -- type of selectors Baseline and Deadline
-                                
+                                | Thread                -- type of selector Sender
                                 | POLY                  -- Type representing polymorhic values
                                 | WORD                  -- Target-dependent int/ptr type
 

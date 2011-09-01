@@ -70,9 +70,6 @@
                         }
 
 
-#define CURRENT()       ((Thread)pthread_getspecific(current_key))
-
-
 // Thread management --------------------------------------------------------------------------------
 
 Int NCORES              = 0;
@@ -280,7 +277,7 @@ void run(Thread current_thread) {
         
         this->Obj = LOCK(this->Obj);
         if (this->sender)
-            pthread_cond_signal(&((Thread)this->sender)->trigger);
+            pthread_cond_signal(&this->sender->trigger);
         
         UNIT (*code)(Msg,OID) = this->Code;
         if (code)
@@ -317,7 +314,7 @@ Msg ASYNC( Msg m, Time bl, Time dl ) {
         ADD(m->baseline, bl);
         m->sender = NULL;
     } else
-        m->sender = (ADDR)current_thread;
+        m->sender = current_thread;
 
     if (dl) {
 	    m->deadline = m->baseline;

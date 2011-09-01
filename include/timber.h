@@ -99,7 +99,8 @@ struct Msg;
 typedef struct Msg *Msg;
 struct Ref;
 typedef struct Ref *Ref;
-
+struct Thread;
+typedef struct Thread *Thread;
 
 
 struct TUP2 {
@@ -180,7 +181,7 @@ struct Msg {
   WORD *GCINFO;
   UNIT (*Code)(Msg,OID);
   OID Obj;
-  ADDR sender;
+  Thread sender;
   Msg next;
   AbsTime baseline;
   AbsTime deadline;

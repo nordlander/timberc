@@ -276,7 +276,7 @@ primDecls                               = (prim Bool,      Struct []    []      
 
                                           (prim Msg,       Struct []        [(prim Code, FunT [] [tOID] tUNIT),
                                                                              (prim Obj, ValT tOID),
-                                                                             (prim Sender, ValT tPOLY),
+                                                                             (prim Sender, ValT (tId Thread)),
                                                                              (prim Next, ValT tMsg),
                                                                              (prim Baseline, ValT (tId AbsTime)),
                                                                              (prim Deadline, ValT (tId AbsTime))] Top) :

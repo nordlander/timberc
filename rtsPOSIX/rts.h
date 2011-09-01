@@ -46,8 +46,6 @@
 #define TIMERGET(x)     gettimeofday(&x, NULL)
 
 
-typedef struct Thread *Thread;
-
 struct Thread {
    Thread next;            // for use in linked lists
    Msg msg;                // message under execution
@@ -65,6 +63,7 @@ extern pthread_key_t current_key;
 extern AbsTime absInfinity;
 extern Time timeZero;
 
+#define CURRENT()       ((Thread)pthread_getspecific(current_key))
 
 #define SIGSELECT SIGUSR1
 
