@@ -33,9 +33,12 @@
 
 #ifndef TIMBER_H_
 #define TIMBER_H_
-#include <math.h>
+
+#ifdef rtsPOSIX
 #include <sys/time.h>
 #include <pthread.h>
+#endif
+
 #include "config.h"
 
 
@@ -53,7 +56,12 @@
 #define BITS16 unsigned short
 #define BITS32 unsigned int
 
+#ifdef rtsPOSIX
 typedef struct timeval AbsTime;
+#endif
+#ifdef rtsARM
+typedef int AbsTime;
+#endif
 
 typedef int WORD;
 typedef WORD *ADDR;
@@ -172,8 +180,13 @@ extern WORD __GC__RIGHT[];
 
 struct Time {
     WORD *GCINFO;
+#ifdef rtsPOSIX
     Int sec;
     Int usec;
+#endif
+#ifdef rtsARM
+    Int time;
+#endif
 };
 extern WORD __GG__Time[] ;
 
@@ -212,8 +225,12 @@ extern WORD __GC__MUTLIST[];
 
 struct Ref {
     WORD *GCINFO;
-#if (TARGET==POSIX)
+#ifdef rtsPOSIX
     pthread_mutex_t mut;
+#endif
+#ifdef rtsARM
+    Thread ownedBy;
+    Thread wantedBy;
 #endif
     POLY STATE;
 };

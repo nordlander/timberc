@@ -56,8 +56,6 @@ static WORD __GC__T_Timer[] = {WORDS(sizeof(struct T_Timer)), GC_STD, WORDS(offs
    
 static WORD __GC__S_Timer[] = {WORDS(sizeof(struct S_Timer)), GC_STD, 0};
 
-static WORD __GC__Time[]    = {WORDS(sizeof(struct Time)), GC_STD, 0};
-
 
 Time sec(Int c) {
     if (c < 0) c = 0;

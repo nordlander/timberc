@@ -97,6 +97,12 @@ WORD __GC__TIMERTYPE[]  = {
         HEAD(TIMERTYPE),    0
         };
 
+WORD __GC__Time[]    = { 
+        HEAD(Time),     0
+        };
+
+
+
 WORD __GC__Msg[]        = {WORDS(sizeof(struct Msg)), GC_STD, OFF(Msg,Obj), 0}; 
                           // field "sender" points outside the heap, and special pointer field "next" is custom handled by the gc
 
