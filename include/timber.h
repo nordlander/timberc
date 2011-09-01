@@ -211,7 +211,9 @@ extern WORD __GC__MUTLIST[];
 
 struct Ref {
     WORD *GCINFO;
+#if (TARGET==POSIX)
     pthread_mutex_t mut;
+#endif
     POLY STATE;
 };
 extern WORD __GC__Ref[];

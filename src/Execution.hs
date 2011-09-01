@@ -71,6 +71,7 @@ compileC global_cfg clo c_file
                                 cfg <- fileCfg clo c_file global_cfg
                                 let cmd = cCompiler cfg
                                         ++ " -c " ++ compileFlags cfg
+                                        ++ " -D TARGET=" ++ target clo ++ ""
                                         ++ " -I " ++ libDir clo ++ " " 
                                         ++ " -I " ++ includeDir clo ++ " " 
                                         ++ " -I " ++ rtsDir clo ++ " " 

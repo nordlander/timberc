@@ -23,7 +23,7 @@ $(OBJS): %.o: ../lib/%.t ../include/timber.h
 	$(TIMBERC) --target POSIX --api -c $<
 
 rts.o: rts.c cyclic.c gc.c timer.c rts.h ../include/timber.h ../include/timber.c ../include/float.c
-	$(CC) $(CFLAGS) -Wall -O2 -fno-strict-aliasing -g -I../include -I../lib -I. -c rts.c
+	$(CC) $(CFLAGS) -Wall -O2 -fno-strict-aliasing -g -D TARGET=POSIX -I../include -I../lib -I. -c rts.c
 
 install: 
 	$(INSTALL) -d $(DESTDIR)$(prefix)/rtsPOSIX

@@ -31,6 +31,8 @@
 // ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+#if (TARGET==POSIX)
+
 #include <fcntl.h>
 #include <pthread.h>
 #include <unistd.h>
@@ -662,3 +664,17 @@ void _init_external_POSIX(void) {
 
     addRootScanner(&envRootScanner);
 }
+
+#else
+
+
+Env_POSIX posix_POSIX(World w, Int dummy) {
+    RAISE(3);
+    return NULL;
+}
+
+void _init_external_POSIX(void) {
+    // Nothing
+}
+
+#endif
