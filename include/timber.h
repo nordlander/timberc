@@ -180,9 +180,10 @@ struct Msg {
   WORD *GCINFO;
   UNIT (*Code)(Msg,OID);
   OID Obj;
+  ADDR sender;
+  Msg next;
   AbsTime baseline;
   AbsTime deadline;
-  Msg next;
 };
 extern WORD __GC__Msg[];
 

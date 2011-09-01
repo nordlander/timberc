@@ -309,9 +309,10 @@ data Prim                       =
                                 
                                 | Code                  -- selectors of primitive struct Msg
                                 | Obj
+                                | Sender
+                                | Next
                                 | Baseline
                                 | Deadline
-                                | Next
                                 
                                 | AbsTime               -- type of selectors Baseline and Deadline
                                 

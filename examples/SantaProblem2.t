@@ -15,7 +15,7 @@ module SantaProblem2 where
        reindeer = forall n <- [1..10] new helper env rand shepherdRin shepherdRout (rMsg n)
        elves    = forall n <- [1..9] new helper env rand shepherdEin shepherdEout (eMsg n)
        result action
-          forall x <- elves ++ reindeer do x.doSomethingElse
+          forall x <- elves ++ reindeer do send x.doSomethingElse
 
 private
 
@@ -27,12 +27,11 @@ helper env rand announce confirm msg =
     class
         doSomethingElse = action
             t <- rand.next
-            after (millisec (t `mod` 3000 + 3000)) send action
-                announce helpSanta
+            after (millisec (t `mod` 3000 + 3000)) send announce helpSanta
             
         helpSanta = action
             env.stdout.write msg
-            confirm doSomethingElse
+            after millisec 100 send confirm doSomethingElse
             
         result Helper {..}
 
@@ -40,7 +39,7 @@ batch n out =
     class
         pending := []
         
-        announce a = request
+        announce a = action
             pending := a : pending
             if length pending == n then
                 out pending
@@ -61,14 +60,14 @@ semaphore out1 out2 =
             if taken then
                 pending := pending ++ [e]
             else
-                out1 e
+                send out1 e
                 taken := True
         
         unlock e = request
             out2 e
             case pending of
                 [] ->   taken := False
-                p:ps -> out1 p
+                p:ps -> send out1 p
                         pending := ps
         
         result Semaphore {..}
@@ -77,26 +76,26 @@ data SantaEvent = Reindeer [Action]
                 | Elves [Action]
                 
 struct Santa where
-    announce :: SantaEvent -> Request ()
-    confirm  :: SantaEvent -> Request ()
+    announce :: SantaEvent -> Action
+    confirm  :: SantaEvent -> Action
     
 santaClaus env =
     class
-        announce (Reindeer rs) = request
+        announce (Reindeer rs) = action
             env.stdout.write "Ho! Ho! Ho! Let's deliver some toys!\n"
-            forall r <- rs do r
+            forall r <- rs do send r
         
-        announce (Elves es) = request
+        announce (Elves es) = action
             env.stdout.write "Ho! Ho! Ho! Let's meet in the study!\n"
-            forall e <- es do e
+            forall e <- es do send e
         
-        confirm (Reindeer rs) = request
+        confirm (Reindeer rs) = action
             env.stdout.write "Well done, reindeer, off you go now!\n----\n"
-            forall r <- rs do r
+            forall r <- rs do send r
             
-        confirm (Elves es) = request
+        confirm (Elves es) = action
             env.stdout.write "Good suggestions, elves, off you go now!\n----\n"
-            forall e <- es do e
+            forall e <- es do send e
             
         result Santa {..}
 

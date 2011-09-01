@@ -97,26 +97,12 @@ WORD __GC__TIMERTYPE[]  = {
         HEAD(TIMERTYPE),    0
         };
 
-/*
-struct Msg {
-  Int (*Code)(Msg);
-  Ref Obj;
-  AbsTime baseline;
-  AbsTime deadline;
-  Msg next;
-};
-*/
-WORD __GC__Msg[]        = {WORDS(sizeof(struct Msg)), GC_STD, OFF(Msg,Obj), 0}; // special pointer field "next" is custom handled by the gc
+WORD __GC__Msg[]        = {WORDS(sizeof(struct Msg)), GC_STD, OFF(Msg,Obj), 0}; 
+                          // field "sender" points outside the heap, and special pointer field "next" is custom handled by the gc
 
 WORD __GC__Ref[]        = {WORDS(sizeof(struct Ref)), GC_MUT, OFF(Ref,STATE), 0,
                            WORDS(sizeof(struct Ref)), GC_MUT, 0,              0 };
 
-/*
-struct Array {
-  Int size;
-  POLY elems[];
-};
-*/
 WORD __GC__Array0[]     = {WORDS(sizeof(struct Array)), GC_ARRAY, 0};     // flag 0 => node contains only pointers
 
 WORD __GC__Array1[]     = {WORDS(sizeof(struct Array)), GC_ARRAY, 1};     // flag 1 => node contains only scalars

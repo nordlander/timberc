@@ -90,9 +90,13 @@ int nthreads            = 0;
 
 AbsTime absInfinity     = { 0x7fffffff, 999999 };
 
-struct Msg msg0 = { NULL, NULL, NULL, { 0, 0 }, { 0, 0 }, NULL };
+struct Time zeroStruct  = { NULL, 0, 0 };
 
-struct Thread thread0 = { NULL, &msg0, 0,  };
+Time timeZero           = &zeroStruct;
+
+struct Msg msg0         = { NULL, NULL, NULL, NULL, NULL, { 0, 0 }, { 0, 0 } };
+
+struct Thread thread0   = { NULL, &msg0, 0,  };
 
 struct Thread threads[MAXTHREADS];
 
@@ -269,13 +273,15 @@ void run(Thread current_thread) {
     struct sched_param param;
     param.sched_priority = current_thread->prio;
     pthread_setschedparam(current_thread->id, SCHED_RR, &param);
-    // fprintf(stderr, "Worker thread %d started\n", current_thread->index);
     DISABLE(rts);
     while (1) {
         Msg this = current_thread->msg;
         ENABLE(rts);
         
         this->Obj = LOCK(this->Obj);
+        if (this->sender)
+            pthread_cond_signal(&((Thread)this->sender)->trigger);
+        
         UNIT (*code)(Msg,OID) = this->Code;
         if (code)
             code(this, this->Obj);
@@ -307,8 +313,12 @@ Msg ASYNC( Msg m, Time bl, Time dl ) {
     // fprintf(stderr, "Working thread %d in ASYNC\n", (int)current_thread);
 
     m->baseline = current_thread->msg->baseline;
-    if (bl)
+    if (bl) {
         ADD(m->baseline, bl);
+        m->sender = NULL;
+    } else
+        m->sender = (ADDR)current_thread;
+
     if (dl) {
 	    m->deadline = m->baseline;
         ADD(m->deadline, dl);
@@ -326,6 +336,9 @@ Msg ASYNC( Msg m, Time bl, Time dl ) {
             TIMERSET(m->baseline, now);     //  TIMERQ_EPILOGUE();
     } else if (!activate(m,0))
         enqueueMsgQ(m);
+
+    if (!bl)
+        pthread_cond_wait(&current_thread->trigger, &rts);
 
     ENABLE(rts);
     return m;

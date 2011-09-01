@@ -123,7 +123,7 @@ String_Time_Time_to_Msg  rdTable   [FD_SETSIZE] ;
 Time_Time_to_Msg         wrTable   [FD_SETSIZE] ;
 SockData                 sockTable [FD_SETSIZE];
 
-struct Msg evMsg = { NULL, NULL, NULL, { 0, 0 }, { 0, 0 }, NULL };
+struct Msg evMsg = { NULL, NULL, NULL, NULL, NULL, { 0, 0 }, { 0, 0 } };
 
 pthread_mutex_t envmut;
 
@@ -412,14 +412,14 @@ Int new_socket (Socket_Int_to_Connection handler) {
 void netError (Int sock, char *message) {
   Socket_Int_to_Connection handler = sockTable[sock]->handler;
   Connection_POSIX conn = handler->Code(handler,new_Socket(sock),0);
-  conn->neterror_POSIX(conn,getStr(message),Inherit,Inherit);
+  conn->neterror_POSIX(conn,getStr(message),timeZero,Inherit);
 }
 
 void setupConnection (Int sock) {
   Socket_Int_to_Connection handler = sockTable[sock]->handler;
   Connection_POSIX conn = handler->Code(handler,new_Socket(sock),0);
   sockTable[sock]->conn = conn;
-  conn->established_POSIX(conn,Inherit,Inherit);
+  conn->established_POSIX(conn,timeZero,Inherit);
 }
 
 int mkAddr (Int sock, Host_POSIX host, struct in_addr *addr) {
@@ -567,7 +567,7 @@ void eventLoop (Thread current_thread) {
 	                if (rdTable[i]) {
 	                    LIST inp = read_descr(i);
 	                    if (inp) {
-	                        rdTable[i]->Code(rdTable[i],inp,Inherit,Inherit);
+	                        rdTable[i]->Code(rdTable[i],inp,timeZero,Inherit);
 	                    }
 	                    else if (sockTable[i]) { //we got a close message from peer on connected socket
                                 Closable_POSIX cl = sockTable[i]->conn->CONN2CLOSABLE;
@@ -591,7 +591,7 @@ void eventLoop (Thread current_thread) {
 	            }
 	            if (FD_ISSET(i, &writeFds)) {
 	                if (wrTable[i]) {
-	                    wrTable[i]->Code(wrTable[i],Inherit,Inherit);
+	                    wrTable[i]->Code(wrTable[i],timeZero,Inherit);
 	                } else if (sockTable[i]) { //delayed connection has been accepted or has failed
 	                    int opt;
 	                    socklen_t len = sizeof(int);

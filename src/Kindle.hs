@@ -276,15 +276,13 @@ primDecls                               = (prim Bool,      Struct []    []      
 
                                           (prim Msg,       Struct []        [(prim Code, FunT [] [tOID] tUNIT),
                                                                              (prim Obj, ValT tOID),
+                                                                             (prim Sender, ValT tPOLY),
+                                                                             (prim Next, ValT tMsg),
                                                                              (prim Baseline, ValT (tId AbsTime)),
-                                                                             (prim Deadline, ValT (tId AbsTime)),
-                                                                             (prim Next, ValT (tId Msg))]         Top) :
+                                                                             (prim Deadline, ValT (tId AbsTime))] Top) :
                                           (prim TIMERTYPE, Struct []        [(prim Reset,  FunT [] [tInt] tUNIT),
                                                                              (prim Sample, FunT [] [tInt] tTime)] Top) : 
 
---                                          (prim CLOS1,     Struct [a,b]     [(prim Code, FunT [] [tb] ta)]        Top) :
---                                          (prim CLOS2,     Struct [a,b,c]   [(prim Code, FunT [] [tb,tc] ta)]     Top) :
---                                          (prim CLOS3,     Struct [a,b,c,d] [(prim Code, FunT [] [tb,tc,td] ta)]  Top) :
                                           []
                                           
 isInfix (Prim p _)                      = p `elem` [MIN____KINDLE_INFIX .. MAX____KINDLE_INFIX]

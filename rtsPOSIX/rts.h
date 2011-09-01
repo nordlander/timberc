@@ -63,6 +63,7 @@ extern pthread_mutex_t rts;
 extern pthread_mutexattr_t glob_mutexattr;
 extern pthread_key_t current_key;
 extern AbsTime absInfinity;
+extern Time timeZero;
 
 
 #define SIGSELECT SIGUSR1
