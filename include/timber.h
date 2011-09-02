@@ -180,13 +180,8 @@ extern WORD __GC__RIGHT[];
 
 struct Time {
     WORD *GCINFO;
-#ifdef rtsPOSIX
     Int sec;
     Int usec;
-#endif
-#ifdef rtsARM
-    Int time;
-#endif
 };
 extern WORD __GG__Time[] ;
 
