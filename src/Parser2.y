@@ -477,7 +477,7 @@ exp10as :: { Exp }
 
         | anyconid '{' layout_off binds ';' '_' '}'        { EStructUpdate (Just $1) (reverse $4) } 
 
-	| after 'send' exp10a                              { ESend $1 $3 }
+	| forall after 'send' exp10a                       { ESend $1 $2 $4 }
 	| forall 'new' exp10a                              { ENew $1 $3 }
         | '<-' exp10a                                      { EGen $2 }
 

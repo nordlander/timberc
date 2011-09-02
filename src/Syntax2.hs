@@ -169,7 +169,7 @@ data Exp    = EVar    QName2
            -- pre-expressions, only allowed as unshadowed subexpressions of a Stmt
             | ESVar   Name2
             | ENew    [Quals] Exp
-            | ESend   (Maybe Exp) Exp -- 1st argument is the optional baseline!
+            | ESend   [Quals] (Maybe Exp) Exp -- 2nd argument is the optional baseline!
             | EGen    Exp
             deriving  (Eq,Show)
 
@@ -637,7 +637,7 @@ instance Binary Field where
 
 instance Binary Exp where
   put (EGen a) = putWord8 0 >> put a
-  put (ESend a b) = putWord8 1 >> put a >> put b
+  put (ESend a b c) = putWord8 1 >> put a >> put b >> put c
   put (ENew a b) = putWord8 2 >> put a >> put b
   put (ESVar a) = putWord8 3 >> put a
   put (EReq a b c) = putWord8 4 >> put a >> put b >> put c
@@ -678,7 +678,7 @@ instance Binary Exp where
     tag_ <- getWord8
     case tag_ of
       0 -> get >>= \a -> return (EGen a)
-      1 -> get >>= \a -> get >>= \b -> return (ESend a b)
+      1 -> get >>= \a -> get >>= \b -> get >>= \c -> return (ESend a b c)
       2 -> get >>= \a -> get >>= \b -> return (ENew a b)
       3 -> get >>= \a -> return (ESVar a)
       4 -> get >>= \a -> get >>= \b -> get >>= \c -> return (EReq a b c)

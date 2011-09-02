@@ -171,7 +171,7 @@ sExp (EClass [qs] mn Nothing ss)  = Syntax.forallClass (map sQual qs) (Syntax.ET
 sExp (EAct Nothing mn _ ss)       = Syntax.EAct (sMN mn) (sStmts ss) 
 sExp (EAct (Just e) mn _ ss)      = Syntax.EBefore (sExp e) (Syntax.EAct (sMN mn) (sStmts ss)) 
 sExp (EReq mn _ ss)               = Syntax.EReq (sMN mn) (sStmts ss) 
-sExp (ESend e1 e2)                = Syntax.EGen (sSend e1 e2)
+sExp (ESend [] e1 e2)             = Syntax.EGen (sSend e1 e2)
 sExp (ENew [] e)                  = Syntax.ENew (sExp e)  -- forallnew
 sExp (ENew [qs] e)                = Syntax.ENew (Syntax.forallClass (map sQual qs) (sExp e))
 sExp (EGen e)                     = Syntax.EGen (sExp e)
@@ -200,7 +200,8 @@ sQual (QGen p e)                  = Syntax.QGen (sPat p) (sExp e)
 sQual (QLet bs)                   = Syntax.QLet (map sBind bs)
 
 sStmts ss                         = Syntax.Stmts (stmts ss)
-  where stmts (SExp (ESend e1 e2) : ss) = Syntax.SExp (sSend e1 e2) : stmts ss
+  where stmts (SExp (ESend [] e1 e2) : ss) 
+                                   = Syntax.SExp (sSend e1 e2) : stmts ss
         stmts (SExp e : ss)        = Syntax.SExp (sExp e) : stmts ss
         stmts (SGen p e : ss)      = Syntax.SGen (sPat p) (sExp e) : stmts ss
         stmts (SRes e : ss)        = Syntax.SRet (sExp e) : stmts ss
