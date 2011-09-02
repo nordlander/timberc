@@ -71,7 +71,7 @@ compileC global_cfg clo c_file
                                 cfg <- fileCfg clo c_file global_cfg
                                 let cmd = cCompiler cfg
                                         ++ " -c " ++ compileFlags cfg
-                                        ++ " -D TARGET=" ++ target clo ++ ""
+                                        ++ " -D rts" ++ target clo ++ ""
                                         ++ " -I " ++ libDir clo ++ " " 
                                         ++ " -I " ++ includeDir clo ++ " " 
                                         ++ " -I " ++ rtsDir clo ++ " " 
@@ -98,6 +98,7 @@ linkO global_cfg clo r o_files =
                                  cmd = cCompiler cfg
                                        ++ linkFlags cfg
                                        ++ compileFlags cfg
+                                       ++ " -D rts" ++ target clo ++ ""
                                        ++ " -o " ++ outfile clo ++ " "
                                        ++ unwords o_files ++ " "
                                        ++ " -L" ++ rtsDir clo ++ " " 
