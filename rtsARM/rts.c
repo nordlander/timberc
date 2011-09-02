@@ -144,20 +144,6 @@ void debug_hex(unsigned long);
 
 // Thread management --------------------------------------------------------------------------------
 
-typedef struct {
-	unsigned int *sp;
-	unsigned int *cookie;
-} arm7_context_t;
-
-struct Thread {
-    arm7_context_t context;     // machine state
-	Thread next;                // for use in linked lists
-    struct Msg *msg;            // message under execution
-    Ref waitsFor;               // deadlock detection link
-    WORD visit_flag;            // for use during cyclic data construction
-    int placeholders;           // for use during cyclic data construction
-};
-
 struct Msg msg0         = { NULL, 0,  0 ,  INF , NULL };
 
 struct Thread threads[NTHREADS];
