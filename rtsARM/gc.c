@@ -1,6 +1,6 @@
 // The Timber compiler <timber-lang.org>
 // 
-// Copyright 2008 Johan Nordlander <nordland@csee.ltu.se>
+// Copyright 2008-2009 Johan Nordlander <nordland@csee.ltu.se>
 // All rights reserved.
 // 
 // Redistribution and use in source and binary forms, with or without
@@ -36,6 +36,7 @@
 #include <mach-o/getsect.h>
 #endif
 
+/*
 #define NEW2(addr,words,info)   { int status = ISPROTECTED(); \
                                   PROTECT(1); \
 	                              addr = hp2; \
@@ -44,12 +45,21 @@
                                   addr[0] = (WORD)(info); \
 		                          PROTECT(status); \
                                 }
+*/
+#define NEW2(addr,words,info)   { ADDR top,stop; \
+                                  do { addr = hp2; stop = lim2; top = ODD((addr)+(words)); \
+                                  } while (ISODD(addr) || !CAS(addr,top,&hp2)); \
+                                  if (top>=stop) addr = force2(words,addr<stop?addr:0,info); else { addr[0] = (WORD)(info); hp2 = EVEN(top); } }
 
+// Note: soundness of the spin-loop above depends on the invariant that lim2 is never changed unless hp2 also changes.
+
+#define ODD(addr)               (ADDR)((WORD)(addr) | 1)
+#define EVEN(addr)              (ADDR)((WORD)(addr) & ~1)
+#define ISODD(addr)             ((WORD)(addr) & 1)
 
 #define IND0(obj)               (ADDR)((ADDR)obj)[0]
-#define GC_PROLOGUE(obj)        { if (ISFORWARD(IND0(obj))) obj = (Ref)IND0(obj); }             // read barrier
-#define GC_EPILOGUE(obj)        { if (ISBLACK((ADDR)obj)) { ADDR a; NEW2(a,1,(ADDR)obj); } \
-                                  else if ((ADDR)obj == gcobj) gcobj = 0; }                     // write barrier
+#define GC_PROLOGUE(obj)        { if (ISFORWARD(IND0(obj))) obj = (OID)IND0(obj); }             // read barrier
+#define GC_EPILOGUE(obj)        { if (ISBLACK((ADDR)obj)) { ADDR a; NEW2(a,1,(ADDR)obj); } }    // write barrier
 
 #define GC_STD                  0
 #define GC_ARRAY                1
@@ -63,7 +73,7 @@
 #define STATIC_SIZE(info)       (info[0])
 
 #define allocwords(size)        (ADDR)malloc(BYTES(size))
-#define HEAPSIZE                0x100000  //  in words
+#define HEAPSIZE                0x100000  //  0x100000 words = 0x400000 bytes = 4194304 bytes = 4 Mb = 1024 pages = 0x400 pages
 
 #define ISWHITE(a)              INSIDE(base,a,hp)
 #define ISBLACK(a)              hp2 && INSIDE(base2,a,scanp)
@@ -71,22 +81,18 @@
 
 #define INSIDE(base,a,lim)      (base <= (a) && (a) < lim)
 
-WORD heapsize;                          // actual size (after static heap has been cut off)
 ADDR base, lim, hp;                     // start, end, and current pos of latest "fromspace" (normal space)
 ADDR base2, lim2, hp2;                  // start, end and current pos of latest "tospace" (only used during gc)
+WORD heapsize;                          // actual size (after static heap has been cut off)
 ADDR scanp;                             // current pos during scanning (only used during gc)
-ADDR gcobj;                             // currently copied mutable object, or 0
+
+WORD theheap[2*HEAPSIZE];
+ADDR heap1, heap2;
 
 char emergency = 0;                     // flag signalling heap overflow during gc
 
-void scanEnvRoots(void);
-void scanTimerQ(void);
-extern int envRootsDirty;
-extern int timerQdirty;
 
-WORD theheap[2*HEAPSIZE];
-
-ADDR heap1, heap2;
+// Heap management ------------------------------------------------------------------------------------
 
 void pruneStaticHeap() {
     ADDR obj = base + 1;
@@ -121,28 +127,24 @@ ADDR force2(WORD size, ADDR last, ADDR info) {          // Overflow in tospace
     return 0;
 }
 
+
+// Copying and scanning ------------------------------------------------------------------------------------
+
 ADDR copystateful(ADDR obj, ADDR info) {
-    WORD i = STATIC_SIZE(info);
-    ADDR dest, datainfo = IND0(obj+i);              // actual mutable struct follows right after the Ref struct
-    WORD size = i + STATIC_SIZE(datainfo);          // dataobj must be a GC_STD or a GC_BIG
-    NEW2(dest,size,info);
-    INITREF((Ref)dest);
-    while (1) {
-        gcobj = obj;
-        for (i = STATIC_SIZE(info); i < size; i++)
-            dest[i] = obj[i];
+        WORD i = STATIC_SIZE(info);
+        ADDR dest, datainfo = IND0(obj+i);              // actual mutable struct follows right after the Ref struct
+        WORD size = i + STATIC_SIZE(datainfo);          // dataobj must be a GC_STD or a GC_BIG
+        NEW2(dest,size,info);
+        GC_LOCK((OID)obj);
+        for ( ; i < size; i++)
+                dest[i] = obj[i];
+        INITREF((Ref)dest);
+        obj[0] = (WORD)dest;
         if (info[2]) {
-            // object has mutable arrays...  !!!!!!!!
+                // object has mutable arrays...  !!!!!!!!
         }
-        PROTECT(1);
-        if (gcobj == obj)
-            break;
-        PROTECT(0);
-    }
-    obj[0] = (WORD)dest;
-    gcobj = 0;
-    PROTECT(0);
-    return dest;
+        GC_UNLOCK((OID)obj);
+        return dest;
 }
 
 ADDR copy(ADDR obj) {
@@ -186,7 +188,7 @@ ADDR scan(ADDR obj) {
                         return obj + size;
                 }
                 case GC_ARRAY: {
-                        WORD size = STATIC_SIZE(info) + obj[1], offset = 2;     // find size of dynamic part in second slot of obj, add static size
+                        WORD size = STATIC_SIZE(info) + obj[1], offset = 2;     // size of dynamic part in snd slot, add static size
                         if (info[2])
                                 return obj + size;                              // return immediately if array contains only scalars
                         while (offset<size) {
@@ -196,17 +198,16 @@ ADDR scan(ADDR obj) {
                         return obj + size;
                 }
                 case GC_TUPLE: {
-                        WORD width = obj[1], offset = 1 + POLYTAGS(width), i = 1, j, tags;
-                        while (width > 32) {
-                                for (j = 0, tags = obj[i++]; j < 32; j++, offset++, tags = tags >> 1)
-                                        if (!(tags & 1))
-                                                obj[offset] = (WORD)copy((ADDR)obj[offset]);
-                                width -= 32;
-                        }
-                        for (tags = obj[i]; width > 0; width--, offset++, tags = tags >> 1) 
+                        WORD size = STATIC_SIZE(info) + obj[1], offset = 2, tags, j; // size of dynamic part in snd slot, add static size
+                        while (offset + 33 < size) {                                 // each sequence of 32 fields is prefixed by a polytag word
+                            for (j = 0, tags = obj[offset++]; j < 32; j++, offset++, tags = tags >> 1)
                                 if (!(tags & 1))
-                                        obj[offset] = (WORD)copy((ADDR)obj[offset]);
-                        return obj + STATIC_SIZE(info) + width + POLYTAGS(width);
+                                    obj[offset] = (WORD)copy((ADDR)obj[offset]);
+                        }
+                        for (tags = obj[offset++]; offset < size; offset++, tags = tags >> 1)
+                            if (!(tags & 1))
+                                obj[offset] = (WORD)copy((ADDR)obj[offset]);
+                        return obj + size;
                 }
                 case GC_BIG: {
                         WORD size = STATIC_SIZE(info), i = 2, offset = info[i];
@@ -231,9 +232,31 @@ ADDR scan(ADDR obj) {
         return (ADDR)0;                 // Not reached
 }
 
+
+// Scanning roots -------------------------------------------------------------------------------------
+
+int rootsDirty = 0;
+Scanner scanners = NULL;
+
+void addRootScanner(Scanner ls) {
+    ls->next = scanners;
+    scanners = ls;
+}
+
+void scanRoots() {
+    Scanner s = scanners;
+
+    rootsDirty = 0;
+    while(s) {
+        s->f();
+        s = s->next;
+    }
+}
+
+
+// Running one GC pass ---------------------------------------------------------------------------------------
+
 void gc() {
-        // debug("$");
-        PROTECT(1);
         base2 = (base==heap1 ? heap2 : heap1);          // allocate tospace
         base2[0] = 0;
         lim2 = base2 + heapsize - 1;                    // leave room for a one wor node at the end
@@ -241,14 +264,11 @@ void gc() {
         scanp = hp2;
         PROTECT(0);
         
-        envRootsDirty = 1;
-        timerQdirty = 1;
+        rootsDirty = 1;
 
         while (1) {
-                if (envRootsDirty)
-                        scanEnvRoots();
-                if (timerQdirty)
-                        scanTimerQ();
+                if (rootsDirty)
+                        scanRoots();
 
                 while (1) {
                         if (scanp == hp2)
@@ -257,8 +277,8 @@ void gc() {
                 }
 
                 PROTECT(1);
-                if ((scanp == hp2) && (envRootsDirty+timerQdirty == 0)) // still done?
-                        break;                                          // Continue with exclusive rts access
+                if ((scanp == hp2) && (rootsDirty == 0)) // still done?
+                        break;                           // Continue with exclusive rts access
                 PROTECT(0);
         }
         
@@ -273,10 +293,7 @@ void gc() {
 }
 
 int heapLevel(int steps) {
-    int status = ISPROTECTED();
-    PROTECT(1);
     int diff = hp - base;
-    PROTECT(status);
     return diff / (heapsize/steps);
 }
 
@@ -290,6 +307,5 @@ void gcInit() {
     base[0] = 0;
     hp = base + 1;
     lim = base + heapsize - 1;
-    gcobj = 0;
 }
 

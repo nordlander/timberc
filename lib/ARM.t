@@ -1,9 +1,5 @@
 module ARM where
 
-type RootType = Env -> TFT -> Class Prog
-
-type Prog = Action
-
 type Addr = Int
 
 struct Env where
@@ -24,3 +20,6 @@ struct TFT where
     charwidth   :: Int
     charheight  :: Int
 
+extern arm :: World -> Class Env
+
+extern tft :: World -> Class TFT

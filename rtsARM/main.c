@@ -31,15 +31,24 @@
 // ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-void ROOTINIT(void);
-void ROOT(void);
+#include "rts.h"
+#include "timber.h"
 
-void envInit(int argc, char** argv);
-void envStart(void (*root)(void));
+struct Time_Time_to_Msg;
+typedef struct Time_Time_to_Msg *Time_Time_to_Msg;
+struct Time_Time_to_Msg {
+	WORD *GCINFO;
+	Msg (*Code) (Time_Time_to_Msg, Time, Time);
+};
+
+extern void ROOTINIT(void); 
+extern CLOS ROOT(World, Int);
 
 int main(int argc, char **argv) {
-    envInit(argc, argv);
+    init_rts(argc,argv);
     ROOTINIT();
-    envStart(ROOT);
-    return 0;
+    pruneStaticHeap();
+    Time_Time_to_Msg prog = (Time_Time_to_Msg)ROOT((World)0,0);
+    prog->Code(prog, Inherit, Inherit);
+    mainCont();
 }

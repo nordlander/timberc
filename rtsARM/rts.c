@@ -29,7 +29,6 @@
  */
 
 #include "rts.h"
-#include "timber.h"
 
 #include <lpc2468_registers.h>
 
@@ -60,8 +59,8 @@ void debug_hex(unsigned long);
 		/* Save the saved process register. */\
 		"mrs	r0, SPSR\n"\
 		"stmfd	lr!, {r0}\n"\
-		/* Save the stack pointer to the the current variable. */\
-		"ldr	r0, =current\n"\
+		/* Save the stack pointer to the the current_thread variable. */\
+		"ldr	r0, =current_thread\n"\
 		"ldr	r0, [r0]\n"\
 		"str	lr, [r0]\n"\
 		/* Check the context cookie. */\
@@ -82,7 +81,7 @@ void debug_hex(unsigned long);
 #define ARM7_CONTEXT_RESTORE() \
 	__asm__ __volatile__ (\
 		/* Load the current context stack pointer. */\
-		"ldr	r0, =current\n"\
+		"ldr	r0, =current_thread\n"\
 		"ldr	r0, [r0]\n"\
 		"ldr	lr, [r0]\n"\
 		/* Check the context cookie. */\
@@ -124,11 +123,9 @@ void debug_hex(unsigned long);
                           VICSoftInt = 1<<4;    /* Force a timer interrupt, will hot-start the system */ \
                         }
 #define TIMERGET(x)     { x = T0TC; }
-#define TIMERSET(x,now) { if (x) { \
-                             T0MR0 = x->baseline; \
-                             if ((T0MR0 < T0TC)) \
-                                VICSoftInt = 1<<4; \
-                          } \
+#define TIMERSET(x,now) { T0MR0 = x; \
+                          if ((T0MR0 < T0TC)) \
+                              VICSoftInt = 1<<4; \
                         }
 #define TIMERACK()      { VICSoftIntClr = (1<<4); T0IR = T0IR; }
 
@@ -144,7 +141,7 @@ void debug_hex(unsigned long);
 
 // Thread management --------------------------------------------------------------------------------
 
-struct Msg msg0         = { NULL, 0,  0 ,  INF , NULL };
+struct Msg msg0         = { NULL, NULL, NULL, NULL, NULL, 0, INF };
 
 struct Thread threads[NTHREADS];
 struct Thread threadI;         // the idle process
@@ -155,7 +152,7 @@ Msg timerQ              = NULL;
 
 Thread threadPool       = &threads[1];
 Thread activeStack      = threads;
-Thread current          = &threadI;
+Thread current_thread          = &threadI;
 
 unsigned int arm7_stack[ARM7_STACKSIZE/4];
 
@@ -324,7 +321,7 @@ static Thread pop(Thread *stack) {
         return t;
 }
 
-UNITTYPE ABORT(BITS32 polytag, Msg m, Ref dummy){
+UNIT ABORT(BITS32 polytag, Msg m, Ref dummy){
     m->Code = NULL;
     ADDR info;
     do {
@@ -332,7 +329,7 @@ UNITTYPE ABORT(BITS32 polytag, Msg m, Ref dummy){
         if (ISFORWARD(info))
             ((Msg)info)->Code = NULL;
     } while (info != IND0((ADDR)m));
-    return (UNITTYPE)0;
+    return (UNIT)0;
 }
 
 
@@ -346,7 +343,7 @@ __attribute__((naked)) void dispatch( Thread next ) {   // Note: parameter 'next
 }
 
 void idle(void) {
-    PROTECT(0);
+    PROTECT(1);
 
     while (1) {
         if (heapLevel(16) > 13)
@@ -356,17 +353,17 @@ void idle(void) {
 }
 
 static inline void IRQ_PROLOGUE(void) {
-    savedMsg = current->msg;
-    current->msg = &msg0;
+    savedMsg = current_thread->msg;
+    current_thread->msg = &msg0;
     TIMERGET(msg0.baseline);
 }
 
 static inline void IRQ_EPILOGUE(void) {
-    current->msg = savedMsg;
+    current_thread->msg = savedMsg;
     Msg topMsg = activeStack->msg;
     if (msgQ && threadPool && ((!topMsg) || LESS(msgQ->deadline, topMsg->deadline))) {
         push(pop(&threadPool), &activeStack);
-		current = activeStack;
+		current_thread = activeStack;
     }
 }
 
@@ -375,26 +372,32 @@ static void timer0_interrupt(void) {
     TIMERACK();	
     while (timerQ && LESSEQ(timerQ->baseline, msg0.baseline))
         enqueueByDeadline( dequeue(&timerQ), &msgQ );
-    TIMERSET(timerQ, msg0.baseline);
+    if (timerQ)
+        TIMERSET(timerQ->baseline, msg0.baseline);
     IRQ_EPILOGUE();
 }
 
 static void run(void) {
     while (1) {
-        Msg this = current->msg = dequeue(&msgQ);
+        Msg this = current_thread->msg = dequeue(&msgQ);
         PROTECT(0);
+
+        this->Obj = LOCK(this->Obj);
+//        if (this->sender)
+//            pthread_cond_signal(&this->sender->trigger);
         Int (*code)(Msg) = this->Code;
         if (code)
             code(this);
+        UNLOCK(this->Obj);
+            
         PROTECT(1);
-        current->msg = NULL;
+        current_thread->msg = NULL;
         Msg oldMsg = activeStack->next->msg;
                 
         if (!msgQ || (oldMsg && LESS(oldMsg->deadline, msgQ->deadline))) {
 			void *tmp = pop(&activeStack);
 			if (tmp == &threadI)
 			    panic("push_tI_on_aS");
-
 
             push(tmp, &threadPool);
             Thread t = activeStack;                     // can't be NULL, may be &threadI
@@ -406,103 +409,112 @@ static void run(void) {
 }
 
 
-int timerQdirty;
-
 // Major primitives ---------------------------------------------------------------------
 
-UNITTYPE ASYNC( Msg m, Time bl, Time dl ) {
-    AbsTime now;
-    TIMERGET(now);
+UNIT ASYNC( Msg m, Time bl, Time dl ) {
 
-    m->baseline = current->msg->baseline;
-    switch ((Int)bl) {
-	    case INHERIT: break;
-        case TIME_INFINITY:
-	        m->baseline = INF;
-	        break;
-        default:
-            ADD(m->baseline, bl);
-            if (LESS(m->baseline, now)) {
-                m->baseline = now;
-                // debug("^");
-            }
-    }
+    m->baseline = current_thread->msg->baseline;
+    if (bl) {
+        ADD(m->baseline, bl);
+        m->sender = NULL;
+    } else
+        m->sender = current_thread;
 
-    switch((Int)dl) {
-	    case INHERIT: 
-	        m->deadline = current->msg->deadline;
-            break;
-	    case TIME_INFINITY:
-	        m->deadline = INF;
-	        break;
-	    default:
-	        m->deadline = m->baseline;
-            ADD(m->deadline, dl);
-	}
+    if (dl) {
+	    m->deadline = m->baseline;
+        ADD(m->deadline, dl);
+	} else if (LESS(m->baseline, current_thread->msg->deadline))
+	    m->deadline = current_thread->msg->deadline;
+	else
+        m->deadline = INF;
 
     int status = ISPROTECTED();
     PROTECT(1);
+    AbsTime now;
+    TIMERGET(now);
     if (LESS(now, m->baseline)) {
 	    enqueueByBaseline(m, &timerQ);
-	    timerQdirty = 1;
+	    rootsDirty = 1;
 	    if (timerQ == m)
-		    TIMERSET(timerQ, now);
-    } else {
+		    TIMERSET(timerQ->baseline, now);
+    } else
         enqueueByDeadline(m, &msgQ);
-    }
+
+//    if (!bl)
+//        pthread_cond_wait(&current_thread->trigger, &rts);
+
+
     PROTECT(status);
-    return (UNITTYPE)0;
+    return (UNIT)0;
 }
 
 void INITREF( Ref obj ) {
 	obj->GCINFO = __GC__Ref;
 	obj->wantedBy = 0;
 	obj->ownedBy = 0;
-    obj->STATE = (ADDR)STATEOF(obj);                              // actually unused, but keep it clean
+    obj->STATE = (ADDR)STATEOF(obj);                        // actually unused, but keep it clean
 }
 
-OID LOCK( OID to_2 ) {
+OID LOCK( OID obj ) {
 	int status = ISPROTECTED();
     PROTECT(1);
     
-	Ref to = (Ref)to_2;
-    GC_PROLOGUE(to);
-    Thread t = to->ownedBy;
-    if (t) {                                                // "to" is already locked
+    GC_PROLOGUE(obj);
+    Thread t = obj->ownedBy;
+    if (t) {                                                // "obj" is already locked
         if (status)
             panic("Deadlock in interrup handler");
         while (t->waitsFor)
-            t = ((Ref)t->waitsFor)->ownedBy;
-        if (t == current)                                   // deadlock
+            t = t->waitsFor->ownedBy;
+        if (t == current_thread)                            // deadlock
             panic("Deadlock");
-        if (to->wantedBy)
-            to->wantedBy->waitsFor = NULL;
-        to->wantedBy = current;
-        current->waitsFor = to;
+        if (obj->wantedBy)
+            obj->wantedBy->waitsFor = NULL;
+        obj->wantedBy = current_thread;
+        current_thread->waitsFor = obj;
         dispatch(t);
     }
-    to->ownedBy = current;
+    obj->ownedBy = current_thread;
 
     PROTECT(status);
-    return (OID)to;
+    return obj;
 }
 
-UNITTYPE UNLOCK( OID to_2 ) {
+void GC_LOCK( OID obj ) {
+    PROTECT(1);
+    Thread t = obj->ownedBy;
+    if (t)
+        panic("GC found locked object");
+    obj->ownedBy = current_thread;
+    PROTECT(0);
+}
+
+UNIT UNLOCK( OID obj ) {
     int status = ISPROTECTED();
     PROTECT(1);
 
-	Ref to = (Ref)to_2;
-    to->ownedBy = NULL;
-    Thread t = to->wantedBy;
+    obj->ownedBy = NULL;
+    Thread t = obj->wantedBy;
     if (t) {                                                // we have run on someone's behalf
-        to->wantedBy = NULL;
+        obj->wantedBy = NULL;
         t->waitsFor = NULL;
         dispatch(t);
     }
-	GC_EPILOGUE(to);
+	GC_EPILOGUE(obj);
 
     PROTECT(status);
-    return (UNITTYPE)0;
+    return (UNIT)0;
+}
+
+void GC_UNLOCK( OID obj ) {
+    PROTECT(1);
+    Thread t = obj->wantedBy;
+    if (t) {                                                // we have run on someone's behalf
+        obj->wantedBy = NULL;
+        t->waitsFor = NULL;
+        dispatch(t);
+    }
+    PROTECT(0);
 }
 
 static void init_threads(void) {
@@ -517,7 +529,6 @@ static void init_threads(void) {
         threadI.next = NULL;
         threadI.waitsFor = NULL;
         threadI.msg = NULL;
-        threadI.visit_flag = 0;
         threadI.placeholders = 0;
                 
 	    CONTEXT_INIT(
@@ -530,7 +541,6 @@ static void init_threads(void) {
     for (i=NTHREADS-1; i>=0; i--) {
         threads[i].waitsFor = NULL;
         threads[i].msg = NULL;
-        threads[i].visit_flag = 0;
         threads[i].placeholders = 0;
 
 	    CONTEXT_INIT(
@@ -568,13 +578,6 @@ POLY Raise(BITS32 polyTag, Int err) {
 
 #include "timer.c"
 
-// Environment object ---------------------------------------------------------------------------------
-
-void init_rts(void);
-
-#include "env.c"
-
-    
 // Show Float -----------------------------------------------------------------------------------------
 
 int snprintf(char *s, int n, const char *format, ...) {
@@ -589,7 +592,6 @@ int snprintf(char *s, int n, const char *format, ...) {
 // ----------------------------------------------------------------------------------------------------
 
 void scanTimerQ(void) {
-	timerQdirty = 0;
 	PROTECT(1);
 	if (timerQ) {
 		timerQ = (Msg)copy((ADDR)timerQ);
@@ -608,6 +610,8 @@ void scanTimerQ(void) {
 	PROTECT(0);
 }
 
+struct Scanner timerQscanner = { scanTimerQ, NULL };
+
 
 /* ************************************************************************** */
 
@@ -618,7 +622,7 @@ __attribute__((naked)) void swi_handler(void)
 	asm volatile("add	lr, lr, #4\n");
 	ARM7_CONTEXT_SAVE();
 	asm volatile(
-	    "ldr    r4, =current\n"
+	    "ldr    r4, =current_thread\n"
 	    "str    r0, [r4]\n"
 	);
 	ARM7_CONTEXT_RESTORE();
@@ -650,5 +654,10 @@ void init_rts(void) {
 
     TIMERINIT();
     gcInit();
+    addRootScanner(&timerQscanner);
     init_threads();
+}
+
+void mainCont() {
+    idle();
 }

@@ -78,12 +78,12 @@ int inside(ADDR base, ADDR a, ADDR lim) {
     return INSIDE(base,a,lim);
 }
 
-WORD pagesize;                          // obtained from OS, measured in words
 ADDR base, lim, hp;                     // start, end, and current pos of latest "fromspace" (normal space)
 ADDR base2, lim2, hp2;                  // start, end and current pos of latest "tospace" (only used during gc)
-ADDR scanbase, scanp;                   // start and current pos of currently scanned segment (only used during gc)
 ADDR heapchain, heapchain2;             // anchor for the chain of all fromspaces, ditto for the tospaces
+ADDR scanbase, scanp;                   // start and current pos of currently scanned segment (only used during gc)
 ADDR edata;                             // end of static data
+WORD pagesize;                          // obtained from OS, measured in words
 ADDR staticHeap;                        // heap (chain) containing only statically allocated nodes (no copy)
 
 char emergency = 0;                     // flag signalling heap overflow during gc
@@ -366,7 +366,7 @@ void gc() {
         base = base2;
         lim = lim2;
         hp = hp2;
-        // printf("!!!Heap switched:  base=%x lim=%x (hp=%x)\n", (int)base, (int)lim, (int)hp);
+        // fprintf(stderr, "\n!!!Heap switched:  base=%x lim=%x (hp=%x)\n", (int)base, (int)lim, (int)hp);
 
         base2 = lim2 = hp2 = (ADDR)0;
         scanbase = scanp = (ADDR)0;

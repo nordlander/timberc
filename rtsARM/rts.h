@@ -34,29 +34,10 @@
 #ifndef RTS_H_
 #define RTS_H_
 
+#include "config.h"
+#include "timber.h"
 
-typedef struct {
-	unsigned int *sp;
-	unsigned int *cookie;
-} arm7_context_t;
-
-struct Thread {
-    arm7_context_t context;     // machine state
-	Thread next;                // for use in linked lists
-    struct Msg *msg;            // message under execution
-    Ref waitsFor;               // deadlock detection link
-    WORD visit_flag;            // for use during cyclic data construction
-    int placeholders;           // for use during cyclic data construction
-};
-
-
-static inline void PROTECT(int state)
-{
-	/*
-	 * WARNING!!!
-	 * 	The use of %0 et al. is _very_ fragile and may break at any time.
-	 * 	Honestly I don't have a clue why this miscompiles every now and then...
-	 */
+static inline void PROTECT(int state) {
 	int tmp;
 	asm volatile(
 		"cmp	%1, #0\n"
@@ -69,13 +50,7 @@ static inline void PROTECT(int state)
 		);
 }
 
-static inline int ISPROTECTED(void)
-{
-	/*
-	 * WARNING!!!
-	 * 	The use of %0 et al. is _very_ fragile and may break at any time.
-	 * 	Honestly I don't have a clue why this miscompiles every now and then...
-	 */
+static inline int ISPROTECTED(void) {
 	int tmp;
 	asm volatile(
 			"mrs	%0, CPSR\n"
@@ -86,7 +61,25 @@ static inline int ISPROTECTED(void)
 }
 
 
+typedef struct {
+	unsigned int *sp;
+	unsigned int *cookie;
+} arm7_context_t;
 
+struct Thread {
+    arm7_context_t context;     // machine state
+	Thread next;                // for use in linked lists
+    struct Msg *msg;            // message under execution
+    Ref waitsFor;               // deadlock detection link
+    int placeholders;           // for use during cyclic data construction
+};
+
+extern Thread current_thread;
+
+#define CURRENT() current_thread
+
+
+/*
 #define NEW(t,addr,words)       { int status = ISPROTECTED(); \
                                   PROTECT(1); \
 	                              addr = (t)hp; \
@@ -94,17 +87,24 @@ static inline int ISPROTECTED(void)
                                   if (hp >= lim) force(words,(ADDR)addr); \
 		                          PROTECT(status); \
                                 }
+*/
 
 
-#define CURRENT() current
+struct Scanner;
+typedef struct Scanner *Scanner;
 
+struct Scanner {
+  void (*f) (); 
+  Scanner next;
+};
 
-extern ADDR hp, lim;
-
-ADDR force(WORD, ADDR);
-void pruneStaticHeap();
+void addRootScanner(Scanner ls);
+extern int rootsDirty;
 
 void init_rts(void);
+void mainCont();
+void pruneStaticHeap();
+
 
 
 #endif
