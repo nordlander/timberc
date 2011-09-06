@@ -56,14 +56,13 @@ struct Thread {
    int placeholders;       // for use during cyclic data construction
 };
 
-extern struct Thread threads[];
 extern pthread_mutex_t rts;
 extern pthread_mutexattr_t glob_mutexattr;
 extern pthread_key_t current_key;
-extern AbsTime absInfinity;
-extern Time timeZero;
 
 #define CURRENT()       ((Thread)pthread_getspecific(current_key))
+
+extern struct Thread threads[];
 
 #define SIGSELECT SIGUSR1
 

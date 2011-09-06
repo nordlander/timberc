@@ -36,7 +36,7 @@
 #include <mach-o/getsect.h>
 #endif
 
-/*
+
 #define NEW2(addr,words,info)   { int status = ISPROTECTED(); \
                                   PROTECT(1); \
 	                              addr = hp2; \
@@ -45,17 +45,6 @@
                                   addr[0] = (WORD)(info); \
 		                          PROTECT(status); \
                                 }
-*/
-#define NEW2(addr,words,info)   { ADDR top,stop; \
-                                  do { addr = hp2; stop = lim2; top = ODD((addr)+(words)); \
-                                  } while (ISODD(addr) || !CAS(addr,top,&hp2)); \
-                                  if (top>=stop) addr = force2(words,addr<stop?addr:0,info); else { addr[0] = (WORD)(info); hp2 = EVEN(top); } }
-
-// Note: soundness of the spin-loop above depends on the invariant that lim2 is never changed unless hp2 also changes.
-
-#define ODD(addr)               (ADDR)((WORD)(addr) | 1)
-#define EVEN(addr)              (ADDR)((WORD)(addr) & ~1)
-#define ISODD(addr)             ((WORD)(addr) & 1)
 
 #define IND0(obj)               (ADDR)((ADDR)obj)[0]
 #define GC_PROLOGUE(obj)        { if (ISFORWARD(IND0(obj))) obj = (OID)IND0(obj); }             // read barrier

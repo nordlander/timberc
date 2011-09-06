@@ -174,7 +174,7 @@ static Time sample_fun(Ref self, Int x) {
     self = (Ref)LOCK((OID)self);
     AbsTime now;
     now = CURRENT()->msg->baseline;
-    SUB(now,((S_Timer)STATEOF(self))->start);
+    ABS_SUB(now,((S_Timer)STATEOF(self))->start);
     UNLOCK((OID)self);
     Time res;
     NEW(Time,res,WORDS(sizeof(struct Time)));

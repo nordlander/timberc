@@ -114,6 +114,14 @@ WORD __GC__Array0[]     = {WORDS(sizeof(struct Array)), GC_ARRAY, 0};     // fla
 WORD __GC__Array1[]     = {WORDS(sizeof(struct Array)), GC_ARRAY, 1};     // flag 1 => node contains only scalars
 
 
+
+AbsTime absInfinity     = { 0x7fffffff, 999999 };
+
+struct Time zeroStruct  = { NULL, 0, 0 };
+
+Time timeZero           = &zeroStruct;
+
+
 POLY primRefl(BITS32 polytag, POLY in) {
         return in;
 }

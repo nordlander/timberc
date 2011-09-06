@@ -34,32 +34,7 @@
 #ifndef RTS_H_
 #define RTS_H_
 
-#include "config.h"
 #include "timber.h"
-
-static inline void PROTECT(int state) {
-	int tmp;
-	asm volatile(
-		"cmp	%1, #0\n"
-		"mrs	%0, CPSR\n"
-		"orrne	%0, %0, #0x80|0x40\n"
-		"biceq	%0, %0, #0x80|0x40\n"
-		"msr	CPSR_c, %0\n"
-		: "=r" (tmp)
-		: "r" (state)
-		);
-}
-
-static inline int ISPROTECTED(void) {
-	int tmp;
-	asm volatile(
-			"mrs	%0, CPSR\n"
-			"and	%0, %0, #0x80|0x40\n"
-			: "=r" (tmp)
-			);
-	return tmp;
-}
-
 
 typedef struct {
 	unsigned int *sp;
@@ -78,16 +53,14 @@ extern Thread current_thread;
 
 #define CURRENT() current_thread
 
+extern struct Thread threads[];
 
-/*
-#define NEW(t,addr,words)       { int status = ISPROTECTED(); \
-                                  PROTECT(1); \
-	                              addr = (t)hp; \
-	                              hp = (ADDR)addr+(words); \
-                                  if (hp >= lim) force(words,(ADDR)addr); \
-		                          PROTECT(status); \
-                                }
-*/
+
+void IRQ_PROLOGUE(void);
+void IRQ_EPILOGUE(void);
+
+void GC_LOCK(OID obj);
+void GC_UNLOCK(OID obj);
 
 
 struct Scanner;
@@ -101,7 +74,7 @@ struct Scanner {
 void addRootScanner(Scanner ls);
 extern int rootsDirty;
 
-void init_rts(void);
+void init_rts(int argc, char **argv);
 void mainCont();
 void pruneStaticHeap();
 

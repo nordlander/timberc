@@ -37,9 +37,11 @@
 #ifdef rtsPOSIX
 #include <sys/time.h>
 #include <pthread.h>
+#include "config.h"
 #endif
 
-#include "config.h"
+#undef NULL
+#define NULL (void*)0
 
 
 #define Int int
@@ -60,7 +62,10 @@
 typedef struct timeval AbsTime;
 #endif
 #ifdef rtsARM
-typedef int AbsTime;
+typedef struct {
+    int tv_sec;
+    int tv_usec;
+} AbsTime;
 #endif
 
 typedef int WORD;
@@ -237,6 +242,25 @@ extern WORD __GC__Ref[];
 void INITREF(OID);
 
 
+extern AbsTime absInfinity;
+extern Time timeZero;
+
+#define ABS_LT(a,b)     ( ((a).tv_sec < (b).tv_sec) || (((a).tv_sec == (b).tv_sec) && ((a).tv_usec <  (b).tv_usec)) )
+#define ABS_LE(a,b)     ( ((a).tv_sec < (b).tv_sec) || (((a).tv_sec == (b).tv_sec) && ((a).tv_usec <= (b).tv_usec)) )
+#define ABS_ADD(a,t)    { (a).tv_usec += (t->usec); \
+                          if ((a).tv_usec >= 1000000) { \
+                                  (a).tv_usec -= 1000000; \
+                                  (a).tv_sec += 1; \
+                          } \
+                          (a).tv_sec += (t->sec); \
+                        }
+#define ABS_SUB(a,b)    { (a).tv_usec -= (b).tv_usec; \
+                          if ((a).tv_usec < 0) { \
+                                  (a).tv_usec += 1000000; \
+                                  (a).tv_sec -= 1; \
+                          } \
+                          (a).tv_sec -= (b).tv_sec; \
+                        }
 
 
 union FloatCast {
@@ -322,12 +346,16 @@ UNIT    MUTLISTEXTEND(BITS32,MUTLIST,POLY);
 #define WORDS(bytes)            (((bytes)+sizeof(WORD)-1)/sizeof(WORD))
 #define BYTES(words)            ((words)*sizeof(WORD))
 
+#define offsetof(TYPE, MEMBER) __builtin_offsetof (TYPE, MEMBER)
+
+
+#if rtsPOSIX
 
 #if defined(HAVE_OSX_ATOMICS)
 #include <libkern/OSAtomic.h>
 #define CAS(old,new,mem)        OSAtomicCompareAndSwap32((WORD)(old),(WORD)(new),(ADDR)(mem))
 #else
-#if defined(HAVE_BUILTIN_ATOMIC) 
+#if defined(HAVE_BUILTIN_ATOMIC)
 #define CAS(old,new,mem)        __sync_bool_compare_and_swap((mem),(WORD)(old),(WORD)(new))
 #else
 #error "Can not define CAS on your architecture."
@@ -340,7 +368,42 @@ UNIT    MUTLISTEXTEND(BITS32,MUTLIST,POLY);
                                   if (top>=stop) { addr = (t)force((words),(ADDR)addr<stop?(ADDR)addr:0);} }
 
 // Note: soundness of the spin-loop above depends on the invariant that lim is never changed unless hp also changes.
+#endif
 
+#if rtsARM
+
+static inline void PROTECT(int state) {
+	int tmp;
+	asm volatile(
+		"cmp	%1, #0\n"
+		"mrs	%0, CPSR\n"
+		"orrne	%0, %0, #0x80|0x40\n"
+		"biceq	%0, %0, #0x80|0x40\n"
+		"msr	CPSR_c, %0\n"
+		: "=r" (tmp)
+		: "r" (state)
+		);
+}
+
+static inline int ISPROTECTED(void) {
+	int tmp;
+	asm volatile(
+			"mrs	%0, CPSR\n"
+			"and	%0, %0, #0x80|0x40\n"
+			: "=r" (tmp)
+			);
+	return tmp;
+}
+
+#define NEW(t,addr,words)       { int status = ISPROTECTED(); \
+                                  PROTECT(1); \
+	                              addr = (t)hp; \
+	                              hp = (ADDR)addr+(words); \
+                                  if (hp >= lim) force(words,(ADDR)addr); \
+		                          PROTECT(status); \
+                                }
+
+#endif
 
 extern ADDR hp, lim;
 ADDR force(WORD, ADDR);

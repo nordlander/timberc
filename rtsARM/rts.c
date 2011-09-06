@@ -122,26 +122,17 @@ void debug_hex(unsigned long);
 	                      VICIntEnable |= (1<<4); \
                           VICSoftInt = 1<<4;    /* Force a timer interrupt, will hot-start the system */ \
                         }
-#define TIMERGET(x)     { x = T0TC; }
-#define TIMERSET(x,now) { T0MR0 = x; \
+#define TIMERGET(x)     { x.tv_usec = T0TC * 10; x.tv_sec = 0; }
+#define TIMERSET(x,now) { T0MR0 = (x).tv_usec / 10; \
                           if ((T0MR0 < T0TC)) \
                               VICSoftInt = 1<<4; \
                         }
 #define TIMERACK()      { VICSoftIntClr = (1<<4); T0IR = T0IR; }
 
-#define LESS(a,b)       ( a < b )
-#define LESSEQ(a,b)     ( a <= b )
-#define ADD(a,t)        { a += t->time; }
-#define SUB(a,b)        { a -= b; }
-
-
-#define INF             0x7fffffff
-
-
 
 // Thread management --------------------------------------------------------------------------------
 
-struct Msg msg0         = { NULL, NULL, NULL, NULL, NULL, 0, INF };
+struct Msg msg0         = { NULL, NULL, NULL, NULL, NULL, {0, 0}, {0, 0} };
 
 struct Thread threads[NTHREADS];
 struct Thread threadI;         // the idle process
@@ -152,7 +143,7 @@ Msg timerQ              = NULL;
 
 Thread threadPool       = &threads[1];
 Thread activeStack      = threads;
-Thread current_thread          = &threadI;
+Thread current_thread   = &threadI;
 
 unsigned int arm7_stack[ARM7_STACKSIZE/4];
 
@@ -277,7 +268,7 @@ void arm7_context_panic(void)
 
 static void enqueueByDeadline(Msg p, Msg *queue) {
         Msg prev = NULL, q = *queue;
-        while (q && LESSEQ(q->deadline, p->deadline)) {
+        while (q && ABS_LE(q->deadline, p->deadline)) {
                 prev = q;
                 q = q->next;
         }
@@ -290,7 +281,7 @@ static void enqueueByDeadline(Msg p, Msg *queue) {
 
 static void enqueueByBaseline(Msg p, Msg *queue) {
         Msg prev = NULL, q = *queue;
-        while (q && LESSEQ(q->baseline, p->baseline)) {
+        while (q && ABS_LE(q->baseline, p->baseline)) {
                 prev = q;
                 q = q->next;
         }
@@ -352,16 +343,16 @@ void idle(void) {
 	}
 }
 
-static inline void IRQ_PROLOGUE(void) {
+void IRQ_PROLOGUE(void) {
     savedMsg = current_thread->msg;
     current_thread->msg = &msg0;
     TIMERGET(msg0.baseline);
 }
 
-static inline void IRQ_EPILOGUE(void) {
+void IRQ_EPILOGUE(void) {
     current_thread->msg = savedMsg;
     Msg topMsg = activeStack->msg;
-    if (msgQ && threadPool && ((!topMsg) || LESS(msgQ->deadline, topMsg->deadline))) {
+    if (msgQ && threadPool && ((!topMsg) || ABS_LT(msgQ->deadline, topMsg->deadline))) {
         push(pop(&threadPool), &activeStack);
 		current_thread = activeStack;
     }
@@ -370,7 +361,7 @@ static inline void IRQ_EPILOGUE(void) {
 static void timer0_interrupt(void) {
     IRQ_PROLOGUE();
     TIMERACK();	
-    while (timerQ && LESSEQ(timerQ->baseline, msg0.baseline))
+    while (timerQ && ABS_LE(timerQ->baseline, msg0.baseline))
         enqueueByDeadline( dequeue(&timerQ), &msgQ );
     if (timerQ)
         TIMERSET(timerQ->baseline, msg0.baseline);
@@ -385,16 +376,16 @@ static void run(void) {
         this->Obj = LOCK(this->Obj);
 //        if (this->sender)
 //            pthread_cond_signal(&this->sender->trigger);
-        Int (*code)(Msg) = this->Code;
+        UNIT (*code)(Msg,OID) = this->Code;
         if (code)
-            code(this);
+            code(this, this->Obj);
         UNLOCK(this->Obj);
             
         PROTECT(1);
         current_thread->msg = NULL;
         Msg oldMsg = activeStack->next->msg;
                 
-        if (!msgQ || (oldMsg && LESS(oldMsg->deadline, msgQ->deadline))) {
+        if (!msgQ || (oldMsg && ABS_LT(oldMsg->deadline, msgQ->deadline))) {
 			void *tmp = pop(&activeStack);
 			if (tmp == &threadI)
 			    panic("push_tI_on_aS");
@@ -411,28 +402,28 @@ static void run(void) {
 
 // Major primitives ---------------------------------------------------------------------
 
-UNIT ASYNC( Msg m, Time bl, Time dl ) {
+Msg ASYNC( Msg m, Time bl, Time dl ) {
 
     m->baseline = current_thread->msg->baseline;
     if (bl) {
-        ADD(m->baseline, bl);
+        ABS_ADD(m->baseline, bl);
         m->sender = NULL;
     } else
         m->sender = current_thread;
 
     if (dl) {
 	    m->deadline = m->baseline;
-        ADD(m->deadline, dl);
-	} else if (LESS(m->baseline, current_thread->msg->deadline))
+        ABS_ADD(m->deadline, dl);
+	} else if (ABS_LT(m->baseline, current_thread->msg->deadline))
 	    m->deadline = current_thread->msg->deadline;
 	else
-        m->deadline = INF;
+        m->deadline = absInfinity;
 
     int status = ISPROTECTED();
     PROTECT(1);
     AbsTime now;
     TIMERGET(now);
-    if (LESS(now, m->baseline)) {
+    if (ABS_LT(now, m->baseline)) {
 	    enqueueByBaseline(m, &timerQ);
 	    rootsDirty = 1;
 	    if (timerQ == m)
@@ -649,7 +640,7 @@ __attribute__((naked))  void irq_handler(void)
 
 // Initialization -------------------------------------------------------------------------------------
 
-void init_rts(void) {
+void init_rts(int argc, char **argv) {
     PROTECT(1);
 
     TIMERINIT();

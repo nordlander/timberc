@@ -46,27 +46,10 @@
 #define TDELTA          1
 #define TIMERSET(x,now) { struct itimerval t; \
                           t.it_value = (x); \
-                          SUB(t.it_value, now); \
+                          ABS_SUB(t.it_value, now); \
                           t.it_interval.tv_sec = 0; \
                           t.it_interval.tv_usec = 0; \
                           setitimer( ITIMER_REAL, &t, NULL); \
-                        }
-
-#define LESS(a,b)       ( ((a).tv_sec < (b).tv_sec) || (((a).tv_sec == (b).tv_sec) && ((a).tv_usec <  (b).tv_usec)) )
-#define LESSEQ(a,b)     ( ((a).tv_sec < (b).tv_sec) || (((a).tv_sec == (b).tv_sec) && ((a).tv_usec <= (b).tv_usec)) )
-#define ADD(a,t)        { (a).tv_usec += (t->usec); \
-                          if ((a).tv_usec >= 1000000) { \
-                                  (a).tv_usec -= 1000000; \
-                                  (a).tv_sec += 1; \
-                          } \
-                          (a).tv_sec += (t->sec); \
-                        }
-#define SUB(a,b)        { (a).tv_usec -= (b).tv_usec; \
-                          if ((a).tv_usec < 0) { \
-                                  (a).tv_usec += 1000000; \
-                                  (a).tv_sec -= 1; \
-                          } \
-                          (a).tv_sec -= (b).tv_sec; \
                         }
 
 
@@ -84,12 +67,6 @@ Thread sleepQ           = NULL;
 
 int nactive             = 0;
 int nthreads            = 0;
-
-AbsTime absInfinity     = { 0x7fffffff, 999999 };
-
-struct Time zeroStruct  = { NULL, 0, 0 };
-
-Time timeZero           = &zeroStruct;
 
 struct Msg msg0         = { NULL, NULL, NULL, NULL, NULL, { 0, 0 }, { 0, 0 } };
 
@@ -157,7 +134,7 @@ void panic(char *str) {
 
 void enqueueMsgQ(Msg p) {
         Msg prev = NULL, q = msgQ;
-        while (q && LESSEQ(q->deadline, p->deadline)) {
+        while (q && ABS_LE(q->deadline, p->deadline)) {
                 prev = q;
                 q = q->next;
         }
@@ -170,7 +147,7 @@ void enqueueMsgQ(Msg p) {
 
 void enqueueTimerQ(Msg p) {
         Msg prev = NULL, q = timerQ;
-        while (q && LESSEQ(q->baseline, p->baseline)) {
+        while (q && ABS_LE(q->baseline, p->baseline)) {
                 prev = q;
                 q = q->next;
         }
@@ -212,7 +189,7 @@ int activate(Msg m, int force) {
     Thread prev = NULL, t = runQ;
     AbsTime dl = m->deadline;
 
-    while (count < NCORES && t && LESS(t->msg->deadline, dl)) {
+    while (count < NCORES && t && ABS_LT(t->msg->deadline, dl)) {
         count++;
         prev = t;
         t = t->next;
@@ -311,22 +288,22 @@ Msg ASYNC( Msg m, Time bl, Time dl ) {
 
     m->baseline = current_thread->msg->baseline;
     if (bl) {
-        ADD(m->baseline, bl);
+        ABS_ADD(m->baseline, bl);
         m->sender = NULL;
     } else
         m->sender = current_thread;
 
     if (dl) {
 	    m->deadline = m->baseline;
-        ADD(m->deadline, dl);
-	} else if (LESS(m->baseline, current_thread->msg->deadline))
+        ABS_ADD(m->deadline, dl);
+	} else if (ABS_LT(m->baseline, current_thread->msg->deadline))
 	    m->deadline = current_thread->msg->deadline;
 	else
         m->deadline = absInfinity;
 
     AbsTime now;
     TIMERGET(now);
-    if (LESS(now, m->baseline)) {           //  TIMERQ_PROLOGUE();
+    if (ABS_LT(now, m->baseline)) {           //  TIMERQ_PROLOGUE();
         enqueueTimerQ(m);
         rootsDirty = 1;
         if (timerQ == m)
@@ -415,7 +392,7 @@ void timerHandler(Thread current_thread) {
         DISABLE(rts);
         AbsTime now;
         TIMERGET(now);
-        while (timerQ && LESSEQ(timerQ->baseline, now)) {
+        while (timerQ && ABS_LE(timerQ->baseline, now)) {
             Msg m = timerQ;
             timerQ = timerQ->next;
             if (m->Code) {

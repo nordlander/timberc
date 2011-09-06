@@ -16,8 +16,6 @@ all:
 	@printf "Notice that building in-place requires the RTS to reside in\n"
 	@printf "an installed timberc tree.\n\n"
 
-AOBJARM   = crt.o
-
 $(DEST): crt.o rts.o ea_lcd/lcd_hw.o $(OBJS)
 	rm -f $(DEST)
 	arm-eabi-ar rc $(DEST) crt.o rts.o ea_lcd/lcd_hw.o $(OBJS)
@@ -26,7 +24,7 @@ $(OBJS): %.o: ../lib/%.t ../include/timber.h
 	$(TIMBERC) --target ARM --api -c $<
 
 rts.o: rts.h rts.c ../include/timber.h ../include/timber.c ../include/float.c
-	$(CC) $(CFLAGS) -Wall -O2 -fno-strict-aliasing -g -I../include -I../lib -I. -c rts.c
+	$(CC) $(CFLAGS) -Wall -O2 -fno-strict-aliasing -g -D rtsARM -I../include -I../lib -I. -c rts.c
 
 # Assemble: create object files from assembler source files. ARM-only
 crt.o : crt.S
@@ -37,10 +35,7 @@ install:
 	$(INSTALL) timberc.cfg $(DESTDIR)$(prefix)/rtsARM
 	$(INSTALL) rts.h $(DESTDIR)$(prefix)/rtsARM
 	$(INSTALL) rts.c $(DESTDIR)$(prefix)/rtsARM
-	$(INSTALL) cyclic.c $(DESTDIR)$(prefix)/rtsARM
 	$(INSTALL) gc.c $(DESTDIR)$(prefix)/rtsARM
-	$(INSTALL) env.c $(DESTDIR)$(prefix)/rtsARM
-	$(INSTALL) timer.c $(DESTDIR)$(prefix)/rtsARM
 	$(INSTALL) main.c $(DESTDIR)$(prefix)/rtsARM
 	$(INSTALL) -d $(DESTDIR)$(prefix)/rtsARM/ea_lcd
 	$(INSTALL) ea_lcd/lcd_hw.c $(DESTDIR)$(prefix)/rtsARM/ea_lcd
@@ -51,7 +46,6 @@ install:
 	$(INSTALL) crt.S $(DESTDIR)$(prefix)/rtsARM
 	$(INSTALL) linkerscript.x $(DESTDIR)$(prefix)/rtsARM
 	$(INSTALL) Makefile $(DESTDIR)$(prefix)/rtsARM
-	$(INSTALL) ../lib/ARM.t $(DESTDIR)$(prefix)/lib
 	cd $(DESTDIR)$(prefix)/rtsARM && make TIMBERC=$(TIMBERC) $(DEST) 
 
 
