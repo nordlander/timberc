@@ -334,11 +334,11 @@ __attribute__((naked)) void dispatch( Thread next ) {   // Note: parameter 'next
 }
 
 void idle(void) {
-    PROTECT(1);
-
     while (1) {
+        PROTECT(1);
         if (heapLevel(16) > 13)
 		    gc(0);
+        PROTECT(0);
         SLEEP();
 	}
 }
