@@ -48,7 +48,7 @@ This module does the following:
     identifier, or possibly replacing a Name with a Prim.
 -}
 
-import Control.Monad
+import Control.Monad hiding void
 import Data.Char
 import Common
 import Syntax
