@@ -48,7 +48,7 @@ This module does the following:
     identifier, or possibly replacing a Name with a Prim.
 -}
 
-import Control.Monad hiding void
+import Control.Monad
 import Data.Char
 import Common
 import Syntax
@@ -68,7 +68,7 @@ data Env                           = Env { rE :: Map Name Name,
                                            rC :: Map Name Name,
                                            labels :: Map Name [Name],
                                            self :: [Name],
-                                           void :: [Name]
+                                           voids :: [Name]
                                          } deriving Show
 
 initEnv (rs, rL',rT',rE',rC') ls   = Env { rE = primTerms ++ rE', 
@@ -78,7 +78,7 @@ initEnv (rs, rL',rT',rE',rC') ls   = Env { rE = primTerms ++ rE',
                                            rC = primCons ++ rC',
                                            labels = ls,
                                            self = [], 
-                                           void = []
+                                           voids = []
                                          }
 
 stateVars env                      = dom (rS env) ++ rng (rS env)
@@ -131,19 +131,19 @@ extRenE env vs
 setRenS env vs
   | not (null shadowed)            = errorIds "Illegal shadowing of state reference" shadowed
   | otherwise                      = do rS' <- renaming (noDups "Duplicate state variables" (legalBind vs))
-                                        return (env { rS = rS', void = vs })
+                                        return (env { rS = rS', voids = vs })
   where shadowed                   = intersect vs (self env)
 
-setStateType env c                  = env {rS = rS', void = ss}
+setStateType env c                  = env {rS = rS', voids = ss}
   where c'                          = renT env c
         ss                          = case lookup c' (labels env) of
                                         Just ss -> ss
                                         Nothing -> errorIds "State type of class is not a struct" [c]
         rS'                         = [(a,b) | (a,b) <- rL env, a `elem` (ss ++ [ dropMod n | n <- ss, isQualified n ])]
 
-unvoid vs env                      = env { void = void env \\ vs }
+unvoid vs env                      = env { voids = voids env \\ vs }
 
-unvoidAll env                      = env { void = [] }
+unvoidAll env                      = env { voids = [] }
 
 extRenT env vs                     = do rT' <- renaming (noDups "Duplicate type variables" (legalBind vs))
                                         return (env { rT = rT' ++ rT env })
@@ -425,7 +425,7 @@ instance Rename Bind where
 
 instance Rename Pat where
   rename env (PVar v)
-    | v `elem` void env            = errorIds "Uninitialized state variable" [v]
+    | v `elem` voids env           = errorIds "Uninitialized state variable" [v]
     | v `elem` stateVars env       = return (PVar (renS env v))
     | otherwise                    = return (PVar (renE env v))
   rename env (PCon c)              = return (PCon (renC env c))
@@ -439,7 +439,7 @@ instance Rename Pat where
 
 instance Rename Exp where
   rename env (EVar v)
-    | v `elem` void env            = errorIds "Uninitialized state variable" [v]
+    | v `elem` voids env           = errorIds "Uninitialized state variable" [v]
     | v `elem` stateVars env       = return (EVar (renS env v))
     | otherwise                    = return (EVar (renE env v))
   rename env (ECon c)              = return (ECon (renC env c))
