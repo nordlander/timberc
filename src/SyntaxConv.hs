@@ -178,7 +178,7 @@ sExp (EGen e)                     = Syntax.EGen (sExp e)
 sExp (EParen e)			  = sExp e
 sExp e                            = error ("sExp: " ++ show e)
 
-sSend Nothing e2                  = sExp e2
+sSend Nothing e2                  = Syntax.EAfter Syntax.zeroTime (sExp e2)
 sSend (Just e1) e2                = Syntax.EAfter (sExp e1) (sExp e2)
 
 sField (Field n p)                = Syntax.Field (sQName n) (sPat p)

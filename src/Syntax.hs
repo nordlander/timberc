@@ -189,6 +189,8 @@ true                            = ECon (prim TRUE)
 false                           = ECon (prim FALSE)
 unit                            = ECon (tuple 0)
 
+zeroTime                        = EAp (EVar (prim Sec)) (ELit (lInt 0))
+
 conP c ps                       = foldl PAp (PCon c) ps
 
 consP x xs                      = conP (prim CONS) [x,xs]
@@ -781,8 +783,8 @@ instance Pr Exp where
     prn 0 (ETempl v t ss)       = text "class"<>prN v<>prN t $$ nest 4 (pr ss)
     prn 0 (EAct v ss)           = text "action"<>prN v $$ nest 4 (pr ss) 
     prn 0 (EReq v ss)           = text "request"<>prN v $$ nest 4 (pr ss) 
-    prn 0 (EAfter e e')         = text "after" <+> prn 12 e <+> pr e'
-    prn 0 (EBefore e e')        = text "before" <+> prn 12 e <+> pr e'
+    prn 0 (EAfter e e')         = text "primAfter" <+> prn 12 e <+> prn 12 e'
+    prn 0 (EBefore e e')        = text "primBefore" <+> prn 12 e <+> prn 12 e'
     prn 0 (ELit l)              = prn 0 l
     prn 0 e                     = prn 1 e
 
