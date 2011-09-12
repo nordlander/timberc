@@ -12,27 +12,27 @@ struct Ticker where
 
 counter :: (String -> Int -> Request ()) -> Time -> Class Ticker
 counter printfunc interval = class
-    loop tal = action
-        printfunc "tal" tal
-        after interval loop (tal+1)
-    startme = before (millisec 100) loop 0
+    loop tal = before millisec 100 action
+                        printfunc "tal" tal
+                        after interval send loop (tal+1)
+    startme = loop 0
     result Ticker {..}
 
 
-root :: Env -> TFT -> Class Prog
-root env tft =
+root world =
     class
-        g = new graphic tft
+        env = new arm world
+        t = new tft world
+        g = new graphic t
         d1 = new debug env.debug
         d2 = new debug g.print
-        c1 = new counter (d1.printvardec) (millisec 200)
-        c2 = new counter (d2.printvardec) (sec 1)
+        c1 = new counter d1.printvardec (millisec 200)
+        c2 = new counter d2.printvardec (sec 1)
         buttons1 = new buttons env
     
-        start = action
+        result action
             g.clear
             d2.printstr "Hello World!\n"
             -- c1.startme
             c2.startme
             buttons1.init
-        result start
