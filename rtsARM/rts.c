@@ -266,50 +266,44 @@ void arm7_context_panic(void)
 
 // Queue management ------------------------------------------------------------------------------
 
-static void enqueueByDeadline(Msg p, Msg *queue) {
-        Msg prev = NULL, q = *queue;
+static void enqueueMsgQ(Msg p) {
+        Msg prev = NULL, q = msgQ;
         while (q && ABS_LE(q->deadline, p->deadline)) {
                 prev = q;
                 q = q->next;
         }
         p->next = q;
         if (prev == NULL)
-                *queue = p;
+                msgQ = p;
         else
                 prev->next = p;
 }
 
-static void enqueueByBaseline(Msg p, Msg *queue) {
-        Msg prev = NULL, q = *queue;
+static void enqueueTimerQ(Msg p) {
+        Msg prev = NULL, q = timerQ;
         while (q && ABS_LE(q->baseline, p->baseline)) {
                 prev = q;
                 q = q->next;
         }
         p->next = q;
         if (prev == NULL)
-                *queue = p;
+                timerQ = p;
         else
                 prev->next = p;
 }
 
-static Msg dequeue(Msg *queue) {
-        Msg m = *queue;
-        if (m)
-                *queue = m->next;
-        else
-                panic("Empty queue");
-        return m;
+void activate(void) {
+    Thread t = threadPool;
+    threadPool = threadPool->next;
+    t->next = activeStack;
+    activeStack = t;
 }
 
-static void push(Thread t, Thread *stack) {
-        t->next = *stack;
-        *stack = t;
-}
-
-static Thread pop(Thread *stack) {
-        Thread t = *stack;
-        *stack = t->next;
-        return t;
+void deactivate(void) {
+    Thread t = activeStack;
+    activeStack = activeStack->next;
+    t->next = threadPool;
+    threadPool = t;
 }
 
 UNIT ABORT(BITS32 polytag, Msg m, Ref dummy){
@@ -353,7 +347,7 @@ void IRQ_EPILOGUE(void) {
     current_thread->msg = savedMsg;
     Msg topMsg = activeStack->msg;
     if (msgQ && threadPool && ((!topMsg) || ABS_LT(msgQ->deadline, topMsg->deadline))) {
-        push(pop(&threadPool), &activeStack);
+        activate(); // push(pop(&threadPool), &activeStack);
 		current_thread = activeStack;
     }
 }
@@ -361,8 +355,10 @@ void IRQ_EPILOGUE(void) {
 static void timer0_interrupt(void) {
     IRQ_PROLOGUE();
     TIMERACK();	
-    while (timerQ && ABS_LE(timerQ->baseline, msg0.baseline))
-        enqueueByDeadline( dequeue(&timerQ), &msgQ );
+    while (timerQ && ABS_LE(timerQ->baseline, msg0.baseline)) {
+        enqueueMsgQ(timerQ);
+        timerQ = timerQ->next;
+    }
     if (timerQ)
         TIMERSET(timerQ->baseline, msg0.baseline);
     IRQ_EPILOGUE();
@@ -370,7 +366,8 @@ static void timer0_interrupt(void) {
 
 static void run(void) {
     while (1) {
-        Msg this = current_thread->msg = dequeue(&msgQ);
+        Msg this = current_thread->msg = msgQ;
+        msgQ = msgQ->next;
         PROTECT(0);
 
         if (this->sender)
@@ -387,7 +384,7 @@ static void run(void) {
         Msg oldMsg = activeStack->next->msg;
                 
         if (!msgQ || (oldMsg && ABS_LT(oldMsg->deadline, msgQ->deadline))) {
-            push(pop(&activeStack), &threadPool);
+            deactivate(); // push(pop(&activeStack), &threadPool);
             Thread t = activeStack;                     // can't be NULL, may be &threadI
             while (t->waitsFor) 
                 t = ((Ref)t->waitsFor)->ownedBy;
@@ -421,16 +418,16 @@ Msg ASYNC( Msg m, Time bl, Time dl ) {
         AbsTime now;
         TIMERGET(now);
         if (ABS_LT(now, m->baseline)) {
-	        enqueueByBaseline(m, &timerQ);
+	        enqueueTimerQ(m);
 	        rootsDirty = 1;
 	        if (timerQ == m)
 		        TIMERSET(timerQ->baseline, now);
         } else
-            enqueueByDeadline(m, &msgQ);
+            enqueueMsgQ(m);
     } else {
         m->sender = current_thread;
         m->Obj = LOCK(m->Obj);
-        enqueueByDeadline(m, &msgQ);    
+        enqueueMsgQ(m);    
     }
 
     PROTECT(status);
