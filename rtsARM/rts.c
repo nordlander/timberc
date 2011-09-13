@@ -373,9 +373,10 @@ static void run(void) {
         Msg this = current_thread->msg = dequeue(&msgQ);
         PROTECT(0);
 
-        this->Obj = LOCK(this->Obj);
-//        if (this->sender)
-//            pthread_cond_signal(&this->sender->trigger);
+        if (this->sender)
+            this->Obj->ownedBy = current_thread;        // gracefully take over ownership...
+        else
+            this->Obj = LOCK(this->Obj);                // ... or fight for ownership
         UNIT (*code)(Msg,OID) = this->Code;
         if (code)
             code(this, this->Obj);
@@ -386,11 +387,7 @@ static void run(void) {
         Msg oldMsg = activeStack->next->msg;
                 
         if (!msgQ || (oldMsg && ABS_LT(oldMsg->deadline, msgQ->deadline))) {
-			void *tmp = pop(&activeStack);
-			if (tmp == &threadI)
-			    panic("push_tI_on_aS");
-
-            push(tmp, &threadPool);
+            push(pop(&activeStack), &threadPool);
             Thread t = activeStack;                     // can't be NULL, may be &threadI
             while (t->waitsFor) 
                 t = ((Ref)t->waitsFor)->ownedBy;
@@ -405,11 +402,8 @@ static void run(void) {
 Msg ASYNC( Msg m, Time bl, Time dl ) {
 
     m->baseline = current_thread->msg->baseline;
-    if (bl) {
+    if (bl)
         ABS_ADD(m->baseline, bl);
-        m->sender = NULL;
-    } else
-        m->sender = current_thread;
 
     if (dl) {
 	    m->deadline = m->baseline;
@@ -421,19 +415,23 @@ Msg ASYNC( Msg m, Time bl, Time dl ) {
 
     int status = ISPROTECTED();
     PROTECT(1);
-    AbsTime now;
-    TIMERGET(now);
-    if (ABS_LT(now, m->baseline)) {
-	    enqueueByBaseline(m, &timerQ);
-	    rootsDirty = 1;
-	    if (timerQ == m)
-		    TIMERSET(timerQ->baseline, now);
-    } else
-        enqueueByDeadline(m, &msgQ);
-
-//    if (!bl)
-//        pthread_cond_wait(&current_thread->trigger, &rts);
-
+    
+    if (bl) {
+        m->sender = NULL;
+        AbsTime now;
+        TIMERGET(now);
+        if (ABS_LT(now, m->baseline)) {
+	        enqueueByBaseline(m, &timerQ);
+	        rootsDirty = 1;
+	        if (timerQ == m)
+		        TIMERSET(timerQ->baseline, now);
+        } else
+            enqueueByDeadline(m, &msgQ);
+    } else {
+        m->sender = current_thread;
+        m->Obj = LOCK(m->Obj);
+        enqueueByDeadline(m, &msgQ);    
+    }
 
     PROTECT(status);
     return (UNIT)0;
@@ -453,8 +451,6 @@ OID LOCK( OID obj ) {
     GC_PROLOGUE(obj);
     Thread t = obj->ownedBy;
     if (t) {                                                // "obj" is already locked
-        if (status)
-            panic("Deadlock in interrup handler");
         while (t->waitsFor)
             t = t->waitsFor->ownedBy;
         if (t == current_thread)                            // deadlock
