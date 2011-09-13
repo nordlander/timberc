@@ -1,11 +1,11 @@
 DESTDIR      = /usr/local/share/timberc
 prefix       = -1.0.3
-CC           = arm-eabi-gcc
-AR           = arm-eabi-ar
+CC           = @TARGETCC@
+AR           = @TARGETAR@
 CFLAGS       = -Os -g -I. -I../include -I../lib -I./asm
-INSTALL	     = /usr/bin/install -c
+INSTALL	     = @INSTALL@
 
-TIMBERC      = timberc
+TIMBERC      = @TIMBERC@
 TIMBERLIBS   = Prelude.t $(filter-out Prelude.t,$(notdir $(wildcard ../lib/*.t)))
 OBJS         = $(TIMBERLIBS:.t=.o)
 
