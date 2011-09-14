@@ -49,6 +49,5 @@ int main(int argc, char **argv) {
     ROOTINIT();
     pruneStaticHeap();
     Time_Time_to_Msg prog = (Time_Time_to_Msg)ROOT((World)0,0);
-    prog->Code(prog, Inherit, Inherit);
-    mainCont();
+    startup(prog);
 }

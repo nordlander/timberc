@@ -462,8 +462,8 @@ void runAsMainContinuation(void(*fun)(void)) {
     ENABLE(rts);
 }
 
-
-void mainCont() {
+void startup(Time_Time_to_Msg prog) {
+    prog->Code(prog, Inherit, Inherit);
     DISABLE(rts);
     if (!mainContinuation)
         pthread_cond_wait(&sleepVar, &rts);

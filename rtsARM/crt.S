@@ -67,6 +67,10 @@
 .extern main
 .extern swi_handler
 .extern irq_handler
+.extern undef_handler
+.extern code_abort_handler
+.extern data_abort_handler
+.extern fiq_handler
 
 
 /*
@@ -97,13 +101,13 @@
  */
 .pushsection .vectors,"ax"
 __vec_reset:			ldr	pc, =__init
-__vec_undef:			b __vec_undef
+__vec_undef:			ldr	pc, =undef_handler
 __vec_swi:				ldr	pc, =swi_handler
-__vec_code_abort:		b __vec_code_abort
-__vec_data_abort:		b __vec_data_abort
+__vec_code_abort:		ldr	pc, =code_abort_handler
+__vec_data_abort:		ldr	pc, =data_abort_handler
 __vec_reserved:			nop
 __vec_irq:				ldr	pc,	=irq_handler
-__vec_fiq:				b __vec_fiq
+__vec_fiq:				ldr	pc, =fiq_handler
 .popsection
 
 /*

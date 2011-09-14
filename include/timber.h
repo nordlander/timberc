@@ -236,6 +236,14 @@ struct Ref {
 };
 extern WORD __GC__Ref[];
 
+// For convencience:
+struct Time_Time_to_Msg;
+typedef struct Time_Time_to_Msg *Time_Time_to_Msg;
+struct Time_Time_to_Msg {			// Action
+	WORD *GCINFO;
+	Msg (*Code) (Time_Time_to_Msg, Time, Time);
+};
+
 
 #define STATEOF(ref)    (((ADDR)(ref))+WORDS(sizeof(struct Ref)))
 

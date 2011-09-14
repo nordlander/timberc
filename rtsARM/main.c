@@ -34,13 +34,6 @@
 #include "rts.h"
 #include "timber.h"
 
-struct Time_Time_to_Msg;
-typedef struct Time_Time_to_Msg *Time_Time_to_Msg;
-struct Time_Time_to_Msg {
-	WORD *GCINFO;
-	Msg (*Code) (Time_Time_to_Msg, Time, Time);
-};
-
 extern void ROOTINIT(void); 
 extern CLOS ROOT(World, Int);
 
@@ -49,6 +42,5 @@ int main(int argc, char **argv) {
     ROOTINIT();
     pruneStaticHeap();
     Time_Time_to_Msg prog = (Time_Time_to_Msg)ROOT((World)0,0);
-    prog->Code(prog, Inherit, Inherit);
-    mainCont();
+    startup(prog);
 }

@@ -46,19 +46,12 @@
 
 struct String_Time_Time_to_Msg;
 typedef struct String_Time_Time_to_Msg *String_Time_Time_to_Msg;
-struct Time_Time_to_Msg;
-typedef struct Time_Time_to_Msg *Time_Time_to_Msg;
 struct Socket_Int_to_Connection;
 typedef struct Socket_Int_to_Connection *Socket_Int_to_Connection;
 
 struct String_Time_Time_to_Msg {		// String -> Action
 	WORD *GCINFO;
 	Msg (*Code) (String_Time_Time_to_Msg, LIST, Time, Time);
-};
-
-struct Time_Time_to_Msg {			// Action
-	WORD *GCINFO;
-	Msg (*Code) (Time_Time_to_Msg, Time, Time);
 };
 
 struct Socket_Int_to_Connection {		// Socket -> Class Connection

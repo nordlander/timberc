@@ -19,8 +19,8 @@ inttochar 0xF = 'F'
 
 inttostr_r :: Int -> Int -> [Char]
 inttostr_r 0 radix = []
-inttostr_r i radix = inttochar( ( (i `mod` radix) )) : (inttostr_r (i `div` radix) radix)
+inttostr_r i radix = inttochar (i `mod` radix) : inttostr_r (i `div` radix) radix
 
 inttostr :: Int -> Int -> [Char]
 inttostr 0 radix = "0"
-inttostr i radix = if (i>0) then (reverse (inttostr_r i radix)) else ('-':(reverse (inttostr_r (-i) radix)))
+inttostr i radix = if i>0 then reverse (inttostr_r i radix) else '-' : reverse (inttostr_r (-i) radix)

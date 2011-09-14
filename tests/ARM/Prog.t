@@ -1,7 +1,7 @@
 module Prog where
  
 import ARM
-import MyString
+--import MyString
 import Graphic
 import Debug
 
@@ -28,11 +28,11 @@ root world =
         d2 = new debug g.print
         c1 = new counter d1.printvardec (millisec 200)
         c2 = new counter d2.printvardec (sec 1)
-        buttons1 = new buttons env
+        btns = new buttons env
     
         result action
             g.clear
             d2.printstr "Hello World!\n"
             -- c1.startme
             c2.startme
-            buttons1.init
+            btns.init

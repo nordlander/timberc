@@ -122,8 +122,8 @@ void debug_hex(unsigned long);
 	                      VICIntEnable |= (1<<4); \
                           VICSoftInt = 1<<4;    /* Force a timer interrupt, will hot-start the system */ \
                         }
-#define TIMERGET(x)     { x.tv_usec = T0TC * 10; x.tv_sec = 0; }
-#define TIMERSET(x,now) { T0MR0 = (x).tv_usec / 10; \
+#define TIMERGET(x)     { x.tv_usec = T0TC; x.tv_sec = x.tv_usec / 100000; x.tv_usec = (x.tv_usec % 100000) * 10; }
+#define TIMERSET(x,now) { T0MR0 = (x).tv_sec*100000 + (x).tv_usec / 10; \
                           if ((T0MR0 < T0TC)) \
                               VICSoftInt = 1<<4; \
                         }
@@ -154,9 +154,8 @@ void CONTEXT_INIT(arm7_context_t *context, int stacksize, void* function)
 	int i;
 	static unsigned int arm7_stack_offset = ARM7_STACKSIZE-ENV_STACKSIZE_IDLE;
 
-	/* Check for alignment. */
-	if (stacksize & 0x3)
-		panic("CONTEXT_INIT(): Missalligned stacksize requested.\n");
+	/* Ensure alignment. */
+    stacksize = stacksize & 0x3;
 	
 	/* Make sure we have enough stack and assign some to the context. */
 	if (arm7_stack_offset < stacksize)
@@ -266,7 +265,7 @@ void arm7_context_panic(void)
 
 // Queue management ------------------------------------------------------------------------------
 
-static void enqueueMsgQ(Msg p) {
+void enqueueMsgQ(Msg p) {
         Msg prev = NULL, q = msgQ;
         while (q && ABS_LE(q->deadline, p->deadline)) {
                 prev = q;
@@ -279,7 +278,7 @@ static void enqueueMsgQ(Msg p) {
                 prev->next = p;
 }
 
-static void enqueueTimerQ(Msg p) {
+void enqueueTimerQ(Msg p) {
         Msg prev = NULL, q = timerQ;
         while (q && ABS_LE(q->baseline, p->baseline)) {
                 prev = q;
@@ -534,8 +533,6 @@ static void init_threads(void) {
 		    );
     }
 
-    TIMERGET(msg0.baseline);
-
     activeStack = &threadI;
     threadPool  = &threads[0];
 }
@@ -596,8 +593,29 @@ void scanTimerQ(void) {
 
 struct Scanner timerQscanner = { scanTimerQ, NULL };
 
+int badAddress = 0;
 
 /* ************************************************************************** */
+
+__attribute__((naked)) void undef_handler(void)
+{
+    panic("Undefined instruction exception\r\n");
+}
+
+__attribute__((naked)) void code_abort_handler(void)
+{
+    panic("Code abort exception\r\n");
+}
+
+__attribute__((naked)) void data_abort_handler(void)
+{
+    panic("Data bort exception C\r\n");
+}
+
+__attribute__((naked)) void fiq_handler(void)
+{
+    panic("FIQ exception\r\n");
+}
 
 __attribute__((naked)) void swi_handler(void)
 {
@@ -642,6 +660,9 @@ void init_rts(int argc, char **argv) {
     init_threads();
 }
 
-void mainCont() {
+void startup(Time_Time_to_Msg prog) {
+    IRQ_PROLOGUE();
+    prog->Code(prog, Inherit, Inherit);
+    IRQ_EPILOGUE();
     idle();
 }

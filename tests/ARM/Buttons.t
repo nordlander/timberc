@@ -42,16 +42,16 @@ buttons env =
   
     d = new debug env.debug
 
-    handler sr sf = before (millisec 5) action
+    handler sr sf = before millisec 5 action
                         d.printvarhex "StatR" (toInt sr)
                         d.printvarhex "StatF" (toInt sf)
 
                         case toInt sf of
-                          0x08000000 -> joy1handler
-                          0x04000000 -> joy2handler
-                          0x02000000 -> joy3handler
-                          0x00800000 -> joy4handler
-                          0x00400000 -> joy5handler
+                          0x08000000 -> send joy1handler
+                          0x04000000 -> send joy2handler
+                          0x02000000 -> send joy3handler
+                          0x00800000 -> send joy4handler
+                          0x00400000 -> send joy5handler
                           _          ->
 
                         env.debug "\n"
@@ -68,4 +68,4 @@ ack env f = do sr <- env.portread aIO2IntStatR
                sf <- env.portread aIO2IntStatF
                env.portset aIO2IntClr (sr .|. sf)   -- Important to acknowledge here and not in f
                env.portwrite aEXTINT 0x08           -- Precaution in case of spurious EINT3 interrupt
-               f sr sf
+               send f sr sf

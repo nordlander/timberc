@@ -75,8 +75,8 @@ void addRootScanner(Scanner ls);
 extern int rootsDirty;
 
 void init_rts(int argc, char **argv);
-void mainCont();
 void pruneStaticHeap();
+void startup(Time_Time_to_Msg prog);
 
 
 
