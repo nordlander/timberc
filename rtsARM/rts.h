@@ -37,13 +37,14 @@
 #include "timber.h"
 
 typedef struct {
-	unsigned int *sp;
-	unsigned int *cookie;
+	ADDR sp;
+	ADDR cookie;
 } arm7_context_t;
 
 struct Thread {
     arm7_context_t context;     // machine state
 	Thread next;                // for use in linked lists
+    int thread_no;
     struct Msg *msg;            // message under execution
     Ref waitsFor;               // deadlock detection link
     int placeholders;           // for use during cyclic data construction

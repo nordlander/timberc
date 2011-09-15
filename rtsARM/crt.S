@@ -30,7 +30,7 @@
 
 
 /*
- * Various ARM modes, makes life easier.
+ * Various ARM modes.
  */
 .set ARM_USER,			0x10
 .set ARM_FIQ,			0x11
@@ -48,9 +48,9 @@
  * the same stack and we will be using the remaining stack
  * memory for them.
  */
-.set ARM_FIQ_STACK_SIZE,		256
-.set ARM_IRQ_STACK_SIZE,		256
-.set ARM_SUPERVISOR_STACK_SIZE,	256
+.set ARM_FIQ_STACK_SIZE,		512
+.set ARM_IRQ_STACK_SIZE,		512
+.set ARM_SUPERVISOR_STACK_SIZE,	512
 .set ARM_UNDEF_STACK_SIZE,		32
 .set ARM_ABORT_STACK_SIZE,		32
 
@@ -61,8 +61,7 @@
 .set F_BIT, 0x40
 
 /* 
- * External functions that we rely upon. This is mostly the C interrupt
- * routeines. 
+ * External functions that we rely upon.
  */
 .extern main
 .extern swi_handler
@@ -71,7 +70,6 @@
 .extern code_abort_handler
 .extern data_abort_handler
 .extern fiq_handler
-
 
 /*
  * The external functions of this, should only be the entry point ie.
@@ -92,8 +90,6 @@
  *	The reason we do not simply branch to __init is that we want to be running
  *	from the "real" address of the rom, not the adress mapped at 0. This is
  *	simply because the compiler generates code that isn't position independant.
- *	Yes I know this is a ugly hack but it's easier this way ;) Don't mess with
- *	the offset unless you know what you are doing... 
  *	
  *	The only interrupt vector that will be running code from the flash is the
  *	reset vector and that is because we do not really need the speed when
@@ -167,6 +163,7 @@ __init:
 	msr		CPSR_c, #I_BIT|F_BIT|ARM_SYSTEM
 	mov		sp, r0
 
+
 	/* 
 	 * This is just a slight sanity check so we don't mess things up. We can't
 	 * really do that much output right now but let's hang the execution so
@@ -178,24 +175,24 @@ __init:
 	blo		.Lstack_overflow
 
 	/* Zero out .bss. */
-	mov		r0, #0
 	ldr		r1,	=__bss_start
 	ldr		r2, =__bss_end
+	mov		r0, #0
 .Lbss_zero:
 	cmp		r1, r2
 	strlo	r0, [r1], #4
 	blo		.Lbss_zero
 
-        /* Copy any .data into ram. */
-        ldr             r1, =__sram_start
-        ldr             r2, =__vectors_start
-        ldr             r3, =__vectors_end
+    /* Copy any .data into ram. */
+    ldr     r1, =__sram_start
+    ldr     r2, =__vectors_start
+    ldr     r3, =__vectors_end
 
 .Lvectors_copy:
-        cmp             r2, r3
-        ldrlo   r0, [r2], #4
-        strlo   r0, [r1], #4
-        blo             .Lvectors_copy
+    cmp     r2, r3
+    ldrlo   r0, [r2], #4
+    strlo   r0, [r1], #4
+    blo     .Lvectors_copy
 
 	/*
 	 * REMAP INTVECTORS to external memory

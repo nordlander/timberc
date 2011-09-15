@@ -32,11 +32,7 @@
 
 #include <lpc2468_registers.h>
 
-/* ************************************************************************** */
-
-void panic(char *);
-void debug(char *);
-void debug_hex(unsigned long);
+// Context switching ------------------------------------------------------------------------------
 
 #define ARM7_CONTEXT_SAVE() \
 	__asm__ __volatile__ (\
@@ -66,10 +62,10 @@ void debug_hex(unsigned long);
 		/* Check the context cookie. */\
 		"ldr	r0, [r0, #4]\n"\
 		"ldr	r0, [r0]\n"\
-		"ldr	r1, =arm7_context_cookie\n"\
+		"ldr	r1, =context_cookie\n"\
 		"ldr	r1, [r1]\n"\
 		"cmp	r0, r1\n"\
-		"bne	arm7_context_panic\n"\
+		"bne	context_panic\n"\
 		/* \
 		 * Restore the old r0 _again_, this is so we can use this macro\
 		 * in the software interrupt as well. Don't forget the original\
@@ -87,10 +83,10 @@ void debug_hex(unsigned long);
 		/* Check the context cookie. */\
 		"ldr	r0, [r0, #4]\n"\
 		"ldr	r0, [r0]\n"\
-		"ldr	r1, =arm7_context_cookie\n"\
+		"ldr	r1, =context_cookie\n"\
 		"ldr	r1, [r1]\n"\
 		"cmp	r0, r1\n"\
-		"bne	arm7_context_panic\n"\
+		"bne	context_panic\n"\
 		/* Restore the saved saved process status. */\
 		"ldmfd	lr!, {r0}\n"\
 		"msr	SPSR, r0\n"\
@@ -100,16 +96,22 @@ void debug_hex(unsigned long);
 		"add	lr, lr, #60\n"\
 		/* Get the return address and return(leaves interrupt..). */\
 		"ldmfd	lr, {pc}^\n"\
-		)
+        )
 
+__attribute__((naked)) void dispatch( Thread next ) {   
+    // Note: parameter 'next' is vital -- goes into r0
+    // See swi_handler() below.
+	asm volatile(
+		"swi 0\n"
+		"mov pc, lr\n"
+	);
+}
+
+
+// Macros ----------------------------------------------------------------------------------------
 
 #define NTHREADS        5
-#define STACKSIZE       65536  
-#define IDLESTACKSIZE   65536  
-
-#define ENV_STACKSIZE 65536*10
-#define ENV_STACKSIZE_IDLE 65536
-#define ARM7_STACKSIZE (NTHREADS*ENV_STACKSIZE+ENV_STACKSIZE_IDLE)
+#define STACKSIZE       WORDS(0x10000)  // 0x10000 bytes = 64 kB
 
 #define SLEEP()         /* not yet defined */
 
@@ -120,7 +122,6 @@ void debug_hex(unsigned long);
 	                      T0MCR = (1<<0); \
 	                      VICVectAddr4 = (unsigned long)timer0_interrupt; \
 	                      VICIntEnable |= (1<<4); \
-                          VICSoftInt = 1<<4;    /* Force a timer interrupt, will hot-start the system */ \
                         }
 #define TIMERGET(x)     { x.tv_usec = T0TC; x.tv_sec = x.tv_usec / 100000; x.tv_usec = (x.tv_usec % 100000) * 10; }
 #define TIMERSET(x,now) { T0MR0 = (x).tv_sec*100000 + (x).tv_usec / 10; \
@@ -130,67 +131,32 @@ void debug_hex(unsigned long);
 #define TIMERACK()      { VICSoftIntClr = (1<<4); T0IR = T0IR; }
 
 
-// Thread management --------------------------------------------------------------------------------
+// Globals --------------------------------------------------------------------------------------
 
 struct Msg msg0         = { NULL, NULL, NULL, NULL, NULL, {0, 0}, {0, 0} };
 
 struct Thread threads[NTHREADS];
-struct Thread threadI;         // the idle process
+
+// the idle (=main) thread
+struct Thread threadI;
 
 Msg savedMsg            = NULL;
 Msg msgQ                = NULL;
 Msg timerQ              = NULL;
 
-Thread threadPool       = &threads[1];
-Thread activeStack      = threads;
+Thread threadPool       = &threads[0];
+Thread activeStack      = &threadI;
 Thread current_thread   = &threadI;
 
-unsigned int arm7_stack[ARM7_STACKSIZE/4];
+extern WORD _end;
+extern WORD __ram_end;
 
-const unsigned int arm7_context_cookie = 0x55aa55aa;
+WORD context_cookie     = 0x55aa55aa;
 
-void CONTEXT_INIT(arm7_context_t *context, int stacksize, void* function)
-{
-	int i;
-	static unsigned int arm7_stack_offset = ARM7_STACKSIZE-ENV_STACKSIZE_IDLE;
-
-	/* Ensure alignment. */
-    stacksize = stacksize & 0x3;
-	
-	/* Make sure we have enough stack and assign some to the context. */
-	if (arm7_stack_offset < stacksize)
-		panic("CONTEXT_INIT(): Out of memory.\n");
-	context->sp = (unsigned int *)&arm7_stack[arm7_stack_offset];
-	context->cookie = (unsigned int*)&arm7_stack[arm7_stack_offset-stacksize];
-	*context->cookie = arm7_context_cookie;
-
-	i = (int)context->sp;
-
-	/* Push the return address onto the stack. */
-	*(--context->sp) = (unsigned int)function;
-
-	/* Push a bogus link register onto the stack. */
-	*(--context->sp) = (unsigned int)0x00000000;
-
-	/* Push the stack pointer onto the stack. */
-	*(--context->sp) = (unsigned int)i;
-
-	/* Push some fake registers onto the stack. */
-	for (i=13;i>0;i--)
-	{
-		*(--context->sp) = i-1;
-	}
-
-	/* Push the SPSR onto the stack. */
-	*(--context->sp) = 0xdf; /* System mode, all interrupts disabled. */
-
-	/* Save the offset for the next stack. */
-	arm7_stack_offset -= stacksize;
-}
+WORD thestacks[NTHREADS*STACKSIZE];
 
 
-
-// Last resort -----------------------------------------------------------------------------------
+// Printing & halting ------------------------------------------------------------------------------
 
 void debug_char(char c) {
 		while (!(U0LSR & (1<<5)));
@@ -242,8 +208,7 @@ void panic(char *str) {
 	for (;;);
 }
 
-void arm7_context_panic(void)
-{
+void context_panic(void) {
 	panic("Context cookie corrupted.\r\n");
 }
 
@@ -305,36 +270,8 @@ void deactivate(void) {
     threadPool = t;
 }
 
-UNIT ABORT(BITS32 polytag, Msg m, Ref dummy){
-    m->Code = NULL;
-    ADDR info;
-    do {
-        info = IND0((ADDR)m);
-        if (ISFORWARD(info))
-            ((Msg)info)->Code = NULL;
-    } while (info != IND0((ADDR)m));
-    return (UNIT)0;
-}
 
-
-// Context switching ----------------------------------------------------------------------------
-
-__attribute__((naked)) void dispatch( Thread next ) {   // Note: parameter 'next' is vital!
-	asm volatile(
-		"swi 0\n"
-		"mov pc, lr\n"
-	);
-}
-
-void idle(void) {
-    while (1) {
-        PROTECT(1);
-        if (heapLevel(16) > 13)
-		    gc(0);
-        PROTECT(0);
-        SLEEP();
-	}
-}
+// Major primitives ---------------------------------------------------------------------
 
 void IRQ_PROLOGUE(void) {
     savedMsg = current_thread->msg;
@@ -346,24 +283,12 @@ void IRQ_EPILOGUE(void) {
     current_thread->msg = savedMsg;
     Msg topMsg = activeStack->msg;
     if (msgQ && threadPool && ((!topMsg) || ABS_LT(msgQ->deadline, topMsg->deadline))) {
-        activate(); // push(pop(&threadPool), &activeStack);
+        activate();
 		current_thread = activeStack;
     }
 }
 
-static void timer0_interrupt(void) {
-    IRQ_PROLOGUE();
-    TIMERACK();	
-    while (timerQ && ABS_LE(timerQ->baseline, msg0.baseline)) {
-        enqueueMsgQ(timerQ);
-        timerQ = timerQ->next;
-    }
-    if (timerQ)
-        TIMERSET(timerQ->baseline, msg0.baseline);
-    IRQ_EPILOGUE();
-}
-
-static void run(void) {
+void RUN(void) {
     while (1) {
         Msg this = current_thread->msg = msgQ;
         msgQ = msgQ->next;
@@ -383,7 +308,7 @@ static void run(void) {
         Msg oldMsg = activeStack->next->msg;
                 
         if (!msgQ || (oldMsg && ABS_LT(oldMsg->deadline, msgQ->deadline))) {
-            deactivate(); // push(pop(&activeStack), &threadPool);
+            deactivate();
             Thread t = activeStack;                     // can't be NULL, may be &threadI
             while (t->waitsFor) 
                 t = ((Ref)t->waitsFor)->ownedBy;
@@ -392,11 +317,7 @@ static void run(void) {
     } 
 }
 
-
-// Major primitives ---------------------------------------------------------------------
-
 Msg ASYNC( Msg m, Time bl, Time dl ) {
-
     m->baseline = current_thread->msg->baseline;
     if (bl)
         ABS_ADD(m->baseline, bl);
@@ -500,49 +421,19 @@ void GC_UNLOCK( OID obj ) {
     PROTECT(0);
 }
 
-static void init_threads(void) {
-    int i;
-
-    for (i=0; i<NTHREADS-1; i++)
-        threads[i].next = &threads[i+1];
-    threads[NTHREADS-1].next = NULL;
- 
-    i = NTHREADS;
-    {
-        threadI.next = NULL;
-        threadI.waitsFor = NULL;
-        threadI.msg = NULL;
-        threadI.placeholders = 0;
-                
-	    CONTEXT_INIT(
-			&threadI.context,
-			IDLESTACKSIZE,
-			idle
-			);                    
-    }
-   
-    for (i=NTHREADS-1; i>=0; i--) {
-        threads[i].waitsFor = NULL;
-        threads[i].msg = NULL;
-        threads[i].placeholders = 0;
-
-	    CONTEXT_INIT(
-		    &threads[i].context,
-		    STACKSIZE,
-		    run
-		    );
-    }
-
-    activeStack = &threadI;
-    threadPool  = &threads[0];
+UNIT ABORT(BITS32 polytag, Msg m, Ref dummy) {
+    m->Code = NULL;
+    ADDR info;
+    do {
+        info = IND0((ADDR)m);
+        if (ISFORWARD(info))
+            ((Msg)info)->Code = NULL;
+    } while (info != IND0((ADDR)m));
+    return (UNIT)0;
 }
 
-
-
-// Exception handling ----------------------------------------------------------------------------------
-
 void RAISE(Int err) {
-        panic("Unhandled exception");
+    panic("Unhandled exception");
 }
 
 POLY Raise(BITS32 polyTag, Int err) {
@@ -555,9 +446,11 @@ POLY Raise(BITS32 polyTag, Int err) {
 
 #include "arrays.c"
 
+
 // Timer ----------------------------------------------------------------------------------------------
 
 #include "timer.c"
+
 
 // Show Float -----------------------------------------------------------------------------------------
 
@@ -570,7 +463,8 @@ int snprintf(char *s, int n, const char *format, ...) {
      
 #include "float.c"
 
-// ----------------------------------------------------------------------------------------------------
+
+// The timer queue -------------------------------------------------------------------------------------
 
 void scanTimerQ(void) {
 	PROTECT(1);
@@ -593,34 +487,59 @@ void scanTimerQ(void) {
 
 struct Scanner timerQscanner = { scanTimerQ, NULL };
 
-int badAddress = 0;
+void timer0_interrupt(void) {
+    IRQ_PROLOGUE();
+    TIMERACK();
+    while (timerQ && ABS_LE(timerQ->baseline, msg0.baseline)) {
+        enqueueMsgQ(timerQ);
+        timerQ = timerQ->next;
+    }
+    if (timerQ)
+        TIMERSET(timerQ->baseline, msg0.baseline);
+    IRQ_EPILOGUE();
+}
 
-/* ************************************************************************** */
 
-__attribute__((naked)) void undef_handler(void)
-{
+// Bare metal exception handlers ----------------------------------------------------------------------
+
+__attribute__((naked)) void undef_handler(void) {
     panic("Undefined instruction exception\r\n");
 }
 
-__attribute__((naked)) void code_abort_handler(void)
-{
+__attribute__((naked)) void code_abort_handler(void) {
     panic("Code abort exception\r\n");
 }
 
-__attribute__((naked)) void data_abort_handler(void)
-{
+__attribute__((naked)) void data_abort_handler(void) {
     panic("Data bort exception C\r\n");
 }
 
-__attribute__((naked)) void fiq_handler(void)
-{
+__attribute__((naked)) void fiq_handler(void) {
     panic("FIQ exception\r\n");
 }
 
-__attribute__((naked)) void swi_handler(void)
-{
+void *vic_ivr = (void*)&VICVectAddr;
+
+__attribute__((naked))  void irq_handler(void) {
+	ARM7_CONTEXT_SAVE();
+	asm volatile(
+		"ldr	r0, =vic_ivr\n"
+		"ldr	r0, [r0]\n"
+		"ldr	r0, [r0]\n"
+		"mov	lr, pc\n"
+		"bx		r0\n"
+
+		"ldr	r0, =vic_ivr\n"
+		"ldr	r0, [r0]\n"
+		"str	r0, [r0]\n"
+	);
+	ARM7_CONTEXT_RESTORE();
+}
+
+__attribute__((naked)) void swi_handler(void) {
 	// Adjudt the link register so that we can treat this as a regular
 	// interrupt ie. use save/restore context macros.
+	// Note: expects Thread parameter in r0
 	asm volatile("add	lr, lr, #4\n");
 	ARM7_CONTEXT_SAVE();
 	asm volatile(
@@ -630,39 +549,86 @@ __attribute__((naked)) void swi_handler(void)
 	ARM7_CONTEXT_RESTORE();
 }
 
-void *_arm7_vic_ivr = (void*)&VICVectAddr;
 
-__attribute__((naked))  void irq_handler(void)
-{
-	ARM7_CONTEXT_SAVE();
-	asm volatile(
-		"ldr	r0, =_arm7_vic_ivr\n"
-		"ldr	r0, [r0]\n"
-		"ldr	r0, [r0]\n"
-		"mov	lr, pc\n"
-		"bx		r0\n"
+// Startup -----------------------------------------------------------------------------------------
 
-		"ldr	r0, =_arm7_vic_ivr\n"
-		"ldr	r0, [r0]\n"
-		"str	r0, [r0]\n"
-	);
-	ARM7_CONTEXT_RESTORE();
+void idle(void) {
+    while (1) {
+        PROTECT(1);
+        if (heapLevel(16) > 13)
+		    gc(0);
+        PROTECT(0);
+        SLEEP();
+	}
 }
+
+void startup(Time_Time_to_Msg prog) {
+    current_thread->msg = &msg0;
+    TIMERGET(msg0.baseline);
+    prog->Code(prog, Inherit, Inherit);
+    current_thread->msg = NULL;
+    if (msgQ) {
+        activate();
+        dispatch(activeStack);
+    }
+    idle();
+}
+
 
 // Initialization -------------------------------------------------------------------------------------
 
+void thread_init(int i) {
+    int j;
+    arm7_context_t *context = &threads[i].context;
+    
+    context->cookie = &thestacks[i*STACKSIZE];
+	*context->cookie = context_cookie;
+    context->sp = &thestacks[(i+1)*STACKSIZE];
+
+	ADDR sp = context->sp;
+
+	// Push the return address
+	*(--context->sp) = (WORD)RUN;
+
+	// Push a bogus link register
+	*(--context->sp) = 0x00000000;
+
+	// Push the stack pointer
+	*(--context->sp) = (WORD)sp;
+
+	// Push some fake registers
+	for (j=13; j>0; j--)
+		*(--context->sp) = 0x00000000;
+
+	// Push the SPSR (system mode, all interrupts disabled)
+	*(--context->sp) = 0xdf;
+}
+
+void init_threads(void) {
+    int i;
+    for (i=0; i<NTHREADS; i++) {
+        threads[i].next = i == NTHREADS-1 ? NULL : &threads[i+1];
+        threads[i].waitsFor = NULL;
+        threads[i].msg = NULL;
+        threads[i].placeholders = 0;
+        threads[i].thread_no = i;
+	    thread_init(i);
+    }
+    if (&__ram_end - &_end < STACKSIZE)
+        panic("Not enough stack for startup/idle thread");
+    threadI.next = NULL;
+    threadI.thread_no = -1;
+    threadI.waitsFor = NULL;
+    threadI.msg = NULL;
+    threadI.placeholders = 0;
+    threadI.context.cookie = &_end;
+    *threadI.context.cookie = context_cookie;
+}
+
 void init_rts(int argc, char **argv) {
     PROTECT(1);
-
     TIMERINIT();
     gcInit();
     addRootScanner(&timerQscanner);
     init_threads();
-}
-
-void startup(Time_Time_to_Msg prog) {
-    IRQ_PROLOGUE();
-    prog->Code(prog, Inherit, Inherit);
-    IRQ_EPILOGUE();
-    idle();
 }

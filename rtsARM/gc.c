@@ -62,7 +62,7 @@
 #define STATIC_SIZE(info)       (info[0])
 
 #define allocwords(size)        (ADDR)malloc(BYTES(size))
-#define HEAPSIZE                0x100000  //  0x100000 words = 0x400000 bytes = 4194304 bytes = 4 Mb = 1024 pages = 0x400 pages
+#define HEAPSIZE                WORDS(0x400000)  //  0x400000 bytes = 4 Mb
 
 #define ISWHITE(a)              INSIDE(base,a,hp)
 #define ISBLACK(a)              hp2 && INSIDE(base2,a,scanp)
