@@ -334,6 +334,6 @@ allPasses            = [Parser .. K2C]
 
 rtsDir clo           = datadir clo ++ "/rts" ++ target clo
 rtsCfg clo           = rtsDir clo ++ "/timberc.cfg"
-rtsMain clo          = rtsDir clo ++ "/main.c"
+rtsMain clo          = includeDir clo ++ "/main.c"
 libDir clo           = datadir clo ++ "/lib"
 includeDir clo       = datadir clo ++ "/include"

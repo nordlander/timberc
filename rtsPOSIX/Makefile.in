@@ -32,6 +32,5 @@ install:
 	$(INSTALL) rts.c $(DESTDIR)$(prefix)/rtsPOSIX
 	$(INSTALL) config.h $(DESTDIR)$(prefix)/rtsPOSIX
 	$(INSTALL) gc.c $(DESTDIR)$(prefix)/rtsPOSIX
-	$(INSTALL) main.c $(DESTDIR)$(prefix)/rtsPOSIX
 	$(INSTALL) Makefile $(DESTDIR)$(prefix)/rtsPOSIX
 	cd $(DESTDIR)$(prefix)/rtsPOSIX && make TIMBERC=$(TIMBERC) $(DEST) 
