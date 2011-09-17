@@ -37,7 +37,6 @@ install:
 	$(INSTALL) rts.h $(DESTDIR)$(prefix)/rtsARM
 	$(INSTALL) rts.c $(DESTDIR)$(prefix)/rtsARM
 	$(INSTALL) gc.c $(DESTDIR)$(prefix)/rtsARM
-	$(INSTALL) main.c $(DESTDIR)$(prefix)/rtsARM
 	$(INSTALL) -d $(DESTDIR)$(prefix)/rtsARM/ea_lcd
 	$(INSTALL) ea_lcd/lcd_hw.c $(DESTDIR)$(prefix)/rtsARM/ea_lcd
 	$(INSTALL) ea_lcd/lcd_hw.h $(DESTDIR)$(prefix)/rtsARM/ea_lcd
