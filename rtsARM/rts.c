@@ -288,19 +288,25 @@ void IRQ_EPILOGUE(void) {
     }
 }
 
+int sss = 0;
+
+void blaj(void) {
+    sss += 1;
+}
+
 void RUN(void) {
     while (1) {
         Msg this = current_thread->msg = msgQ;
         msgQ = msgQ->next;
         PROTECT(0);
 
-        if (this->sender)
-            this->Obj->ownedBy = current_thread;        // gracefully take over ownership...
-        else
-            this->Obj = LOCK(this->Obj);                // ... or fight for ownership
+        blaj();
+        
+        this->Obj = LOCK(this->Obj);
         UNIT (*code)(Msg,OID) = this->Code;
         if (code)
             code(this, this->Obj);
+
         UNLOCK(this->Obj);
             
         PROTECT(1);
@@ -318,22 +324,21 @@ void RUN(void) {
 }
 
 Msg ASYNC( Msg m, Time bl, Time dl ) {
-    m->baseline = current_thread->msg->baseline;
-    if (bl)
+    if (bl) {
+        m->baseline = current_thread->msg->baseline;
         ABS_ADD(m->baseline, bl);
 
-    if (dl) {
-	    m->deadline = m->baseline;
-        ABS_ADD(m->deadline, dl);
-	} else if (ABS_LT(m->baseline, current_thread->msg->deadline))
-	    m->deadline = current_thread->msg->deadline;
-	else
-        m->deadline = absInfinity;
+        if (dl) {
+	        m->deadline = m->baseline;
+            ABS_ADD(m->deadline, dl);
+	        } else if (ABS_LT(m->baseline, current_thread->msg->deadline))
+	            m->deadline = current_thread->msg->deadline;
+	    else
+            m->deadline = absInfinity;
 
-    int status = ISPROTECTED();
-    PROTECT(1);
+        int status = ISPROTECTED();
+        PROTECT(1);
     
-    if (bl) {
         m->sender = NULL;
         AbsTime now;
         TIMERGET(now);
@@ -344,14 +349,16 @@ Msg ASYNC( Msg m, Time bl, Time dl ) {
 		        TIMERSET(timerQ->baseline, now);
         } else
             enqueueMsgQ(m);
+            
+        PROTECT(status);
     } else {
-        m->sender = current_thread;
         m->Obj = LOCK(m->Obj);
-        enqueueMsgQ(m);    
+        UNIT (*code)(Msg,OID) = m->Code;
+        if (code)
+            code(m, m->Obj);
+        UNLOCK(m->Obj);
     }
-
-    PROTECT(status);
-    return (UNIT)0;
+    return m;
 }
 
 void INITREF( Ref obj ) {
@@ -491,8 +498,9 @@ void timer0_interrupt(void) {
     IRQ_PROLOGUE();
     TIMERACK();
     while (timerQ && ABS_LE(timerQ->baseline, msg0.baseline)) {
-        enqueueMsgQ(timerQ);
+        Msg m = timerQ;
         timerQ = timerQ->next;
+        enqueueMsgQ(m);
     }
     if (timerQ)
         TIMERSET(timerQ->baseline, msg0.baseline);
