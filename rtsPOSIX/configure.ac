@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.59)
 AC_INIT([rtsPOSIX], [0.9.9], [nordland@csee.ltu.se])
-AC_CONFIG_SRCDIR([main.c])
+AC_CONFIG_SRCDIR([rts.c])
 AC_CONFIG_HEADERS([config.h])
 
 # Checks for programs.
