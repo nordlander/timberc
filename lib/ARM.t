@@ -23,3 +23,5 @@ struct TFT where
 extern arm :: World -> Class Env
 
 extern tft :: World -> Class TFT
+
+extern busy :: Int -> ()

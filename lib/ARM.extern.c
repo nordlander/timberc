@@ -135,7 +135,6 @@ static void portwrite(Env_ARM env, unsigned int addr, int data, int dummy)
 	    *(int*)addr = data;
 }
 
-
 static void portset(Env_ARM env, unsigned int addr, unsigned int data, int dummy)
 {	
 	int status = ISPROTECTED();
@@ -209,7 +208,6 @@ static void netmemwrite(Env_ARM env, Array array, unsigned int addr, unsigned in
 		}
 	}
 }
-
 
 
 // Interrupt handling ------------------------------------------------------------------------
@@ -388,3 +386,12 @@ void _init_external_ARM(void) {
 }
 
 #endif
+
+volatile int xxxx = 0;
+
+void busy_ARM(Int n) {
+    int i;
+    for (i = 0; i < n; i++)
+        xxxx = xxxx + 1;
+}
+
