@@ -98,7 +98,7 @@ void pruneStaticHeap() {
 
     heap1 = hp;
     heapsize = (HEAPSIZE*2 - (heap1 - theheap)) / 2;
-    heap2 = &theheap[heapsize];
+    heap2 = &heap1[heapsize];
     base = heap1;
     base[0] = 0;
     hp = base + 1;
@@ -246,9 +246,10 @@ void scanRoots() {
 // Running one GC pass ---------------------------------------------------------------------------------------
 
 void gc() {
+        // debug_char(':');
         base2 = (base==heap1 ? heap2 : heap1);          // allocate tospace
         base2[0] = 0;
-        lim2 = base2 + heapsize - 1;                    // leave room for a one wor node at the end
+        lim2 = base2 + heapsize - 1;                    // leave room for a one word node at the end
         hp2 = base2 + 1;
         scanp = hp2;
         PROTECT(0);
@@ -279,6 +280,7 @@ void gc() {
         base2 = lim2 = hp2 = (ADDR)0;
         scanp = (ADDR)0;
         PROTECT(0);
+        // debug_char('.');
 }
 
 int heapLevel(int steps) {

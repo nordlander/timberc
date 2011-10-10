@@ -288,25 +288,16 @@ void IRQ_EPILOGUE(void) {
     }
 }
 
-int sss = 0;
-
-void blaj(void) {
-    sss += 1;
-}
-
 void RUN(void) {
     while (1) {
         Msg this = current_thread->msg = msgQ;
         msgQ = msgQ->next;
         PROTECT(0);
 
-        blaj();
-        
         this->Obj = LOCK(this->Obj);
         UNIT (*code)(Msg,OID) = this->Code;
         if (code)
             code(this, this->Obj);
-
         UNLOCK(this->Obj);
             
         PROTECT(1);
@@ -331,8 +322,8 @@ Msg ASYNC( Msg m, Time bl, Time dl ) {
         if (dl) {
 	        m->deadline = m->baseline;
             ABS_ADD(m->deadline, dl);
-	        } else if (ABS_LT(m->baseline, current_thread->msg->deadline))
-	            m->deadline = current_thread->msg->deadline;
+	    } else if (ABS_LT(m->baseline, current_thread->msg->deadline))
+	        m->deadline = current_thread->msg->deadline;
 	    else
             m->deadline = absInfinity;
 
@@ -510,19 +501,41 @@ void timer0_interrupt(void) {
 
 // Bare metal exception handlers ----------------------------------------------------------------------
 
+void *bad_pc = 0;
+
 __attribute__((naked)) void undef_handler(void) {
+    asm volatile(
+		"ldr	r0, =bad_pc\n"
+		"str	lr, [r0]\n"
+	);
     panic("Undefined instruction exception\r\n");
 }
 
 __attribute__((naked)) void code_abort_handler(void) {
+    asm volatile(
+		"ldr	r0, =bad_pc\n"
+		"str	lr, [r0]\n"
+	);
     panic("Code abort exception\r\n");
 }
 
 __attribute__((naked)) void data_abort_handler(void) {
-    panic("Data bort exception C\r\n");
+    asm volatile(
+		"ldr	r0, =bad_pc\n"
+		"str	lr, [r0]\n"
+	);
+    asm volatile(
+		"ldr	r0, =bad_pc\n"
+		"str	lr, [r0]\n"
+	);
+    panic("Data abort exception\r\n");
 }
 
 __attribute__((naked)) void fiq_handler(void) {
+    asm volatile(
+		"ldr	r0, =bad_pc\n"
+		"str	lr, [r0]\n"
+	);
     panic("FIQ exception\r\n");
 }
 
