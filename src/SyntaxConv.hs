@@ -144,8 +144,9 @@ sExp (ETup es)                    = Syntax.ETup (map sExp es)
 sExp (ETupC n)                    = Syntax.ECon (tuple n)
 sExp (EList es)                   = Syntax.EList (map sExp es)
 sExp (ESig e t)                   = Syntax.ESig (sExp e) (sType t)
-sExp (EStruct (Just (c,False)) bs) = Syntax.ERec (Just (sQName c,False)) (map b2Field bs)
-   where b2Field (BEqn (PVar n) (Syntax2.RExp e [])) = Syntax.Field (sName n) (sExp e)
+sExp (EStruct (Just (c,b)) bs)    
+  | length fs == length bs        = Syntax.ERec (Just (sQName c,b)) fs
+  where fs                        = [ Syntax.Field (sQField c (sName n)) (sExp e) | BEqn (PVar n) (Syntax2.RExp e []) <- bs ]
 sExp (EStruct mnb bs)             = Syntax.EBStruct (sMNB mnb) (map sBind bs)
 sExp (ELam ps e)                  = Syntax.ELam (map sPat ps) (sExp e)
 sExp (ELet bs e)                  = Syntax.ELet (map sBind bs) (sExp e)
@@ -256,3 +257,6 @@ s2QN (Name s 0 (Just m) _)      = Q (map name2 mods) (name2 s)
         f '.'                   = ' '
         f c                     = c
         
+        
+sQField (Q [] c) f              = f
+sQField (Q mods c) f            = f { fromMod = Just (concat . intersperse "." . map show $ mods) }
