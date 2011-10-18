@@ -391,6 +391,7 @@ instance Pr Exp where
     pr (EAnd e1 e2)		= pr e1 <+> text "&&" <+> pr e2
     pr (ENew qs e)         	= prForall qs <+> text "new" <+> pr e
     pr (EGen e)             	= text "<-" <+> pr e
+    pr (ESend qs b e)           = prForall qs <+> prAfter b <+> text "send" <+> pr e
     pr (EAp e e')           	= pr e <+> pr e'
     pr (EPAp e e')           	= pr e <+> text "@" <> pr e'
     pr (ETAp e t)           	= pr e <+> text "@" <> braces (pr t)
@@ -417,6 +418,7 @@ instance Pr Exp where
     pr (EListUpdate lmap)       = brackets (hpr ';' lmap)
     pr (EParen e)               = parens (prn 0 e)
 
+
 instance Pr (Exp,Exp) where
     pr (i,e)                    = pr i <+> text "->" <+> pr e
 
@@ -432,6 +434,9 @@ prForall qss			= text "forall" <+> hsep (intersperse (text "|") (map pr qss))
 
 prBefore Nothing		= empty
 prBefore (Just e)		= text "before" <+> pr e
+
+prAfter Nothing	        	= empty
+prAfter (Just e)		= text "after" <+> pr e
 
 instance Pr Field where
     pr (Field l e)              = pr l <+> text "=" <+> pr e
