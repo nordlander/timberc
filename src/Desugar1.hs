@@ -378,24 +378,24 @@ instance Desugar1 Stmts where
         -- New: keep SCase in tail position
         --ds1S env [SCase e as]        = [SCase (ds1 env e) (ds1 env as)]
         --(Old) eliminate SCase in other places
-        ds1S env (SCase e as : ss)   = ds1S' env (SExp (ECase e (map doAlt as)) : ss)
+        ds1S env (SCase e as : ss)   = ds1S' env (ECase e (map doAlt as)) ss
           where doAlt (Alt p r)      = Alt (ds1pat env p) (doRhs r)
                 doRhs (RExp ss)      = RExp (eDo env ss)
                 doRhs (RGrd gs)      = RGrd (map doGrd gs)
                 doRhs (RWhere r bs)  = RWhere (doRhs r) bs
                 doGrd (GExp qs ss)   = GExp qs (eDo env ss)
         ds1S env (SMatch m : ss)     = SMatch (ds1 env m) : ds1S env ss
-        ds1S env (SIf e ss' elsifs els : ss)    = doIf (EIf e (eDo env ss')) (map (uncurry SElsif) elsifs ++ (ff els ss))
-          where doIf f (SElsif e ss':ss) = doIf (f . EIf e (eDo env ss')) ss
-                doIf f (SElse ss':ss)    = ds1S' env (SExp (f (eDo env ss')) : ss)
+        ds1S env (SIf e ss' elsifs els : ss)    = doIf (EIf (ds1 env e) (eDo env ss')) (map (uncurry SElsif) elsifs ++ ff els ss)
+          where doIf f (SElsif e ss':ss) = doIf (f . EIf (ds1 env e) (eDo env ss')) ss
+                doIf f (SElse ss':ss)    = ds1S' env (f (eDo env ss')) ss
                 doIf f ss                = doIf f (SElse (Stmts []) : ss)
                 ff Nothing ss        = ss
                 ff (Just ss') ss     = SElse ss' : ss
         ds1S env (s@(SElsif _ _) : _)= errorTree "elsif without corresponding if" s
         ds1S env (s@(SElse _) : _)   = errorTree "else without corresponding if" s
 
-        ds1S' env [SExp e]           = [SExp (ds1 env e)]
-        ds1S' env ss                 = ds1S env ss
+        ds1S' env e []               = [SExp e]
+        ds1S' env e ss               = SGen PWild e : ds1S env ss
 
 -- We translate forall constructions to calls of Prelude support functions. Unfortunately, we
 -- need six such functions for efficiency:
