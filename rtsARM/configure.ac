@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.59)
 AC_INIT([rtsARM], [0.9.9], [nordland@csee.ltu.se])
-AC_CONFIG_SRCDIR([main.c])
+AC_CONFIG_SRCDIR([rts.c])
 
 # Checks for programs.
 AC_PROG_INSTALL
