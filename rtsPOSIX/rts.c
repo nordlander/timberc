@@ -242,14 +242,14 @@ void deactivate(Thread t) {
     // fprintf(stderr, "\n");
 }
 
-void run(Thread current_thread) {
-    pthread_setspecific(current_key, current_thread);
+void run(Thread cur_thread) {
+    pthread_setspecific(current_key, cur_thread);
     struct sched_param param;
-    param.sched_priority = current_thread->prio;
-    pthread_setschedparam(current_thread->id, SCHED_RR, &param);
+    param.sched_priority = cur_thread->prio;
+    pthread_setschedparam(cur_thread->id, SCHED_RR, &param);
     DISABLE(rts);
     while (1) {
-        Msg this = current_thread->msg;
+        Msg this = cur_thread->msg;
         ENABLE(rts);
         
         this->Obj = LOCK(this->Obj);
@@ -262,7 +262,7 @@ void run(Thread current_thread) {
         UNLOCK(this->Obj);
             
         DISABLE(rts);
-        deactivate(current_thread);
+        deactivate(cur_thread);
 
         if (heapLevel(16) > 13)
             gcStart();
@@ -273,7 +273,7 @@ void run(Thread current_thread) {
             activate(msgQ, 1);
             msgQ = msgQ->next;
         } else {            
-            pthread_cond_wait(&current_thread->trigger, &rts);
+            pthread_cond_wait(&cur_thread->trigger, &rts);
         }
     }
 }
@@ -283,21 +283,21 @@ void run(Thread current_thread) {
 Msg ASYNC( Msg m, Time bl, Time dl ) {
     DISABLE(rts);
 
-    Thread current_thread = CURRENT();
-    // fprintf(stderr, "Working thread %d in ASYNC\n", (int)current_thread);
+    Thread cur_thread = CURRENT();
+    // fprintf(stderr, "Working thread %d in ASYNC\n", (int)cur_thread);
 
-    m->baseline = current_thread->msg->baseline;
+    m->baseline = cur_thread->msg->baseline;
     if (bl) {
         ABS_ADD(m->baseline, bl);
         m->sender = NULL;
     } else
-        m->sender = current_thread;
+        m->sender = cur_thread;
 
     if (dl) {
 	    m->deadline = m->baseline;
         ABS_ADD(m->deadline, dl);
-	} else if (ABS_LT(m->baseline, current_thread->msg->deadline))
-	    m->deadline = current_thread->msg->deadline;
+	} else if (ABS_LT(m->baseline, cur_thread->msg->deadline))
+	    m->deadline = cur_thread->msg->deadline;
 	else
         m->deadline = absInfinity;
 
@@ -312,7 +312,7 @@ Msg ASYNC( Msg m, Time bl, Time dl ) {
         enqueueMsgQ(m);
 
     if (!bl)
-        pthread_cond_wait(&current_thread->trigger, &rts);
+        pthread_cond_wait(&cur_thread->trigger, &rts);
 
     ENABLE(rts);
     return m;
@@ -377,10 +377,10 @@ POLY Raise(BITS32 polyTag, Int err) {
 
 // timerQ handling ------------------------------------------------------------------------------------
 
-void timerHandler(Thread current_thread) {
+void timerHandler(Thread cur_thread) {
     struct sched_param param;
-    param.sched_priority = current_thread->prio;
-    pthread_setschedparam(current_thread->id, SCHED_RR, &param);
+    param.sched_priority = cur_thread->prio;
+    pthread_setschedparam(cur_thread->id, SCHED_RR, &param);
 
 //    pthread_sigmask(SIG_BLOCK, &all_sigs, NULL);
     sigset_t accept;

@@ -120,25 +120,25 @@ void subst(Array roots, int limit, ADDR stop, Thread current_thread) {
 }
 
 Array CYCLIC_BEGIN(Int n, Int updates) {
-        Thread current_thread = CURRENT();
+        Thread cur_thread = CURRENT();
         Array roots = EmptyArray(0,n);
         int i;
         for (i = 0; i < n; i++)
                 roots->elems[i] = (POLY)PLACEHOLDER(i);
-        current_thread->placeholders += n;
+        cur_thread->placeholders += n;
         return roots;
 }
 
 void CYCLIC_UPDATE(Array roots, Int limit, ADDR stop) {
-        Thread current_thread = CURRENT();
-        current_thread->placeholders -= roots->size;
-        subst(roots, limit, stop, current_thread);
-        current_thread->placeholders += roots->size;
+        Thread cur_thread = CURRENT();
+        cur_thread->placeholders -= roots->size;
+        subst(roots, limit, stop, cur_thread);
+        cur_thread->placeholders += roots->size;
 }
 
 void CYCLIC_END(Array roots, ADDR stop) {
-        Thread current_thread = CURRENT();
-        current_thread->placeholders -= roots->size;
-        subst(roots, roots->size, stop, current_thread);
+        Thread cur_thread = CURRENT();
+        cur_thread->placeholders -= roots->size;
+        subst(roots, roots->size, stop, cur_thread);
 }
 
