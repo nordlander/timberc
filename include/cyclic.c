@@ -37,8 +37,8 @@
 #define TOGGLE0(val)            ((WORD)(val) ^ 0x01)
 
 #define ISPLACEHOLDER(obj)      (BIT0(obj) && ((int)(obj) < 0))
-#define INDEXOF(obj)            (((-(int)(obj)) >> 1) - current_thread->placeholders)
-#define PLACEHOLDER(index)      (-((((index) + current_thread->placeholders) << 1) | 0x01))
+#define INDEXOF(obj)            (((-(int)(obj)) >> 1) - cur_thread->placeholders)
+#define PLACEHOLDER(index)      (-((((index) + cur_thread->placeholders) << 1) | 0x01))
 
 #define CURRENT_CYCLE(obj,roots)    !INSIDE(heapchain,obj,(ADDR)roots)
 
@@ -50,7 +50,7 @@
                                         } \
                                       }
 
-ADDR substObj(ADDR obj, Array roots, int limit, Thread current_thread) {
+ADDR substObj(ADDR obj, Array roots, int limit, Thread cur_thread) {
         ADDR info = IND0(obj);
         if (!info)                                      // if gcinfo is null we have reached the end of a heap segment
                 return (ADDR)obj[1];                    // pointer to first object of next segment is found in subsequent slot
@@ -103,20 +103,20 @@ ADDR substObj(ADDR obj, Array roots, int limit, Thread current_thread) {
                         return obj + size;
                 }
                 case GC_MUT: {
-                        return substObj(obj + STATIC_SIZE(info), roots, limit, current_thread);
+                        return substObj(obj + STATIC_SIZE(info), roots, limit, cur_thread);
                 }
         }
         return (ADDR)0;                 // Not reached
 }
 
-void subst(Array roots, int limit, ADDR stop, Thread current_thread) {
+void subst(Array roots, int limit, ADDR stop, Thread cur_thread) {
         ADDR p = (ADDR)roots + STATIC_SIZE(roots->GCINFO) + roots->size;
         int i;
         for (i = 0; i < limit; i++)
                 if (ISPLACEHOLDER(roots->elems[i])) 
                         RAISE(2);
         while (p != stop)
-                p = substObj(p, roots, limit, current_thread);
+                p = substObj(p, roots, limit, cur_thread);
 }
 
 Array CYCLIC_BEGIN(Int n, Int updates) {
