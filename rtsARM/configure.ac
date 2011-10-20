@@ -41,6 +41,9 @@ if test "x$TIMBERC" = "x"; then
 	AC_MSG_ERROR([Timberc not found.])
 fi
 
+# Check the datapath of the compiler.
+TIMBERC_DATADIR=`$TIMBERC --print-datadir`
+
 # Checks for header files.
 #AC_HEADER_STDC
 
@@ -61,6 +64,7 @@ AC_SUBST(SRC)
 AC_SUBST(DEST)
 AC_SUBST(TIMBERC)
 AC_SUBST(prefix)
+AC_SUBST(TIMBERC_DATADIR)
 
 AC_CONFIG_FILES([Makefile timberc.cfg])
 AC_OUTPUT

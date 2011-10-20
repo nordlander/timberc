@@ -1,6 +1,6 @@
 CfgOpts
       { cCompiler = "@TARGETCC@"
       , compileFlags = " -Os -g "
-      , linkFlags = " -nostartfiles -nostdlib -T@DEST@/linkerscript.x @DEST@/crt.o "
+      , linkFlags = " -nostartfiles -nostdlib -T@TIMBERC_DATADIR@/rtsARM/linkerscript.x @TIMBERC_DATADIR@/rtsARM/crt.o "
       , linkLibs = " -lTimber -lgcc "
       }

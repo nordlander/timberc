@@ -1,5 +1,4 @@
-DESTDIR      = /usr/local/share/timberc
-prefix       = -1.0.3
+DESTDIR      = @TIMBERC_DATADIR@/rtsARM
 CC           = @TARGETCC@
 AR           = @TARGETAR@
 CFLAGS       = -Os -g -I. -I../include -I../lib -I./asm
@@ -32,21 +31,21 @@ crt.o : crt.S
 	$(CC) -c $(CFLAGS) -D__ASSEMBLY__ crt.S -o crt.o
 
 install: 
-	$(INSTALL) -d $(DESTDIR)$(prefix)/rtsARM
-	$(INSTALL) timberc.cfg $(DESTDIR)$(prefix)/rtsARM
-	$(INSTALL) rts.h $(DESTDIR)$(prefix)/rtsARM
-	$(INSTALL) rts.c $(DESTDIR)$(prefix)/rtsARM
-	$(INSTALL) gc.c $(DESTDIR)$(prefix)/rtsARM
-	$(INSTALL) -d $(DESTDIR)$(prefix)/rtsARM/ea_lcd
-	$(INSTALL) ea_lcd/lcd_hw.c $(DESTDIR)$(prefix)/rtsARM/ea_lcd
-	$(INSTALL) ea_lcd/lcd_hw.h $(DESTDIR)$(prefix)/rtsARM/ea_lcd
-	$(INSTALL) lpc2468_registers.h $(DESTDIR)$(prefix)/rtsARM	
-	$(INSTALL) lpc2478_lcd.h $(DESTDIR)$(prefix)/rtsARM	
-	$(INSTALL) my9x10font.h $(DESTDIR)$(prefix)/rtsARM	
-	$(INSTALL) crt.S $(DESTDIR)$(prefix)/rtsARM
-	$(INSTALL) linkerscript.x $(DESTDIR)$(prefix)/rtsARM
-	$(INSTALL) Makefile $(DESTDIR)$(prefix)/rtsARM
-	cd $(DESTDIR)$(prefix)/rtsARM && make TIMBERC=$(TIMBERC) $(DEST) 
+	$(INSTALL) -d $(DESTDIR)
+	$(INSTALL) timberc.cfg $(DESTDIR)
+	$(INSTALL) rts.h $(DESTDIR)
+	$(INSTALL) rts.c $(DESTDIR)
+	$(INSTALL) gc.c $(DESTDIR)
+	$(INSTALL) -d $(DESTDIR)/ea_lcd
+	$(INSTALL) ea_lcd/lcd_hw.c $(DESTDIR)/ea_lcd
+	$(INSTALL) ea_lcd/lcd_hw.h $(DESTDIR)/ea_lcd
+	$(INSTALL) lpc2468_registers.h $(DESTDIR)
+	$(INSTALL) lpc2478_lcd.h $(DESTDIR)
+	$(INSTALL) my9x10font.h $(DESTDIR)
+	$(INSTALL) crt.S $(DESTDIR)
+	$(INSTALL) linkerscript.x $(DESTDIR)
+	$(INSTALL) Makefile $(DESTDIR)
+	cd $(DESTDIR) && make TIMBERC=$(TIMBERC) $(DEST) 
 
 
 clean:
