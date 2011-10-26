@@ -67,7 +67,7 @@ extern struct Thread threads[];
 #define SIGSELECT SIGUSR1
 
 Thread runAsSeparateThread(void(*fun)(Thread), Msg m);
-void runAsMainContinuation(void(*fun)(void));
+void runAsMainContinuation(void(*fun)(Thread));
 
 
 

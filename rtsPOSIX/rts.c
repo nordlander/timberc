@@ -452,13 +452,14 @@ char **getArgv() {
 // Main thread handling -------------------------------------------------------------------------------
 
 pthread_cond_t sleepVar;
-void (*mainContinuation) (void) = NULL;
+void (*mainContinuation) (Thread) = NULL;
 
-void runAsMainContinuation(void(*fun)(void)) {
+void runAsMainContinuation(void(*fun)(Thread)) {
     DISABLE(rts);
     if (mainContinuation)
         panic("Multiple main continuations");
     mainContinuation = fun;
+    pthread_cond_signal(&sleepVar);
     ENABLE(rts);
 }
 
@@ -470,7 +471,7 @@ void startup(Time_Time_to_Msg prog) {
     if (!mainContinuation)
         panic("Main thread woke up with no continuation");
     ENABLE(rts);
-    (*mainContinuation)();
+    (*mainContinuation)(&thread0);
 }
 
 // Initialization -------------------------------------------------------------------------------------
