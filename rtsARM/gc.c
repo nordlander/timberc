@@ -46,9 +46,13 @@
 		                          PROTECT(status); \
                                 }
 
+#define ODD(addr)               (ADDR)((WORD)(addr) | 1)
+#define EVEN(addr)              (ADDR)((WORD)(addr) & ~1)
+#define ISODD(addr)             ((WORD)(addr) & 1)
+
 #define IND0(obj)               (ADDR)((ADDR)obj)[0]
-#define GC_PROLOGUE(obj)        { if (ISFORWARD(IND0(obj))) obj = (OID)IND0(obj); }             // read barrier
-#define GC_EPILOGUE(obj)        { if (ISBLACK((ADDR)obj)) { ADDR a; NEW2(a,1,(ADDR)obj); } }    // write barrier
+#define GC_PROLOGUE(obj)        { if (ISODD(IND0(obj))) obj = (OID)(((ADDR)obj)[1]); }          // read barrier
+#define GC_EPILOGUE(obj)        { if (ISBLACK((ADDR)obj)) { ADDR a; NEW2(a,1,ODD(obj)); } }     // write barrier
 
 #define GC_STD                  0
 #define GC_ARRAY                1
@@ -66,7 +70,6 @@
 
 #define ISWHITE(a)              INSIDE(base,a,hp)
 #define ISBLACK(a)              hp2 && INSIDE(base2,a,scanp)
-#define ISFORWARD(info)         INSIDE(theheap,info,&theheap[2*HEAPSIZE])
 
 #define INSIDE(base,a,lim)      (base <= (a) && (a) < lim)
 
@@ -142,8 +145,8 @@ ADDR copy(ADDR obj) {
         ADDR dest, info = IND0(obj);
         if (!info)                                      // don't copy if obj is in static heap
                 return obj;
-        if (ISFORWARD(info))                            // gcinfo should point to static data;
-                return info;                            // if not, we have a forward ptr
+        if (ISODD(info))                                // gcinfo should be a proper array address;
+                return (ADDR)obj[1];                    // if not, we have a forward ptr in slot 1
         WORD i, size = STATIC_SIZE(info);
         switch (GC_TYPE(info)) {                              
                 case GC_ARRAY:  size += obj[1]; break;
@@ -154,7 +157,8 @@ ADDR copy(ADDR obj) {
         NEW2(dest,size,info);                           // allocate in tospace and initialize with gcinfo
         for (i=0; i<size; i++)
                 dest[i] = obj[i];
-        obj[0] = (WORD)dest;                            // mark fromspace object as forwarded
+        obj[0] = (WORD)ODD(info);                       // mark fromspace object as forwarded
+        obj[1] = (WORD)dest;
         return dest;
 }
 
@@ -163,8 +167,8 @@ ADDR scan(ADDR obj) {
         ADDR info = IND0(obj);
         if (!info)                                      // if gcinfo is null we have reached the end of a tospace segment
                 return (ADDR)0;                         
-        if (ISFORWARD(info)) {                          // gcinfo should point to static data;
-                scan(info);                             // if not, we have a write barrier (rescan request)
+        if (ISODD(info)) {                              // gcinfo should be a proper array address;
+                scan(EVEN(info));                       // if not, we have a write barrier (rescan request)
                 return obj + 1;
         }
         switch (GC_TYPE(info)) {

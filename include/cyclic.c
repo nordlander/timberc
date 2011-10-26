@@ -54,6 +54,8 @@ ADDR substObj(ADDR obj, Array roots, int limit, Thread cur_thread) {
         ADDR info = IND0(obj);
         if (!info)                                      // if gcinfo is null we have reached the end of a heap segment
                 return (ADDR)obj[1];                    // pointer to first object of next segment is found in subsequent slot
+        if (ISODD(info))
+                panic("Forwarded node found during cyclic back-patching");
         switch (GC_TYPE(info)) {
                 case GC_STD: {
                         WORD size = STATIC_SIZE(info), i = 2, offset = info[i];

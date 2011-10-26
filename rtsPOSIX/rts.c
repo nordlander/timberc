@@ -348,8 +348,8 @@ UNIT ABORT(BITS32 polytag, Msg m, Ref dummy){
     ADDR info;
     do {
         info = IND0((ADDR)m);
-        if (ISFORWARD(info))
-            ((Msg)info)->Code = NULL;
+        if (ISODD(info))
+            ((Msg)((ADDR)m)[1])->Code = NULL;
     } while (info != IND0((ADDR)m));
     return (UNIT)0;
 }

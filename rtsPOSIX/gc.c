@@ -32,9 +32,6 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 #include <stdlib.h>
-#if defined(__APPLE__)
-#include <mach-o/getsect.h>
-#endif
 
 #define NEW2(addr,words,info)   { ADDR top,stop; \
                                   do { addr = hp2; stop = lim2; top = ODD((addr)+(words)); \
@@ -48,8 +45,8 @@
 #define ISODD(addr)             ((WORD)(addr) & 1)
 
 #define IND0(obj)               (ADDR)((ADDR)obj)[0]
-#define GC_PROLOGUE(obj)        { if (ISFORWARD(IND0(obj))) obj = (OID)IND0(obj); }             // read barrier
-#define GC_EPILOGUE(obj)        { if (ISBLACK((ADDR)obj)) { ADDR a; NEW2(a,1,(ADDR)obj); } }    // write barrier
+#define GC_PROLOGUE(obj)        { if (ISODD(IND0(obj))) obj = (OID)(((ADDR)obj)[1]); }          // read barrier
+#define GC_EPILOGUE(obj)        { if (ISBLACK((ADDR)obj)) { ADDR a; NEW2(a,1,ODD(obj)); } }     // write barrier
 
 #define GC_STD                  0
 #define GC_ARRAY                1
@@ -67,7 +64,6 @@
 
 #define ISWHITE(a)              INSIDE(heapchain,a,hp)
 #define ISBLACK(a)              hp2 && INSIDE(heapchain2,a,scanp)
-#define ISFORWARD(a)            ((ADDR)(a) > edata)
 
 #define INSIDE(base,a,lim)      (base[0] ? inside(base,a,lim) : (base <= (a) && (a) < lim))
 
@@ -82,7 +78,6 @@ ADDR base, lim, hp;                     // start, end, and current pos of latest
 ADDR base2, lim2, hp2;                  // start, end and current pos of latest "tospace" (only used during gc)
 ADDR heapchain, heapchain2;             // anchor for the chain of all fromspaces, ditto for the tospaces
 ADDR scanbase, scanp;                   // start and current pos of currently scanned segment (only used during gc)
-ADDR edata;                             // end of static data
 WORD pagesize;                          // obtained from OS, measured in words
 ADDR staticHeap;                        // heap (chain) containing only statically allocated nodes (no copy)
 
@@ -221,8 +216,8 @@ ADDR copy(ADDR obj) {
         ADDR dest, info = IND0(obj);
         if (!info)                                      // don't copy if obj is in static heap
                 return obj;
-        if (ISFORWARD(info))                            // gcinfo should point to static data;
-                return info;                            // if not, we have a forward ptr
+        if (ISODD(info))                                // gcinfo should be a proper array address;
+                return (ADDR)obj[1];                    // if not, we have a forward ptr in slot 1
         WORD i, size = STATIC_SIZE(info);
         switch (GC_TYPE(info)) {                              
                 case GC_ARRAY:  size += obj[1]; break;
@@ -233,7 +228,8 @@ ADDR copy(ADDR obj) {
         NEW2(dest,size,info);                           // allocate in tospace and initialize with gcinfo
         for (i=0; i<size; i++)
                 dest[i] = obj[i];
-        obj[0] = (WORD)dest;                            // mark fromspace object as forwarded
+        obj[0] = (WORD)ODD(info);                       // mark fromspace object as forwarded
+        obj[1] = (WORD)dest;
         return dest;
 }
 
@@ -242,8 +238,8 @@ ADDR scan(ADDR obj) {
         ADDR info = IND0(obj);
         if (!info)                                      // if gcinfo is null we have reached the end of a tospace segment
                 return (ADDR)0;                         
-        if (ISFORWARD(info)) {                          // gcinfo should point to static data;
-                scan(info);                             // if not, we have a write barrier (rescan request)
+        if (ISODD(info)) {                              // gcinfo should be a proper array address;
+                scan(EVEN(info));                       // if not, we have a write barrier (rescan request)
                 return obj + 1;
         }
         switch (GC_TYPE(info)) {
@@ -409,13 +405,6 @@ void garbageCollector(Thread current_thread) {
 // Initialization -------------------------------------------------------------------------------------
 
 void gcInit() {
-#if defined(__APPLE__)
-    edata = (ADDR)get_edata();
-#endif
-#if defined(__linux__)
-    extern int _end[];
-    edata = (ADDR)_end;
-#endif
     pagesize = sysconf(_SC_PAGESIZE) / sizeof(WORD);
     base2 = lim2 = hp2 = (ADDR)0;                   // no active tospace
     initheap();                                     // Allocate base (= heapchain)
