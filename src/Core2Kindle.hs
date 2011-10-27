@@ -601,7 +601,7 @@ cCmdFail env e0                         = do [t] <- cTArgs env e0
 
 -- Translate the parts of a case expression into a Kindle.Cmd result
 cCase cE env e (Alt (PCon k te) e':_)
-  | isTuple k                           = do (bf,_,e) <- cValExp env e
+  | isTuple k                           = do (bf,e) <- cValExpVar env e
                                              (te,t1,r) <- cRhs cE env (width k) [] (eLam te e')
                                              let (xs,ts) = unzip te
                                                  bs = mkBinds xs ts (map (Kindle.ESel e) (take (width k) (Kindle.conSels k)))
@@ -614,6 +614,13 @@ cCase cE env e alts                     = do (bf,t0,e0) <- cValExp env e
                                              let r = maxR rs
                                              rs <- mapM (adaptR r) rs
                                              return (mkSwitch bf rs e0)
+
+cValExpVar env e                        = do (bf,t,e) <- cValExp env e
+                                             case e of
+                                                Kindle.EVar _ -> return (bf, e)
+                                                _             -> do y <- newName tempSym
+                                                                    return (bf . Kindle.cBind [(y, Kindle.Val t e)], Kindle.EVar y)
+
 
 instance Pr (Kindle.AType, Result Kindle.Alt) where
     pr (_, a)				= pr a
