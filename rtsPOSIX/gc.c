@@ -202,7 +202,8 @@ ADDR copystateful(ADDR obj, ADDR info) {
         for ( ; i < size; i++)
                 dest[i] = obj[i];
         INITREF((Ref)dest);
-        obj[0] = (WORD)dest;
+        obj[0] = (WORD)ODD(info);                       // mark fromspace object as forwarded
+        obj[1] = (WORD)dest;
         if (info[2]) {
                 // object has mutable arrays...  !!!!!!!!
         }
