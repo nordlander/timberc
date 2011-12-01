@@ -179,8 +179,8 @@ topdecls :: { [Decl] }
 topdecl :: { Decl }
         : conid '::' kind		        	   				{ DKSig $1 $3 }
         | 'type' conid tyvars '=' type	                   	{ DType $2 (reverse $3) $5 }
-        | 'data' conid tyvars subs '=' constrs             	{ DData $2 (reverse $3) $4 $6 }
-        | 'data' conid tyvars '=' constrs                  	{ DData $2 (reverse $3) [] $5 }
+        | 'data' conid tyvars subs '=' constrs             	{ DData $2 (reverse $3) $4 (reverse $6) }
+        | 'data' conid tyvars '=' constrs                  	{ DData $2 (reverse $3) [] (reverse $5) }
         | 'data' conid tyvars subs                         	{ DData $2 (reverse $3) $4 [] }
         | 'data' conid tyvars                              	{ DData $2 (reverse $3) [] [] }
         | 'struct' conid tyvars sups 'where' siglist       	{ DStruct $2 (reverse $3) $4 $6 }
