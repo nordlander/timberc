@@ -419,11 +419,13 @@ k2cExp2 (ESel (ECast (TCon n _) e) l)
   | isBigTuple n                = k2cBigSel e l
 k2cExp2 (ESel e l)              = k2cExp2 e <> text "->" <> k2cName l
 k2cExp2 (EEnter (ECast (TClos [] ts t) (EVar x)) (Prim Code _) [] es)
-                                = parens (parens ftype <> parens (k2cName x <> text "->" <> k2cName (prim Code)))
-                                  <> parens (commasep k2cExp (EVar x : es))
+                                = text "ENTERC" <> parens (parens ftype <> comma <+> k2cName x <> comma <+> parens (commasep k2cExp (EVar x : es)))
+--                                = parens (parens ftype <> parens (k2cName x <> text "->" <> k2cName (prim Code)))
+--                                  <> parens (commasep k2cExp (EVar x : es))
   where ftype                   = k2cType t <> text "(*)" <> parens (hsep (punctuate comma (k2cName (prim CLOS) : map k2cType ts)))
 k2cExp2 (EEnter (EVar x) f [] es)  
-                                = k2cExp2 (ESel (EVar x) f) <> parens (commasep k2cExp (EVar x : es))
+                                = text "ENTER" <> parens (k2cName x <> comma <+> k2cName f <> comma <+> parens (commasep k2cExp (EVar x : es)))
+--                                = k2cExp2 (ESel (EVar x) f) <> parens (commasep k2cExp (EVar x : es))
 k2cExp2 (ECall (Prim IndexArray _) [] [_,e1,e2])
                                 = k2cExp2 e1 <> text "->elems[" <> k2cExp e2 <> text "]"
 k2cExp2 (ECall (Prim SizeArray _) [] [_,e])

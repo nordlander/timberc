@@ -356,6 +356,9 @@ UNIT    MUTLISTEXTEND(BITS32,MUTLIST,POLY);
 
 #define offsetof(TYPE, MEMBER) __builtin_offsetof (TYPE, MEMBER)
 
+#define ENTER(x,f,es)           (x->f) es
+
+#define ENTERC(t,x,es)          (t(x->Code)) es
 
 #if rtsPOSIX
 
