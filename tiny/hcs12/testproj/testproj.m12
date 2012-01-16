@@ -1,0 +1,353 @@
+# V 1.8.6 (27 December, 2011)
+# Created by Xcc-project manager 
+# DO NOT EDIT
+#
+#-----------------------------------------------
+#SETTINGS SECTION
+##EXTMAKEFILE=""
+##EXTMAKEFILEPARAM=""
+#+[BackCol(0)]=
+#+16776960
+#+[TextCol(0)]=
+#+0
+#+[NewLine(0)]=
+#+2
+#+[LineFeed(0)]=
+#+2
+#+[LoadCom(0)]=
+#+l\n
+#+[Baud(0)(0)]=
+#+9600
+#+[Dtr(0)(0)]=
+#+0
+#+[Rts(0)(0)]=
+#+0
+#+[Cts(0)(0)]=
+#+0
+#+[Dsr(0)(0)]=
+#+0
+#+[ByteS(0)(0)]=
+#+8
+#+[Parity(0)(0)]=
+#+0
+#+[StopB(0)(0)]=
+#+0
+#+[EXonO(0)(0)]=
+#+0
+#+[EXonI(0)(0)]=
+#+0
+#+[BackCol(4)]=
+#+16776960
+#+[TextCol(4)]=
+#+0
+#+[NewLine(4)]=
+#+2
+#+[LineFeed(4)]=
+#+2
+#+[LoadCom(4)]=
+#+l\n
+#+[Baud(4)(0)]=
+#+9600
+#+[Baud(4)(1)]=
+#+9600
+#+[Baud(4)(2)]=
+#+9600
+#+[Dtr(4)(0)]=
+#+0
+#+[Dtr(4)(1)]=
+#+0
+#+[Dtr(4)(2)]=
+#+0
+#+[Rts(4)(0)]=
+#+0
+#+[Rts(4)(1)]=
+#+0
+#+[Rts(4)(2)]=
+#+0
+#+[Cts(4)(0)]=
+#+0
+#+[Cts(4)(1)]=
+#+0
+#+[Cts(4)(2)]=
+#+0
+#+[Dsr(4)(0)]=
+#+0
+#+[Dsr(4)(1)]=
+#+0
+#+[Dsr(4)(2)]=
+#+0
+#+[ByteS(4)(0)]=
+#+8
+#+[ByteS(4)(1)]=
+#+8
+#+[ByteS(4)(2)]=
+#+8
+#+[Parity(4)(0)]=
+#+0
+#+[Parity(4)(1)]=
+#+0
+#+[Parity(4)(2)]=
+#+0
+#+[StopB(4)(0)]=
+#+0
+#+[StopB(4)(1)]=
+#+0
+#+[StopB(4)(2)]=
+#+0
+#+[EXonO(4)(0)]=
+#+0
+#+[EXonO(4)(1)]=
+#+0
+#+[EXonO(4)(2)]=
+#+0
+#+[EXonI(4)(0)]=
+#+0
+#+[EXonI(4)(1)]=
+#+0
+#+[EXonI(4)(2)]=
+#+0
+#-----------------------------------------------
+##TYPE E
+##USESTARTUP=0
+##OTYPE=1
+#-----------------------------------------------
+#OPEN FILE SECTION
+#-----------------------------------------------
+#PROJECT FILES SECTION
+
+FILES= \
+	"..\test.c" "" "1"  \
+	"..\sci_driver.c" "" "1"  \
+	"..\sci_driver.h" "" "1"  \
+	"..\startup.c" "" "1"  \
+	"..\can_driver.h" "" "1"  \
+	"..\can_driver.c" "" "1"  \
+	"..\flash.lsc" "" "1"  \
+	"..\..\TinyTimber.h" "" "1"  \
+	"..\..\TinyTimber.c" "" "1" 
+#-----------------------------------------------
+#PROJECT OPTIONS SECTION
+
+!IFCONF	Debug
+##TARGETNAME="testproj_Debug"
+##OBJDIR="debug"
+##TARGDIR="debug"
+##STDINCPATH=1
+##STDLIBPATH=1
+ASFLAGS=-g -e
+CCFLAGS=-g -w2 -O
+LNFLAGS=-g -P -i ../flash.lsc
+#-----------------------------------------------
+#OBJECT FILES SECTION
+
+OBJ= \
+	"debug\test.o12" \
+	"debug\sci_driver.o12" \
+	"debug\startup.o12" \
+	"debug\can_driver.o12" \
+	"debug\TinyTimber.o12"
+#-----------------------------------------------
+#DEFINES/UNDEFINES SECTION
+
+ASMDEFINES= \
+	_DEBUG
+
+DEFINES= \
+	_DEBUG \
+	__HCS12__
+
+UNDEFINES=
+#-----------------------------------------------
+#INCLUDES AND LIBRARIES SECTION
+#
+
+INCLUDES= \
+	"../../"
+
+LIBRARIES= \
+	"libcd.e12"
+
+LIBRARYPATHS=
+#-----------------------------------------------
+#MACROS for MAKE
+
+INC= \
+	-I"../../"
+
+ASMDEF= \
+ -D_DEBUG
+
+DEF= \
+ -D_DEBUG \
+ -D__HCS12__
+
+UNDEF=
+
+LIB= \
+	-l"libcd.e12"
+
+LIBPATH=
+#-----------------------------------------------
+#RULES SECTION CONFIGURATION 
+
+# Application
+"debug\testproj_Debug.s19": $(OBJ) "Z:\nordland\src\timber\tiny\hcs12\flash.lsc" 
+	LINK -o"debug\testproj_Debug.s19" $(LNFLAGS)  $(LIBPATH) $(LIB) -L"C:\Program Files\GMV\XCC12\bin\..\lib\xcc12" -l"C:\Program Files\GMV\XCC12\bin\..\lib\xcc12\libccd.e12"  $(OBJ)
+#-----------------------------------------------
+
+
+# Clean
+clean:
+	RMFI "debug\testproj_Debug.s19"
+	RMFI "debug\test.o12"
+	RMFI "debug\sci_driver.o12"
+	RMFI "debug\sci_driver.o12"
+	RMFI "debug\startup.o12"
+	RMFI "debug\can_driver.o12"
+	RMFI "debug\can_driver.o12"
+	RMFI "debug\flash.o12"
+	RMFI "debug\TinyTimber.o12"
+	RMFI "debug\TinyTimber.o12"
+#-----------------------------------------------
+
+
+# Dependencies and their build rules
+
+"debug\test.o12":	\
+	"Z:/nordland/src/timber/tiny/hcs12/test.c"\
+	"Z:/nordland/src/timber/tiny/TinyTimber.h"\
+	"Z:/nordland/src/timber/tiny/hcs12/sci_driver.h"\
+	"Z:/nordland/src/timber/tiny/hcs12/can_driver.h"
+	COMP  $(CCFLAGS) $(DEF) $(UNDEF)  \
+	-I"C:\Program Files\GMV\XCC12\bin\..\include" $(INC) -o"debug\test.o12" "Z:/nordland/src/timber/tiny/hcs12/test.c"
+"debug\sci_driver.o12":	\
+	"Z:/nordland/src/timber/tiny/hcs12/sci_driver.c"\
+	"Z:/nordland/src/timber/tiny/TinyTimber.h"\
+	"Z:/nordland/src/timber/tiny/hcs12/sci_driver.h"
+	COMP  $(CCFLAGS) $(DEF) $(UNDEF)  \
+	-I"C:\Program Files\GMV\XCC12\bin\..\include" $(INC) -o"debug\sci_driver.o12" "Z:/nordland/src/timber/tiny/hcs12/sci_driver.c"
+"debug\startup.o12":	\
+	"Z:/nordland/src/timber/tiny/hcs12/startup.c"
+	COMP  $(CCFLAGS) $(DEF) $(UNDEF)  \
+	-I"C:\Program Files\GMV\XCC12\bin\..\include" $(INC) -o"debug\startup.o12" "Z:/nordland/src/timber/tiny/hcs12/startup.c"
+"debug\can_driver.o12":	\
+	"Z:/nordland/src/timber/tiny/hcs12/can_driver.c"\
+	"Z:/nordland/src/timber/tiny/hcs12/can_driver.h"\
+	"Z:/nordland/src/timber/tiny/TinyTimber.h"
+	COMP  $(CCFLAGS) $(DEF) $(UNDEF)  \
+	-I"C:\Program Files\GMV\XCC12\bin\..\include" $(INC) -o"debug\can_driver.o12" "Z:/nordland/src/timber/tiny/hcs12/can_driver.c"
+"debug\TinyTimber.o12":	\
+	"Z:/nordland/src/timber/tiny/TinyTimber.c"\
+	"Z:/nordland/src/timber/tiny/TinyTimber.h"
+	COMP  $(CCFLAGS) $(DEF) $(UNDEF)  \
+	-I"C:\Program Files\GMV\XCC12\bin\..\include" $(INC) -o"debug\TinyTimber.o12" "Z:/nordland/src/timber/tiny/TinyTimber.c"
+!EICONF	Debug
+
+!IFCONF	Final
+##TARGETNAME="testproj_Final"
+##OBJDIR="final"
+##TARGDIR="final"
+##STDINCPATH=1
+##STDLIBPATH=1
+ASFLAGS=-e
+CCFLAGS=-w2 -O
+LNFLAGS=-i ../flash.lsc
+#-----------------------------------------------
+#OBJECT FILES SECTION
+
+OBJ= \
+	"final\test.o12" \
+	"final\sci_driver.o12" \
+	"final\startup.o12" \
+	"final\can_driver.o12" \
+	"final\TinyTimber.o12"
+#-----------------------------------------------
+#DEFINES/UNDEFINES SECTION
+
+ASMDEFINES=
+
+DEFINES=
+
+UNDEFINES=
+#-----------------------------------------------
+#INCLUDES AND LIBRARIES SECTION
+#
+
+INCLUDES= \
+	"../../"
+
+LIBRARIES= \
+	"libc.e12"
+
+LIBRARYPATHS=
+#-----------------------------------------------
+#MACROS for MAKE
+
+INC= \
+	-I"../../"
+
+ASMDEF=
+
+DEF=
+
+UNDEF=
+
+LIB= \
+	-l"libc.e12"
+
+LIBPATH=
+#-----------------------------------------------
+#RULES SECTION CONFIGURATION 
+
+# Application
+"final\testproj_Final.s19": $(OBJ) "Z:\nordland\src\timber\tiny\hcs12\flash.lsc" 
+	LINK -o"final\testproj_Final.s19" $(LNFLAGS)  $(LIBPATH) $(LIB) -L"C:\Program Files\GMV\XCC12\bin\..\lib\xcc12" -l"C:\Program Files\GMV\XCC12\bin\..\lib\xcc12\libcc.e12"  $(OBJ)
+#-----------------------------------------------
+
+
+# Clean
+clean:
+	RMFI "final\testproj_Final.s19"
+	RMFI "final\test.o12"
+	RMFI "final\sci_driver.o12"
+	RMFI "final\sci_driver.o12"
+	RMFI "final\startup.o12"
+	RMFI "final\can_driver.o12"
+	RMFI "final\can_driver.o12"
+	RMFI "final\flash.o12"
+	RMFI "final\TinyTimber.o12"
+	RMFI "final\TinyTimber.o12"
+#-----------------------------------------------
+
+
+# Dependencies and their build rules
+
+"final\test.o12":	\
+	"Z:/nordland/src/timber/tiny/hcs12/test.c"\
+	"Z:/nordland/src/timber/tiny/TinyTimber.h"\
+	"Z:/nordland/src/timber/tiny/hcs12/sci_driver.h"\
+	"Z:/nordland/src/timber/tiny/hcs12/can_driver.h"
+	COMP  $(CCFLAGS) $(DEF) $(UNDEF)  \
+	-I"C:\Program Files\GMV\XCC12\bin\..\include" $(INC) -o"final\test.o12" "Z:/nordland/src/timber/tiny/hcs12/test.c"
+"final\sci_driver.o12":	\
+	"Z:/nordland/src/timber/tiny/hcs12/sci_driver.c"\
+	"Z:/nordland/src/timber/tiny/TinyTimber.h"\
+	"Z:/nordland/src/timber/tiny/hcs12/sci_driver.h"
+	COMP  $(CCFLAGS) $(DEF) $(UNDEF)  \
+	-I"C:\Program Files\GMV\XCC12\bin\..\include" $(INC) -o"final\sci_driver.o12" "Z:/nordland/src/timber/tiny/hcs12/sci_driver.c"
+"final\startup.o12":	\
+	"Z:/nordland/src/timber/tiny/hcs12/startup.c"
+	COMP  $(CCFLAGS) $(DEF) $(UNDEF)  \
+	-I"C:\Program Files\GMV\XCC12\bin\..\include" $(INC) -o"final\startup.o12" "Z:/nordland/src/timber/tiny/hcs12/startup.c"
+"final\can_driver.o12":	\
+	"Z:/nordland/src/timber/tiny/hcs12/can_driver.c"\
+	"Z:/nordland/src/timber/tiny/hcs12/can_driver.h"\
+	"Z:/nordland/src/timber/tiny/TinyTimber.h"
+	COMP  $(CCFLAGS) $(DEF) $(UNDEF)  \
+	-I"C:\Program Files\GMV\XCC12\bin\..\include" $(INC) -o"final\can_driver.o12" "Z:/nordland/src/timber/tiny/hcs12/can_driver.c"
+"final\TinyTimber.o12":	\
+	"Z:/nordland/src/timber/tiny/TinyTimber.c"\
+	"Z:/nordland/src/timber/tiny/TinyTimber.h"
+	COMP  $(CCFLAGS) $(DEF) $(UNDEF)  \
+	-I"C:\Program Files\GMV\XCC12\bin\..\include" $(INC) -o"final\TinyTimber.o12" "Z:/nordland/src/timber/tiny/TinyTimber.c"
+!EICONF	Final

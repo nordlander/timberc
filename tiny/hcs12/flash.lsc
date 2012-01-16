@@ -1,0 +1,72 @@
+//
+//	flash-tt.lsc
+//	script for QLD
+//  	for TinyTimber XCC12 applications in Flash Memory with g1dbg slim
+//
+//	DON'T MODIFY
+//	This is a default script used by many applications.
+//	If you need to customize, copy this file with a new name
+//	in the same directory ("config/xcc12") or to the project directory
+// 	then change linker '-i' option in 'Project Settings' dialog.
+
+//	OPTIONS SECTION
+	-M	// generate listfile <basename>.map
+	-P
+	
+//	define program entry for debugger
+	entry( __start )
+
+//	syntax:
+//	group ( MEMORY_TYPE_ASSIGNMENT, GROUP_NAME
+//		{ SEGMENT_NAME [, SEGMENT_NAME] }
+
+// 	Segments with attribute 'c' are not relocated by QLD
+// 	By convention, we use the segment name 'abs' for such symbols.
+	group  ( c , const_group )
+	{
+		abs
+	}
+
+// 	The following group definition will gather all compiler generated
+// 	read-only segments, as well as the start-segment into one group.
+//	NOTE: When the 'data' segment is non empty:
+//		Link with '-P' option
+//		do Init of BSS from DATA 
+	group( r , flash_group1)
+	{ 
+		init, 
+		text,
+		inthandlr,
+		rodata,
+		data
+	}
+	group( rw , volatile_group)
+	{ 
+		bss
+	}
+
+// 	A single segment security options.
+	group( r, security )
+	{
+		security_bits
+	}
+	
+	group(rw, interrupts){
+		vectors
+	}
+	group(rw, reset){
+		resetvector
+	}
+	group(rw, node_id_group){
+		node_ADDR
+	}
+
+	layout 
+	{
+		0x1000,0x3D00 <= volatile_group,
+		0x400,0x401 <= node_id_group,
+		0x4000,0xFEFF <= flash_group1,
+		0xFF00,0xFF0F <= security,
+		0xFF8C,0xFFFD <= interrupts,
+		0xFFFE,0xFFFF <= reset
+	}

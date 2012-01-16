@@ -1,0 +1,5 @@
+avr-gcc -Wall -Os -mmcu=atmega32 -I ../ -I ./ -o test.elf ../TinyTimber.c test.c
+avr-objcopy -O ihex test.elf test.hex
+avrdude -c AVRISPmkII -p m32 -P usb -U flash:w:test.hex:i
+
+# For other programmer devices, see "avrdude -c ?"
