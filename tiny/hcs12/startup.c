@@ -4,6 +4,7 @@
 	2011-11-11 RoJ
 	Application is stand alone
 */
+
 /* CONTROLLER SPECIFIC DEFINITIONS (DG256) */
 #define	CORE_BASE	0
 #define	CRG_BASE	0x34
