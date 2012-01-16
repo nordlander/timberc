@@ -1,0 +1,485 @@
+%! program = pdflatex
+
+\documentclass[12pt]{article}
+\usepackage{geometry} % see geometry.pdf on how to lay out the page. There's lots.
+\usepackage{graphicx}
+\geometry{a4paper} % or letter or a5paper or ... etc
+% \geometry{landscape} % rotated page geometry
+
+% See the ``Article customise'' template for come common customisations
+
+\title{Programming with the TinyTimber kernel}
+\author{Johan Nordlander}
+%\date{} % delete this line to display the current date
+
+%%% BEGIN DOCUMENT
+\begin{document}
+
+\maketitle
+%\tableofcontents
+
+\section{Introduction}
+
+This document describes the C programming interface to {\em TinyTimber}, a very small and lightweight run-time kernel for event-driven embedded systems.  
+
+Prerequisites assumed in this document are familiarity with standard sequential programming in the C language as well as basic knowledge of microprocessor fundamentals, especially concerning interrupt handling and device I/O on the assembly level.  Experience with the concepts of an object-oriented language such as Java will also be helpful, but is not an absolute necessity.
+
+\section{Design principles}
+\label{sect:principles}
+
+The fundamental idea that underlies the design of TinyTimber is the notion of a {\em reactive object}.  A reactive object is a component that reacts to incoming {\em events} by updating its internal state and/or emitting outgoing events of its own.  Between such activations a reactive object is {\em idle}; i.e., it simply maintains its state while waiting for future activations.
+
+According to this view, a hardware device such as a serial port controller is a typical reactive object.  The device itself is literally a "black box" object that does nothing unless stimulated by external events.  In the case of a serial port these events are of two kinds: either a signal change on the incoming communication line, or a read or write command received on the connected data bus.  The emitted events are similarly divided; either a generated signal change on the outgoing communication line, or an interrupt signal issued towards some connected microprocessor.  The clock pulse driving the shift registers of the port may also be included among the external event sources, if desired.  At all times, the current state of a serial port object is the contents of its internal registers.  Figure~\ref{fig:serial-port} depicts this view.\footnote{Although the graphical notation used within this document is entirely informal, the two kinds of arrows used are intended to distinguish between one-way signalling (the straight arrow) and request-response communication (the fishhook). Blocks stand for stateful objects, and the operatons that can be performed on these appear as rounded rectangles along the border. The clock symbol is just a generator of periodic events.}
+
+\begin{figure}
+\includegraphics[page=1]{Figs}
+\caption{\label{fig:serial-port}A reactive object in the form of a serial port}
+\end{figure}
+
+The microprocessor itself may also be considered a reactive object.  It reacts to incoming interrupt events by updating its state (memory and registers) or generating commands (read or write) on the data bus.  Here as well a clock pulse may be viewed as an additional source of incoming events.  Perhaps less obvious is the fact that a microprocessor which is done emitting all its responses to previous events is also in effect doing "nothing" until a new interrupt occurs.  Programmers tend to think of this "nothing" as the repeated execution of some dummy instruction, but it should be noted that most microprocessor architectures provide an alternative in the form of an instruction that literally halts program flow until an interrupt occurs.  In any case, the division of a microprocessor's time into active and inactive phases is an important aspect of its behavior.  Figure~\ref{fig:cpu-system} shows the system obtained when a microprocessor object is connected to a serial port and a keyboard object via some common data bus.
+
+\begin{figure}
+\includegraphics[page=2]{Figs}
+\caption{\label{fig:cpu-system}A microprocessor object connected to a keyboard and a serial port}
+\end{figure}
+
+Even a compound system can be thought of as a reactive object in its own right.  For example, a user of the microprocessor system in Figure~\ref{fig:cpu-system} will probably not distinguish the individual components from each other, but rather view the system as a single object capable of emitting serial port packets while reacting to incoming port and keyboard events.  Conversely, a single reactive object might reveal a more refined structure of interconnected components when looked at from the inside, and this pattern may very well repeat itself at different levels of magnification.  The core idea of TinyTimber is to let such a hierarchy of reactive objects extend into the {\em programmable} internals of a microprocessor object as well.
+
+\begin{figure}
+\includegraphics[page=3]{FIgs}
+\caption{\label{fig:cpu-object}Software-defined internals of a microprocessor object}
+\end{figure}
+
+So, the microprocessor is a hardware reactive object whose behavior and internal structure is defined by software.  The links across this hardware/software boundary are the interrupt handlers, which constitute the externally visible {\em methods} of the microprocessor object.  The persistent state of the microprocessor are all the global variables, which we may choose to partition into an object structure that reflects a conceptual hardware decomposition of the programmed application. Figure~\ref{fig:cpu-object} illustrates what the software-defined internal structure of a microprocessor object may look like.\footnote{This figure shows a clock symbol placed over one of the one-way communication arrows, as an indicator of the TinyTimber way of controlling timing behavior. More on this topic in Section~\ref{sect:time}.}
+
+An essential aspect of real world objects is that they naturally evolve in parallel with each other, so a key task for the TinyTimber kernel is to simulate concurrent execution of multiple software objects on single processor hardware.  Moreover, TinyTimber will also guarantee that the methods of a particular object execute in a strictly sequential fashion, thus avoiding the need for any manual state protection mechanisms (see Figure~\ref{fig:concurrency}).  To make this scheme work, the programmer has to ensure that every method call that crosses an object boundary is handled by the TinyTimber kernel.  Apart from that requirement, though, programming with TinyTimber is as simple as partitioning the program state into an appropriate object structure, and defining the behavior of each object in terms of method code.
+
+\begin{figure}
+\includegraphics[page=4]{Figs}
+\caption{\label{fig:concurrency}Concurrency and mutual exclusion among reactive objects}
+\end{figure}
+
+Details of the TinyTimber method call primitives will be explained in subsequent sections.  First, however, some basic techniques for expressing object-oriented concepts in C must be discussed.
+
+\section{Basic object-orientation in C}
+\label{sect:basic-oo}
+
+Object-oriented programming means many different things to different people, so let us start with some terminology.
+
+By an {\em object} we mean a collection of variables at some unique place in memory, together with a set of functions that have the exclusive right to access these variables.  The functions are commonly called {\em methods}, and the variables are often termed {\em state} or {\em instance} variables.  Calling, or {\em invoking} a method of an object is commonly thought of as {\em sending a message} to the object.  A {\em class} is a template for creating objects with a similar variable layout and a similar set of methods.  {\em Inheritance} is a mechanism for defining classes on basis of already existing classes, primarily by adding state variables and methods.
+
+To encode these object-oriented concepts in the C language we will use a combination of a {\tt typedef} and a {\tt struct} for defining the variable structure of classes, and the standard technique of "self-application" for invoking methods.  Here is an example of a class {\tt Counter} that specifies two instance variables:
+\begin{verbatim}
+   typedef struct {
+       int value;
+       int enabled;
+   } Counter;
+\end{verbatim}
+Creating an object from a class template just means initializing a fresh object variable of the right type with the proper initial values.  We will consistently use a preprocessor macro {\tt init}{\em X} to express initialization of an object of class {\em X}, which for the {\tt Counter} class might look like
+\begin{verbatim}
+   #define initCounter(en)  { 0, en }
+\end{verbatim}
+A fresh {\tt Counter} object is then created as follows:
+\begin{verbatim}
+   Counter cnt = initCounter(1);
+\end{verbatim}
+
+Self-application means invoking a method by applying it to the address of the receiving object -- that is, to the {\em self} of the receiver.  A method belonging to a class {\em X} is thus supposed to take a pointer to an {\em X} object as an extra first parameter.  The following functions both qualify as {\tt Counter} methods:
+\begin{verbatim}
+   int inc( Counter *self, int arg ) {
+       if (self->enabled)
+           self->value = self->value + arg;
+       return self->value;
+   }
+   
+   int enable( Counter *self, int arg ) {
+       self->enable = arg;
+       return 0;
+   }
+\end{verbatim}
+To call method {\tt inc} on object {\tt cnt} with argument {\tt 1}, one essentially just writes
+\begin{verbatim}
+   inc( &cnt, 1 );
+\end{verbatim}
+However, as we will see in Section~\ref{sect:primitives}, method calls directed towards an object different from the current self will be expressed in a slightly different manner.
+
+Moreover, a method could in principle return any type and take any number and type of arguments after the mandatory first object pointer.  For technical reasons, though, TinyTimber restricts the method calls it handles to carry just one integer parameter and return an integer-valued result.  This restriction may be loosened somewhat by means of type casts, provided that the actual values can be represented within the space of an integer.
+
+A class {\em C} may inherit a class {\em B} -- i.e., be an extension of class {\em B} -- by including a {\em B} object as the first component of its variable layout.  For example, a class {\tt ResetCounter} can be defined as an extension of {\tt Counter} as follows:
+\begin{verbatim}
+   typedef struct {
+       Counter super;
+       int nResets;
+   } ResetCounter;
+   
+   #define initResetCounter(en)   { initCounter(en), 0 };
+\end{verbatim}
+A {\tt ResetCounter} object created by
+\begin{verbatim}
+   ResetCounter rcnt = initResetCounter(1);
+\end{verbatim}
+may now be treated as a {\tt Counter} object by means of a simple type cast, because the address of an object and the address of its first component will always be identical.  Hence methods {\tt inc} and {\tt enable} above may be used on {\tt ResetCounter} objects as well:
+\begin{verbatim}
+   inc( (Counter*)&rcnt, 4 );
+   enable( (Counter*)&rcnt, 0 );
+\end{verbatim}
+The {\tt ResetCounter} class may in addition provide new methods that do not work on {\tt Counter} objects.  Here is an example:
+\begin{verbatim}
+   int reset( ResetCounter *self, int arg ) {
+      self->super.value = 0;
+      self->nResets++;
+      return 0;
+   }
+\end{verbatim}
+Notice how the instance variables of the {\em superclass} object are accessible via the field {\tt super}.  It is also important to observe that the {\tt super} field must denote a full superclass object, not merely a pointer to such an object; otherwise the type casting trick shown above will not work.
+
+More advanced object-oriented mechanisms such as dynamic binding and method override are certainly possible to encode along this line as well, but this is as far as we need to go in order to utilize the TinyTimber kernel.  In fact, even the use of inheritance as described above is probably an overkill in many applications.  
+
+However, the TinyTimber kernel places some basic requirements on the layout of every object it manages, and these requirements are most straightforwardly expressed terms of inheritance.  Concretely this means that every class in a TinyTimber system must inherit the predefined class {\tt Object}, either directly or via some other class that inherits {\tt Object}.  To qualify as a correct TinyTimber class, our {\tt Counter} class should thus actually have been written
+\begin{verbatim}
+   typedef struct {
+       Object super;
+       int value;
+       int enabled;
+   } Counter;
+   
+   #define initCounter(en)  { initObject(), 0, en }
+\end{verbatim}
+The definition of {\tt ResetCounter} is ok as it is, because it inherits {\tt Object} via {\tt Counter}.  From now on we will silently assume that all classes follow the inheritance requirement one way or another.
+
+The most important aspect of our encoding is that it naturally leads to a software structure where the program state is partitioned into well-defined units of concurrency.  Moreover, provided that
+\begin{enumerate}
+\item only the methods of an object are allowed to access its state variables, and
+\item method calls not directed to the current self are handled by the kernel,
+\end{enumerate}
+the TinyTimber kernel is actually able to guarantee that the state integrity of all objects is automatically preserved, even in the presence of overlapping reactions and multiple concurrent events.
+
+This property heavily depends on the way method calls are performed, so let us now take a look at the TinyTimber primitives for invoking methods in a concurrent setting.
+
+\section{Concurrent method calls}
+\label{sect:primitives}
+
+Recalling Figure~\ref{fig:concurrency}, every TinyTimber object acts a potential host of concurrent activity.  On the other hand, method calls directed to a particular object must execute in a strictly serial fashion, such that each object is executing {\em at most} one of its methods at a time.  These requirements affect the semantics of method calls in two different ways:
+\begin{enumerate}
+\item  Each time a method call is made, the caller must actually check that the receiving object is not already executing some method.  Should this be the case, the caller must wait.
+\item  Alternatively, in cases where the caller is not really interested in the result returned by a method, the receiving object could be left to execute the designated method whenever it is ready.  This would leave the caller free to continue immediately once the method call is posted, possibly executing in parallel with the called method.
+\end{enumerate}
+Unfortunately, neither alternative will happen automatically if methods are invoked in the standard self-applicative fashion.  For example, suppose some method of an object {\tt x} wishes to call method {\tt reset} of object {\tt rcnt} defined in Section~\ref{sect:basic-oo}.  Simply writing
+\begin{verbatim}
+   reset( &rcnt, 0 );
+\end{verbatim}
+will force execution of {\tt reset} irrespective of whether {\tt rcnt} is already executing another method or not (with possible corruption of the state variables of {\tt rcnt} as a result).  Moreover, this simplistic mechanism will not provide any option for letting the current method of {\tt x} continue in parallel with method {\tt reset}.
+
+In the concurrent programming literature, the two invocation alternatives described as bullets 1 and 2 above go under the names {\em synchronous} and {\em asynchronous} message passing, respectively.  TinyTimber supports them both in the form of two primitive operations: {\tt SYNC} and {\tt ASYNC}.
+
+Primitive {\tt SYNC} takes an object pointer, a method name and an integer argument, and performs a synchronous method call as described under bullet 1.  For example, to execute the method call attempted above in a synchronous fashion, one writes
+\begin{verbatim}
+   SYNC( &rcnt, reset, 0 );
+\end{verbatim}
+Should the method result be of interest, it can be captured as the result of the {\tt SYNC} operation:
+\begin{verbatim}
+   some_variable = SYNC( &rcnt, inc, 1 );
+\end{verbatim}
+
+The primitive {\tt ASYNC} also takes an object pointer, a method name and an integer argument, but performs an asynchronous method invocation along the lines of bullet 2 instead.  An asynchronous variant of the previous example thus looks as follows:
+\begin{verbatim}
+   ASYNC( &rcnt, reset, 0 );
+\end{verbatim}
+The result of an {\tt ASYNC} call is always a {\em message tag}, independently of whether the actual method invoked returns a meaningful value or not (recall that the {\tt ASYNC} primitive does not wait for any result to be produced).  The returned tag is mostly ignored, but can also be used to prematurely abort a pending asynchronous message (see the appendix for details).
+
+Making an asynchronous call to the currently executing object (i.e., to the current self) is perfectly reasonable -- that call will be handled {\em after} the active method has terminated.  This would be like sending a letter to one's own mail address, to be picked up at a later time.  The usefulness of such an arrangement will perhaps be more evident after Section~\ref{sect:time}, where some variants of the {\tt ASYNC} primitive are discussed.
+
+On the other hand, a synchronous call to the current self is an unconditional error that will lead to {\em deadlock}, because the receiver cannot possibly be ready to accept such a call at any time.  This situation would be like calling one's own telephone number and waiting for someone to pick up the phone -- clearly not a good strategy for making progress!  If the intention is to simply call a method of the current self as if it were an ordinary subroutine, the standard self-application mechanism should be used instead.  In fact, this is the {\em only} scenario where self-application should be used in a TinyTimber system; all other method calls either cross an object boundary and/or need asynchronous behavior.
+
+In general, deadlock may result whenever there is a cycle of objects that call each other synchronously.  Should deadlock occur, TinyTimber will abort the closing {\tt SYNC} call, and return the error code {\tt -1}.  Programmers must therefore take special action to disambiguate {\tt SYNC} results if {\tt -1} can also be expected as a proper return value.  The easiest way is to avoid deadlocks altogether, by breaking every synchronous call cycle with an {\tt ASYNC} call at some point.
+
+A word of caution: Both {\tt SYNC} and {\tt ASYNC} make heavy use of type casts to achieve a convenient method call syntax.  Unfortunately, the C language is not potent enough to detect some misuses that may result; for example, attempting to call method {\tt reset} on object {\tt cnt} (which does not support that method).  As is always the case when type casts are involved, the programmer must take full responsibility for the correctness of the resulting program.  But this should be no news to a C programmer!
+
+
+\section{The software-hardware boundary}
+\label{sect:top-level}
+
+Figure~\ref{fig:cpu-object} shows the logical structure of a hypothetical microprocessor and its programmed software internals.  Three reactive objects can be identified, each one supporting its own methods and some local state.  These objects are conveniently described and implemented according to the techniques discussed in Sections~\ref{sect:basic-oo} and \ref{sect:primitives}.  
+
+However, Figure~\ref{fig:cpu-object} also indicates that methods m1 and m8 are callable from the world outside the microprocessor, and that methods m2, m6 and m7 are able to invoke methods of this outside world in turn. It is now time to explain workings of this software-hardware boundary in more detail.
+
+Concretely, incoming method calls from the hardware environment correspond to interrupt signals received by the microprocessor. Methods m1 and m8 thus have the status of interrupt handlers, that are invoked each time the microprocessor detects a signal on its corresponding interrupt input pins. Apart from this special link to the outside world, interrupt handlers are ordinary methods accepting the same type of parameters as methods invoked with {\tt SYNC} and {\tt ASYNC}. To install method {\tt meth} on object {\tt obj} as an interrupt handler for interrupt source {\tt IRQ\_X}, one writes
+\begin{verbatim}
+   INSTALL(&obj, meth, IRQ_X);
+\end{verbatim}
+This call, which preferably should be performed during system startup, causes {\tt meth} to be subsequently invoked with {\tt \&obj} and {\tt IRQ\_X} as arguments whenever the interrupt identified by {\tt IRQ\_X} occurs. The symbol {\tt IRQ\_X} is here used as a placeholder only; the exact set of available interrupt sources is captured in a platform-dependent enumeration type {\tt Vector} defined in the TinyTimber interface.
+
+A few technical points regarding interrupts are worth noticing. Interrupt handlers are effectively scheduled by the processor hardware, which on most platforms means that they are executed non-preemptively (i.e., with further interrupts disabled). To avoid conflicts between the hardware and software schedulers, TinyTimber ensures that {\em all} methods of an object that has interrupt handlers installed execute with interrupts disabled. This poses no restrictions on the way such methods can be invoked ({\tt SYNC} or {\tt ASYNC}), nor on what kind of calls that can be made from within such methods. However, synchronous calls within an interrupt handler will only succeed if the receiving object is inactive at the time of the interrupt.  {\tt SYNC} should therefore not be used by interrupt-handling methods unless it is acceptable that the failure value ({\tt -1}) may occasionally be returned. 
+
+System reset is a particular event that most microprocessor hardware treats as yet another interrupt source. To a C programmer, though, a "system reset" handler is already available in the form of the {\tt main} function, so the TinyTimber interface will typically not include a specific system reset identifier in its {\tt Vector} definition.\footnote{TinyTimber will reserve a few other interrupt sources for its own internal use as well, which will also be absent from the definition of {\tt Vector}.} The {\tt main} function nevertheless has a special responsibility in a TinyTimber system, in that it must hand over control to the TinyTimber scheduler; otherwise the system will just terminate prematurely without handling any events. This is achieved by invoking the non-terminating primitive {\tt TINYTIMBER} as the last {\tt main} statement. Here is an example:
+\begin{verbatim}
+   int main() {
+      INSTALL(&obj1, meth1, IRQ_1);
+      INSTALL(&obj2, meth2, IRQ_2);
+      return TINYTIMBER(&obj3, meth3, val);
+   }
+\end{verbatim}
+This system will install two interrupt handlers before invoking TinyTimber proper, thereby firing off the whole event-handling mechanism. The arguments given to {\tt TINYTIMBER} identify a method call that will act as the startup event --- the TinyTimber kernel will schedule this  call as its first event-handling operation. Should no specific startup event be desired, {\tt NULL} can be given in place of all three arguments.
+
+Returning to Figure~\ref{fig:cpu-object}, the concrete representation of outgoing method calls directed towards the hardware environment are {\em read} or {\em write} commands issued by the processor to devices on the external data bus -- i.e., events generated in software to which hardware objects are supposed to react.  Such I/O operations can be conveniently expressed in the C language as either pointer operations (memory-mapped architectures) or inline assembly code (separate I/O bus), and need no involvement by the TinyTimber kernel.  Still, I/O operations form an important conceptual link in the reactive object model on which TinyTimber is built, and they can preferably be understood as yet another form of method call in a reactive system.
+
+Here is an example of what a set of outgoing method calls to hardware objects might look like on a memory-mapped architecture.
+\begin{verbatim}
+   char *port = (char*) 0x1234;   // "self" of the hardware object
+   ...
+   unsigned char = *port;         // A "read" method call
+   ...
+   *port = expr;                  // A "write" method call
+\end{verbatim}
+For concrete information on the hardware objects available in a particular context, platform specific C documentation should be consulted.
+
+
+\section{Managing time}
+\label{sect:time}
+
+Implied in the presentation this far has been the assumption that all methods terminate after a relatively brief outburst of activity.  This might contradict many people's perception that concurrent and event-driven software inevitably must involve infinite loops.  In a TinyTimber system this is far from the truth, though.  There are no means to "block" for an event in TinyTimber, and when there is no method activity, a reactive object simply rests.  That characteristic naturally applies to microprocessor hardware as well, and thanks to the TinyTimber scheduler, it also holds for the whole compound object that includes the microprocessor and its programmed internals.
+
+Still, what is lacking in the TinyTimber picture painted so far is the ability to express {\em periodic} activity.  Or more generally put: to prescribe that a certain activity must be triggered {\em at a certain point in time}.
+
+\begin{figure}
+\includegraphics[page=5]{Figs}
+\caption{\label{fig:after}Baseline adjustment using {\tt AFTER} with an offset T}
+\end{figure}
+
+The TinyTimber primitive for managing the passage of time is called {\tt AFTER}.  Unlike time primitives in many other concurrent systems, {\tt AFTER} does not stop the program flow; instead it just sets up an event at a future point in time that some chosen object will react to.  The following code issues an asynchronous call to method {\tt meth} of object {\tt obj}, to be be delivered after {\tt X} seconds.
+\begin{verbatim}
+   AFTER( SEC(X), &obj, meth, 123 );
+\end{verbatim}
+Function {\tt SEC} is a preprocessor macro that converts its argument to the platform dependent units of time used by {\tt AFTER}.  Other useful macros with a similar purpose are {\tt MSEC} and {\tt USEC}.
+
+One important TinyTimber chracteristic is that the time parameter in an {\tt AFTER} call is not mesured from the time of the call, but from the current {\em baseline}, which is a constant timestamp TinyTimber maintains for each message.  The baseline of a message can be seen as a lower timebound on its execution, and what {\tt AFTER} actually does is that it lets the programmer adjust the baseline of a called method with an offset relative to the current one (see Figure~\ref{fig:after}).
+
+Counting time offsets from the stable reference point of a baseline makes the actual time an {\tt AFTER} call is made irrelevant.  For example, the following methods are equivalent, both performing some immediate work and triggerering \verb!more_work! to be run {\tt T} seconds after the current baseline.
+\begin{verbatim}
+   int work1( MyObject *self, int arg ) {
+      // do immediate work
+      AFTER( SEC(T), &obj, more_work, 0 );
+   }
+   
+   int work2( MyObject *self, int arg ) {
+      AFTER( SEC(T), &obj, more_work, 0 );
+      // do immediate work
+   }
+\end{verbatim}
+
+Below follows a method that will react to an initial invocation by repeatedly calling itself every {\tt T} milliseconds.
+\begin{verbatim}
+   int tick( MyObject *self, int arg ) {
+       // do something useful
+       AFTER( MSEC(T), self, tick, arg );
+   }
+\end{verbatim}
+This example succinctly captures the way periodic computations are expressed in TinyTimber.  That is, a recursive asynchronous method call with a time offset replaces the loops and blocking operations found in many other systems.  An immediate benefit of the TinyTimber formulation is that every object utilizing the pattern is free to handle any other events in the space between periodic activations.  A TinyTimber object simply treats the ticking of time as any other event -- i.e., as some unknown source of an ordinary method call.  Moreover, as long as the new computed baseline has not already passed when the {\tt AFTER} call is made, its value is indifferent to the actual speed at which methods execute.  Periodic computations in particular are thus free from accumulating drift.
+
+For applications where hard real-time performance is required, TinyTimber also provides an option for specifying the {\em deadlines} of asynchronous messages.  A deadline marks a point in time when a method must be done, and together with the baseline of a method call, it defines a time window of legal method execution (see Figure~\ref{fig:deadline}).  The baseline of an interrupt-handler method is the time of the interrupt, and its realtive deadline is by default infinity.
+
+\begin{figure}
+\includegraphics[page=6]{Figs}
+\caption{\label{fig:deadline}Window of legal method execution (relative deadline is D)}
+\end{figure}
+
+To perform an asynchronous call with an explicit deadline {\tt D}, one writes
+\begin{verbatim}
+   BEFORE( D, &obj, meth, 123 );
+\end{verbatim}
+\begin{figure}
+\includegraphics[page=7]{Figs}
+\caption{\label{fig:before}Deadline adjustment using {\tt BEFORE} with an offset D}
+\end{figure}
+C.f.\ Figure~\ref{fig:before}. To do the same with an additional baseline offset {\tt T}, a combination of the {\tt AFTER} and {\tt BEFORE} primitives is used (Figure~\ref{fig:send}):
+\begin{verbatim}
+   SEND( T, D, &obj, meth, 123 );
+\end{verbatim}
+\begin{figure}
+\includegraphics[page=8]{Figs}
+\caption{\label{fig:send}Combined baseline and deadline adjustment using {\tt SEND}}
+\end{figure}
+In both cases, the specified deadline parameter is a time-span measured relative the baseline of the generated message.
+
+The baseline of a method call may preferably be used as a time-stamp for the event that initiated the call, as it is insensitive to any scheduling decisions made by the kernel. Moreover, TinyTimber offers a built-in class {\tt Timer}, with methods {\tt T\_RESET} and {\tt T\_SAMPLE}, that allows the difference between two such time-stamps to be obtained. The following example shows the core of a sonar measurement application, where time-stamps and the facilities of class {\tt Timer} are put to good use.
+\begin{verbatim}
+   typedef struct {
+       Object super;
+       Timer timer;
+   } Sonar;
+   
+   #define initSonar()  { initObject(), initTimer() }
+   
+   Sonar sonar = initSonar();
+   
+   #define GENERATOR_PORT = (*(char *) 0x1234);
+   
+   int stop( Sonar *self, int arg ) {
+      GENERATOR_PORT = SONAR_OFF;
+   }
+   
+   int echo( Sonar *self, int arg ) {
+      Time diff = T_SAMPLE(&self->timer);
+      if (diff < MSEC(LIMIT))
+         ...
+   }
+   
+   int tick( Sonar *self, int arg ) {
+      GENERATOR_PORT = SONAR_ON;
+      T_RESET(&self->timer);
+      AFTER( MSEC(10), self, stop, 0 );
+      AFTER( MSEC(500), self, tick, 0 );
+   }
+   
+   int main() {
+      INSTALL( &sonar, echo, IRQ_ECHO_DETECT );
+      return TINYTIMBER( &sonar, tick, 0 );
+   }
+\end{verbatim}
+
+A baseline offset of {\tt 0} effectively means that the current baseline is {\em inherited} (see Figure~\ref{fig:async}).  In fact, writing
+\begin{verbatim}
+   ASYNC( &obj, meth, 123 );
+\end{verbatim}
+is just a shorthand for the equivalent call
+\begin{verbatim}
+   AFTER( 0, &obj, meth, 123 );
+\end{verbatim}
+\begin{figure}
+\includegraphics[page=9]{Figs}
+\caption{\label{fig:async}Baseline inheritance}
+\end{figure}
+As a special case, a relative deadline of {\tt 0} is interpreted as a desire to inherit the current relative deadline (i.e., it does {\em not} define a zero-width window of legal execution). See Figure~\ref{fig:inheritance}.
+\begin{figure}
+\includegraphics[page=10]{Figs}
+\caption{\label{fig:inheritance}Deadline inheritance}
+\end{figure}
+
+With this fact in mind, all variants of the asynchronous meothod call can actually be defined as variations of {\tt SEND}:
+\begin{center}
+\begin{tabular}{lll}
+    {\tt BEFORE( D, ... )} & = & {\tt SEND( 0, D, ... )} \\
+    {\tt AFTER( T, ... )}  & = & {\tt SEND( T, 0, ... )} \\
+    {\tt ASYNC( ... )}     & = & {\tt SEND( 0, 0, ... )}
+\end{tabular}
+\end{center}
+
+
+TinyTimber uses both deadlines and baselines as input to its scheduling algorithm, although it is actually only the deadlines that pose any real challenge to the scheduler.  However, missed deadlines are not trapped at run-time; if such behavior is desired it must be programmed by means of a separate watchdog task.  
+
+Judging whether a TinyTimber program will meet all its deadlines at run-time is an interesting problem, that can only be solved using a separate schedulability analysis and known worst-case execution times for all methods.  That topic, however, is beyond the scope of the present text.
+
+
+\section{Summary of the TinyTimber interface}
+
+\begin{itemize}
+
+\item {\tt \#include "TinyTimber.h"}
+
+Provides access to the TinyTimber primitives.
+
+\item {\tt typedef struct \{...\} Object;}
+
+Base class of reactive objects.  Every reactive object in a TinyTimber system must be of a class that inherits (i.e., can be cast to) this class.
+
+\item {\tt \#define initObject() \{...\}}
+
+Initialization macro for class {\tt Object}.
+
+\item {\tt int SYNC( T *obj, int (*meth)(T*,A), A arg );}
+
+Synchronously invokes method {\tt meth} on object {\tt obj} with argument {\tt arg}.  Type {\tt T} must be a struct type that inherits from {\tt Object}, while {\tt A} can be any {\tt int}-sized type.  If completion of the call would result in deadlock, {\tt -1} is returned; otherwise the result is the value returned by {\tt m}.
+
+\item {\tt typedef struct ... *Msg;}
+
+Abstract type of asynchronous message tags.
+
+\item {\tt \#define NULL  0}
+
+Unit value of type {\tt Msg} and other pointer types.
+
+\item {\tt Msg ASYNC( T *obj, int (*meth)(T*,A), A arg );}
+
+Asynchronously invokes method {\tt meth} on object {\tt obj} with argument {\tt arg}.  Identical to {\tt SEND(0, 0, obj, meth, arg)}.
+
+\item {\tt typedef signed long Time;}
+
+Type of time values (with platform-dependent resolution).
+
+\item {\tt Time SEC( int seconds );}
+
+      {\tt Time MSEC( int milliseconds );}
+
+      {\tt Time USEC( int microseconds );}
+
+Constructs a {\tt Time} value from an argument given in seconds / milliseconds / microseconds.
+
+\item {\tt int SEC\_OF( Time );}
+
+      {\tt int MSEC\_OF( Time );}
+      
+Extracts whole seconds and millisecond fractions of a {\tt Time} value.
+
+\item {\tt Msg AFTER( Time bl, T *obj, int (*meth)(T*,A), A arg );}
+
+Asynchronously invokes method {\tt meth} on object {\tt obj} with argument {\tt arg} and baseline offset {\tt bl}.  Identical to {\tt SEND(b, 0, obj, meth, arg)}.
+
+\item {\tt Msg BEFORE( Time dl, T *obj, int (*meth)(T*,A), A arg );}
+
+Asynchronously invokes method {\tt meth} on object {\tt obj} with argument {\tt arg} and relative deadline {\tt dl}.  Identical to {\tt SEND(0, dl, obj, meth, arg)}.
+
+\item {\tt Msg SEND( Time bl, Time dl, T *obj, int (*meth)(T*,A), A arg );}
+
+Asynchronously invokes method {\tt meth} on object {\tt obj} with argument {\tt arg}, baseline offset {\tt bl}, and relative deadline {\tt dl}.  Type {\tt T} must be a struct type that inherits from {\tt Object}, while {\tt A} can be any {\tt int}-sized type.  Returns a tag that can be used to identify the message in a future call to {\tt ABORT}.
+
+Offsets {\tt bl} and {\tt dl} allow a new execution window for the asynchronous call to be defined on basis of the current one:
+\begin{center}
+\begin{tabular}{llll}
+	{\em new baseline} & = & {\em current baseline} + {\tt bl} \\
+         {\em new deadline} & = & {\em new baseline} + {\em current relative deadline},       & ${\tt dl} = 0$ \\
+                                             & = & {\em new baseline} + {\tt dl}, & otherwise
+\end{tabular}
+\end{center}
+
+\item {\tt void ABORT( Msg m );}
+
+Prematurely aborts pending asynchronous message {\tt m}.  Does nothing if {\tt m} has already begun executing. 
+
+\item {\tt enum Vector = \{...\};}
+
+Platform-dependent list of interrupt source identifiers.
+
+\item {\tt INSTALL( T *obj, int (*meth)(T*, enum Vector), enum Vector v );}
+
+Install method {\tt meth} on object {\tt obj} as an interrupt-handler for interrupt source {\tt i}. Type {\tt T} must be a struct type that inherits
+from {\tt Object}. When an interrupt on {\tt i} occurs, {\tt meth} will be invoked on {\tt obj} with {\tt i} as its argument. 
+
+\item {\tt TINYTIMBER( T *obj, int (*meth)(T*,A), A arg );}
+
+Start up the TinyTimber system by invoking method {\tt meth} on {\tt obj} with argument {\tt arg}; then handle all subsequent interrupts and timed
+events as they occur. Type {\tt T} must be a struct type that inherits from {\tt Object}, while {\tt A} can be any {\tt int}-sized type. This function never
+returns.
+
+\item {\tt typedef struct \{...\} Timer;}
+
+Abstract type of timer objects.
+
+\item {\tt \#define initTimer() \{...\}}
+
+Initialization macro for class {\tt Timer}.
+
+\item {\tt void T\_RESET( Timer *t );}
+
+Reset timer {\tt t} to the value of of current baseline.
+
+\item {\tt Time T\_SAMPLE( Timer *t );}
+
+Return difference between current baseline and timer {\tt t}.
+
+\item {\tt Time CURRENT\_OFFSET(void);}
+
+Return current time measured from current baseline.
+
+\end{itemize}
+
+\end{document}
