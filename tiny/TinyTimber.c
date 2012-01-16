@@ -33,7 +33,7 @@
 
 /*
  * 
- * TinyTimber.c
+ * TinyTimber.c v2.0
  *
  */
 
@@ -756,7 +756,7 @@ static void initialize(void) {
     thread0.waitsFor = NULL;
     thread0.msg = NULL;
     
-    DUMP("\n\rTinyTimber v.120114\n\r");
+    DUMP("\n\rTinyTimber v2.0 (2012-01-16)\n\r");
     TIMER_INIT();
 }
 

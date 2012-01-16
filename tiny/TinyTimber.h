@@ -33,7 +33,7 @@
 
 /*
  * 
- * TinyTimber.h 
+ * TinyTimber.h v2.0
  *
  */
 
