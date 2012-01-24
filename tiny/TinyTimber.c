@@ -33,9 +33,11 @@
 
 /*
  * 
- * TinyTimber.c v2.0
+ * TinyTimber.c
  *
  */
+
+#define VERSION "v2.01 (2012-01-24)"
 
 #include "TinyTimber.h"
 
@@ -756,7 +758,9 @@ static void initialize(void) {
     thread0.waitsFor = NULL;
     thread0.msg = NULL;
     
-    DUMP("\n\rTinyTimber v2.0 (2012-01-16)\n\r");
+    DUMP("\n\rTinyTimber ");
+    DUMP(VERSION);
+    DUMP("\n\r");
     TIMER_INIT();
 }
 
