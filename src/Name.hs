@@ -442,6 +442,19 @@ cSym LazyAnd                    = text "&&"
 cSym PidEQ                      = text "=="
 cSym PidNE                      = text "!="
 
+cSym Sqrt                       = text "sqrtf"
+cSym Log                        = text "logf"
+cSym Log10                      = text "log10f"
+cSym Exp                        = text "expf"
+cSym Sin                        = text "sinf"
+cSym Cos                        = text "cosf"
+cSym Tan                        = text "tanf"
+cSym Asin                       = text "asinf"
+cSym Acos                       = text "acosf"
+cSym Atan                       = text "atanf"
+cSym Sinh                       = text "sinhf"
+cSym Cosh                       = text "coshf"
+
 cSym p                          = text (strRepV2 p)
 
 
