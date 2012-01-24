@@ -285,7 +285,14 @@ The TinyTimber primitive for managing the passage of time is called {\tt AFTER}.
 \end{verbatim}
 Function {\tt SEC} is a preprocessor macro that converts its argument to the platform dependent units of time used by {\tt AFTER}.  Other useful macros with a similar purpose are {\tt MSEC} and {\tt USEC}.
 
-One important TinyTimber chracteristic is that the time parameter in an {\tt AFTER} call is not mesured from the time of the call, but from the current {\em baseline}, which is a constant timestamp TinyTimber maintains for each message.  The baseline of a message can be seen as a lower timebound on its execution, and what {\tt AFTER} actually does is that it lets the programmer adjust the baseline of a called method with an offset relative to the current one (see Figure~\ref{fig:after}).
+One important TinyTimber chracteristic is that the time parameter in an {\tt AFTER} call is not mesured from the time of the call, but from the current {\em baseline}, which is a time-stamp TinyTimber sets for each interrupt and then subsequently maintains for each message.  The baseline of a message can be seen as a lower timebound on its execution, and what {\tt AFTER} actually does is that it lets the programmer adjust the baseline of a called method with an offset relative to the current one (see Figure~\ref{fig:after}). An {\tt AFTER} call with a baseline offset of {\tt 0} thus means that the called method runs with the same baseline as the caller. In fact, writing
+\begin{verbatim}
+   ASYNC( &obj, meth, 123 );
+\end{verbatim}
+is just a shorthand for the equivalent call
+\begin{verbatim}
+   AFTER( 0, &obj, meth, 123 );
+\end{verbatim}
 
 Counting time offsets from the stable reference point of a baseline makes the actual time an {\tt AFTER} call is made irrelevant.  For example, the following methods are equivalent, both performing some immediate work and triggerering \verb!more_work! to be run {\tt T} seconds after the current baseline.
 \begin{verbatim}
@@ -307,9 +314,9 @@ Below follows a method that will react to an initial invocation by repeatedly ca
        AFTER( MSEC(T), self, tick, arg );
    }
 \end{verbatim}
-This example succinctly captures the way periodic computations are expressed in TinyTimber.  That is, a recursive asynchronous method call with a time offset replaces the loops and blocking operations found in many other systems.  An immediate benefit of the TinyTimber formulation is that every object utilizing the pattern is free to handle any other events in the space between periodic activations.  A TinyTimber object simply treats the ticking of time as any other event -- i.e., as some unknown source of an ordinary method call.  Moreover, as long as the new computed baseline has not already passed when the {\tt AFTER} call is made, its value is indifferent to the actual speed at which methods execute.  Periodic computations in particular are thus free from accumulating drift.
+This example succinctly captures the way periodic computations are expressed in TinyTimber.  That is, a recursive asynchronous method call with a time offset replaces the loops and blocking operations found in many other systems.  An immediate benefit of the TinyTimber formulation is that every object utilizing the pattern is free to handle any other events in the space between periodic activations.  A TinyTimber object simply treats the ticking of time as any other event -- i.e., as some unknown source of an ordinary method call.  Moreover, the new baseline computed by an {\tt AFTER} call is indifferent to the actual speed at which methods execute.  Periodic computations in particular are thus free from accumulating drift.
 
-For applications where hard real-time performance is required, TinyTimber also provides an option for specifying the {\em deadlines} of asynchronous messages.  A deadline marks a point in time when a method must be done, and together with the baseline of a method call, it defines a time window of legal method execution (see Figure~\ref{fig:deadline}).  The baseline of an interrupt-handler method is the time of the interrupt, and its realtive deadline is by default infinity.
+For applications where hard real-time performance is required, TinyTimber also provides an option for specifying the {\em deadlines} of asynchronous messages.  A deadline marks a point in time when a method must be done, and together with the baseline of a method call, it defines a time window of legal method execution (see Figure~\ref{fig:deadline}).  
 
 \begin{figure}
 \includegraphics[page=6]{Figs}
@@ -332,7 +339,14 @@ C.f.\ Figure~\ref{fig:before}. To do the same with an additional baseline offset
 \includegraphics[page=8]{Figs}
 \caption{\label{fig:send}Combined baseline and deadline adjustment using {\tt SEND}}
 \end{figure}
-In both cases, the specified deadline parameter is a time-span measured relative the baseline of the generated message.
+In both cases, the specified deadline parameter is a time-span measured relative the baseline of the generated message. As a special case, a relative deadline value of {\tt 0} is interpreted as infinity; i.e., specifying an infinitely wide window of legal execution. With this fact in mind, all variants of the asynchronous method call can actually be defined as variations of {\tt SEND}:
+\begin{center}
+\begin{tabular}{lll}
+    {\tt BEFORE( D, ... )} & = & {\tt SEND( 0, D, ... )} \\
+    {\tt AFTER( T, ... )}  & = & {\tt SEND( T, 0, ... )} \\
+    {\tt ASYNC( ... )}     & = & {\tt SEND( 0, 0, ... )}
+\end{tabular}
+\end{center}
 
 The baseline of a method call may preferably be used as a time-stamp for the event that initiated the call, as it is insensitive to any scheduling decisions made by the kernel. Moreover, TinyTimber offers a built-in class {\tt Timer}, with methods {\tt T\_RESET} and {\tt T\_SAMPLE}, that allows the difference between two such time-stamps to be obtained. The following example shows the core of a sonar measurement application, where time-stamps and the facilities of class {\tt Timer} are put to good use.
 \begin{verbatim}
@@ -342,19 +356,17 @@ The baseline of a method call may preferably be used as a time-stamp for the eve
    } Sonar;
    
    #define initSonar()  { initObject(), initTimer() }
-   
-   Sonar sonar = initSonar();
-   
    #define GENERATOR_PORT = (*(char *) 0x1234);
    
+   Sonar sonar = initSonar();
+      
    int stop( Sonar *self, int arg ) {
       GENERATOR_PORT = SONAR_OFF;
    }
    
    int echo( Sonar *self, int arg ) {
       Time diff = T_SAMPLE(&self->timer);
-      if (diff < MSEC(LIMIT))
-         ...
+      if (diff < MSEC(LIMIT)) ...;
    }
    
    int tick( Sonar *self, int arg ) {
@@ -370,35 +382,7 @@ The baseline of a method call may preferably be used as a time-stamp for the eve
    }
 \end{verbatim}
 
-A baseline offset of {\tt 0} effectively means that the current baseline is {\em inherited} (see Figure~\ref{fig:async}).  In fact, writing
-\begin{verbatim}
-   ASYNC( &obj, meth, 123 );
-\end{verbatim}
-is just a shorthand for the equivalent call
-\begin{verbatim}
-   AFTER( 0, &obj, meth, 123 );
-\end{verbatim}
-\begin{figure}
-\includegraphics[page=9]{Figs}
-\caption{\label{fig:async}Baseline inheritance}
-\end{figure}
-As a special case, a relative deadline of {\tt 0} is interpreted as a desire to inherit the current relative deadline (i.e., it does {\em not} define a zero-width window of legal execution). See Figure~\ref{fig:inheritance}.
-\begin{figure}
-\includegraphics[page=10]{Figs}
-\caption{\label{fig:inheritance}Deadline inheritance}
-\end{figure}
-
-With this fact in mind, all variants of the asynchronous meothod call can actually be defined as variations of {\tt SEND}:
-\begin{center}
-\begin{tabular}{lll}
-    {\tt BEFORE( D, ... )} & = & {\tt SEND( 0, D, ... )} \\
-    {\tt AFTER( T, ... )}  & = & {\tt SEND( T, 0, ... )} \\
-    {\tt ASYNC( ... )}     & = & {\tt SEND( 0, 0, ... )}
-\end{tabular}
-\end{center}
-
-
-TinyTimber uses both deadlines and baselines as input to its scheduling algorithm, although it is actually only the deadlines that pose any real challenge to the scheduler.  However, missed deadlines are not trapped at run-time; if such behavior is desired it must be programmed by means of a separate watchdog task.  
+TinyTimber uses both deadlines and baselines as input to its scheduling algorithm, although it is actually only the deadlines that pose any real challenge to the scheduler.  However, missed deadlines are not trapped at run-time; if such behavior is desired it must be programmed by means of a separate watchdog task.
 
 Judging whether a TinyTimber program will meet all its deadlines at run-time is an interesting problem, that can only be solved using a separate schedulability analysis and known worst-case execution times for all methods.  That topic, however, is beyond the scope of the present text.
 
@@ -469,7 +453,7 @@ Offsets {\tt bl} and {\tt dl} allow a new execution window for the asynchronous 
 \begin{center}
 \begin{tabular}{llll}
 	{\em new baseline} & = & {\em current baseline} + {\tt bl} \\
-         {\em new deadline} & = & {\em new baseline} + {\em current relative deadline},       & ${\tt dl} = 0$ \\
+         {\em new deadline} & = & {\em infinity},                            & if ${\tt dl} = 0$ \\
                                              & = & {\em new baseline} + {\tt dl}, & otherwise
 \end{tabular}
 \end{center}
