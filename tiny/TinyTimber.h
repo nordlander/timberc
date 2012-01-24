@@ -117,19 +117,22 @@ typedef signed long Time;
 
 //      Construct a Time value from an argument given in microseconds.
 #define USEC(x) \
-        (((Time)(x * 31 + (x / 4))) / (Time)1000)
+        (((Time)(x)) * 125 / 4000)
 //      Construct a Time value from an argument given in milliseconds.
 #define MSEC(x) \
-        ((Time)(x * 31 + (x / 4)))
+        (((Time)(x)) * 125 / 4)
 //      Construct a Time value from an argument given in seconds.
 #define SEC(x) \
-        ((x * (Time)31250)) 
+        (((Time)(x)) * 31250)
+//      Extract the millisecond fraction of a Time value
+#define USEC_OF(t) \
+        (int)(((t) % 31250) * 32)
 //      Extract the millisecond fraction of a Time value
 #define MSEC_OF(t) \
-        (int)((t) % ((Time)31))
+        (int)(((t) % 31250) * 4 / 125)
 //      Extract the while second basis of a Time value
 #define SEC_OF(t) \
-        (int)((t) / ((Time)31250))
+        (int)((t) / 31250)
 
 enum Vector { 
         IRQ_INT0, 
@@ -161,10 +164,13 @@ enum Vector {
         ((Time)(x))
 //      Construct a Time value from an argument given in milliseconds.
 #define MSEC(x) \
-        ((Time)(x * (Time)1000))
+        (((Time)(x)) * 1000)
 //      Construct a Time value from an argument given in seconds.
 #define SEC(x) \
-        ((x * (Time)1000000)) 
+        (((Time)(x)) * (Time)1000000) 
+//      Extract the microsecond fraction of a Time value
+#define USEC_OF(t) \
+        (int)((t) % ((Time)1000000))
 //      Extract the millisecond fraction of a Time value
 #define MSEC_OF(t) \
         (int)(((t) % ((Time)1000000)) / 1000)
@@ -197,13 +203,16 @@ enum Vector {
 
 //      Construct a Time value from an argument given in microseconds.
 #define USEC(x) \
-        ((Time)(x + (x / 2)))
+        (((Time)(x)) * 2 / 3)
 //      Construct a Time value from an argument given in milliseconds.
 #define MSEC(x) \
-        ((Time)(x * (Time)1500))
+        (((Time)(x)) * 1500)
 //      Construct a Time value from an argument given in seconds.
 #define SEC(x) \
-        ((Time)(x * (Time)1500000))
+        (((Time)(x)) * (Time)1500000)
+//      Extract the microsecond fraction of a Time value
+#define USEC_OF(t) \
+        (int)(((t) % ((Time)1500000)) * 2 / 3)
 //      Extract the millisecond fraction of a Time value
 #define MSEC_OF(t) \
         (int)(((t) % ((Time)1500000)) / 1500)
