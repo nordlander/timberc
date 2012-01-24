@@ -40,6 +40,8 @@
 #ifndef _TINYTIMBER_
 #define _TINYTIMBER_
 
+#define TINYTIMBER_VERSION "v2.01 (2012-01-24)"
+
 //      Abstract type, used in the definition of Object.
 struct thread_block;
 

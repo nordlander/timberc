@@ -37,8 +37,6 @@
  *
  */
 
-#define VERSION "v2.01 (2012-01-24)"
-
 #include "TinyTimber.h"
 
 void DUMPC(char);
@@ -759,7 +757,7 @@ static void initialize(void) {
     thread0.msg = NULL;
     
     DUMP("\n\rTinyTimber ");
-    DUMP(VERSION);
+    DUMP(TINYTIMBER_VERSION);
     DUMP("\n\r");
     TIMER_INIT();
 }
