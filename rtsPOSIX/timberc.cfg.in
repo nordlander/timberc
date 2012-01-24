@@ -2,5 +2,5 @@ CfgOpts
       { cCompiler = "@CC@"
       , compileFlags = " @CFLAGS@ "
       , linkFlags = " @LDFLAGS@ "
-      , linkLibs = " -lTimber "
+      , linkLibs = " -lTimber -lm "
       }

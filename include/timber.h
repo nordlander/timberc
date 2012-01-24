@@ -34,6 +34,8 @@
 #ifndef TIMBER_H_
 #define TIMBER_H_
 
+#include <math.h>
+
 #ifdef rtsPOSIX
 #include <sys/time.h>
 #include <pthread.h>
