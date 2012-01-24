@@ -119,22 +119,22 @@ typedef signed long Time;
 
 //      Construct a Time value from an argument given in microseconds.
 #define USEC(x) \
-        (((Time)(x)) * 125 / 4000)
+        ((Time)((x * (Time)125) / 4) / (Time)1000)
 //      Construct a Time value from an argument given in milliseconds.
 #define MSEC(x) \
-        (((Time)(x)) * 125 / 4)
+        ((Time)((x * (Time)125) / 4))
 //      Construct a Time value from an argument given in seconds.
 #define SEC(x) \
-        (((Time)(x)) * 31250)
-//      Extract the millisecond fraction of a Time value
+        ((x * (Time)31250)) 
+//      Extract the microsecond fraction of a Time value
 #define USEC_OF(t) \
-        (long)(((t) % 31250) * 32)
+        (int)(((t) % ((Time)31250)) * 32)
 //      Extract the millisecond fraction of a Time value
 #define MSEC_OF(t) \
-        (int)((((t) % 31250L) * 4) / 125)
+        (int)(((t) % ((Time)31250)) * 4 / 125)
 //      Extract the while second basis of a Time value
 #define SEC_OF(t) \
-        (int)((t) / 31250)
+        (int)((t) / ((Time)31250))
 
 enum Vector { 
         IRQ_INT0, 
@@ -166,19 +166,19 @@ enum Vector {
         ((Time)(x))
 //      Construct a Time value from an argument given in milliseconds.
 #define MSEC(x) \
-        (((Time)(x)) * 1000)
+        ((Time)(x * (Time)1000))
 //      Construct a Time value from an argument given in seconds.
 #define SEC(x) \
-        (((Time)(x)) * 1000000L) 
+        ((x * (Time)1000000)) 
 //      Extract the microsecond fraction of a Time value
 #define USEC_OF(t) \
-        (long)((t) % 1000000L)
+        (long)((t) % ((Time)1000000))
 //      Extract the millisecond fraction of a Time value
 #define MSEC_OF(t) \
-        (int)(((t) % 1000000L) / 1000)
+        (int)(((t) % ((Time)1000000)) / 1000)
 //      Extract the while second basis of a Time value
 #define SEC_OF(t) \
-        (int)((t) / 1000000L)
+        (int)((t) / ((Time)1000000))
 
 enum Vector { 
         IRQ_INT0, 
@@ -198,29 +198,29 @@ enum Vector {
         IRQ_TWI, 
         IRQ_SPM_RDY,
 
-	    N_VECTORS
+        N_VECTORS
 };
 
 #elif defined(__HCS12__)   // Freescale HCS12 dependencies -------------------------------
 
 //      Construct a Time value from an argument given in microseconds.
 #define USEC(x) \
-        (((Time)(x)) * 3 / 2)
+        ((Time)(x + (x / 2)))
 //      Construct a Time value from an argument given in milliseconds.
 #define MSEC(x) \
-        (((Time)(x)) * 1500)
+        ((Time)(x * (Time)1500))
 //      Construct a Time value from an argument given in seconds.
 #define SEC(x) \
-        (((Time)(x)) * 1500000L)
+        ((Time)(x * (Time)1500000))
 //      Extract the microsecond fraction of a Time value
 #define USEC_OF(t) \
-        (long)(((t) % 1500000L) * 2 / 3)
+        (long)(((t) % ((Time)1500000)) * 2 / 3)
 //      Extract the millisecond fraction of a Time value
 #define MSEC_OF(t) \
-        (int)(((t) % 1500000L) / 1500)
+        (int)(((t) % ((Time)1500000)) / 1500)
 //      Extract the while second basis of a Time value
 #define SEC_OF(t) \
-        (int)((t) / 1500000L)
+        (int)((t) / ((Time)1500000))
 
 enum Vector {
 	    IRQ_PWMEShutdown,
