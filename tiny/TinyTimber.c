@@ -635,9 +635,7 @@ Msg async(Time bl, Time dl, Object *to, Method meth, int arg) {
     m->method = meth; 
     m->arg = arg;
     m->baseline = (status ? current->msg->baseline : timestamp) + bl;
-    if (dl <= 0)
-        dl = status ? (current->msg->deadline - current->msg->baseline) : INFINITY;
-    m->deadline = m->baseline + dl;
+    m->deadline = m->baseline + (dl > 0 ? dl : INFINITY);
     
     TIMERGET(now);
     if (m->baseline - now > 0) {        // baseline has not yet passed
