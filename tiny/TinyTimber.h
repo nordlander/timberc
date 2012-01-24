@@ -128,10 +128,10 @@ typedef signed long Time;
         (((Time)(x)) * 31250)
 //      Extract the millisecond fraction of a Time value
 #define USEC_OF(t) \
-        (int)(((t) % 31250) * 32)
+        (long)(((t) % 31250) * 32)
 //      Extract the millisecond fraction of a Time value
 #define MSEC_OF(t) \
-        (int)(((t) % 31250) * 4 / 125)
+        (int)((((t) % 31250L) * 4) / 125)
 //      Extract the while second basis of a Time value
 #define SEC_OF(t) \
         (int)((t) / 31250)
@@ -169,16 +169,16 @@ enum Vector {
         (((Time)(x)) * 1000)
 //      Construct a Time value from an argument given in seconds.
 #define SEC(x) \
-        (((Time)(x)) * (Time)1000000) 
+        (((Time)(x)) * 1000000L) 
 //      Extract the microsecond fraction of a Time value
 #define USEC_OF(t) \
-        (int)((t) % ((Time)1000000))
+        (long)((t) % 1000000L)
 //      Extract the millisecond fraction of a Time value
 #define MSEC_OF(t) \
-        (int)(((t) % ((Time)1000000)) / 1000)
+        (int)(((t) % 1000000L) / 1000)
 //      Extract the while second basis of a Time value
 #define SEC_OF(t) \
-        (int)((t) / ((Time)1000000))
+        (int)((t) / 1000000L)
 
 enum Vector { 
         IRQ_INT0, 
@@ -205,22 +205,22 @@ enum Vector {
 
 //      Construct a Time value from an argument given in microseconds.
 #define USEC(x) \
-        (((Time)(x)) * 2 / 3)
+        (((Time)(x)) * 3 / 2)
 //      Construct a Time value from an argument given in milliseconds.
 #define MSEC(x) \
         (((Time)(x)) * 1500)
 //      Construct a Time value from an argument given in seconds.
 #define SEC(x) \
-        (((Time)(x)) * (Time)1500000)
+        (((Time)(x)) * 1500000L)
 //      Extract the microsecond fraction of a Time value
 #define USEC_OF(t) \
-        (int)(((t) % ((Time)1500000)) * 2 / 3)
+        (long)(((t) % 1500000L) * 2 / 3)
 //      Extract the millisecond fraction of a Time value
 #define MSEC_OF(t) \
-        (int)(((t) % ((Time)1500000)) / 1500)
+        (int)(((t) % 1500000L) / 1500)
 //      Extract the while second basis of a Time value
 #define SEC_OF(t) \
-        (int)((t) / ((Time)1500000))
+        (int)((t) / 1500000L)
 
 enum Vector {
 	    IRQ_PWMEShutdown,
