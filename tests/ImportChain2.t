@@ -11,4 +11,4 @@ f2 x = f1 x
 struct R2 < R where
   sel2 :: Int
 
-r2 = R2 { sel = 1; sel2 = 3 }
+r2 = R2 { sel = 1, sel2 = 3 }

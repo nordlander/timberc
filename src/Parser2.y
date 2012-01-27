@@ -381,22 +381,18 @@ kind1	:: { Kind }
 -- Expressions -------------------------------------------------------------
 
 exp     :: { Exp }
-        : exp0a '::' btype                                   	{ ESig $1 $3 }
-        | exp0                                               	{ $1}
+        : exp0a '::' btype                                   		{ ESig $1 $3 }
+        | exp0                                               		{ $1}
 
-        | 'struct' layout_on binds close                     	{ EStruct Nothing (reverse $3) }
-        | anyconid 'struct' layout_on binds close            	{ EStruct (Just ($1,False)) (reverse $4) }
-        | anyconid 'struct' layout_on binds ';' '..' close   	{ EStruct (Just ($1,True)) (reverse $4) }
-        | anyconid 'struct' layout_on '..' close             	{ EStruct (Just ($1,True)) [] }
-        | 'struct' layout_on binds ';' '_' close             	{ EStructUpdate Nothing (reverse $3) }
-        | anyconid 'struct' layout_on binds ';' '_' close    	{ EStructUpdate (Just $1) (reverse $4) }
+        | 'struct' layout_on binds close                     		{ EStructBind Nothing (reverse $3) }
+        | 'struct' '@' anyconid layout_on binds close           	{ EStructBind (Just ($3,False)) (reverse $5) }
+        | 'struct' '@' anyconid layout_on binds ';' '..' close  	{ EStructBind (Just ($3,True)) (reverse $5) }
+        | 'struct' '@' anyconid layout_on '..' close            	{ EStructBind (Just ($3,True)) [] }
 
-        | 'struct' '{' layout_off binds '}'                     { EStruct Nothing (reverse $4) }
-        | anyconid 'struct' '{' layout_off binds '}'         	{ EStruct (Just ($1,False)) (reverse $5) }
-        | anyconid 'struct' '{' layout_off binds ';' '..' '}'	{ EStruct (Just ($1,True)) (reverse $5) }
-        | anyconid 'struct' '{' layout_off '..' '}'             { EStruct (Just ($1,True)) [] }
-        | 'struct' '{' layout_off binds ';' '_' '}'             { EStructUpdate Nothing (reverse $4) }
-        | anyconid 'struct' '{' layout_off binds ';' '_' '}'    { EStructUpdate (Just $1) (reverse $5) }
+        | 'struct' '{' layout_off binds '}'                     	{ EStructBind Nothing (reverse $4) }
+        | 'struct' '@' anyconid '{' layout_off binds '}'         	{ EStructBind (Just ($3,False)) (reverse $6) }
+        | 'struct' '@' anyconid '{' layout_off binds ';' '..' '}'	{ EStructBind (Just ($3,True)) (reverse $6) }
+        | 'struct' '@' anyconid '{' layout_off '..' '}'             { EStructBind (Just ($3,True)) [] }
 
 exp0    :: { Exp }
         : exp000a                               { $1 }
@@ -452,37 +448,49 @@ op0     :: { Exp }
 
 exp10a  :: { Exp }
         : 'case' exp 'of' altslist              { ECase $2 $4 }
-        | '{' layout_off binds '}'              { EStruct Nothing (reverse $3) }
+        | '{' layout_off fields '}'             { EStruct Nothing (reverse $3) }
         | exp10as                               { $1 }
 
-        | '{' layout_off binds ';' '_' '}'      { EStructUpdate Nothing (reverse $3) }
+        | '{' layout_off fmaps '}'      		{ EStructUpd Nothing (reverse $3) }
+
+fields  :: { [Field] }
+        : fields ',' field                      { $3 : $1 }
+        | field                                 { [$1] }
+
+field   :: { Field }
+        : varref '=' exp                        { Field $1 $3 }
+
+fmaps   :: { [EMap QName2] }
+        : fmaps ',' fmap                      	{ $3 : $1 }
+        | fmap                                	{ [$1] }
+
+fmap   :: { EMap QName2 }
+        : varref '->' exp                       { EMap $1 $3 }
 
 exp10as :: { Exp }											
         : fexp                                             	{ $1 }
         | forall 'do' stmtlist                             	{ EDo $1 Nothing Nothing $3 }
-        | forall 'do' '@' varid stmtlist                   	{ EDo $1 (Just $4) Nothing $5 }
-        | forall 'do' '@' anyconid stmtlist                	{ EDo $1 Nothing (Just $4) $5 }
-        | forall 'do' '@' varid '@' anyconid stmtlist      	{ EDo $1 (Just $4) (Just $6) $7 }
+        | forall 'do' '@' varid stmtlist                   	{ EDo $1 Nothing (Just $4) $5 }
+        | forall 'do' '@' anyconid stmtlist                	{ EDo $1 (Just $4) Nothing $5 }
+        | forall 'do' '@' anyconid '@' varid stmtlist      	{ EDo $1 (Just $4) (Just $6) $7 }
         | forall 'class' stmtlist                          	{ EClass $1 Nothing Nothing $3 }
-        | forall 'class' '@' varid stmtlist                	{ EClass $1 (Just $4) Nothing $5 }
-        | forall 'class' '@' anyconid stmtlist             	{ EClass $1 Nothing (Just $4) $5 }
-        | forall 'class' '@' varid '@' anyconid stmtlist   	{ EClass $1 (Just $4) (Just $6) $7 }
+        | forall 'class' '@' varid stmtlist                	{ EClass $1 Nothing (Just $4) $5 }
+        | forall 'class' '@' anyconid stmtlist             	{ EClass $1 (Just $4) Nothing $5 }
+        | forall 'class' '@' anyconid '@' varid stmtlist   	{ EClass $1 (Just $4) (Just $6) $7 }
         | before 'action' stmtlist                         	{ EAct $1 Nothing Nothing $3 }
-        | before 'action' '@' varid stmtlist               	{ EAct $1 (Just $4) Nothing $5 }
-        | before 'action' '@' anyconid stmtlist            	{ EAct $1 Nothing (Just $4) $5 }
-        | before 'action' '@' varid '@' anyconid stmtlist  	{ EAct $1 (Just $4) (Just $6) $7 }
+        | before 'action' '@' varid stmtlist               	{ EAct $1 Nothing (Just $4) $5 }
+        | before 'action' '@' anyconid stmtlist            	{ EAct $1 (Just $4) Nothing $5 }
+        | before 'action' '@' anyconid '@' varid stmtlist  	{ EAct $1 (Just $4) (Just $6) $7 }
         | 'request' stmtlist                               	{ EReq Nothing Nothing $2 }
-        | 'request' '@' varid stmtlist                     	{ EReq (Just $3) Nothing $4 }
-        | 'request' '@' anyconid stmtlist                  	{ EReq Nothing (Just $3) $4 }
-        | 'request' '@' varid '@' anyconid stmtlist        	{ EReq (Just $3) (Just $5) $6 }
+        | 'request' '@' varid stmtlist                     	{ EReq Nothing (Just $3) $4 }
+        | 'request' '@' anyconid stmtlist                  	{ EReq (Just $3) Nothing $4 }
+        | 'request' '@' anyconid '@' varid stmtlist        	{ EReq (Just $3) (Just $5) $6 }
       
-        | anyconid '{' layout_off binds '}'           		{ EStruct (Just ($1,True)) (reverse $4) } 
-        | anyconid '{' layout_off binds '..' '}'      		{ EStruct (Just ($1,False)) (reverse $4) } 
-        | anyconid '{' layout_off binds ';' '..' '}'  		{ EStruct (Just ($1,False)) (reverse $4) } 
+        | anyconid '{' layout_off fields '}'           		{ EStruct (Just ($1,True)) (reverse $4) } 
+        | anyconid '{' layout_off fields '..' '}'      		{ EStruct (Just ($1,False)) (reverse $4) } 
+        | anyconid '{' layout_off fields ',' '..' '}'  		{ EStruct (Just ($1,False)) (reverse $4) } 
         | anyconid '{' layout_off '..' '}'                 	{ EStruct (Just ($1,False)) [] } 
-        | anyconid '{' layout_off  '}'	                   	{ EStruct (Just ($1,True)) [] }
-
-        | anyconid '{' layout_off binds ';' '_' '}'        	{ EStructUpdate (Just $1) (reverse $4) } 
+        | anyconid '{' layout_off '}'	                    { EStruct (Just ($1,True)) [] }
 
 		| forall after 'send' exp10a                       	{ ESend $1 $2 $4 }
 		| forall 'new' exp10a                              	{ ENew $1 $3 }
@@ -559,18 +567,18 @@ list    :: { Exp }
         | exp '..' exp                          { ESeq $1 Nothing $3 }
         | exp ',' exp '..' exp                  { ESeq $1 (Just $3) $5 }
         | exp '|' qualss                        { EComp $1 (reverse $3) }
-        | maps                                  { EListUpdate (reverse $1) }
+        | maps                                  { EListUpd (reverse $1) }
 
 exps    :: { [Exp] }
         : exps ',' exp                          { $3 : $1 }
         | exp ',' exp                           { [$3,$1] }
 
-maps    :: { [(Exp,Exp)] }
+maps    :: { [EMap Exp] }
         : maps ',' map                          { $3 : $1 }
         | map                                   { [$1] }
 
-map     :: { (Exp,Exp) }
-        : exp '->' exp                          { ($1, $3) }
+map     :: { EMap Exp }
+        : exp '->' exp                          { EMap $1 $3 }
 
 
 -- List comprehensions ---------------------------------------------------------
@@ -690,7 +698,7 @@ exp00as :: { Exp }
 
 exp0as	:: { Exp }
         : opExpas			        			{ transFix $1 }
-	| exp10as			        				{ $1 }
+		| exp10as			        			{ $1 }
 	  
 exp000bs :: { Exp }
         : exp000as '||' exp00bs                 { EOr $1 $3 }

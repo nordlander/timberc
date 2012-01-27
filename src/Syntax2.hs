@@ -107,70 +107,74 @@ data Quant  = QVar    Name2
             | QVarSig Name2 Kind
             deriving (Eq,Show)
 
-data Pat    = PVar    Name2
-            | PVarSig Name2 Type
-            | PCon    QName2
-            | PInfix  Pat Pat Pat
-            | PAp     Pat Pat
-            | PPAp    Pat Pat
-            | PTAp    Pat Quant
-            | PIndex  Pat Exp
-            | PLit    Lit
-            | PTup    [Pat]
-            | PTupC   Int
-            | PList   [Pat]
-            | PParen  Pat
+data Pat    = PVar     Name2
+            | PVarSig  Name2 Type
+            | PCon     QName2
+            | PInfix   Pat Pat Pat
+            | PAp      Pat Pat
+            | PPAp     Pat Pat
+            | PTAp     Pat Quant
+            | PIndex   Pat Exp
+            | PLit     Lit
+            | PTup     [Pat]
+            | PTupC    Int
+            | PList    [Pat]
+            | PParen   Pat
             | PWild
-            | PStruct (Maybe (QName2,Bool)) [Field]
+            | PStruct  (Maybe (QName2,Bool)) [PField]
             deriving  (Eq,Show)
 
-data Field  = Field   QName2 Pat
+data PField = PField   QName2 Pat
             deriving (Eq,Show)
 
-data Exp    = EVar    QName2
-            | EAp     Exp Exp
-            | EInfix  Exp Exp Exp
-            | ECon    QName2
-            | ESel    Exp QName2
-            | ELit    Lit
-            | ETup    [Exp]
-            | ETupC   Int
-            | EParen  Exp
-            | EList   [Exp]
-            | EListUpdate [(Exp,Exp)]
-            | EIndex  Exp Exp
-            | ESig    Exp Type
-            | EStruct (Maybe (QName2,Bool)) [Bind]
-            | EStructUpdate (Maybe QName2) [Bind]
-            | ELam    [Pat] Exp
-            | ELet    [Bind] Exp
-            | ECase   Exp [Alt Exp]
-            | EIf     Exp Exp Exp
-            | ENeg    Exp
-            | ESeq    Exp (Maybe Exp) Exp
-            | EComp   Exp [Quals]
+data Field  = Field    QName2 Exp
+            deriving (Eq,Show)
 
-            | EAnd    Exp Exp
-            | EOr     Exp Exp
+data Exp    = EVar     QName2
+            | EAp      Exp Exp
+            | EInfix   Exp Exp Exp
+            | ECon     QName2
+            | ESel     Exp QName2
+            | ELit     Lit
+            | ETup     [Exp]
+            | ETupC    Int
+            | EParen   Exp
+            | EList    [Exp]
+            | EListUpd [EMap Exp]
+            | EIndex   Exp Exp
+            | ESig     Exp Type
+            | EStruct  (Maybe (QName2,Bool)) [Field]
+            | EStructUpd (Maybe QName2) [EMap QName2]
+            | EStructBind (Maybe (QName2,Bool)) [Bind]
+            | ELam     [Pat] Exp
+            | ELet     [Bind] Exp
+            | ECase    Exp [Alt Exp]
+            | EIf      Exp Exp Exp
+            | ENeg     Exp
+            | ESeq     Exp (Maybe Exp) Exp
+            | EComp    Exp [Quals]
 
-            | EPAp    Exp Exp
-            | ETAp    Exp Type
-            | EBigLam [Quant] [Pat] Exp
+            | EAnd     Exp Exp
+            | EOr      Exp Exp
 
-            | ESectR  Exp Exp   -- operator to the right
-            | ESectL  Exp Exp   -- operator to the left
+            | EPAp     Exp Exp
+            | ETAp     Exp Type
+            | EBigLam  [Quant] [Pat] Exp
+
+            | ESectR   Exp Exp   -- operator to the right
+            | ESectL   Exp Exp   -- operator to the left
             | ESelector QName2
 
-            | EDo     [Quals] (Maybe Name2) (Maybe QName2) Stmts 
-            | EClass  [Quals] (Maybe Name2) (Maybe QName2) Stmts
-            | EAct    (Maybe Exp) (Maybe Name2) (Maybe QName2) Stmts -- 1st argument is the optional deadline!
-            | EReq    (Maybe Name2) (Maybe QName2) Stmts 
+            | EDo      [Quals] (Maybe QName2) (Maybe Name2) Stmts 
+            | EClass   [Quals] (Maybe QName2) (Maybe Name2) Stmts
+            | EAct     (Maybe Exp) (Maybe QName2) (Maybe Name2) Stmts -- 1st argument is the optional deadline!
+            | EReq     (Maybe QName2) (Maybe Name2) Stmts 
 
            -- pre-expressions, only allowed as unshadowed subexpressions of a Stmt
-            | ESVar   Name2
-            | ENew    [Quals] Exp
-            | ESend   [Quals] (Maybe Exp) Exp -- 2nd argument is the optional baseline!
-            | EGen    Exp
+            | ESVar    Name2
+            | ENew     [Quals] Exp
+            | ESend    [Quals] (Maybe Exp) Exp -- 2nd argument is the optional baseline!
+            | EGen     Exp
             deriving  (Eq,Show)
 
 data Rhs a  = RExp    a [Bind]
@@ -183,6 +187,9 @@ data GExp a = GExp    [Qual] a
 data Alt a  = Alt     Pat (Rhs a)
             deriving  (Eq,Show)
 
+data EMap a = EMap    a Exp
+            deriving (Eq,Show)
+            
 type Quals  = [Qual]
 
 data Qual   = QExp    Exp
@@ -400,10 +407,12 @@ instance Pr Exp where
     pr (ECon c)             	= pr c
     pr (ESVar s)		= pr s
     pr (ELit l)             	= pr l
-    pr (EStruct Nothing bs) 	= braces (hpr ';' bs)
-    pr (EStruct (Just h) bs) 	= pr (fst h) <+> braces (hpr ';' bs <+> (if snd h then empty else text ".."))
-    pr (EStructUpdate Nothing bs) = braces (hpr ';' bs <> text ";" <+> text "_")
-    pr (EStructUpdate (Just c) bs) = pr c <+> braces (hpr ';' bs <> text ";" <+> text "_")
+    pr (EStruct Nothing fs)     = braces (hpr ',' fs)
+    pr (EStruct (Just h) fs)    = pr (fst h) <+> braces (hpr ',' fs <+> (if snd h then empty else text ".."))
+    pr (EStructUpd Nothing fs)  = braces (hpr ',' fs)
+    pr (EStructUpd (Just c) fs) = pr c <+> braces (hpr ',' fs)
+    pr (EStructBind Nothing bs)  = braces (hpr ';' bs)
+    pr (EStructBind (Just h) bs) = pr (fst h) <+> braces (hpr ';' bs <+> (if snd h then empty else text ".."))
     pr (ENeg e)             	= text "-" <> pr e
     pr (ESig e t)           	= parens (pr e <+> text "::" <+> pr t)
     pr (ETup es)            	= parens (hpr ',' es)
@@ -415,12 +424,14 @@ instance Pr Exp where
     pr (ESeq e Nothing to)  	= brackets (pr e <+> text ".." <+> pr to)
     pr (ESeq e (Just b) to) 	= brackets (pr e <> comma <> pr b <+> text ".." <+> pr to)
     pr (EComp e qs)         	= brackets (empty <+> pr e <+> char '|' <+> hpr ',' qs)
-    pr (EListUpdate lmap)       = brackets (hpr ';' lmap)
+    pr (EListUpd lmap)          = brackets (hpr ',' lmap)
     pr (EParen e)               = parens (prn 0 e)
 
-
-instance Pr (Exp,Exp) where
-    pr (i,e)                    = pr i <+> text "->" <+> pr e
+instance Pr Field where
+    pr (Field l e)              = pr l <+> text "=" <+> pr e
+    
+instance Pr a => Pr (EMap a) where
+    pr (EMap a e)               = pr a <+> text "->" <+> pr e
 
 prOpExp (EVar x) | isQSym2 x	= prQOp2 x
 prOpExp (ECon x) | isQSym2 x    = prQOp2 x
@@ -438,8 +449,8 @@ prBefore (Just e)		= text "before" <+> pr e
 prAfter Nothing	        	= empty
 prAfter (Just e)		= text "after" <+> pr e
 
-instance Pr Field where
-    pr (Field l e)              = pr l <+> text "=" <+> pr e
+instance Pr PField where
+    pr (PField l e)             = pr l <+> text "=" <+> pr e
 
 instance Pr a => Pr (Alt a) where
     pr (Alt p rhs)              = prEqn p (text "->") rhs
@@ -633,6 +644,13 @@ instance Binary Pat where
       13 -> get >>= \a -> return (PVar a)
       14 -> get >>= \a -> get >>= \b -> return (PIndex a b)
 
+instance Binary PField where
+  put (PField a b) = putWord8 0 >> put a >> put b
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \a -> get >>= \b -> return (PField a b)
+
 instance Binary Field where
   put (Field a b) = putWord8 0 >> put a >> put b
   get = do
@@ -662,23 +680,24 @@ instance Binary Exp where
   put (ELet a b) = putWord8 18 >> put a >> put b
   put (ELam a b) = putWord8 19 >> put a >> put b
   put (EStruct a b) = putWord8 20 >> put a >> put b
-  put (ESig a b) = putWord8 21 >> put a >> put b
-  put (EList a) = putWord8 22 >> put a
-  put (EParen a) = putWord8 23 >> put a
-  put (ETup a) = putWord8 24 >> put a
-  put (ETupC a) = putWord8 25 >> put a
-  put (ELit a) = putWord8 26 >> put a
-  put (ESel a b) = putWord8 27 >> put a >> put b
-  put (ECon a) = putWord8 28 >> put a
-  put (EInfix a b c) = putWord8 29 >> put a >> put b >> put c
-  put (EAp a b) = putWord8 30 >> put a >> put b
-  put (EVar a) = putWord8 31 >> put a
-  put (EListUpdate a) = putWord8 32 >> put a
-  put (EIndex a b) = putWord8 33 >> put a >> put b
-  put (EStructUpdate a b) = putWord8 34 >> put a >> put b
-  put (EPAp a b) = putWord8 35 >> put a >> put b
-  put (ETAp a b) = putWord8 36 >> put a >> put b
-  put (EBigLam a b c) = putWord8 37 >> put a >> put b >> put c
+  put (EStructUpd a b) = putWord8 21 >> put a >> put b
+  put (EStructBind a b) = putWord8 22 >> put a >> put b
+  put (ESig a b) = putWord8 23 >> put a >> put b
+  put (EList a) = putWord8 24 >> put a
+  put (EParen a) = putWord8 25 >> put a
+  put (ETup a) = putWord8 26 >> put a
+  put (ETupC a) = putWord8 27 >> put a
+  put (ELit a) = putWord8 28 >> put a
+  put (ESel a b) = putWord8 29 >> put a >> put b
+  put (ECon a) = putWord8 30 >> put a
+  put (EInfix a b c) = putWord8 31 >> put a >> put b >> put c
+  put (EAp a b) = putWord8 32 >> put a >> put b
+  put (EVar a) = putWord8 33 >> put a
+  put (EListUpd a) = putWord8 34 >> put a
+  put (EIndex a b) = putWord8 35 >> put a >> put b
+  put (EPAp a b) = putWord8 36 >> put a >> put b
+  put (ETAp a b) = putWord8 37 >> put a >> put b
+  put (EBigLam a b c) = putWord8 38 >> put a >> put b >> put c
   get = do
     tag_ <- getWord8
     case tag_ of
@@ -703,23 +722,24 @@ instance Binary Exp where
       18 -> get >>= \a -> get >>= \b -> return (ELet a b)
       19 -> get >>= \a -> get >>= \b -> return (ELam a b)
       20 -> get >>= \a -> get >>= \b -> return (EStruct a b)
-      21 -> get >>= \a -> get >>= \b -> return (ESig a b)
-      22 -> get >>= \a -> return (EList a)
-      23 -> get >>= \a -> return (EParen a)
-      24 -> get >>= \a -> return (ETup a)
-      25 -> get >>= \a -> return (ETupC a)
-      26 -> get >>= \a -> return (ELit a)
-      27 -> get >>= \a -> get >>= \b -> return (ESel a b)
-      28 -> get >>= \a -> return (ECon a)
-      29 -> get >>= \a -> get >>= \b -> get >>= \c -> return (EInfix a b c)
-      30 -> get >>= \a -> get >>= \b -> return (EAp a b)
-      31 -> get >>= \a -> return (EVar a)
-      32 -> get >>= \a -> return (EListUpdate a)
-      33 -> get >>= \a -> get >>= \b -> return (EIndex a b)
-      34 -> get >>= \a -> get >>= \b -> return (EStructUpdate a b)
-      35 -> get >>= \a -> get >>= \b -> return (EPAp a b)
-      36 -> get >>= \a -> get >>= \b -> return (ETAp a b)
-      37 -> get >>= \a -> get >>= \b -> get >>= \c -> return (EBigLam a b c)
+      21 -> get >>= \a -> get >>= \b -> return (EStructUpd a b)
+      22 -> get >>= \a -> get >>= \b -> return (EStructBind a b)
+      23 -> get >>= \a -> get >>= \b -> return (ESig a b)
+      24 -> get >>= \a -> return (EList a)
+      25 -> get >>= \a -> return (EParen a)
+      26 -> get >>= \a -> return (ETup a)
+      27 -> get >>= \a -> return (ETupC a)
+      28 -> get >>= \a -> return (ELit a)
+      29 -> get >>= \a -> get >>= \b -> return (ESel a b)
+      30 -> get >>= \a -> return (ECon a)
+      31 -> get >>= \a -> get >>= \b -> get >>= \c -> return (EInfix a b c)
+      32 -> get >>= \a -> get >>= \b -> return (EAp a b)
+      33 -> get >>= \a -> return (EVar a)
+      34 -> get >>= \a -> return (EListUpd a)
+      35 -> get >>= \a -> get >>= \b -> return (EIndex a b)
+      36 -> get >>= \a -> get >>= \b -> return (EPAp a b)
+      37 -> get >>= \a -> get >>= \b -> return (ETAp a b)
+      38 -> get >>= \a -> get >>= \b -> get >>= \c -> return (EBigLam a b c)
 
 instance (Binary a) => Binary (Rhs a) where
   put (RGrd a b) = putWord8 0 >> put a >> put b
@@ -744,6 +764,13 @@ instance (Binary a) => Binary (Alt a) where
     case tag_ of
       0 -> get >>= \a -> get >>= \b -> return (Alt a b)
 
+instance (Binary a) => Binary (EMap a) where
+  put (EMap a b) = putWord8 0 >> put a >> put b
+  get = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> get >>= \a -> get >>= \b -> return (EMap a b)
+      
 instance Binary Qual where
   put (QLet a) = putWord8 0 >> put a
   put (QGen a b) = putWord8 1 >> put a >> put b
@@ -812,9 +839,10 @@ exp2pat (ETup ps)       	   = PTup (map exp2pat ps)
 exp2pat (ETupC n)       	   = PTupC n
 exp2pat (EParen p)		   = PParen (exp2pat p)
 exp2pat (EList ps)		   = PList (map exp2pat ps)
-exp2pat (EStruct h bs)		   = PStruct h (map bind2field bs)
+exp2pat (EStruct h fs)             = PStruct h [ PField l (exp2pat e) | Field l e <- fs ]
+exp2pat (EStructBind h bs)	   = PStruct h (map bind2field bs)
   where bind2field (BEqn (PVar l) (RExp p []))
-                                   = Field (noqual l) (exp2pat p)
+                                   = PField (noqual l) (exp2pat p)
         bind2field f               = error ("Illegal struct field: " ++ render (pr f))
 exp2pat p			   = error ("Illegal pattern: " ++ render (pr p))
 

@@ -125,7 +125,7 @@ sPat (PTup ps)                    = Syntax.PTup (map sPat ps)
 sPat (PTupC n)                    = Syntax.PCon (tuple n)
 sPat (PList ps)                   = Syntax.PList (map sPat ps)
 sPat PWild                        = Syntax.PWild
-sPat (PStruct mnb fs)             = Syntax.PRec (sMNB mnb) (map sField fs)
+sPat (PStruct mnb fs)             = Syntax.PRec (sMNB mnb) [ Syntax.Field (sQName l) (sPat p) | PField l p <- fs ]
 sPat (PParen p)			  = sPat p
 sPat p                            = error ("#####PAT: " ++ render (pr p))
 
@@ -144,10 +144,11 @@ sExp (ETup es)                    = Syntax.ETup (map sExp es)
 sExp (ETupC n)                    = Syntax.ECon (tuple n)
 sExp (EList es)                   = Syntax.EList (map sExp es)
 sExp (ESig e t)                   = Syntax.ESig (sExp e) (sType t)
-sExp (EStruct (Just (c,b)) bs)    
+sExp (EStruct mnb fs)             = Syntax.ERec (sMNB mnb) [ Syntax.Field (sQName l) (sExp e) | Field l e <- fs ]
+sExp (EStructBind (Just (c,b)) bs)
   | length fs == length bs        = Syntax.ERec (Just (sQName c,b)) fs
   where fs                        = [ Syntax.Field (sQField c (sName n)) (sExp e) | BEqn (PVar n) (Syntax2.RExp e []) <- bs ]
-sExp (EStruct mnb bs)             = Syntax.EBStruct (sMNB mnb) (map sBind bs)
+sExp (EStructBind mnb bs)         = Syntax.EBStruct (sMNB mnb) (map sBind bs)
 sExp (ELam ps e)                  = Syntax.ELam (map sPat ps) (sExp e)
 sExp (ELet bs e)                  = Syntax.ELet (map sBind bs) (sExp e)
 sExp (ECase e as)                 = Syntax.ECase (sExp e) (map (sAlt sExp) as)
@@ -161,17 +162,17 @@ sExp (ESectR e (ECon n))          = Syntax.ESectR (sExp e) (sQName n)
 sExp (ESectL (EVar n) e)          = Syntax.ESectL (sQName n) (sExp e)
 sExp (ESectL (ECon n) e)          = Syntax.ESectL (sQName n) (sExp e)
 sExp (EDo [qs] Nothing Nothing ss)= Syntax.EForall (map sQual qs) (sStmts ss)
-sExp (EDo [] mn (Just c) ss)
+sExp (EDo [] (Just c) mn ss)
                                   = Syntax.EDo (sMN mn) (Just (Syntax.TCon (sQName c))) (sStmts ss)
-sExp (EDo [] mn Nothing ss)       = Syntax.EDo (sMN mn) Nothing (sStmts ss)
-sExp (EClass [] mn (Just c) ss)
+sExp (EDo [] Nothing mn ss)       = Syntax.EDo (sMN mn) Nothing (sStmts ss)
+sExp (EClass [] (Just c) mn ss)
                                   = Syntax.ETempl (sMN mn) (Just (Syntax.TCon (sQName c))) (sStmts ss)
-sExp (EClass [] mn Nothing ss)    = Syntax.ETempl (sMN mn) Nothing (sStmts ss)
-sExp (EClass [qs] mn (Just c) ss) = Syntax.forallClass (map sQual qs) (Syntax.ETempl (sMN mn) (Just (Syntax.TCon (sQName c))) (sStmts ss))
-sExp (EClass [qs] mn Nothing ss)  = Syntax.forallClass (map sQual qs) (Syntax.ETempl (sMN mn) Nothing (sStmts ss))
-sExp (EAct Nothing mn _ ss)       = Syntax.EAct (sMN mn) (sStmts ss) 
-sExp (EAct (Just e) mn _ ss)      = Syntax.EBefore (sExp e) (Syntax.EAct (sMN mn) (sStmts ss)) 
-sExp (EReq mn _ ss)               = Syntax.EReq (sMN mn) (sStmts ss) 
+sExp (EClass [] Nothing mn ss)    = Syntax.ETempl (sMN mn) Nothing (sStmts ss)
+sExp (EClass [qs] (Just c) mn ss) = Syntax.forallClass (map sQual qs) (Syntax.ETempl (sMN mn) (Just (Syntax.TCon (sQName c))) (sStmts ss))
+sExp (EClass [qs] Nothing mn ss)  = Syntax.forallClass (map sQual qs) (Syntax.ETempl (sMN mn) Nothing (sStmts ss))
+sExp (EAct Nothing _ mn ss)       = Syntax.EAct (sMN mn) (sStmts ss) 
+sExp (EAct (Just e) _ mn ss)      = Syntax.EBefore (sExp e) (Syntax.EAct (sMN mn) (sStmts ss)) 
+sExp (EReq _ mn ss)               = Syntax.EReq (sMN mn) (sStmts ss) 
 sExp (ESend [] e1 e2)             = Syntax.EGen (sSend e1 e2)
 sExp (ENew [] e)                  = Syntax.ENew (sExp e)  -- forallnew
 sExp (ENew [qs] e)                = Syntax.ENew (Syntax.forallClass (map sQual qs) (sExp e))
@@ -181,8 +182,6 @@ sExp e                            = error ("sExp: " ++ show e)
 
 sSend Nothing e2                  = Syntax.EAfter Syntax.zeroTime (sExp e2)
 sSend (Just e1) e2                = Syntax.EAfter (sExp e1) (sExp e2)
-
-sField (Field n p)                = Syntax.Field (sQName n) (sPat p)
 
 sRhs :: (a -> b) -> Rhs a -> Syntax.Rhs b
 sRhs f (RExp a [])                = Syntax.RExp (f a)

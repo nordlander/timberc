@@ -434,8 +434,10 @@ Constructs a {\tt Time} value from an argument given in seconds / milliseconds /
 \item {\tt int SEC\_OF( Time );}
 
       {\tt int MSEC\_OF( Time );}
+
+      {\tt long USEC\_OF( Time );}
       
-Extracts whole seconds and millisecond fractions of a {\tt Time} value.
+Extracts whole seconds and millisecond or microsecond fractions of a {\tt Time} value.
 
 \item {\tt Msg AFTER( Time bl, T *obj, int (*meth)(T*,A), A arg );}
 

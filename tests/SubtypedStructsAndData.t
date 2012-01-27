@@ -24,7 +24,7 @@ struct Cepa < Apa where
 struct Depa < Bepa,Cepa where
     dada :: Int
 
-zzz = { apa = 1; bepa = 2; cepa = 3; dada = 4; wormC = 0; wormA = 0; wormB = 0; wormD = 0 }
+zzz = { apa = 1, bepa = 2, cepa = 3, dada = 4, wormC = 0, wormA = 0, wormB = 0, wormD = 0 }
 
 
 data A = A
