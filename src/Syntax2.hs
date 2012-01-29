@@ -43,11 +43,11 @@ import Data.Binary
 import Data.List(sort)
 import Control.Monad(liftM2)
 
-data Module = Module Name2 [Import] [Decl] [Decl]
+data Module = Module    Name2 [Import] [Decl] [Decl]
             deriving (Eq,Show)
 
-data Import = Import     QName2
-            | Use        (Maybe Name2) QName2
+data Import = Import    QName2
+            | Use       (Maybe Name2) QName2
             deriving (Eq,Show)
             
 data Decl   = DKSig      Name2 Kind
@@ -74,140 +74,140 @@ data Decl   = DKSig      Name2 Kind
             | DModule    Module
             deriving  (Eq,Show)
 
-data Constr = Constr  Name2 [Type] [Quant] [Pred]
-            | CInfix  Type Name2 Type [Quant] [Pred]
+data Constr = Constr    Name2 [Type] [Quant] [Pred]
+            | CInfix    Type Name2 Type [Quant] [Pred]
             deriving (Eq,Show)
 
-data Sig    = Sig     [Name2] Type
+data Sig    = Sig       [Name2] Type
             deriving (Eq,Show)
 
-data Bind   = BSig    [Name2] Type
-            | BEqn    Pat (Rhs Exp)
+data Bind   = BSig      [Name2] Type
+            | BEqn      Pat (Rhs Exp)
             deriving  (Eq,Show)
 
-data Type   = TQual   Type [Quant] [Pred]
-	    | TFun    [Type] Type
-            | TTup    [Type]
-            | TTupC   Int
-            | TParen  Type
-            | TList   Type
-            | TAp     Type Type
-            | TSig    Type Kind
-            | TCon    QName2
-            | TVar    Name2
+data Type   = TQual     Type [Quant] [Pred]
+	    | TFun      [Type] Type
+            | TTup      [Type]
+            | TTupC     Int
+            | TParen    Type
+            | TList     Type
+            | TAp       Type Type
+            | TSig      Type Kind
+            | TCon      QName2
+            | TVar      Name2
             | TWild
             deriving  (Eq,Show)
 
-data Pred   = PQual   Pred [Quant] [Pred]
-            | PSub    Type Type
-            | PClass  QName2 [Type]
+data Pred   = PQual     Pred [Quant] [Pred]
+            | PSub      Type Type
+            | PClass    QName2 [Type]
             deriving (Eq,Show)
             
-data Quant  = QVar    Name2
-            | QVarSig Name2 Kind
+data Quant  = QVar      Name2
+            | QVarSig   Name2 Kind
             deriving (Eq,Show)
 
-data Pat    = PVar     Name2
-            | PVarSig  Name2 Type
-            | PCon     QName2
-            | PInfix   Pat Pat Pat
-            | PAp      Pat Pat
-            | PPAp     Pat Pat
-            | PTAp     Pat Quant
-            | PIndex   Pat Exp
-            | PLit     Lit
-            | PTup     [Pat]
-            | PTupC    Int
-            | PList    [Pat]
-            | PParen   Pat
+data Pat    = PVar      Name2
+            | PVarSig   Name2 Type
+            | PCon      QName2
+            | PInfix    Pat Pat Pat
+            | PAp       Pat Pat
+            | PPAp      Pat Pat
+            | PTAp      Pat Quant
+            | PIndex    Pat Exp
+            | PLit      Lit
+            | PTup      [Pat]
+            | PTupC     Int
+            | PList     [Pat]
+            | PParen    Pat
             | PWild
-            | PStruct  (Maybe (QName2,Bool)) [PField]
+            | PStruct   (Maybe (QName2,Bool)) [PField]
             deriving  (Eq,Show)
 
-data PField = PField   QName2 Pat
+data PField = PField    QName2 Pat
             deriving (Eq,Show)
 
-data Field  = Field    QName2 Exp
+data Field  = Field     QName2 Exp
             deriving (Eq,Show)
 
-data Exp    = EVar     QName2
-            | EAp      Exp Exp
-            | EInfix   Exp Exp Exp
-            | ECon     QName2
-            | ESel     Exp QName2
-            | ELit     Lit
-            | ETup     [Exp]
-            | ETupC    Int
-            | EParen   Exp
-            | EList    [Exp]
-            | EListUpd [EMap Exp]
-            | EIndex   Exp Exp
-            | ESig     Exp Type
-            | EStruct  (Maybe (QName2,Bool)) [Field]
-            | EStructUpd (Maybe QName2) [EMap QName2]
-            | EStructBind (Maybe (QName2,Bool)) [Bind]
-            | ELam     [Pat] Exp
-            | ELet     [Bind] Exp
-            | ECase    Exp [Alt Exp]
-            | EIf      Exp Exp Exp
-            | ENeg     Exp
-            | ESeq     Exp (Maybe Exp) Exp
-            | EComp    Exp [Quals]
+data Exp    = EVar      QName2
+            | EAp       Exp Exp
+            | EInfix    Exp Exp Exp
+            | ECon      QName2
+            | ESel      Exp QName2
+            | ELit      Lit
+            | ETup      [Exp]
+            | ETupC     Int
+            | EParen    Exp
+            | EList     [Exp]
+            | EUpdateL  [EMap Exp]
+            | EIndex    Exp Exp
+            | ESig      Exp Type
+            | EBStruct  (Maybe (QName2,Bool)) [Bind]
+            | EStruct   (Maybe (QName2,Bool)) [Field]
+            | EUpdateS  (Maybe QName2) [EMap QName2]
+            | ELam      [Pat] Exp
+            | ELet      [Bind] Exp
+            | ECase     Exp [Alt Exp]
+            | EIf       Exp Exp Exp
+            | ENeg      Exp
+            | ESeq      Exp (Maybe Exp) Exp
+            | EComp     Exp [Quals]
 
-            | EAnd     Exp Exp
-            | EOr      Exp Exp
+            | EAnd      Exp Exp
+            | EOr       Exp Exp
 
-            | EPAp     Exp Exp
-            | ETAp     Exp Type
-            | EBigLam  [Quant] [Pat] Exp
+            | EPAp      Exp Exp
+            | ETAp      Exp Type
+            | EBigLam   [Quant] [Pat] Exp
 
-            | ESectR   Exp Exp   -- operator to the right
-            | ESectL   Exp Exp   -- operator to the left
-            | ESelector QName2
+            | ESectR    Exp Exp   -- operator to the right
+            | ESectL    Exp Exp   -- operator to the left
+            | ESectSel  QName2
 
-            | EDo      [Quals] (Maybe QName2) (Maybe Name2) Stmts 
-            | EClass   [Quals] (Maybe QName2) (Maybe Name2) Stmts
-            | EAct     (Maybe Exp) (Maybe QName2) (Maybe Name2) Stmts -- 1st argument is the optional deadline!
-            | EReq     (Maybe QName2) (Maybe Name2) Stmts 
+            | EDo       [Quals] (Maybe QName2) (Maybe Name2) Stmts 
+            | EClass    [Quals] (Maybe QName2) (Maybe Name2) Stmts
+            | EAct      (Maybe Exp) (Maybe QName2) (Maybe Name2) Stmts -- 1st argument is the optional deadline!
+            | EReq      (Maybe QName2) (Maybe Name2) Stmts 
 
            -- pre-expressions, only allowed as unshadowed subexpressions of a Stmt
-            | ESVar    Name2
-            | ENew     [Quals] Exp
-            | ESend    [Quals] (Maybe Exp) Exp -- 2nd argument is the optional baseline!
-            | EGen     Exp
+            | ESVar     Name2
+            | ENew      [Quals] Exp
+            | ESend     [Quals] (Maybe Exp) Exp -- 2nd argument is the optional baseline!
+            | EGen      Exp
             deriving  (Eq,Show)
 
-data Rhs a  = RExp    a [Bind]
-            | RGrd    [GExp a] [Bind]
+data Rhs a  = RExp      a [Bind]
+            | RGrd      [GExp a] [Bind]
             deriving  (Eq,Show)
 
-data GExp a = GExp    [Qual] a
+data GExp a = GExp      [Qual] a
             deriving (Eq,Show)
             
-data Alt a  = Alt     Pat (Rhs a)
+data Alt a  = Alt       Pat (Rhs a)
             deriving  (Eq,Show)
 
-data EMap a = EMap    a Exp
+data EMap a = EMap      a Exp
             deriving (Eq,Show)
             
 type Quals  = [Qual]
 
-data Qual   = QExp    Exp
-            | QGen    Pat Exp
-            | QLet    [Bind]
+data Qual   = QExp      Exp
+            | QGen      Pat Exp
+            | QLet      [Bind]
             deriving  (Eq,Show)
 
 type Stmts  = [Stmt]
 
-data Stmt   = SRes    Exp
-            | SExp    Exp
-            | SGen    Pat Exp
-            | SSig    [Name2] Type
-            | SEqn    Pat (Rhs Exp)
-            | SLet    [Bind]
-            | SAss    Pat Exp
-            | SIf     Exp Stmts [(Exp,Stmts)] (Maybe Stmts)
-            | SCase   Exp [Alt Stmts]
+data Stmt   = SRes      Exp
+            | SExp      Exp
+            | SGen      Pat Exp
+            | SSig      [Name2] Type
+            | SEqn      Pat (Rhs Exp)
+            | SLet      [Bind]
+            | SAss      Pat Exp
+            | SIf       Exp Stmts [(Exp,Stmts)] (Maybe Stmts)
+            | SCase     Exp [Alt Stmts]
             deriving  (Eq,Show)
 
 
@@ -409,22 +409,22 @@ instance Pr Exp where
     pr (ELit l)             	= pr l
     pr (EStruct Nothing fs)     = braces (hpr ',' fs)
     pr (EStruct (Just h) fs)    = pr (fst h) <+> braces (hpr ',' fs <+> (if snd h then empty else text ".."))
-    pr (EStructUpd Nothing fs)  = braces (hpr ',' fs)
-    pr (EStructUpd (Just c) fs) = pr c <+> braces (hpr ',' fs)
-    pr (EStructBind Nothing bs)  = braces (hpr ';' bs)
-    pr (EStructBind (Just h) bs) = pr (fst h) <+> braces (hpr ';' bs <+> (if snd h then empty else text ".."))
+    pr (EUpdateS Nothing fs)    = braces (hpr ',' fs)
+    pr (EUpdateS (Just c) fs)   = pr c <+> braces (hpr ',' fs)
+    pr (EBStruct Nothing bs)    = braces (hpr ';' bs)
+    pr (EBStruct (Just h) bs)   = pr (fst h) <+> braces (hpr ';' bs <+> (if snd h then empty else text ".."))
     pr (ENeg e)             	= text "-" <> pr e
     pr (ESig e t)           	= parens (pr e <+> text "::" <+> pr t)
     pr (ETup es)            	= parens (hpr ',' es)
     pr (ETupC n)            	= parens (text (replicate n ','))
     pr (ESectR e op)        	= parens (pr e <> prOpExp op)
     pr (ESectL op e)        	= parens (prOpExp op <> pr e)
-    pr (ESelector l)        	= parens (text "." <> pr l)
+    pr (ESectSel l)        	= parens (text "." <> pr l)
     pr (EList es)           	= brackets (hpr ',' es)
     pr (ESeq e Nothing to)  	= brackets (pr e <+> text ".." <+> pr to)
     pr (ESeq e (Just b) to) 	= brackets (pr e <> comma <> pr b <+> text ".." <+> pr to)
     pr (EComp e qs)         	= brackets (empty <+> pr e <+> char '|' <+> hpr ',' qs)
-    pr (EListUpd lmap)          = brackets (hpr ',' lmap)
+    pr (EUpdateL lmap)          = brackets (hpr ',' lmap)
     pr (EParen e)               = parens (prn 0 e)
 
 instance Pr Field where
@@ -667,7 +667,7 @@ instance Binary Exp where
   put (EAct a b c d) = putWord8 5 >> put a >> put b >> put c >> put d
   put (EClass a b c d) = putWord8 6 >> put a >> put b >> put c >> put d
   put (EDo a b c d) = putWord8 7 >> put a >> put b >> put c >> put d
-  put (ESelector a) = putWord8 8 >> put a
+  put (ESectSel a) = putWord8 8 >> put a
   put (ESectL a b) = putWord8 9 >> put a >> put b
   put (ESectR a b) = putWord8 10 >> put a >> put b
   put (EOr a b) = putWord8 11 >> put a >> put b
@@ -680,8 +680,8 @@ instance Binary Exp where
   put (ELet a b) = putWord8 18 >> put a >> put b
   put (ELam a b) = putWord8 19 >> put a >> put b
   put (EStruct a b) = putWord8 20 >> put a >> put b
-  put (EStructUpd a b) = putWord8 21 >> put a >> put b
-  put (EStructBind a b) = putWord8 22 >> put a >> put b
+  put (EUpdateS a b) = putWord8 21 >> put a >> put b
+  put (EBStruct a b) = putWord8 22 >> put a >> put b
   put (ESig a b) = putWord8 23 >> put a >> put b
   put (EList a) = putWord8 24 >> put a
   put (EParen a) = putWord8 25 >> put a
@@ -693,7 +693,7 @@ instance Binary Exp where
   put (EInfix a b c) = putWord8 31 >> put a >> put b >> put c
   put (EAp a b) = putWord8 32 >> put a >> put b
   put (EVar a) = putWord8 33 >> put a
-  put (EListUpd a) = putWord8 34 >> put a
+  put (EUpdateL a) = putWord8 34 >> put a
   put (EIndex a b) = putWord8 35 >> put a >> put b
   put (EPAp a b) = putWord8 36 >> put a >> put b
   put (ETAp a b) = putWord8 37 >> put a >> put b
@@ -709,7 +709,7 @@ instance Binary Exp where
       5 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (EAct a b c d)
       6 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (EClass a b c d)
       7 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (EDo a b c d)
-      8 -> get >>= \a -> return (ESelector a)
+      8 -> get >>= \a -> return (ESectSel a)
       9 -> get >>= \a -> get >>= \b -> return (ESectL a b)
       10 -> get >>= \a -> get >>= \b -> return (ESectR a b)
       11 -> get >>= \a -> get >>= \b -> return (EOr a b)
@@ -722,8 +722,8 @@ instance Binary Exp where
       18 -> get >>= \a -> get >>= \b -> return (ELet a b)
       19 -> get >>= \a -> get >>= \b -> return (ELam a b)
       20 -> get >>= \a -> get >>= \b -> return (EStruct a b)
-      21 -> get >>= \a -> get >>= \b -> return (EStructUpd a b)
-      22 -> get >>= \a -> get >>= \b -> return (EStructBind a b)
+      21 -> get >>= \a -> get >>= \b -> return (EUpdateS a b)
+      22 -> get >>= \a -> get >>= \b -> return (EBStruct a b)
       23 -> get >>= \a -> get >>= \b -> return (ESig a b)
       24 -> get >>= \a -> return (EList a)
       25 -> get >>= \a -> return (EParen a)
@@ -735,7 +735,7 @@ instance Binary Exp where
       31 -> get >>= \a -> get >>= \b -> get >>= \c -> return (EInfix a b c)
       32 -> get >>= \a -> get >>= \b -> return (EAp a b)
       33 -> get >>= \a -> return (EVar a)
-      34 -> get >>= \a -> return (EListUpd a)
+      34 -> get >>= \a -> return (EUpdateL a)
       35 -> get >>= \a -> get >>= \b -> return (EIndex a b)
       36 -> get >>= \a -> get >>= \b -> return (EPAp a b)
       37 -> get >>= \a -> get >>= \b -> return (ETAp a b)
@@ -814,7 +814,7 @@ tFun ts t                       = TFun ts t
 type2cons t                     = case t of
 	                            TQual t' qs ps -> t2c t' qs ps
 	                            _              -> t2c t [] []
-  where t2c t qs ps		= case tFlat t of
+  where t2c t qs ps		        = case tFlat t of
                                     (TCon (Q [] c),ts) -> Constr c ts qs ps
                                     _           -> error ("Bad constructor in " ++ render (pr t))
 
@@ -825,26 +825,26 @@ tFlat t                         = flat t []
 exp2pat (EVar (Q [] (Plain "_" _))) = PWild
 exp2pat (EVar (Q [] x))             = PVar x
 exp2pat (ESig (EVar (Q [] x)) t)    = PVarSig x t
-exp2pat (ECon c) 		   = PCon c
-exp2pat (ELit l)		   = PLit l
-exp2pat (EAp p1 p2)		   = PAp (exp2pat p1) (exp2pat p2)
-exp2pat (EPAp p1 p2)		   = PPAp (exp2pat p1) (exp2pat p2)
-exp2pat (ETAp p (TVar v))	   = PTAp (exp2pat p) (QVar v)
-exp2pat (ETAp p (TSig (TVar v) k)) = PTAp (exp2pat p) (QVarSig v k)
-exp2pat (EIndex p e)               = PIndex (exp2pat p) e
-exp2pat (EInfix l op r)		   = PInfix (exp2pat l) (exp2pat op) (exp2pat r)
-exp2pat (ENeg (ELit (LInt p i)))   = PLit (LInt p (-i))
-exp2pat (ENeg (ELit (LRat p r)))   = PLit (LRat p (-r))
-exp2pat (ETup ps)       	   = PTup (map exp2pat ps)
-exp2pat (ETupC n)       	   = PTupC n
-exp2pat (EParen p)		   = PParen (exp2pat p)
-exp2pat (EList ps)		   = PList (map exp2pat ps)
-exp2pat (EStruct h fs)             = PStruct h [ PField l (exp2pat e) | Field l e <- fs ]
-exp2pat (EStructBind h bs)	   = PStruct h (map bind2field bs)
+exp2pat (ECon c) 		    = PCon c
+exp2pat (ELit l)		    = PLit l
+exp2pat (EAp p1 p2)		    = PAp (exp2pat p1) (exp2pat p2)
+exp2pat (EPAp p1 p2)		    = PPAp (exp2pat p1) (exp2pat p2)
+exp2pat (ETAp p (TVar v))	    = PTAp (exp2pat p) (QVar v)
+exp2pat (ETAp p (TSig (TVar v) k))  = PTAp (exp2pat p) (QVarSig v k)
+exp2pat (EIndex p e)                = PIndex (exp2pat p) e
+exp2pat (EInfix l op r)		    = PInfix (exp2pat l) (exp2pat op) (exp2pat r)
+exp2pat (ENeg (ELit (LInt p i)))    = PLit (LInt p (-i))
+exp2pat (ENeg (ELit (LRat p r)))    = PLit (LRat p (-r))
+exp2pat (ETup ps)       	    = PTup (map exp2pat ps)
+exp2pat (ETupC n)       	    = PTupC n
+exp2pat (EParen p)		    = PParen (exp2pat p)
+exp2pat (EList ps)		    = PList (map exp2pat ps)
+exp2pat (EStruct h fs)              = PStruct h [ PField l (exp2pat e) | Field l e <- fs ]
+exp2pat (EBStruct h bs)	            = PStruct h (map bind2field bs)
   where bind2field (BEqn (PVar l) (RExp p []))
-                                   = PField (noqual l) (exp2pat p)
-        bind2field f               = error ("Illegal struct field: " ++ render (pr f))
-exp2pat p			   = error ("Illegal pattern: " ++ render (pr p))
+                                    = PField (noqual l) (exp2pat p)
+        bind2field f                = error ("Illegal struct field: " ++ render (pr f))
+exp2pat p			                = error ("Illegal pattern: " ++ render (pr p))
 
 
 

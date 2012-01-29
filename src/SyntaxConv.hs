@@ -138,17 +138,17 @@ sExp (EAnd e1 e2)		  = Syntax.EAp (Syntax.EAp (Syntax.EVar (prim LazyAnd)) (sExp
 sExp (EAp e1 e2)                  = Syntax.EAp (sExp e1) (sExp e2)  -- infix expressions not identified
 sExp (ECon c)                     = Syntax.ECon (sQName c)
 sExp (ESel e n)                   = Syntax.ESelect (sExp e) (sQName n)
-sExp (ESelector n)                = Syntax.ESel (sQName n)
+sExp (ESectSel n)                 = Syntax.ESel (sQName n)
 sExp (ELit lit)                   = Syntax.ELit lit
 sExp (ETup es)                    = Syntax.ETup (map sExp es)
 sExp (ETupC n)                    = Syntax.ECon (tuple n)
 sExp (EList es)                   = Syntax.EList (map sExp es)
 sExp (ESig e t)                   = Syntax.ESig (sExp e) (sType t)
 sExp (EStruct mnb fs)             = Syntax.ERec (sMNB mnb) [ Syntax.Field (sQName l) (sExp e) | Field l e <- fs ]
-sExp (EStructBind (Just (c,b)) bs)
+sExp (EBStruct (Just (c,b)) bs)
   | length fs == length bs        = Syntax.ERec (Just (sQName c,b)) fs
   where fs                        = [ Syntax.Field (sQField c (sName n)) (sExp e) | BEqn (PVar n) (Syntax2.RExp e []) <- bs ]
-sExp (EStructBind mnb bs)         = Syntax.EBStruct (sMNB mnb) (map sBind bs)
+sExp (EBStruct mnb bs)            = Syntax.EBStruct (sMNB mnb) (map sBind bs)
 sExp (ELam ps e)                  = Syntax.ELam (map sPat ps) (sExp e)
 sExp (ELet bs e)                  = Syntax.ELet (map sBind bs) (sExp e)
 sExp (ECase e as)                 = Syntax.ECase (sExp e) (map (sAlt sExp) as)

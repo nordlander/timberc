@@ -384,15 +384,15 @@ exp     :: { Exp }
         : exp0a '::' btype                                   		{ ESig $1 $3 }
         | exp0                                               		{ $1}
 
-        | 'struct' layout_on binds close                     		{ EStructBind Nothing (reverse $3) }
-        | 'struct' '@' anyconid layout_on binds close           	{ EStructBind (Just ($3,False)) (reverse $5) }
-        | 'struct' '@' anyconid layout_on binds ';' '..' close  	{ EStructBind (Just ($3,True)) (reverse $5) }
-        | 'struct' '@' anyconid layout_on '..' close            	{ EStructBind (Just ($3,True)) [] }
+        | 'struct' layout_on binds close                     		{ EBStruct Nothing (reverse $3) }
+        | 'struct' '@' anyconid layout_on binds close           	{ EBStruct (Just ($3,False)) (reverse $5) }
+        | 'struct' '@' anyconid layout_on binds ';' '..' close  	{ EBStruct (Just ($3,True)) (reverse $5) }
+        | 'struct' '@' anyconid layout_on '..' close            	{ EBStruct (Just ($3,True)) [] }
 
-        | 'struct' '{' layout_off binds '}'                     	{ EStructBind Nothing (reverse $4) }
-        | 'struct' '@' anyconid '{' layout_off binds '}'         	{ EStructBind (Just ($3,False)) (reverse $6) }
-        | 'struct' '@' anyconid '{' layout_off binds ';' '..' '}'	{ EStructBind (Just ($3,True)) (reverse $6) }
-        | 'struct' '@' anyconid '{' layout_off '..' '}'             { EStructBind (Just ($3,True)) [] }
+        | 'struct' '{' layout_off binds '}'                     	{ EBStruct Nothing (reverse $4) }
+        | 'struct' '@' anyconid '{' layout_off binds '}'         	{ EBStruct (Just ($3,False)) (reverse $6) }
+        | 'struct' '@' anyconid '{' layout_off binds ';' '..' '}'	{ EBStruct (Just ($3,True)) (reverse $6) }
+        | 'struct' '@' anyconid '{' layout_off '..' '}'             { EBStruct (Just ($3,True)) [] }
 
 exp0    :: { Exp }
         : exp000a                               { $1 }
@@ -451,7 +451,7 @@ exp10a  :: { Exp }
         | '{' layout_off fields '}'             { EStruct Nothing (reverse $3) }
         | exp10as                               { $1 }
 
-        | '{' layout_off fmaps '}'      		{ EStructUpd Nothing (reverse $3) }
+        | '{' layout_off fmaps '}'      		{ EUpdateS Nothing (reverse $3) }
 
 fields  :: { [Field] }
         : fields ',' field                      { $3 : $1 }
@@ -542,7 +542,7 @@ cexp    :: { Exp }
         : varref                                { EVar $1 }
         | '_'                                   { EVar (qname2 "_") }
         | lit                                   { ELit $1 }
-        | '(' '.' varref ')'                    { ESelector $3 }
+        | '(' '.' varref ')'                    { ESectSel $3 }
         | '(' exp ')'                           { EParen $2 }
         | '(' exps ')'                          { ETup (reverse $2) } 
         | '[' list ']'                          { $2 }
@@ -567,7 +567,7 @@ list    :: { Exp }
         | exp '..' exp                          { ESeq $1 Nothing $3 }
         | exp ',' exp '..' exp                  { ESeq $1 (Just $3) $5 }
         | exp '|' qualss                        { EComp $1 (reverse $3) }
-        | maps                                  { EListUpd (reverse $1) }
+        | maps                                  { EUpdateL (reverse $1) }
 
 exps    :: { [Exp] }
         : exps ',' exp                          { $3 : $1 }
