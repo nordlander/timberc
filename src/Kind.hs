@@ -30,7 +30,7 @@
 -- STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
 -- ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 -- POSSIBILITY OF SUCH DAMAGE.
-
+{-# LANGUAGE FlexibleInstances #-}
 module Kind  where
 
 import PP
@@ -46,8 +46,8 @@ kindcheck m                             = kiModule m
 kiModule (Module _ _ _ _ ds' _ [bs']) (Module v ns xs es ds ws bss)
                                          = do ds <- kiDeclss env (groupTypes ds)
                                               (bss',xs1) <- derive (concatMap bvars bss ++ bvars bs') (ds' `catDecls` ds) xs
-					      es' <- kiExt env es
                                               let env' = addKEnv0 (ksigsOf ds) env
+					      es' <- kiExt env' es
                                               bss <- mapM (kiBinds env') (bss++bss')
                                               return (Module v ns xs1 es' ds (ws++dom(concatMap tsigsOf bss')) bss)
   where env                             = addKEnv0 (ksigsOf ds') (initEnv v)
@@ -147,6 +147,8 @@ kiScheme env (Scheme t ps ke)           = do cs <- kiRho env' t
                                              return (cs ++ concat css)
   where env'                            = addKEnv ke env
 
+instance Pr (Kind, Kind) where
+        pr (k1,k2)      = pr k1 <+> text "~" <+> pr k2
 
 kiTEnv env te                           = do css <- mapM (kiScheme env . snd) te
                                              s <- kindUnify (concat css) `handle` \m -> errorTree m te
