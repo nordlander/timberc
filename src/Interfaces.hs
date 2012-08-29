@@ -50,6 +50,7 @@ import System.Process (system)
 import Codec.Compression.BZip 
 import qualified Data.ByteString.Lazy
 import qualified System.Directory as Directory
+import qualified Control.Exception
 
 decodeCFile :: FilePath -> IO IFace
 decodeCFile ti_file     = do str <- Data.ByteString.Lazy.readFile ti_file
@@ -283,7 +284,7 @@ toHTML n (IFace rs ss (Module _ ns xs es ds ws [bs]) _ _ _) = text "<html><body>
 decodeModule clo f                      = (do putStrLn ("[reading " ++ show f ++ "]")
                                               ifc <- decodeCFile f
                                               currDir <- Directory.getCurrentDirectory
-                                              return (ifc,currDir ++ "/" ++ f)) `catch`  
+                                              return (ifc,currDir ++ "/" ++ f)) `catchAny`  
                                                                        (\e -> do let libf = Config.libDir clo ++ "/" ++ f
                                                                                  putStrLn ("[reading " ++ show libf ++ "]")
                                                                                  ifc <- decodeCFile libf

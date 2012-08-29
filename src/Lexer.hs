@@ -179,6 +179,7 @@ lexToken cont (c:s) loc@(y,x') x state =
         '\'' -> lexChar cont s loc (x + 1) state
         '\"' -> lexString cont s loc (x + 1) state
 
+        
         '_' | null s || not (isIdent (head s)) -> special Wildcard
         
         c | isDigit c ->

@@ -37,7 +37,7 @@ import System.Environment (getArgs)
 import Data.List (isSuffixOf)
 import qualified Control.Monad as Monad
 import qualified Data.Char as Char
-import qualified Control.Exception as Exception ( catch, catchJust )
+import qualified Control.Exception
 import System.Console.GetOpt
 import qualified System.Directory as Directory
 
@@ -72,7 +72,6 @@ import Core2Kindle
 import Lambdalift
 import Data.Binary
 import Interfaces
-import GHC.Exception
 import Scp
 {-
 
@@ -333,9 +332,9 @@ main                = do args <- getArgs
 -- | We have the second entry point so ghci/hugs users can call
 -- | main2 directly with arguments.
 
-main2 args          = do (clo, files) <- Exception.catch (cmdLineOpts args)
+main2 args          = do (clo, files) <- Control.Exception.catch (cmdLineOpts args)
                                          fatalErrorHandler
-                         cfg          <- Exception.catch (readCfg clo)
+                         cfg          <- Control.Exception.catch (readCfg clo)
                                          fatalErrorHandler
 
                          let mods     = filter (isModuleSyntax . rmDirs) files
@@ -356,7 +355,7 @@ main2 args          = do (clo, files) <- Exception.catch (cmdLineOpts args)
 
 
 compileProg clo cfg t_files = do ps <- mapM (parse clo) t_files
-                                 ifs <- compileAll clo [] ps `Exception.catch` fatalErrorHandler
+                                 ifs <- compileAll clo [] ps `Control.Exception.catch` fatalErrorHandler
                                  Monad.when (stopAtC clo) stopCompiler
                                  
                                  let basefiles = map (rmSuffix ".t") t_files
@@ -487,8 +486,8 @@ chaseSyntax2Files clo                = chaseImps readSyntax impNames2 ".t"
   where readSyntax f                 = (do cont <- readFile f
                                            currDir <- Directory.getCurrentDirectory
                                            let sm = doParse cont
-                                           return (sm,currDir ++ "/" ++ f)) `catch`
-                                                                  (\ e -> do  let libf = Config.libDir clo ++ "/" ++ f
+                                           return (sm,currDir ++ "/" ++ f)) `catchAny`
+                                                                   (\e -> do  let libf = Config.libDir clo ++ "/" ++ f
                                                                               t_exists <- Directory.doesFileExist libf
                                                                               if t_exists 
                                                                                 then return (Syntax2.Module (name2 "") [] [] [],libf) 

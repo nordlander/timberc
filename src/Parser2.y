@@ -32,7 +32,7 @@
 -- POSSIBILITY OF SUCH DAMAGE.
 
 {
-
+{-# LANGUAGE BangPatterns #-}
 module Parser2 (parser) where
 
 import Common
@@ -56,7 +56,6 @@ import Prim
         '<'      { VarSym "<" }
         '>'      { VarSym ">" }
         '*'      { VarSym "*" }
-        '@'      { VarSym "@" }
 		VARID 	 { VarId $$ }
 		CONID	 { ConId $$ }
 		VARSYM	 { VarSym $$ }
@@ -100,6 +99,7 @@ Reserved operators
         '||'    { Or }
         '&&'    { And }
         '!'     { Index }
+		'@'     { At }
 {-
 
 Reserved Ids

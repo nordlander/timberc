@@ -69,13 +69,14 @@ module Config (
                         
                -- Dynamic Exceptions
                TimbercException(..),
+               catchSomeException
                ) where
 
 
 import qualified Data.Char as Char
 import System.Console.GetOpt
 import qualified System.Environment as System (getArgs, getEnv, getProgName)
-import qualified Control.Exception as Exception
+import qualified Control.Exception
 import Data.Dynamic
 
 
@@ -213,7 +214,7 @@ data TimbercException
   deriving (Eq)
 
 instance Typeable TimbercException where
-  typeOf _ = mkTyConApp (mkTyCon "TimbercException") []
+  typeOf _ = mkTyConApp (mkTyCon3 "timberc" "Config" "TimbercException") []
 
 -- | Let us show our exceptions as expected.
 instance Show TimbercException where
@@ -222,28 +223,30 @@ instance Show TimbercException where
   showsPrec _ (CompileError s)      = showString s
   showsPrec _ (Panic s)             = showString ("**** Internal compiler panic! [Please file a bug report...]\n\n" ++ s)
 
-instance Exception.Exception TimbercException
+instance Control.Exception.Exception TimbercException
+
+catchSomeException a b = a `Control.Exception.catch` \e -> b (e :: Control.Exception.SomeException)
 
 cmdLineOpts          :: [String] -> IO (CmdLineOpts,[String])
-cmdLineOpts args     = do pager <- System.getEnv "PAGER" `catch` (\_ -> return "")
+cmdLineOpts args     = do pager <- System.getEnv "PAGER" `catchSomeException` (\_ -> return "")
                           let pagerOpt = if null pager then [] else ["--pager", pager]
-                          home <- System.getEnv "HOME" `catch` (\_ -> return "")
-                          cfgFile <- System.getEnv "TIMBERC_CFG" `catch` (\_ -> return (home ++ "/.timberc"))
-                          cfgOpts <- readFile cfgFile `catch` (\_ -> return "")
+                          home <- System.getEnv "HOME" `catchSomeException` (\_ -> return "")
+                          cfgFile <- System.getEnv "TIMBERC_CFG" `catchSomeException` (\_ -> return (home ++ "/.timberc"))
+                          cfgOpts <- readFile cfgFile `catchSomeException` (\_ -> return "")
                           case getOpt Permute options (args ++ words cfgOpts ++ pagerOpt) of
                             (flags,n,[]) 
                               | Help `elem` flags -> do 
                                   msg <- helpMsg
-                                  Exception.throwIO (CmdLineError msg)
+                                  Control.Exception.throwIO (CmdLineError msg)
                               | Version `elem` flags ->
-                                  Exception.throwIO (CmdLineError versionString)
+                                  Control.Exception.throwIO (CmdLineError versionString)
                               | PrintDatadir `elem` flags ->
-                                  Exception.throwIO (CmdLineError (datadir (mkCmdLineOpts flags)))
+                                  Control.Exception.throwIO (CmdLineError (datadir (mkCmdLineOpts flags)))
                               | otherwise -> 
                                   return (mkCmdLineOpts flags, n)
                             (_,_,errs) -> do 
                                   msg <- helpMsg
-                                  Exception.throwIO (CmdLineError (concat errs ++ msg))
+                                  Control.Exception.throwIO (CmdLineError (concat errs ++ msg))
 
 
 helpMsg              = do pgm <- System.getProgName
@@ -291,8 +294,8 @@ readCfg clo = parseCfg (rtsCfg clo)
 
 -- | Read the configuration at the given location.
 parseCfg file
-    = do txt <- catch (readFile file)
-                (\e -> Exception.throwIO $ emsg file)
+    = do txt <- readFile file `catchSomeException`
+                \e -> Control.Exception.throwIO $ emsg file
          config <- safeRead file txt
          return config
     where        
@@ -300,8 +303,8 @@ parseCfg file
         safeRead file text =
             let val = case [x | (x,t) <- reads text, ("","") <- lex t] of
                       [x] -> x
-                      [] -> Exception.throw (ConfigError ("Parse error in " ++ file ++ "\n"))
-                      _ -> Exception.throw (ConfigError ("File not found: " ++ file ++ "\n"))
+                      [] -> Control.Exception.throw (ConfigError ("Parse error in " ++ file ++ "\n"))
+                      _ -> Control.Exception.throw (ConfigError ("File not found: " ++ file ++ "\n"))
             in (return $! val)
         emsg f = (CmdLineError $ "Could not open " ++ file)
 

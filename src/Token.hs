@@ -83,6 +83,7 @@ Reserved operators
     | And
     | Or
     | Index
+    | At
 {-
 
 Reserved Ids
@@ -139,7 +140,8 @@ reserved_ops
         ( "\\\\", Backslash2 ),
         ( "&&", And ),
         ( "||", Or ),
-        ( "!",  Index)
+        ( "!",  Index),
+        ( "@",  At)
       ]
 
 
@@ -185,6 +187,7 @@ acceptColumnAlignedKeywords = ["elsif","else","where","private"]
 tab_length = 8 :: Int
 
 isIdent  c = isAlpha c || isDigit c || c == '\'' || c == '_'
+
 isSymbol c = elem c ":!#$%&*+./<=>?@\\^|-~°"
 
 data LexInt =

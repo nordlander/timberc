@@ -39,9 +39,9 @@ import PP
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import Control.Monad (liftM2)
-import Control.Exception
+import qualified Control.Exception
 import Data.Char
-import Config
+import qualified Config
 import Name
 import Name2
 import Data.Typeable
@@ -150,7 +150,7 @@ errorIds mess ns                = compileError (unlines ((mess++":") : map pos n
         modInfo _               = " (unknown position)"
 errorTree mess t                = compileError (errorMsg mess t)
 
-compileError mess               = throw (CompileError mess)
+compileError mess               = Control.Exception.throw (Config.CompileError mess)
 
 errorMsg mess t                 = mess ++ pos ++ (if length (lines str) > 1 then "\n"++str++"\n" else str)
   where str                     = render (pr t)
@@ -158,8 +158,9 @@ errorMsg mess t                 = mess ++ pos ++ (if length (lines str) > 1 then
  
 internalError mess t            = internalError0 (errorMsg mess t)
 
-internalError0 mess             = throw (Panic mess)
+internalError0 mess             = Control.Exception.throw (Config.Panic mess)
 
+catchAny                        = Config.catchSomeException
 
 -- PosInfo ---------------------------------------------------------
    
