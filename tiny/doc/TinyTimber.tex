@@ -65,22 +65,28 @@ The fundamental idea that underlies the design of TinyTimber is the notion of a 
 According to this view, a hardware device such as a serial port controller is a typical reactive object.  The device itself is literally a "black box" object that does nothing unless stimulated by external events.  In the case of a serial port these events are of two kinds: either a signal change on the incoming communication line, or a read or write command received on the connected data bus.  The emitted events are similarly divided; either a generated signal change on the outgoing communication line, or an interrupt signal issued towards some connected microprocessor.  The clock pulse driving the shift registers of the port may also be included among the external event sources, if desired.  At all times, the current state of a serial port object is the contents of its internal registers.  Figure~\ref{fig:serial-port} depicts this view.\footnote{Although the graphical notation used within this document is entirely informal, the two kinds of arrows used are intended to distinguish between one-way signalling (the straight arrow) and request-response communication (the fishhook). Blocks stand for stateful objects, and the operatons that can be performed on these appear as rounded rectangles along the border. The clock symbol is just a generator of periodic events.}
 
 \begin{figure}
+\begin{center}
 \includegraphics[page=1]{Figs}
 \caption{\label{fig:serial-port}A reactive object in the form of a serial port}
+\end{center}
 \end{figure}
 
 The microprocessor itself may also be considered a reactive object.  It reacts to incoming interrupt events by updating its state (memory and registers) or generating commands (read or write) on the data bus.  Here as well a clock pulse may be viewed as an additional source of incoming events.  Perhaps less obvious is the fact that a microprocessor which is done emitting all its responses to previous events is also in effect doing "nothing" until a new interrupt occurs.  Programmers tend to think of this "nothing" as the repeated execution of some dummy instruction, but it should be noted that most microprocessor architectures provide an alternative in the form of an instruction that literally halts program flow until an interrupt occurs.  In any case, the division of a microprocessor's time into active and inactive phases is an important aspect of its behavior.  Figure~\ref{fig:cpu-system} shows the system obtained when a microprocessor object is connected to a serial port and a keyboard object via some common data bus.
 
 \begin{figure}
+\begin{center}
 \includegraphics[page=2]{Figs}
 \caption{\label{fig:cpu-system}A microprocessor object connected to a keyboard and a serial port}
+\end{center}
 \end{figure}
 
 Even a compound system can be thought of as a reactive object in its own right.  For example, a user of the microprocessor system in Figure~\ref{fig:cpu-system} will probably not distinguish the individual components from each other, but rather view the system as a single object capable of emitting serial port packets while reacting to incoming port and keyboard events.  Conversely, a single reactive object might reveal a more refined structure of interconnected components when looked at from the inside, and this pattern may very well repeat itself at different levels of magnification.  The core idea of TinyTimber is to let such a hierarchy of reactive objects extend into the {\em programmable} internals of a microprocessor object as well.
 
 \begin{figure}
+\begin{center}
 \includegraphics[page=3]{FIgs}
 \caption{\label{fig:cpu-object}Software-defined internals of a microprocessor object}
+\end{center}
 \end{figure}
 
 So, the microprocessor is a hardware reactive object whose behavior and internal structure is defined by software.  The links across this hardware/software boundary are the interrupt handlers, which constitute the externally visible {\em methods} of the microprocessor object.  The persistent state of the microprocessor are all the global variables, which we may choose to partition into an object structure that reflects a conceptual hardware decomposition of the programmed application. Figure~\ref{fig:cpu-object} illustrates what the software-defined internal structure of a microprocessor object may look like.\footnote{This figure shows a clock symbol placed over one of the one-way communication arrows, as an indicator of the TinyTimber way of controlling timing behavior. More on this topic in Section~\ref{sect:time}.}
@@ -88,8 +94,10 @@ So, the microprocessor is a hardware reactive object whose behavior and internal
 An essential aspect of real world objects is that they naturally evolve in parallel with each other, so a key task for the TinyTimber kernel is to simulate concurrent execution of multiple software objects on single processor hardware.  Moreover, TinyTimber will also guarantee that the methods of a particular object execute in a strictly sequential fashion, thus avoiding the need for any manual state protection mechanisms (see Figure~\ref{fig:concurrency}).  To make this scheme work, the programmer has to ensure that every method call that crosses an object boundary is handled by the TinyTimber kernel.  Apart from that requirement, though, programming with TinyTimber is as simple as partitioning the program state into an appropriate object structure, and defining the behavior of each object in terms of method code.
 
 \begin{figure}
+\begin{center}
 \includegraphics[page=4]{Figs}
 \caption{\label{fig:concurrency}Concurrency and mutual exclusion among reactive objects}
+\end{center}
 \end{figure}
 
 Details of the TinyTimber method call primitives will be explained in subsequent sections.  First, however, some basic techniques for expressing object-oriented concepts in C must be discussed.
@@ -275,8 +283,10 @@ Implied in the presentation this far has been the assumption that all methods te
 Still, what is lacking in the TinyTimber picture painted so far is the ability to express {\em periodic} activity.  Or more generally put: to prescribe that a certain activity must be triggered {\em at a certain point in time}.
 
 \begin{figure}
+\begin{center}
 \includegraphics[page=5]{Figs}
 \caption{\label{fig:after}Baseline adjustment using {\tt AFTER} with an offset T}
+\end{center}
 \end{figure}
 
 The TinyTimber primitive for managing the passage of time is called {\tt AFTER}.  Unlike time primitives in many other concurrent systems, {\tt AFTER} does not stop the program flow; instead it just sets up an event at a future point in time that some chosen object will react to.  The following code issues an asynchronous call to method {\tt meth} of object {\tt obj}, to be be delivered after {\tt X} seconds.
@@ -319,8 +329,10 @@ This example succinctly captures the way periodic computations are expressed in 
 For applications where hard real-time performance is required, TinyTimber also provides an option for specifying the {\em deadlines} of asynchronous messages.  A deadline marks a point in time when a method must be done, and together with the baseline of a method call, it defines a time window of legal method execution (see Figure~\ref{fig:deadline}).  
 
 \begin{figure}
+\begin{center}
 \includegraphics[page=6]{Figs}
 \caption{\label{fig:deadline}Window of legal method execution (relative deadline is D)}
+\end{center}
 \end{figure}
 
 To perform an asynchronous call with an explicit deadline {\tt D}, one writes
@@ -328,16 +340,20 @@ To perform an asynchronous call with an explicit deadline {\tt D}, one writes
    BEFORE( D, &obj, meth, 123 );
 \end{verbatim}
 \begin{figure}
+\begin{center}
 \includegraphics[page=7]{Figs}
 \caption{\label{fig:before}Deadline adjustment using {\tt BEFORE} with an offset D}
+\end{center}
 \end{figure}
 C.f.\ Figure~\ref{fig:before}. To do the same with an additional baseline offset {\tt T}, a combination of the {\tt AFTER} and {\tt BEFORE} primitives is used (Figure~\ref{fig:send}):
 \begin{verbatim}
    SEND( T, D, &obj, meth, 123 );
 \end{verbatim}
 \begin{figure}
+\begin{center}
 \includegraphics[page=8]{Figs}
 \caption{\label{fig:send}Combined baseline and deadline adjustment using {\tt SEND}}
+\end{center}
 \end{figure}
 In both cases, the specified deadline parameter is a time-span measured relative the baseline of the generated message. As a special case, a relative deadline value of {\tt 0} is interpreted as infinity; i.e., specifying an infinitely wide window of legal execution. With this fact in mind, all variants of the asynchronous method call can actually be defined as variations of {\tt SEND}:
 \begin{center}
@@ -356,6 +372,7 @@ The baseline of a method call may preferably be used as a time-stamp for the eve
    } Sonar;
    
    #define initSonar()  { initObject(), initTimer() }
+
    #define GENERATOR_PORT = (*(char *) 0x1234)
    
    Sonar sonar = initSonar();
