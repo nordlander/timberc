@@ -115,7 +115,7 @@ typedef signed long Time;
         async(bl, dl, (Object*)obj, (Method)meth, (int)arg)
 
 
-#if defined(__AVR_ATmega169__)    // AVR ATmega169 Butterfly dependencies 
+#if defined(__AVR_ATmega169__) || defined(__AVR_ATmega169P__) // AVR ATmega169 Butterfly dependencies 
 
 //      Construct a Time value from an argument given in microseconds.
 #define USEC(x) \
@@ -155,8 +155,8 @@ enum Vector {
         IRQ_EE_READY, 
         IRQ_SPM_READY, 
         IRQ_LCD,
-        
-	    N_VECTORS
+
+	N_VECTORS
 };
 
 #elif defined(__AVR_ATmega32__)    // AVR ATmega32 dependencies

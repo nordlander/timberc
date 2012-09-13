@@ -60,7 +60,7 @@ void DUMPH(unsigned int val) {
 }
 
 
-#if defined(__AVR_ATmega169__)    // AVR ATmega169 Butterfly dependencies ---------------------
+#if defined(__AVR_ATmega169__) || defined(__AVR_ATmega169P__) // AVR ATmega169 Butterfly dependencies
 
 #include <setjmp.h>
 #include <avr/io.h>
@@ -290,7 +290,7 @@ Object *otable[N_VECTORS];
 
 static void schedule(void);
 
-#if defined(__AVR_ATmega169__)    // AVR ATmega169 Butterfly dependencies ---------------------
+#if defined(__AVR_ATmega169__) || defined(__AVR_ATmega169P__) // AVR ATmega169 Butterfly dependencies 
 
 
 #define TIMER_COMPARE_INTERRUPT  ISR(TIMER1_COMPA_vect)
