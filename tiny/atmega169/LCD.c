@@ -33,8 +33,8 @@
 
 #include <avr/io.h>
 #include <stdlib.h>
-
-unsigned int LCD_character_table[] = {
+/*
+const unsigned int LCD_character_table[] = {
     0x0000,     // 
     0x0001,     // 
     0x0002,     // 
@@ -171,61 +171,88 @@ unsigned int LCD_character_table[] = {
     0x0000,     // '~' (Not defined)
     0x0000      // 'DEL' (Not defined)
 };
+*/
 
 void initLCD (void) {
 
 	// Set the LCD contrast level
 	LCDCCR = 0x0F;
 
-    // Select asynchronous clock source, enable all COM pins and enable all segment pins.
+        // Select asynchronous clock source, enable all COM pins and enable all segment pins.
 	LCDCRB = 0xB7;
 	
-    // Set LCD prescaler to give a framerate of 32,0 Hz
-    LCDFRR = 0x07;
+        // Set LCD prescaler to give a framerate of 32,0 Hz
+        LCDFRR = 0x07;
 	
-    // Enable LCD and set low power waveform
+        // Enable LCD and set low power waveform
 	LCDCRA = 0xC0;
 
 }
 
 void writeChar(char pos, char chr) {
+        unsigned int tabval;
+        switch (chr) {
+                case '0': tabval = 0x5559; break;
+                case '1': tabval = 0x0118; break;
+                case '2': tabval = 0x1e11; break;
+                case '3': tabval = 0x1b11; break;
+                case '4': tabval = 0x0b50; break;
+                case '5': tabval = 0x1b41; break;
+                case '6': tabval = 0x1f41; break;
+                case '7': tabval = 0x0111; break;
+                case '8': tabval = 0x1f51; break;
+                case '9': tabval = 0x1b51; break;
+                case 'A': tabval = 0x0f51; break;
+                case 'B': tabval = 0x3991; break;
+                case 'C': tabval = 0x1441; break;
+                case 'D': tabval = 0x3191; break;
+                case 'E': tabval = 0x1e41; break;
+                case 'F': tabval = 0x0e41; break;
+                case 'a': tabval = 0x0f51; break;
+                case 'b': tabval = 0x3991; break;
+                case 'c': tabval = 0x1441; break;
+                case 'd': tabval = 0x3191; break;
+                case 'e': tabval = 0x1e41; break;
+                case 'f': tabval = 0x0e41; break;
+                default: return;
+        }
 	switch (pos)
 	{
 		case 1:
-			LCDDR0  = (LCDDR0 & 0xF0) | ((LCD_character_table[chr-0] & 0x000F));
-			LCDDR5  = (LCDDR5 & 0xF0) | ((LCD_character_table[chr-0] & 0x00F0) >> 4);
-			LCDDR10 = (LCDDR10 & 0xF0) | ((LCD_character_table[chr-0] & 0x0F00) >> 8);
-			LCDDR15 = (LCDDR15 & 0xF0) | ((LCD_character_table[chr-0] & 0xF000) >> 12);
+			LCDDR0  = (LCDDR0 & 0xF0) | ((tabval & 0x000F));
+			LCDDR5  = (LCDDR5 & 0xF0) | ((tabval & 0x00F0) >> 4);
+			LCDDR10 = (LCDDR10 & 0xF0) | ((tabval & 0x0F00) >> 8);
+			LCDDR15 = (LCDDR15 & 0xF0) | ((tabval & 0xF000) >> 12);
 			break;
 		case 2:
-			LCDDR0  = (LCDDR0 & 0x0F) | ((LCD_character_table[chr-0] & 0x000F) << 4);
-			LCDDR5  = (LCDDR5 & 0x0F) | ((LCD_character_table[chr-0] & 0x00F0));
-			LCDDR10 = (LCDDR10 & 0x0F) | ((LCD_character_table[chr-0] & 0x0F00) >> 4);
-			LCDDR15 = (LCDDR15 & 0x0F) | ((LCD_character_table[chr-0] & 0xF000) >> 8);
+			LCDDR0  = (LCDDR0 & 0x0F) | ((tabval & 0x000F) << 4);
+			LCDDR5  = (LCDDR5 & 0x0F) | ((tabval & 0x00F0));
+			LCDDR10 = (LCDDR10 & 0x0F) | ((tabval & 0x0F00) >> 4);
+			LCDDR15 = (LCDDR15 & 0x0F) | ((tabval & 0xF000) >> 8);
 			break;
 		case 3:
-			LCDDR1  = (LCDDR1 & 0xF0) | ((LCD_character_table[chr-0] & 0x000F));
-			LCDDR6  = (LCDDR6 & 0xF0) | ((LCD_character_table[chr-0] & 0x00F0) >> 4);
-			LCDDR11 = (LCDDR11 & 0xF0) | ((LCD_character_table[chr-0] & 0x0F00) >> 8);
-			LCDDR16 = (LCDDR16 & 0xF0) | ((LCD_character_table[chr-0] & 0xF000) >> 12);
+			LCDDR1  = (LCDDR1 & 0xF0) | ((tabval & 0x000F));
+			LCDDR6  = (LCDDR6 & 0xF0) | ((tabval & 0x00F0) >> 4);
+			LCDDR11 = (LCDDR11 & 0xF0) | ((tabval & 0x0F00) >> 8);
+			LCDDR16 = (LCDDR16 & 0xF0) | ((tabval & 0xF000) >> 12);
 			break;
 		case 4:
-			LCDDR1  = (LCDDR1 & 0x0F) | ((LCD_character_table[chr-0] & 0x000F) << 4);
-			LCDDR6  = (LCDDR6 & 0x0F) | ((LCD_character_table[chr-0] & 0x00F0));
-			LCDDR11 = (LCDDR11 & 0x0F) | ((LCD_character_table[chr-0] & 0x0F00) >> 4);
-			LCDDR16 = (LCDDR16 & 0x0F) | ((LCD_character_table[chr-0] & 0xF000) >> 8);
+			LCDDR1  = (LCDDR1 & 0x0F) | ((tabval & 0x000F) << 4);
+			LCDDR6  = (LCDDR6 & 0x0F) | ((tabval & 0x00F0));
+			LCDDR11 = (LCDDR11 & 0x0F) | ((tabval & 0x0F00) >> 4);
+			LCDDR16 = (LCDDR16 & 0x0F) | ((tabval & 0xF000) >> 8);
 			break;
 		case 5:
-			LCDDR2  = (LCDDR2 & 0xF0) | ((LCD_character_table[chr-0] & 0x000F));
-			LCDDR7  = (LCDDR7 & 0xF0) | ((LCD_character_table[chr-0] & 0x00F0) >> 4);
-			LCDDR12 = (LCDDR12 & 0xF0) | ((LCD_character_table[chr-0] & 0x0F00) >> 8);
-			LCDDR17 = (LCDDR17 & 0xF0) | ((LCD_character_table[chr-0] & 0xF000) >> 12);
+			LCDDR2  = (LCDDR2 & 0xF0) | ((tabval & 0x000F));
+			LCDDR7  = (LCDDR7 & 0xF0) | ((tabval & 0x00F0) >> 4);
+			LCDDR12 = (LCDDR12 & 0xF0) | ((tabval & 0x0F00) >> 8);
+			LCDDR17 = (LCDDR17 & 0xF0) | ((tabval & 0xF000) >> 12);
 			break;
 		case 6:
-			LCDDR2  = (LCDDR2 & 0x0F) | ((LCD_character_table[chr-0] & 0x000F) << 4);
-			LCDDR7  = (LCDDR7 & 0x0F) | ((LCD_character_table[chr-0] & 0x00F0));
-			LCDDR12 = (LCDDR12 & 0x0F) | ((LCD_character_table[chr-0] & 0x0F00) >> 4);
-			LCDDR17 = (LCDDR17 & 0x0F) | ((LCD_character_table[chr-0] & 0xF000) >> 8);
+			LCDDR2  = (LCDDR2 & 0x0F) | ((tabval & 0x000F) << 4);
+			LCDDR7  = (LCDDR7 & 0x0F) | ((tabval & 0x00F0));
+			LCDDR12 = (LCDDR12 & 0x0F) | ((tabval & 0x0F00) >> 4);
+			LCDDR17 = (LCDDR17 & 0x0F) | ((tabval & 0xF000) >> 8);
 			break;
 	}
 }
