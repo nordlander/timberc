@@ -41,7 +41,7 @@
 #include <string.h>
 #include "rts.h"
 
-#define MAXTHREADS      12          // Static maximum
+#define MAXTHREADS      32          // Static maximum
 
 #define TDELTA          1
 #define TIMERSET(x,now) { struct itimerval t; \
@@ -524,7 +524,7 @@ void init_rts(int argc, char **argv) {
     DISABLE(rts);
     
     NCORES = getNumberOfProcessors();
-    NTHREADS = NCORES * 4;
+    NTHREADS = NCORES * 4 + 3;
     if (NTHREADS > MAXTHREADS)
         NTHREADS = MAXTHREADS;
     
