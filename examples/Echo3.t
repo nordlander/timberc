@@ -15,4 +15,4 @@ root w = class
 
    result action
       env.stdin.installR save
-      tick
+      send tick
