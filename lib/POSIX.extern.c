@@ -541,10 +541,11 @@ void eventLoop (Thread current_thread) {
     param.sched_priority = current_thread->prio;
     pthread_setschedparam(current_thread->id, SCHED_RR, &param);
 
-    sigset_t one_sig;
-    sigemptyset(&one_sig);
-    sigaddset(&one_sig, SIGSELECT);
-    pthread_sigmask(SIG_UNBLOCK, &one_sig, NULL);
+    sigset_t mysigmask;
+    pthread_sigmask(0, NULL, &mysigmask);
+    sigaddset(&mysigmask, SIGSELECT);
+    pthread_sigmask(SIG_BLOCK, &mysigmask, NULL); // Block SIGSELECT...
+	sigdelset(&mysigmask, SIGSELECT);             // ... except when waiting in pselect below.
 
     DISABLE(envmut);
     fd_set readFds, writeFds;
@@ -553,7 +554,7 @@ void eventLoop (Thread current_thread) {
         readFds = readUsed;
         writeFds = writeUsed;
         ENABLE(envmut);
-        int r = select(maxDesc+1, &readFds, &writeFds, NULL, NULL);
+        int r = pselect(maxDesc+1, &readFds, &writeFds, NULL, NULL, &mysigmask);
         DISABLE(envmut);
         if (r >= 0) {
             TIMERGET(current_thread->msg->baseline);
