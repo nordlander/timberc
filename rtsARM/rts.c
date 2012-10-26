@@ -584,8 +584,6 @@ void idle(void) {
 }
 
 void startup(Time_Time_to_Msg prog) {
-    current_thread->msg = &msg0;
-    TIMERGET(msg0.baseline);
     prog->Code(prog, Inherit, Inherit);
     current_thread->msg = NULL;
     if (msgQ) {
@@ -652,4 +650,6 @@ void init_rts(int argc, char **argv) {
     gcInit();
     addRootScanner(&timerQscanner);
     init_threads();
+    current_thread->msg = &msg0;
+    TIMERGET(msg0.baseline);
 }
