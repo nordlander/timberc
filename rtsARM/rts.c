@@ -38,6 +38,10 @@
 	__asm__ __volatile__ (\
 		/* r0 & r1 is used as a temporary register, we need lr in swi mode. */\
 		"stmfd	sp!, {r0,r1,lr}\n"\
+		/* Disable interrupts */\
+		"mrs	r0, cpsr\n"\
+		"orr	r0, r0, #0xc0\n"\
+		"msr	cpsr_c, r0\n"\
 		/* Get the user mode stack pointer value. */\
 		"stmdb	sp, {sp}^\n"\
 		"nop\n"\
@@ -375,6 +379,7 @@ OID LOCK( OID obj ) {
         obj->wantedBy = current_thread;
         current_thread->waitsFor = obj;
         dispatch(t);
+	    GC_PROLOGUE(obj);									// in case t was the GC
     }
     obj->ownedBy = current_thread;
 
@@ -410,6 +415,7 @@ UNIT UNLOCK( OID obj ) {
 
 void GC_UNLOCK( OID obj ) {
     PROTECT(1);
+    obj->ownedBy = NULL;
     Thread t = obj->wantedBy;
     if (t) {                                                // we have run on someone's behalf
         obj->wantedBy = NULL;
@@ -520,10 +526,6 @@ __attribute__((naked)) void code_abort_handler(void) {
 }
 
 __attribute__((naked)) void data_abort_handler(void) {
-    asm volatile(
-		"ldr	r0, =bad_pc\n"
-		"str	lr, [r0]\n"
-	);
     asm volatile(
 		"ldr	r0, =bad_pc\n"
 		"str	lr, [r0]\n"
