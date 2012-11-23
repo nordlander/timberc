@@ -558,6 +558,7 @@ void eventLoop (Thread current_thread) {
         DISABLE(envmut);
         if (r >= 0) {
             TIMERGET(current_thread->msg->baseline);
+			enterLocalPtrScope();
             for(i=0; i<maxDesc+1; i++) {
 	            if (FD_ISSET(i, &readFds)) {
 	                if (rdTable[i]) {
@@ -602,6 +603,7 @@ void eventLoop (Thread current_thread) {
 	                }
 	            }
             }
+			leaveLocalPtrScope();
         }
     }
 }

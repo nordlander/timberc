@@ -104,6 +104,17 @@ Thread newThread(Msg m, int prio, void (*fun)(Thread), int stacksize) {
     return t;
 }
 
+void enterLocalPtrScope(void) {
+	DISABLE(rts);
+	nactive++;
+	ENABLE(rts);
+}
+
+void leaveLocalPtrScope(void) {
+	DISABLE(rts);
+	nactive--;
+	ENABLE(rts);
+}
 
 
 // Last resort -----------------------------------------------------------------------------------

@@ -69,6 +69,8 @@ extern struct Thread threads[];
 Thread runAsSeparateThread(void(*fun)(Thread), Msg m);
 void runAsMainContinuation(void(*fun)(Thread));
 
+void enterLocalPtrScope(void);	// Tell the GC that local heap pointers might (not visible as roots) be in use
+void leaveLocalPtrScope(void);	// Tell the GC that no local heap pointers are in use
 
 
 struct Scanner;
