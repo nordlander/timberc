@@ -127,11 +127,11 @@ void initfb(void){
 
 // --------------------------------------------------------------------------------------------
 
-extern unsigned int __ram_start, __ram_end;
+extern WORD __ram_start, __ram_end;
 
 static void portwrite(Env_ARM env, unsigned int addr, int data, int dummy)
 {	
-    if (addr >= __ram_end || addr < __ram_start)
+    if (addr >= (unsigned int)&__ram_end || addr < (unsigned int)&__ram_start)
 	    *(int*)addr = data;
 }
 
@@ -139,7 +139,7 @@ static void portset(Env_ARM env, unsigned int addr, unsigned int data, int dummy
 {	
 	int status = ISPROTECTED();
 	PROTECT(1);
-    if (addr >= __ram_end || addr < __ram_start)
+    if (addr >= (unsigned int)&__ram_end || addr < (unsigned int)&__ram_start)
 	    *(int*)addr = *(int*)addr | data;
 	PROTECT(status);
 }
@@ -148,14 +148,14 @@ static void portclear(Env_ARM env, unsigned int addr, unsigned int data, int dum
 {	
 	int status = ISPROTECTED();
 	PROTECT(1);
-    if (addr >= __ram_end || addr < __ram_start)
+    if (addr >= (unsigned int)&__ram_end || addr < (unsigned int)&__ram_start)
 	    *(int*)addr = *(int*)addr & ~data;
 	PROTECT(status);
 }
 
 static int portread(Env_ARM env, unsigned int addr, int dummy)
 {
-    if (addr >= __ram_end || addr < __ram_start)
+    if (addr >= (unsigned int)&__ram_end || addr < (unsigned int)&__ram_start)
 	    return *(int*)addr;
     return 0;
 }
@@ -178,14 +178,17 @@ static Array netmemread(Env_ARM env, unsigned int addr, unsigned int size, int d
 	NEW(Array, array, WORDS(sizeof(struct Array)+size));
 	array->GCINFO = __GC__Array0;
 	array->size   = WORDS(size);
+	char *from = (char *)addr;
+	char *to = (char *)array->elems;
 
 	if (valid_net_addr(addr) && valid_net_addr(addr + size)) {
+		array->elems[array->size-1] = (void*)0;
 		for (i=0;i<size;i++) {
-			array->elems[i] = *ptr++;
+			*to++ = *from++;
 		}
 	} else {
 		for (i=0;i<size;i++) {
-			array->elems[i] = (void *)0;
+			*to++ = 0;
 		}
 	}
 
@@ -196,14 +199,10 @@ static void netmemwrite(Env_ARM env, Array array, unsigned int addr, unsigned in
 {
 	int i;
 	char *to = (char *)addr;
-	char *from= (char *)array->elems;
+	char *from = (char *)array->elems;
 
-	if (
-		valid_net_addr(addr) &&
-		valid_net_addr(addr + size) &&
-		(size < (array->size * 4))
-	   ) {
-		for (i=0;i<size*4;i++) {
+	if (valid_net_addr(addr) && valid_net_addr(addr + size) && (size < (array->size * 4))) {
+		for (i=0;i<size;i++) {
 			*to++ = *from++;
 		}
 	}
