@@ -194,8 +194,16 @@ llExp env (EThis)                       = return (EThis)
 llExp env (ELit l)                      = return (ELit l)
 llExp env (ESel e l)                    = liftM (flip ESel l) (llExp env e)
 llExp env (EEnter e f ts es)            = do e <- llExp env e
-                                             liftM (EEnter e f (mkT env ts)) (mapM (llExp env) es)
+					     es <- mapM (llExp env) es
+                                             fuseEnter env e f (mkT env ts) es
 llExp env (ECast t e)                   = liftM (ECast (mkT env t)) (llExp env e)
+
+
+--fuseEnter env (EClos vs t te c) f ts es
+--  | not (refThis c)			= do x <- newName functionSym
+--					     addToStore (Right (x, Fun vs t te c))
+--					     return (ECall x ts es)
+fuseEnter env e f ts es			= return (EEnter e f ts es)
 
 
 mkEVar env x                            = if x `elem` thisVars env then ESel EThis x else EVar x

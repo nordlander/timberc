@@ -375,6 +375,12 @@ redExp env e@(ECall (Prim IndexArray _) _ _)
                                         = redIndexArray env e 0
 redExp env (ECall p@(Prim SizeArray _) [t] [e])
                                         = liftM (ECall p [t] . (:[])) (redExp' env e)
+redExp env e0@(ECall (Prim ListArray _) [t] [e])
+  | isJust (constElems e)		= do x <- newName tempSym
+					     f <- redAssign env (arrayDepth t') (EVar x) e0
+					     let c = cBind [(x, Val t' (ECast t' (intExp 0)))] (f (CRet (EVar x)))
+					     return (EEnter (EClos [] (tArray t) [] c) (prim Code) [] [])
+  where t'				= tArray t
 redExp env (ECall x ts es)              = do es <- mapM (redExp env) es
                                              return (ECall x ts es)
 redExp env (ENew n ts bs)               = do bs <- mapM (redBind env) bs
@@ -456,6 +462,16 @@ stripArray n (TCon (Prim Array _) [t])  = stripArray (n-1) t
     a       := a \\ (x, a|x \\ (y, a|x|y \\ (z,e)))
 -}
 
+constElems (ENew (Prim CONS _) _ bs)
+                                    = do es <- constElems eb
+                                         return (ea:es)
+          where Val _ ea            = lookup' bs selHd
+                Val _ eb            = lookup' bs selTl
+constElems (ENew (Prim NIL _) _ bs)
+                                    = Just []
+constElems (ECast t e)	    	    = constElems e
+constElems _                	    = Nothing
+
 redAssign env n e0 (ECall (Prim UpdateArray _) [t] [a,i,v])
   | e0 == a                         = redAssign env (n-1) (indexArray t a i) v
   | otherwise                       = do f1 <- redAssign env n e0 a
@@ -466,15 +482,7 @@ redAssign env n e0 (ECall (Prim ListArray _) [t] [e])
     let m = length es               = do f <- redAssign env n e0 (ECall (prim EmptyArray) [t] [ELit (lInt (toInteger m))])
                                          fs <- mapM mkAssign ([0..] `zip` es)
                                          return (foldl (.) f fs)
-  where constElems (ENew (Prim CONS _) _ bs)
-                                    = do es <- constElems eb
-                                         return (ea:es)
-          where Val _ ea            = lookup' bs selHd
-                Val _ eb            = lookup' bs selTl
-        constElems (ENew (Prim NIL _) _ bs)
-                                    = Just []
-        constElems _                = Nothing
-        mkAssign (i,e)              = redAssign env (n-1) (indexArray t e0 (intExp i)) e
+  where mkAssign (i,e)              = redAssign env (n-1) (indexArray t e0 (intExp i)) e
 redAssign env n e0 (ECall (Prim UniArray _) [t] [m,e])
                                     = do x <- newName tempSym
                                          s <- newName tempSym
@@ -491,4 +499,6 @@ redAssign env n (ESel e x) v        = do v' <- redExp env v
 redAssign env n (ECall (Prim IndexArray _) [t] [e,i]) v
                                     = do v' <- redExp env v
                                          return (CUpdA e i (clone n t v'))
+redAssign env _ (EVar x) v	    = do v' <- redExp env v
+                                         return (CUpd x v')
 
