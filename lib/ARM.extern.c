@@ -201,7 +201,7 @@ static void netmemwrite(Env_ARM env, Array array, unsigned int addr, unsigned in
 	char *to = (char *)addr;
 	char *from = (char *)array->elems;
 
-	if (valid_net_addr(addr) && valid_net_addr(addr + size) && (size < (array->size * 4))) {
+	if (valid_net_addr(addr) && valid_net_addr(addr + size) && (WORDS(size) <= array->size)) {
 		for (i=0;i<size;i++) {
 			*to++ = *from++;
 		}
