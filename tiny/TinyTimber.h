@@ -119,13 +119,13 @@ typedef signed long Time;
 
 //      Construct a Time value from an argument given in microseconds.
 #define USEC(x) \
-        ((Time)((x * (Time)125) / 4) / (Time)1000)
+        ((Time)(((x) * (Time)125) / 4) / (Time)1000)
 //      Construct a Time value from an argument given in milliseconds.
 #define MSEC(x) \
-        ((Time)((x * (Time)125) / 4))
+        ((Time)(((x) * (Time)125) / 4))
 //      Construct a Time value from an argument given in seconds.
 #define SEC(x) \
-        ((x * (Time)31250)) 
+        (((x) * (Time)31250)) 
 //      Extract the microsecond fraction of a Time value
 #define USEC_OF(t) \
         (int)(((t) % ((Time)31250)) * 32)
@@ -166,10 +166,10 @@ enum Vector {
         ((Time)(x))
 //      Construct a Time value from an argument given in milliseconds.
 #define MSEC(x) \
-        ((Time)(x * (Time)1000))
+        ((Time)((x) * (Time)1000))
 //      Construct a Time value from an argument given in seconds.
 #define SEC(x) \
-        ((x * (Time)1000000)) 
+        (((x) * (Time)1000000)) 
 //      Extract the microsecond fraction of a Time value
 #define USEC_OF(t) \
         (long)((t) % ((Time)1000000))
@@ -205,13 +205,13 @@ enum Vector {
 
 //      Construct a Time value from an argument given in microseconds.
 #define USEC(x) \
-        ((Time)(x + (x / 2)))
+        ((Time)((x) * (Time)3 / 2))
 //      Construct a Time value from an argument given in milliseconds.
 #define MSEC(x) \
-        ((Time)(x * (Time)1500))
+        ((Time)((x) * (Time)1500))
 //      Construct a Time value from an argument given in seconds.
 #define SEC(x) \
-        ((Time)(x * (Time)1500000))
+        ((Time)((x) * (Time)1500000))
 //      Extract the microsecond fraction of a Time value
 #define USEC_OF(t) \
         (long)(((t) % ((Time)1500000)) * 2 / 3)
