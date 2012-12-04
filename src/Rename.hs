@@ -61,7 +61,8 @@ renameM e1 ls m                    = rename (initEnv e1 ls) m
 
 -- Syntax traversal environment --------------------------------------------------
 
-data Env                           = Env { rE :: Map Name Name, 
+data Env                           = Env { modName :: Maybe String,
+                                           rE :: Map Name Name, 
                                            rT :: Map Name Name, 
                                            rS :: Map Name Name,
                                            rL :: Map Name Name,
@@ -71,7 +72,8 @@ data Env                           = Env { rE :: Map Name Name,
                                            voids :: [Name]
                                          } deriving Show
 
-initEnv (rs, rL',rT',rE',rC') ls   = Env { rE = primTerms ++ rE', 
+initEnv (rs, rL',rT',rE',rC') ls   = Env { modName = Nothing,
+                                           rE = primTerms ++ rE', 
                                            rT = primTypes ++ rT', 
                                            rS = [], 
                                            rL = primSels ++ rL', 
@@ -118,6 +120,8 @@ renT env n@(Prim _ _)              = n
 renT env v                         = case lookup v (rT env) of
                                        Just n  -> n { annot = mixAnnot v n }
                                        Nothing -> checkQualError "Type identifier" v (rT env)
+
+setModName env c                   = env { modName = Just (str c) }
 
 extRenE env vs
   | not (null shadowed)            = errorIds "Illegal shadowing of state variables" shadowed
@@ -227,7 +231,7 @@ instance Rename Module where
                                         assert (null dtcs1) "Dangling typeclass declarations" dtcs1
                                         assert (null dtcs2) "Dangling typeclass declarations" dtcs2
                                         assert (null badImpl) "Illegal type signature for instance" badImpl
-                                        env1 <- extRenTMod True  c env  (ts1 ++ ks1')
+                                        env1 <- extRenTMod True  c env0  (ts1 ++ ks1')
                                         env2 <- extRenEMod True  c env1 (vs1++vs1'++vss++is1++instws1++bvars es1)
                                         env3 <- extRenLMod True  c env2 ss1
                                         env4 <- extRenCMod True  c env3 cs1
@@ -238,7 +242,8 @@ instance Rename Module where
                                         ds <- rename env8 (ds1 ++ ps1)
                                         bs <- rename env8 (bs1' ++ bs2' ++ shuffleB (bs1 ++ bs2))
                                         return (Module c is (ds ++ [DBind bs]) [])
-   where (ks1,ts1,ss1,cs1,ws1,tcs1,is1,es1,insts1,bss1) = renameD [] [] [] [] [] [] [] [] [] [] ds
+   where env0                      = setModName env c
+         (ks1,ts1,ss1,cs1,ws1,tcs1,is1,es1,insts1,bss1) = renameD [] [] [] [] [] [] [] [] [] [] ds
          (ks2,ts2,ss2,cs2,ws2,tcs2,is2,es2,insts2,bss2) = renameD [] [] [] [] [] [] [] [] [] [] ps
          ds1                       = mergeDecls tcs1 ds
          ps1                       = mergeDecls tcs2 ps
@@ -358,7 +363,7 @@ instance Rename Decl where
   rename env (DType c vs t)        = do env' <- extRenT env vs
                                         liftM (DType (renT env c) (map (renT env') vs)) (rename env' t)
   rename env (DInstance vs)        = return (DInstance (map (renE env) vs))
-  rename env (DInst n t bs)	   = do x <- case n of Just x -> return (renE env x); _ -> newName witnessSym
+  rename env (DInst n t bs)	   = do x <- case n of Just x -> return (renE env x); _ -> newNameMod (modName env) witnessSym
 					t' <- renameQT env t
 					liftM (DInst (Just x) t') (mapM (renSBind (env { rE = rL env }) env) bs)
   rename env (DDefault ts)         = liftM DDefault (rename env ts)
