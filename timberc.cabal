@@ -47,6 +47,13 @@ data-files:          examples/Counter.t,
                      lib/POSIX.extern.h,
                      lib/Prelude.t,
                      lib/RandomGenerator.t
+                     lib/Binary.t
+                     lib/Port.t
+                     lib/LPC24XXEthernetPort.t
+                     lib/LPC24XXEthernetDriver.t
+                     lib/Ethernet.t
+                     lib/IPv4.t
+                     lib/UDP.t
 
 extra-source-files:  rtsPOSIX/Makefile.in,
                      rtsPOSIX/configure,

@@ -5,7 +5,8 @@ CFLAGS       = -Os -g -I. -I../include -I../lib -I./asm
 INSTALL	     = @INSTALL@
 
 TIMBERC      = @TIMBERC@
-TIMBERLIBS   = Prelude.t $(filter-out Prelude.t,$(notdir $(wildcard ../lib/*.t)))
+TIMBERLIBS   = Prelude.t POSIX.t ARM.t DOM.t BitOps.t DataFunctionalList.t DataObjectsDictionary.t DataObjectsStack.t RandomGenerator.t Binary.t Port.t LPC24XXEthernetPort.t LPC24XXEthernetDriver.t Ethernet.t IPv4.t UDP.t
+# Prelude.t $(filter-out Prelude.t,$(notdir $(wildcard ../lib/*.t)))
 OBJS         = $(TIMBERLIBS:.t=.o)
 
 DEST         = libTimber.a
