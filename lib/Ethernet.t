@@ -20,11 +20,11 @@ instance Show EthernetHeader where
 
 instance BinString EthernetHeader where
     pack (EthernetHeader { .. }) = binBuf 14 (array [w0, w1, w2, w3])
-      where MACAddress s0 s1 s2 s3 s4 s5 = src
-            MACAddress d0 d1 d2 d3 d4 d5 = dst
-            w0 = to32 s0 .|. (to32 s1 .<<. 8) .|. (to32 s2 .<<. 16) .|. (to32 s3 .<<. 24)
-            w1 = to32 s4 .|. (to32 s5 .<<. 8) .|. (to32 d0 .<<. 16) .|. (to32 d1 .<<. 24)
-            w2 = to32 d2 .|. (to32 d3 .<<. 8) .|. (to32 d4 .<<. 16) .|. (to32 d5 .<<. 24)
+      where MACAddress d0 d1 d2 d3 d4 d5 = dst
+            MACAddress s0 s1 s2 s3 s4 s5 = src
+            w0 = to32 d0 .|. (to32 d1 .<<. 8) .|. (to32 d2 .<<. 16) .|. (to32 d3 .<<. 24)
+            w1 = to32 d4 .|. (to32 d5 .<<. 8) .|. (to32 s0 .<<. 16) .|. (to32 s1 .<<. 24)
+            w2 = to32 s2 .|. (to32 s3 .<<. 8) .|. (to32 s4 .<<. 16) .|. (to32 s5 .<<. 24)
             w3 = to32 (hton16 (fromInt etype))
     unpack buf off
       | buf.nbytes - off < 0x3c = Nothing
