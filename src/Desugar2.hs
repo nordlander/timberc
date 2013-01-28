@@ -358,7 +358,7 @@ dsSs cl (SBind [BEqn (LPat p) rh] : ss)
   | not cl && nonRecursive      = do x <- newName tempSym
                                      dsSs cl [SExp (ECase (rh2exp rh) [Alt p (RExp (EDo (Just x) Nothing (Stmts ss)))])]
   where nonRecursive            = not (any (`elem` evars rh) (pvars p))
-dsSs cl (SBind bs : ss)         = do bs <- dsBinds (Just []) bs
+dsSs cl (SBind bs : ss)         = do bs <- dsBinds (Just (bvars bs)) bs
                                      ss' <- getAndClearStore
                                      liftM ((ss' ++) . (SBind bs :)) (dsSs cl ss)
 dsSs cl [SRet e]                = do e <- dsExp (Just []) e
@@ -424,10 +424,12 @@ dsRh vs (RGrd gs)          = liftM RGrd (mapM dsGrd gs)
                                      e <- dsExp vs e
                                      return (GExp qs e)
 dsRh vs (RWhere rh [BEqn (LPat p) rh'])
-  | nonRecursive              = liftM RExp (dsExp vs (ECase (rh2exp rh') [Alt p (RExp (rh2exp rh))]))
+  | nonRecursive              = liftM RExp (dsExp vs' (ECase (rh2exp rh') [Alt p (RExp (rh2exp rh))]))
   where nonRecursive          = not (any (`elem` evars rh') (pvars p))  
-dsRh vs (RWhere rh bs)        = liftM2 RWhere (dsRh vs rh) (dsBinds vs bs)
-
+        vs'                   = joinVars vs (pvars p)
+dsRh vs (RWhere rh bs)        = liftM2 RWhere (dsRh vs' rh) (dsBinds vs' bs)
+  where vs'                   = joinVars vs (bvars bs)
+  
 
 -- Generalized version of dsRh, without where->case transformation
 dsRhs :: Maybe [Name] -> (a -> M Stmt a) -> Rhs a -> M Stmt (Rhs a)
@@ -437,7 +439,8 @@ dsRhs vs dsE (RGrd gs)          = liftM RGrd (mapM dsGrd gs)
     dsGrd (GExp qs e)           = do qs <- mapM (dsEQual vs) qs
                                      e <- dsE e
                                      return (GExp qs e)
-dsRhs vs dsE (RWhere rh bs)     = liftM2 RWhere (dsRhs vs dsE rh) (dsBinds vs bs)
+dsRhs vs dsE (RWhere rh bs)     = liftM2 RWhere (dsRhs vs' dsE rh) (dsBinds vs' bs)
+  where vs'                     = joinVars vs (bvars bs)
 
 
 dsEQual vs (QExp e)             = do e <- dsExp vs e
