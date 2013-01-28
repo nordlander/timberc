@@ -33,14 +33,14 @@
 
 /*
  * 
- * TinyTimber.h v2.0
+ * TinyTimber.h v2.0.2
  *
  */
 
 #ifndef _TINYTIMBER_
 #define _TINYTIMBER_
 
-#define TINYTIMBER_VERSION "v2.01 (2012-01-24)"
+#define TINYTIMBER_VERSION "v2.02 (2013-01-28)"
 
 //      Abstract type, used in the definition of Object.
 struct thread_block;
