@@ -396,16 +396,26 @@ pCmd env t0 (CSwitch e alts)
 mkSwitch env (EVar _) [] []     = CBreak
 mkSwitch env e [] []            = CSwitch e [AWild CBreak]
 mkSwitch env e [] [ACon n _ _ c]
-  | n `notElem` tagged env      = c
+  | n `notElem` tagged env      = nukeBreak c
 
-mkSwitch env e [] [AWild c]     = c
+mkSwitch env e [] [AWild c]     = nukeBreak c
 mkSwitch env e [] alts1         = CSwitch (ESel e (prim Tag)) (map (mkLitAlt env) alts1)
 mkSwitch env e alts0@[ACon n _ _ c] []
-  | allCons env alts0 == [n]    = c
+  | allCons env alts0 == [n]    = nukeBreak c
 mkSwitch env e alts0 []         = CSwitch (ECast tWORD e) (map (mkLitAlt env) alts0)
 mkSwitch env e alts0 alts1      = mkSwitch env e (alts0++[AWild d]) []
   where d                       = mkSwitch env e [] alts1
 
+
+nukeBreak (CSeq c1 CBreak)      = c1
+nukeBreak (CSeq c1 c2)          = CSeq c1 (nukeBreak c2)
+nukeBreak (CBind r bs c)        = CBind r bs (nukeBreak c)
+nukeBreak (CRun e c)            = CRun e (nukeBreak c)
+nukeBreak (CUpd x e c)          = CUpd x e (nukeBreak c)
+nukeBreak (CUpdS e x e' c)      = CUpdS e x e' (nukeBreak c)
+nukeBreak (CUpdA e i e' c)      = CUpdA e i e' (nukeBreak c)
+nukeBreak (CWhile e c c')       = CWhile e c (nukeBreak c')
+nukeBreak c                     = c
 
 mkVarSwitch env t0 e alts
   | isEVar e                    = do (bf,t,e) <- pExp env e
