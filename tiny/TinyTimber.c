@@ -278,6 +278,7 @@ struct thread_block thread0;
 Msg msgPool         = messages;
 Msg msgQ            = NULL;
 Msg timerQ          = NULL;
+char ext            = 0;
 Time timestamp      = 0;
 int overflows       = 0;
 
@@ -296,7 +297,7 @@ static void schedule(void);
 #define TIMER_COMPARE_INTERRUPT  ISR(TIMER1_COMPA_vect)
 #define TIMER_OVERFLOW_INTERRUPT ISR(TIMER1_OVF_vect)
 
-#define IRQ(n,v) ISR(v) { TIMERGET(timestamp); if (mtable[n]) mtable[n](otable[n],n); schedule(); }
+#define IRQ(n,v) ISR(v) { TIMERGET(timestamp); ext = 1; if (mtable[n]) mtable[n](otable[n],n); ext = 0; schedule(); }
 
 IRQ(IRQ_INT0,            INT0_vect);
 IRQ(IRQ_PCINT0,          PCINT0_vect);
@@ -324,7 +325,7 @@ IRQ(IRQ_LCD,             LCD_vect);
 #define TIMER_COMPARE_INTERRUPT  ISR(TIMER1_COMPA_vect)
 #define TIMER_OVERFLOW_INTERRUPT ISR(TIMER1_OVF_vect)
 
-#define IRQ(n,v) ISR(v) { TIMERGET(timestamp); if (mtable[n]) mtable[n](otable[n],n); schedule(); }
+#define IRQ(n,v) ISR(v) { TIMERGET(timestamp); ext = 1; if (mtable[n]) mtable[n](otable[n],n); ext = 0; schedule(); }
 
 IRQ(IRQ_INT0,            INT0_vect);
 IRQ(IRQ_INT1,            INT1_vect);
@@ -347,9 +348,9 @@ IRQ(IRQ_SPM_RDY,         SPM_RDY_vect);
 #elif defined(__HCS12__)   // Freescale HCS12 dependencies -------------------------------
 
 #define IRQ(n,v) __interrupt void v (void) { \
-        DISABLE(); TIMERGET(timestamp); \
+        DISABLE(); TIMERGET(timestamp); ext = 1; \
         if (mtable[n]) mtable[n](otable[n],n); \
-        schedule(); ENABLE(1); \
+        ext = 0; schedule(); ENABLE(1); \
 }
 
 IRQ(IRQ_PWMEShutdown,    vect_PWMEShutdown);
@@ -616,7 +617,6 @@ static void idle(void) {
 }
 
 static void schedule(void) {
-    timestamp = 0;
     Msg topMsg = activeStack->msg;
     if (msgQ && threadPool && ((!topMsg) || (msgQ->deadline - topMsg->deadline < 0))) {
         push(pop(&threadPool), &activeStack);
@@ -634,7 +634,7 @@ Msg async(Time bl, Time dl, Object *to, Method meth, int arg) {
     m->to = to; 
     m->method = meth; 
     m->arg = arg;
-    m->baseline = (wasEnabled ? current->msg->baseline : timestamp) + bl;
+    m->baseline = (ext ? timestamp : current->msg->baseline) + bl;
     m->deadline = m->baseline + (dl > 0 ? dl : INFINITY);
     
     TIMERGET(now);
@@ -712,11 +712,11 @@ void ABORT(Msg m) {
 }
 
 void T_RESET(Timer *t) {
-    t->accum = ENABLED() ? current->msg->baseline : timestamp;
+    t->accum = ext ? timestamp : current->msg->baseline;
 }
 
 Time T_SAMPLE(Timer *t) {
-    return (ENABLED() ? current->msg->baseline : timestamp) - t->accum;
+    return (ext ? timestamp : current->msg->baseline) - t->accum;
 }
 
 Time CURRENT_OFFSET(void) {
@@ -724,7 +724,7 @@ Time CURRENT_OFFSET(void) {
     char wasEnabled = ENABLED();
     DISABLE();
     TIMERGET(now);
-    Time diff = now - (wasEnabled ? current->msg->baseline : timestamp);
+    Time diff = now - (ext ? timestamp : current->msg->baseline);
     ENABLE(wasEnabled);
     return diff;
 }
@@ -777,7 +777,9 @@ int tinytimber(Object *obj, Method meth, int arg) {
     initialize();
     if (meth != NULL) {
         TIMERGET(timestamp);
+        ext = 1;
         ASYNC(obj, meth, arg);
+        ext = 0;
         schedule();
     }
     idle();
