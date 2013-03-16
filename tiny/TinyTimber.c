@@ -71,8 +71,8 @@ void DUMPH(unsigned int val) {
 #define NMSGS           15
 #define NTHREADS        4
 
-#define STATUS()        (SREG & 0x80)
-#define DISABLE(s)      { s = STATUS(); cli(); }
+#define ENABLED()       (SREG & 0x80)
+#define DISABLE()       { cli(); }
 #define ENABLE(s)       if (s) sei();
 #define SLEEP()         { SMCR = 0x01; __asm__ __volatile__ ("sleep" ::); }
 #define PANIC()         { LCDDR0 = 0xFF; LCDDR1 = 0xFF; LCDDR2 = 0xFF; while (1) SLEEP(); }
@@ -119,8 +119,8 @@ void DUMPC(char c) {
 #define NMSGS           20
 #define NTHREADS        5
 
-#define STATUS()        (SREG & 0x80)
-#define DISABLE(s)      { s = STATUS(); cli(); }
+#define ENABLED()       (SREG & 0x80)
+#define DISABLE()       { cli(); }
 #define ENABLE(s)       if (s) sei();
 #define SLEEP()         { MCUCR = 0x80; __asm__ __volatile__ ("sleep" ::); }
 #define PANIC()         { while (1) SLEEP(); }
@@ -170,9 +170,9 @@ void sei( void )        { __asm( " sei" );	}
 void cli( void )        { __asm( " cli" ); }
 char ccr( void )        { __asm( " tfr ccr,b" ); }
 
-#define STATUS()        (!(ccr() & 0x10))
-#define DISABLE(s)      { s = STATUS(); sei(); }
-#define ENABLE(s)	    { if (s) cli(); }
+#define ENABLED()       (!(ccr() & 0x10))
+#define DISABLE()       { sei(); }
+#define ENABLE(s)	{ if (s) cli(); }
 #define SLEEP()         { __asm(" wai"); }
 
 
@@ -347,9 +347,9 @@ IRQ(IRQ_SPM_RDY,         SPM_RDY_vect);
 #elif defined(__HCS12__)   // Freescale HCS12 dependencies -------------------------------
 
 #define IRQ(n,v) __interrupt void v (void) { \
-        char status; DISABLE(status); TIMERGET(timestamp); \
+        DISABLE(); TIMERGET(timestamp); \
         if (mtable[n]) mtable[n](otable[n],n); \
-        schedule(); ENABLE(status); \
+        schedule(); ENABLE(1); \
 }
 
 IRQ(IRQ_PWMEShutdown,    vect_PWMEShutdown);
@@ -589,11 +589,10 @@ static void run(void) {
     while (1) {
         Msg this = current->msg = dequeue(&msgQ);
         Msg oldMsg;
-        char status = 1;
         
-        ENABLE(status);
+        ENABLE(1);
         SYNC(this->to, this->method, this->arg);
-        DISABLE(status);
+        DISABLE();
         insert(this, &msgPool);
        
         oldMsg = activeStack->next->msg;
@@ -617,6 +616,7 @@ static void idle(void) {
 }
 
 static void schedule(void) {
+    timestamp = 0;
     Msg topMsg = activeStack->msg;
     if (msgQ && threadPool && ((!topMsg) || (msgQ->deadline - topMsg->deadline < 0))) {
         push(pop(&threadPool), &activeStack);
@@ -628,13 +628,13 @@ static void schedule(void) {
 Msg async(Time bl, Time dl, Object *to, Method meth, int arg) {
     Msg m;
     Time now;
-    char status;
-    DISABLE(status);
+    char wasEnabled = ENABLED();
+    DISABLE();
     m = dequeue(&msgPool);
     m->to = to; 
     m->method = meth; 
     m->arg = arg;
-    m->baseline = (status ? current->msg->baseline : timestamp) + bl;
+    m->baseline = (wasEnabled ? current->msg->baseline : timestamp) + bl;
     m->deadline = m->baseline + (dl > 0 ? dl : INFINITY);
     
     TIMERGET(now);
@@ -643,28 +643,28 @@ Msg async(Time bl, Time dl, Object *to, Method meth, int arg) {
         TIMERSET(timerQ);
     } else {                            // m is immediately schedulable
         enqueueByDeadline(m, &msgQ);
-        if (status && threadPool && (msgQ->deadline - activeStack->msg->deadline < 0)) {
+        if (wasEnabled && threadPool && (msgQ->deadline - activeStack->msg->deadline < 0)) {
             push(pop(&threadPool), &activeStack);
             dispatch(activeStack);
         }
     }
     
-    ENABLE(status);
+    ENABLE(wasEnabled);
     return m;
 }
 
 int sync(Object *to, Method meth, int arg) {
     Thread t;
     int result;
-    char status, status_ignore;
+    char wasEnabled = ENABLED();
     
-    DISABLE(status);
+    DISABLE();
     t = to->ownedBy;
     if (t) {                            // to is already locked
         while (t->waitsFor) 
             t = t->waitsFor->ownedBy;
-        if (t == current || !status) {  // deadlock!
-            ENABLE(status);
+        if (t == current || !wasEnabled) {  // deadlock!
+            ENABLE(wasEnabled);
             return -1;
         }
         if (to->wantedBy)               // must be a lower priority thread
@@ -673,14 +673,14 @@ int sync(Object *to, Method meth, int arg) {
         current->waitsFor = to;
         dispatch(t);
         if (current->msg == NULL) {     // message was aborted (when called from run)
-            ENABLE(status);
+            ENABLE(wasEnabled);
             return 0;
         }
     }
     to->ownedBy = current;
-    ENABLE(status && (to->wantedBy != INSTALLED_TAG));
+    ENABLE(wasEnabled && (to->wantedBy != INSTALLED_TAG));
     result = meth(to, arg);
-    DISABLE(status_ignore);
+    DISABLE();
     to->ownedBy = NULL; 
     t = to->wantedBy;
     if (t && (t != INSTALLED_TAG)) {      // we have run on someone's behalf
@@ -688,13 +688,13 @@ int sync(Object *to, Method meth, int arg) {
         t->waitsFor = NULL;
         dispatch(t);
     }
-    ENABLE(status);
+    ENABLE(wasEnabled);
     return result;
 }
 
 void ABORT(Msg m) {
-    char status;
-    DISABLE(status);
+    char wasEnabled = ENABLED();
+    DISABLE();
     if (remove(m, &timerQ) || remove(m, &msgQ))
         insert(m, &msgPool);
     else {
@@ -708,24 +708,25 @@ void ABORT(Msg m) {
             t = t->next;
         }
     }
-    ENABLE(status);
+    ENABLE(wasEnabled);
 }
 
 void T_RESET(Timer *t) {
-    t->accum = STATUS() ? current->msg->baseline : timestamp;
+    t->accum = ENABLED() ? current->msg->baseline : timestamp;
 }
 
 Time T_SAMPLE(Timer *t) {
-    return (STATUS() ? current->msg->baseline : timestamp) - t->accum;
+    return (ENABLED() ? current->msg->baseline : timestamp) - t->accum;
 }
 
 Time CURRENT_OFFSET(void) {
-    char status;
     Time now;
-    DISABLE(status);
+    char wasEnabled = ENABLED();
+    DISABLE();
     TIMERGET(now);
-    ENABLE(status);
-    return now - (status ? current->msg->baseline : timestamp);
+    Time diff = now - (wasEnabled ? current->msg->baseline : timestamp);
+    ENABLE(wasEnabled);
+    return diff;
 }
 
     
@@ -760,25 +761,25 @@ static void initialize(void) {
     TIMER_INIT();
 }
 
-void install(Object *obj, Method m, enum Vector i) {
+void install(Object *obj, Method meth, enum Vector i) {
     if (i >= 0 && i < N_VECTORS) {
-        char status;
-        DISABLE(status);
+        char wasEnabled = ENABLED();
+        DISABLE();
         otable[i] = obj;
-        mtable[i] = m;
+        mtable[i] = meth;
         obj->wantedBy = INSTALLED_TAG;  // Mark object as subject to synchronization by interrupt disabling
-        ENABLE(status);
+        ENABLE(wasEnabled);
     }
 }
 
-int tinytimber(Object *obj, Method m, int arg) {
-    char status;
-    DISABLE(status);
+int tinytimber(Object *obj, Method meth, int arg) {
+    DISABLE();
     initialize();
-    ENABLE(1);
-    if (m != NULL)
-        m(obj, arg);
-    DISABLE(status);
+    if (meth != NULL) {
+        TIMERGET(timestamp);
+        ASYNC(obj, meth, arg);
+        schedule();
+    }
     idle();
     return 0;
 }
