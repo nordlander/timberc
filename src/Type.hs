@@ -93,6 +93,8 @@ let f = \w0 v x -> e w0 (f w0 v 7)                                            ::
 tiModule (Module _ _ xs' es' ds' ws' [bs']) (Module v ns xs es ds ws bss)
                                 = do env0' <- impPreds env0 pe'
                                      (env1,ds1,bs1) <- typeDecls env0' ps ds
+                                     -- tr ("### \n" ++ render (vpr (aboveEnv env1)))
+                                     -- tr ("### \n" ++ render (vpr (predEnv0 env1)))
                                      let env1' = addTEnv0 (tenvSelsCons ds') env1
                                      (env2,bs2) <- instancePreds env1' pe
                                      -- Here it should be checked that any coercions in weqs follow the
@@ -148,7 +150,8 @@ tiBinds env (Binds rec te eqs)  = do -- tr ("TYPE-CHECKING " ++ showids xs)
                                      (s,pe,es1)   <- tiRhs0 (addTEnv te env) explWits ts es
                                      -- tr ("RESULT (" ++ showids xs ++ "):\n" ++ render (nest 8 (vpr pe)))
                                      -- tr ("EXPS:\n" ++ render (nest 8 (vpr es1)))
-                                     (s',qe,f) <- fullreduce (target te (setErrPos (posInfo es) env)) s pe `handle` (fail . tail)
+                                     (s',qe,f) <- fullreduce (multiTarget te (setErrPos (posInfo es) env)) s pe 
+                                                  `handle` (fail . tail)
                                      -- tr ("PREDICATES OBTAINED (" ++ showids xs ++ "):\n" ++ render (nest 8 (vpr qe)))
                                      let env1      = subst s' env
                                          ts1       = subst s' ts
@@ -267,7 +270,7 @@ tiEExp env (EERec c eqs)        = do alpha <- newTvar Star
         sels e                  = []
 tiEExp env (EECase e alts)      = do alpha <- newTvar Star
                                      (qes,pes,tes,pats') <- fmap unzip4 (mapM (tiPat env) (pats `zip` repeat (scheme alpha)))
-                                     (s,qe,f) <- resolve (ntarget alpha env) (concat qes)
+                                     (s,qe,f) <- resolve (negTarget alpha env) (concat qes)
                                      assert1 (null qe) "Ambiguous domain of case expression" qe
                                      alpha' <- newTvar Star
                                      (ss,qes',es') <- fmap unzip3 (mapM (tiAltR env (tvars [subst s alpha,alpha']) (R alpha')) (zip3 pes tes es))

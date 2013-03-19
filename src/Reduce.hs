@@ -137,8 +137,10 @@ reduce env pe                           = do -- tr ("###reduce\n" ++ render (nes
 
 -- Simplification ------------------------------------------------------------------------------
 
+simplify env []                         = return ([], [], id)
 simplify env pe                         = do cs <- newNames skolemSym (length tvs)
-                                             -- tr ("****SIMPLIFY\n" ++ render (nest 8 (vpr (subst (tvs`zip`map TId cs) pe))))
+                                             -- tr ("****SIMPLIFY\n" ++ render (nest 8 (vpr pe)) ++ "\n"
+                                             --                     ++ render (nest 8 (vpr (subst (tvs`zip`map TId cs) pe))))
                                              r <- expose (closePreds env [] (subst (tvs`zip`map TId cs) pe) (cs`zip`ks))
                                              case r of
                                                Right (env',qe,eq) -> return (nullSubst, pe', eLet' (subst s bss))
@@ -147,8 +149,8 @@ simplify env pe                         = do cs <- newNames skolemSym (length tv
                                                Left s -> case decodeError s of
                                                  Nothing -> fail (typeError Other env s)
                                                  Just (m,ids) | m == circularSubMsg -> 
-                                                        do (t:ts) <- mapM sat tvs'
-                                                           -- tr ("Circular: " ++ showids ids)
+                                                        do -- tr ("Circular: " ++ showids ids)
+                                                           (t:ts) <- mapM sat tvs'
                                                            s <- unify env (repeat t `zip` ts)
                                                            -- tr ("New: " ++ render (nest 8 (vpr (subst s pe))))
                                                            (s',pe',f) <- norm (subst s env) (subst s pe)
@@ -157,7 +159,8 @@ simplify env pe                         = do cs <- newNames skolemSym (length tv
                                                            sat tv = do ts <- mapM newTvar (kArgs (tvKind tv))
                                                                        return (tAp (Tvar tv) ts)
                                                  Just (m,ids) | m `elem` [ambigSubMsg, ambigInstMsg] ->
-                                                        do -- tr ("Ambiguous: " ++ showids ids)
+                                                        do -- tr ("Ambiguous: " ++ show (map showFull ids))
+                                                           -- tr ("### \n" ++ render (nest 4 (vpr (predEnv0 env))))
                                                            -- tr (render (nest 8 (vpr (t:ts))))
                                                            s <- unifyS env (repeat t `zip` ts)
                                                            -- tr ("New:\n" ++ render (nest 8 (vpr (subst s pe))))
@@ -181,8 +184,8 @@ resolve env pe                          = do -- tr ("############### Before reso
                                              (s2,q2,f2) <- simplify (subst s1 env) q1
                                              return (s2@@s1, q2, f2 . f1)
   where env_tvs                         = tevars env
-        reachable_tvs                   = vclose (map tvars pe) (ps ++ ns ++ env_tvs)
-          where (ps,ns)                 = pols env
+        reachable_tvs                   = vclose (map tvars pe) (tvs ++ env_tvs)
+          where tvs                     = commonvars env
         mkGoal (v,p)                    = (force env' (coercion || ambig), p)
           where tvs                     = tvars p
                 coercion                = isCoercion v
@@ -902,13 +905,13 @@ mkSuper env (w1,p1) (w2,p2)             = do (pe1, R c1, e1) <- instantiate p1 (
 addPreds env []                         = return env
 addPreds env (n@(w,p):pe)
   | isSub' p                            = case findCoercion env a b of
-                                             Just (w',p') -> do 
+                                             Just (w',p') -> do
                                                 r <- implications env p' p
                                                 case r of
                                                    Equal      -> addPreds (addEqs [(w,w')] env) pe
                                                    ImplyRight -> addPreds env pe
                                                    ImplyLeft  -> addPreds env pe    -- Ignore w for now (should really replace w')
-                                                   Unrelated  -> fail (encodeError ambigSubMsg [w,w'])
+                                                   Unrelated  -> tr' "!!fail" $ fail (encodeError ambigSubMsg [w,w'])
                                              Nothing -> do 
                                                 addPreds (insertSubPred n env) pe
   | isClass' p                          = do r <- cmpNode [] [] (nodes (findClass env c))

@@ -75,6 +75,7 @@ data Env = Env { kindEnv0      :: KEnv,              -- Kind for each global tyc
                  history       :: [Pred],            -- Stack of predicates currently being reduced
                  skolEnv       :: Map Name [TVAR],   -- For each skolemized tyvar T: a list of free tvars not unifiable with T
                  pols          :: ([TVAR],[TVAR]),   -- Pair of tvars occurring in (positive,negative) position in reduction target
+                 commonvars    :: [TVAR],            -- tvars occurring in all targets (if multiple)
                  equalities    :: [(Name,Name)],     -- List of witness names that must be equivalent
 
                  errPos        :: PosInfo, 
@@ -105,6 +106,7 @@ nullEnv                                 = Env { kindEnv0   = [],
                                                 history    = [],
                                                 skolEnv    = [],
                                                 pols       = ([],[]),
+                                                commonvars = [],
                                                 equalities = [],
                                                 errPos     = Unknown,
                                                 ticked     = False,
@@ -154,7 +156,11 @@ thaw env                                = env { frozen = False }    -- Not yet m
 
 target t env                            = env { pols = polvars env t `pcat` pols env }
 
-ntarget t env                           = env { pols = pswap (polvars env t) `pcat` pols env }
+multiTarget te env                      = env' { commonvars = ts }
+  where ts                              = foldr1 intersect (map tvars te)
+        env'                            = target te env
+
+negTarget t env                         = env { pols = pswap (polvars env t) `pcat` pols env }
 
 protect t env                           = env { pols = pdupl (tvars t) `pcat` pols env }
 
@@ -227,6 +233,7 @@ instance Subst Env TVAR Type where
                                                  stateT = subst s (stateT env),
                                                  tevars  = substT s (tevars env),
                                                  pols = substP env s (pols env),
+                                                 commonvars = substT s (commonvars env),
                                                  skolEnv = mapSnd (substT s) (skolEnv env) }
 
 
