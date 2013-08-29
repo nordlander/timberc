@@ -146,19 +146,20 @@ Reserved Ids
 -- Module Header ------------------------------------------------------------
 
 module  :: { Module }
-        : 'module' conid 'where' body           			{ let (is,ds,ps) = $4 in Module $2 is ds ps }
+        : 'module' conid 'where' body           			{ let (is,ds,(is',ds')) = $4
+                                                              in Module $2 is ds is' ds' }
 
-body    :: { ([Import],[Decl],[Decl]) }
+body    :: { ([Import],[Decl],([Import],[Decl])) }
         : '{' layout_off imports topdecls '}' private		{ (reverse $3,reverse $4, $6) }
         |     layout_on  imports topdecls close	private 	{ (reverse $2, reverse $3, $5) }
 
-private :: { [Decl] }
+private :: { ([Import],[Decl]) }
         : 'private' pbody									{ $2 }
-        | {- empty -}			        					{ [] }
+        | {- empty -}			        					{ ([],[]) }
 
-pbody    :: { [Decl] }
-        : '{' layout_off topdecls '}'	        			{ reverse $3 }
-        |     layout_on  topdecls close	        			{ reverse $2 }
+pbody    :: { ([Import],[Decl]) }
+        : '{' layout_off imports topdecls '}'	        	{ (reverse $3, reverse $4) }
+        |     layout_on  imports topdecls close	        	{ (reverse $2, reverse $3) }
 
 imports :: { [Import] }
         : imports import ';'                    			{ $2 : $1 }
@@ -491,6 +492,8 @@ exp10as :: { Exp }
         | anyconid '{' layout_off fields ',' '..' '}'  		{ EStruct (Just ($1,False)) (reverse $4) } 
         | anyconid '{' layout_off '..' '}'                 	{ EStruct (Just ($1,False)) [] } 
         | anyconid '{' layout_off '}'	                    { EStruct (Just ($1,True)) [] }
+        
+        | anyconid '{' layout_off fmaps '}'                 { EUpdateS (Just $1) (reverse $4) }
 
 		| forall after 'send' exp10a                       	{ ESend $1 $2 $4 }
 		| forall 'new' exp10a                              	{ ENew $1 $3 }

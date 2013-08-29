@@ -43,7 +43,7 @@ import Data.Binary
 import Data.List(sort)
 import Control.Monad(liftM2)
 
-data Module = Module    Name2 [Import] [Decl] [Decl]
+data Module = Module    Name2 [Import] [Decl] [Import] [Decl]
             deriving (Eq,Show)
 
 data Import = Import    QName2
@@ -208,6 +208,8 @@ data Stmt   = SRes      Exp
             | SAss      Pat Exp
             | SIf       Exp Stmts [(Exp,Stmts)] (Maybe Stmts)
             | SCase     Exp [Alt Stmts]
+--            | SLoop     [Quals] Stmts
+--            | SComp     Pat [Quals] Stmts
             deriving  (Eq,Show)
 
 
@@ -216,20 +218,21 @@ data Stmt   = SRes      Exp
 -- Modules -------------------------------------------------------------------
 
 instance Pr Module where
-  pr (Module c is ds []) | null [ m | DModule m <- ds ]
+  pr (Module c imps ds [] []) | null [ m | DModule m <- ds ]
                                         = text "module" <+> pr c <+> text "where" $$ 
-					  vpr is $$ 
+					  vpr imps $$ 
 					  vpr ds
   pr m                                  = prModule m
 					  
-prModule (Module c is ds [])            = text "module" <+> pr c <+> text "where" $$ 
-					  nest 4 (vpr is) $$ 
+prModule (Module c imps ds [] [])       = text "module" <+> pr c <+> text "where" $$ 
+					  nest 4 (vpr imps) $$ 
 					  nest 4 (vpr ds)
-prModule (Module c is ds ps)      	= text "module" <+> pr c <+> text "where" $$ 
-					  nest 4 (vpr is) $$ 
+prModule (Module c imps ds imps' ds')   = text "module" <+> pr c <+> text "where" $$ 
+					  nest 4 (vpr imps) $$ 
 					  nest 4 (vpr ds) $$
                                   	  text "private" $$ 
-					  nest 4 (vpr ps)
+					  nest 4 (vpr imps') $$ 
+					  nest 4 (vpr ds')
 
 instance Pr Import where
    pr (Import n)	           	= text "import" <+> pr n
@@ -487,11 +490,11 @@ prElse (Just ss)		= text "else" $$ nest 4 (pr ss)
 -- Binary instance declarations -------------------------------------------
 
 instance Binary Module where
-  put (Module a b c d) = putWord8 0 >> put a >> put b >> put c >> put d
+  put (Module a b c d e) = putWord8 0 >> put a >> put b >> put c >> put d >> put e
   get = do
     tag_ <- getWord8
     case tag_ of
-      0 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> return (Module a b c d)
+      0 -> get >>= \a -> get >>= \b -> get >>= \c -> get >>= \d -> get >>= \e -> return (Module a b c d e)
 
 instance Binary Import where
   put (Use a b) = putWord8 0 >> put a >> put b

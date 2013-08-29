@@ -197,8 +197,8 @@ Kindle2C:
 
 compileTimber clo ifs (sm,t_file) ti_file c_file h_file js_file
                         = do putStrLn ("[compiling "++ t_file++"]")
-                             let Syntax2.Module n is _ _ = sm
-                             (imps,ifs') <- chaseIfaceFiles clo (imports2 n is) ifs
+                             let Syntax2.Module n is _ is' _ = sm
+                             (imps,ifs') <- chaseIfaceFiles clo (imports2 n (is++is')) ifs
                              let ((htxt,mtxt),ifc,jstxt) = runM (passes imps sm)
                              encodeCFile ti_file ifc
                              writeFile c_file mtxt
@@ -260,9 +260,9 @@ compileAll clo ifs (p@(ms,t_file):t_files)
         h_file          = base ++ ".h"
         js_file         = base ++ ".js"
         qm              = takeBaseName t_file
-        longName (Syntax2.Module m a b c,t)
+        longName (Syntax2.Module m a b c d,t)
           | reverse (takeWhile (/= '.') (reverse qm)) == nstring m 
-                        = (Syntax2.Module (name2 qm) a b c, t_file)
+                        = (Syntax2.Module (name2 qm) a b c d, t_file)
           | otherwise   = errorIds "Module name not last constructor id in file name" [sName m]
 
 checkUpToDate clo t_file ti_file c_file h_file js_file imps
@@ -379,9 +379,9 @@ doParse' clo txt =  runM (pass clo Parser2.parser Parser txt)
 
 
 makeProg clo cfg t_file     = do txt <- readFile t_file
-                                 let ms@(Syntax2.Module n is _ _) = doParse txt
+                                 let ms@(Syntax2.Module n is _ is' _) = doParse txt
                                  currDir <- Directory.getCurrentDirectory
-                                 (imps,ss) <- chaseSyntax2Files clo (imports2 n is) [(noqual n,(ms,currDir ++ "/" ++ t_file))]
+                                 (imps,ss) <- chaseSyntax2Files clo (imports2 n (is++is')) [(noqual n,(ms,currDir ++ "/" ++ t_file))]
                                  let cs = compile_order imps
                                      is = filter nonDummy cs
                                      ps = map (\(n,ii) -> (snd ii, qnstring n ++ ".t")) is ++ [(ms,t_file)]
@@ -397,7 +397,7 @@ makeProg clo cfg t_file     = do txt <- readFile t_file
    				      linkHTML cfg clo{outfile = root_path} r js_files
 	                          else
 	                              linkO cfg clo{outfile = root_path} r o_files
-  where nonDummy (_,(_,Syntax2.Module n _ _ _)) 
+  where nonDummy (_,(_,Syntax2.Module n _ _ _ _)) 
                             = nstring n /= ""
         root_path           = rmSuffix ".t" t_file
 
@@ -471,9 +471,9 @@ chaseIfaceFiles clo                 = chaseImps (decodeModule clo) impsOf2 ".ti"
                                           
 impName (Syntax2.Import c)          = c
 impName (Syntax2.Use _ c)           = c
-impNames (Syntax2.Module _ is _ _)  = map impName is
+impNames (Syntax2.Module _ is _ is' _)  = map impName (is++is')
 
-impNames2 b (Syntax2.Module _ is _ _,_)  = map f is
+impNames2 b (Syntax2.Module _ is _ is' _,_)  = map f (is++is')
   where f (Syntax2.Import c) = (c,b)
         f (Syntax2.Use _ c)  = (c,False)
 
@@ -490,7 +490,7 @@ chaseSyntax2Files clo                = chaseImps readSyntax impNames2 ".t"
                                                                    (\e -> do  let libf = Config.libDir clo ++ "/" ++ f
                                                                               t_exists <- Directory.doesFileExist libf
                                                                               if t_exists 
-                                                                                then return (Syntax2.Module (name2 "") [] [] [],libf) 
+                                                                                then return (Syntax2.Module (name2 "") [] [] [] [],libf) 
                                                                                 else fail ("File "++ f ++ " does not exist."))
                                                                               
 

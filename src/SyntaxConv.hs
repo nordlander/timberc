@@ -44,7 +44,7 @@ import qualified Syntax
 
 syntaxconv m                       = return (sModule m)
 
-sModule (Module n is ds1 ds2)      = Syntax.mkModule (sName n) (map sImport is, sDecls True ds1, sDecls False ds2)
+sModule (Module n is ds is' ds')   = Syntax.mkModule (sName n) (map sImport (is++is'), sDecls True ds, sDecls False ds')
 
 sImport (Import n)                 = Syntax.Import True (sQName n)
 sImport (Use Nothing n)            = Syntax.Import False (sQName n)
