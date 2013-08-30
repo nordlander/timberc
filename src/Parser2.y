@@ -231,7 +231,8 @@ constrs :: { [Constr] }
 		| constr			       							{ [$1] }
 
 constr  :: { Constr }
-        : ftype consym ftype '\\\\' preds             		{ CInfix $1 $2 $3 [] $5 }
+        : ftype consym ftype                                    { CInfix $1 $2 $3 [] [] }
+        | ftype consym ftype '\\\\' preds             		{ CInfix $1 $2 $3 [] $5 }
         | ftype consym ftype '\\\\' quants            		{ CInfix $1 $2 $3 $5 [] }
         | ftype consym ftype '\\\\' quants ',' preds  		{ CInfix $1 $2 $3 $5 $7 }
         | type                                        		{ type2cons $1 }
